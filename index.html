@@ -715,6 +715,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     <a href="#" class="nav-link mb-1" id="nav-auditlog" onclick="showPage('auditlog',this)" title="Audit Log">
       <i class="fas fa-shield-halved me-2"></i><span>Audit Log</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-signuprequests" onclick="showPage('signuprequests',this)" title="คำขอสมัครใช้งาน" style="display:none">
+      <i class="fas fa-user-plus me-2"></i><span>คำขอสมัครใช้งาน</span>
+    </a>
     </div>
   </div>
   <hr class="my-2">
@@ -3376,6 +3379,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
               <option value="FORCE_CLOSE">FORCE_CLOSE</option>
               <option value="REOPEN">REOPEN</option>
               <option value="APPROVE">APPROVE</option>
+              <option value="REJECT">REJECT</option>
             </select>
           </div>
           <div class="col-md-2">
@@ -3417,6 +3421,55 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════
+       PAGE: คำขอสมัครใช้งาน — เห็นได้เฉพาะ admin (RLS จริง ไม่ใช่แค่ซ่อน UI)
+       ══════════════════════════════════════════════ -->
+  <div class="page-view" id="page-signuprequests">
+    <div class="page-header">
+      <h4 class="fw-bold mb-0" style="color:white">
+        <i class="fas fa-user-plus me-2"></i>คำขอสมัครใช้งาน
+      </h4>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-8">
+            <small class="text-muted">
+              <i class="fas fa-circle-info me-1"></i>
+              สร้างบัญชีจริงที่ Supabase Dashboard ด้วย Email = <code>Username@proflow.internal</code> (ตัวพิมพ์เล็ก)
+              และเปิด "Auto Confirm User" เสมอ — Password = รหัสพนักงาน แล้วกลับมากด "สร้างแล้ว"
+            </small>
+          </div>
+          <div class="col-md-4 d-flex justify-content-end">
+            <button class="btn btn-sm btn-primary" onclick="signupreqLoadData()" title="รีเฟรช">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>วันที่ส่งคำขอ</th><th>ชื่อ-นามสกุล</th><th>Username ที่ต้องสร้าง</th>
+                <th>รหัสพนักงาน</th><th>เบอร์โทร</th><th>อีเมลจริง</th><th>สถานะ</th>
+                <th class="text-center" style="width:140px">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="signuprequests-tbody">
+              <tr><td colspan="8" class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /main-content -->
 
 <!-- Loading Overlay -->
@@ -3427,22 +3480,61 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
 <!-- Login Gate — บังทั้งแอปจนกว่าจะ login ผ่าน Supabase Auth สำเร็จ -->
 <div id="loginGate">
-  <div class="glass-card text-center">
+  <div class="glass-card text-center" style="max-height:92vh;overflow-y:auto">
     <img src="wisenovation_LOGO -Cut.png" alt="Wise Novation" style="height:32px;width:auto" class="mb-2">
     <h5 class="fw-bold mb-1" style="color:#1e3a8a">ProFlow — Wise MES</h5>
-    <div class="text-muted mb-3" style="font-size:.8rem">เข้าสู่ระบบด้วยอีเมลที่ได้รับจากแอดมิน</div>
-    <form onsubmit="event.preventDefault(); loginSubmit();" class="text-start">
-      <div class="mb-2">
-        <label class="form-label" style="font-size:.82rem">อีเมล</label>
-        <input type="email" id="loginEmail" class="form-control" required autocomplete="username">
+
+    <!-- มุมมอง 1: เข้าสู่ระบบ -->
+    <div id="loginGateLoginView">
+      <div class="text-muted mb-3" style="font-size:.8rem">เข้าสู่ระบบด้วย Username ที่ได้รับจากแอดมิน</div>
+      <form onsubmit="event.preventDefault(); loginSubmit();" class="text-start">
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">Username หรืออีเมล</label>
+          <input type="text" id="loginEmail" class="form-control" required autocomplete="username">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">รหัสผ่าน</label>
+          <input type="password" id="loginPassword" class="form-control" required autocomplete="current-password">
+        </div>
+        <div id="loginError" class="text-danger mb-2" style="font-size:.8rem;display:none"></div>
+        <button type="submit" id="loginSubmitBtn" class="btn btn-primary w-100">เข้าสู่ระบบ</button>
+      </form>
+      <div class="mt-2" style="font-size:.8rem">
+        <a href="#" onclick="event.preventDefault(); _loginGateShowSignup();">ยังไม่มีบัญชี? สมัครใช้งาน</a>
       </div>
-      <div class="mb-2">
-        <label class="form-label" style="font-size:.82rem">รหัสผ่าน</label>
-        <input type="password" id="loginPassword" class="form-control" required autocomplete="current-password">
+    </div>
+
+    <!-- มุมมอง 2: สมัครใช้งาน (ส่งคำขอให้แอดมินตรวจสอบ ไม่ใช่ login ตรง) -->
+    <div id="loginGateSignupView" style="display:none">
+      <div class="text-muted mb-3" style="font-size:.8rem">กรอกข้อมูลเพื่อส่งคำขอ — แอดมินจะติดต่อกลับพร้อม Username/รหัสผ่าน</div>
+      <form onsubmit="event.preventDefault(); signupRequestSubmit();" class="text-start">
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">ชื่อจริง (ภาษาอังกฤษ)</label>
+          <input type="text" id="signup-f-firstname" class="form-control" required placeholder="เช่น Somchai">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">นามสกุล (ภาษาอังกฤษ)</label>
+          <input type="text" id="signup-f-lastname" class="form-control" required placeholder="เช่น Kittiwat">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">รหัสพนักงาน</label>
+          <input type="text" id="signup-f-employeeid" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">เบอร์โทร</label>
+          <input type="tel" id="signup-f-phone" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.82rem">อีเมลจริง (สำหรับแอดมินติดต่อกลับ)</label>
+          <input type="email" id="signup-f-email" class="form-control" required autocomplete="email">
+        </div>
+        <div id="signupError" class="text-danger mb-2" style="font-size:.8rem;display:none"></div>
+        <button type="submit" id="signupSubmitBtn" class="btn btn-primary w-100">ส่งคำขอสมัคร</button>
+      </form>
+      <div class="mt-2" style="font-size:.8rem">
+        <a href="#" onclick="event.preventDefault(); _loginGateShowLogin();">← กลับไปเข้าสู่ระบบ</a>
       </div>
-      <div id="loginError" class="text-danger mb-2" style="font-size:.8rem;display:none"></div>
-      <button type="submit" id="loginSubmitBtn" class="btn btn-primary w-100">เข้าสู่ระบบ</button>
-    </form>
+    </div>
   </div>
 </div>
 
@@ -3882,6 +3974,7 @@ function showPage(page, navEl) {
     'codash'    : codashLoadData,
     'prodstatus': loadProdStatusData,
     'auditlog'  : auditlogLoadData,
+    'signuprequests': signupreqLoadData,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -9956,18 +10049,24 @@ let _bprPreviewModal = null;
 // เก็บใบบันทึกผลิต (BPR) แค่ 6 วันล่าสุดเท่านั้น (นับจาก CreatedAt) — ลบของเก่ากว่านั้นทิ้งถาวรอัตโนมัติทุกครั้งที่
 // เข้าหน้านี้ (ผู้ใช้ยืนยันแล้วว่าต้องการแบบนี้ 2026-08-02 ไม่ต้องเก็บประวัติยาว) แถวที่ไม่มี CreatedAt เลย (ข้อมูลเก่า
 // จากก่อนมีคอลัมน์นี้) ถือว่าเก่ากว่า 6 วันเสมอ ลบทิ้งไปด้วย
+// ลบใบบันทึกผลิต (BPR) เก่ากว่า 6 วันอัตโนมัติ — แต่ **ยกเว้นรายการที่อนุมัติต้นทุนแล้ว** (Status='อนุมัติแล้ว')
+// เสมอ ไม่ว่าจะเก่าแค่ไหน (แก้ 2026-08-05, ก่อนหน้านี้ลบทุกสถานะเหมือนกัน) — ตารางนี้ใช้ร่วมกัน 2 จุดประสงค์:
+// เอกสาร BPR ที่พิมพ์แล้ว (แค่กระดาษ ไม่ต้องเก็บนาน ตามที่ผู้ใช้ตัดสินใจไว้เดิม) กับข้อมูลต้นทุนที่อนุมัติแล้ว
+// จากหน้า "บันทึกผลิต" (MaterialCost/LaborCost/TotalCost/CostPerUnit/Yield% ฯลฯ — ข้อมูลเชิงบัญชีที่ต้อง
+// เก็บไว้ตรวจสอบย้อนหลังได้ ไม่ควรหายไปเฉยๆ แค่เพราะมีคนเปิดหน้า BPR)
 async function _bprPurgeOld() {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 6);
   const cutoffStr = _planWeekLocalDateStr(cutoff);
+  const oldFilter = q => q.or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`).neq('Status', 'อนุมัติแล้ว');
   // ต้องลบ production_record_details ที่ผูกกันด้วยเสมอ ไม่งั้นจะเหลือข้อมูลกำพร้าค้างตลอดไป (ไม่มี FK cascade
   // ระดับ DB) — ดึง ProdRecord_ID ของแถวที่จะถูกลบก่อน แล้วลบ details ก่อนลบ header
-  const { data: toDelete } = await _sb.from('production_records').select('ProdRecord_ID').or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`);
+  const { data: toDelete } = await oldFilter(_sb.from('production_records').select('ProdRecord_ID'));
   const idsToDelete = (toDelete || []).map(r => r.ProdRecord_ID).filter(Boolean);
   if (idsToDelete.length) {
     await _sb.from('production_record_details').delete().in('ProdRecord_ID', idsToDelete);
   }
-  await _sb.from('production_records').delete().or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`);
+  await oldFilter(_sb.from('production_records').delete());
 }
 
 async function bprLoadData() {
@@ -10421,6 +10520,16 @@ async function moDelete(rowId) {
       await _sb.from('production_record_details').delete().in('ProdRecord_ID', linkedIds);
     }
     await _sb.from('production_records').delete().eq('MO_Ref', r.MO_ID);
+  }
+
+  // ลบแผนผลิต (production_plan) ที่ผูกกับ MO นี้ด้วย — เดิมไม่ลบ ทำให้ค้างอยู่ในปฏิทิน/มุมมองรายสัปดาห์ของหน้า
+  // แผนผลิตตลอดไปหลังลบ MO (บั๊กคลาสเดียวกับ production_records ด้านบน แต่คนละตาราง — พบและแก้ 2026-08-06
+  // ตามคำขอผู้ใช้) MO เดียวอาจมีหลายแผน (ถูกจัดลงปฏิทินหลายวัน/เลื่อนแผน) จึงลบทั้งหมดที่ MO_Ref ตรงกัน ไม่ใช่
+  // แค่แถวเดียว — และเก็บกวาด production_plan_step_overrides (หมุด Gantt แบบ manual ของหน้าภาพรวมการผลิต)
+  // ที่ผูกกับ MO นี้ไปด้วยเลย กันค้างเป็น orphan แบบเดียวกัน
+  if (r?.MO_ID) {
+    await _sb.from('production_plan').delete().eq('MO_Ref', r.MO_ID);
+    await _sb.from('production_plan_step_overrides').delete().eq('MO_Ref', r.MO_ID);
   }
 
   // สถานะ CO หลักยังเป็นของ fgoutUpdateCOStatus/_deliveryCheckCOComplete เท่านั้น (ดูหัวข้อ 18) — ลบ MO ไม่ควร
@@ -12589,7 +12698,7 @@ function auditlogRenderTable() {
   }
 
   const actionBadge = {
-    DELETE: 'danger', BULK_DELETE: 'danger', FORCE_CLOSE: 'danger',
+    DELETE: 'danger', BULK_DELETE: 'danger', FORCE_CLOSE: 'danger', REJECT: 'danger',
     CANCEL: 'warning', REOPEN: 'warning', EDIT: 'info', APPROVE: 'success',
   };
 
@@ -12605,10 +12714,127 @@ function auditlogRenderTable() {
 }
 
 // ══════════════════════════════════════════════
+// PAGE: คำขอสมัครใช้งาน — admin เท่านั้น (บังคับจริงด้วย RLS, หน้านี้แค่แสดง/สั่งอัปเดต)
+// ══════════════════════════════════════════════
+let _signupreqData = [];
+
+async function signupreqLoadData() {
+  _showLoader();
+  const { data, error } = await _sb.from('signup_requests')
+    .select('*').order('CreatedAt', { ascending: false }).limit(500);
+  _hideLoader();
+  if (error) { _err('โหลดคำขอสมัครใช้งานไม่สำเร็จ', error.message); return; }
+  _signupreqData = data || [];
+  signupreqRenderTable();
+}
+
+function signupreqRenderTable() {
+  const tbody = document.getElementById('signuprequests-tbody');
+  if (!_signupreqData.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">ไม่มีคำขอ</td></tr>`;
+    return;
+  }
+  const statusBadge = { 'รอตรวจสอบ': 'warning', 'สร้างแล้ว': 'success', 'ปฏิเสธ': 'danger' };
+
+  tbody.innerHTML = _signupreqData.map(r => {
+    const username = _computeUsername(r.FirstName, r.LastName);
+    const actions = r.Status === 'รอตรวจสอบ' ? `
+      <button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="signupreqApprove(${r._row_id})" title="สร้างบัญชีแล้ว">
+        <i class="fas fa-check"></i>
+      </button>
+      <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="signupreqReject(${r._row_id})" title="ปฏิเสธ">
+        <i class="fas fa-times"></i>
+      </button>` : `<span class="text-muted small">${r.ReviewNote || '—'}</span>`;
+    return `<tr>
+      <td class="nowrap">${_fmtDateTime ? _fmtDateTime(r.CreatedAt) : (r.CreatedAt||'').replace('T',' ').substring(0,19)}</td>
+      <td>${r.FirstName || ''} ${r.LastName || ''}</td>
+      <td><span class="badge bg-light text-dark border">${username}</span></td>
+      <td>${r.EmployeeID || ''}</td>
+      <td>${r.Phone || '—'}</td>
+      <td>${r.RealEmail || ''}</td>
+      <td><span class="badge bg-${statusBadge[r.Status]||'secondary'}">${r.Status}</span></td>
+      <td class="text-center">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function signupreqApprove(rowId) {
+  const r = _signupreqData.find(d => d._row_id === rowId);
+  if (!r) return;
+  const username = _computeUsername(r.FirstName, r.LastName);
+  const res = await Swal.fire({
+    icon: 'question', title: 'ยืนยันว่าสร้างบัญชีจริงแล้ว?',
+    html: `<div class="text-start">
+        <b>${r.FirstName} ${r.LastName}</b><br>
+        Username: <b>${username}</b> (Email ที่สร้างจริง: <code>${username.toLowerCase()}@proflow.internal</code>)<br>
+        Password: <b>${r.EmployeeID}</b>
+      </div>`,
+    showCancelButton: true, confirmButtonText: 'สร้างแล้ว', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  const { error } = await _sb.from('signup_requests').update({ Status: 'สร้างแล้ว' }).eq('_row_id', rowId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+  _logAudit('APPROVE', 'signup_requests', r.EmployeeID, `สร้างบัญชี ${username} ให้ ${r.FirstName} ${r.LastName}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อัปเดตสถานะแล้ว', showConfirmButton:false, timer:1500 });
+  signupreqLoadData();
+}
+
+async function signupreqReject(rowId) {
+  const r = _signupreqData.find(d => d._row_id === rowId);
+  if (!r) return;
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอนี้?',
+    html: `<div class="text-start"><b>${r.FirstName} ${r.LastName}</b> — รหัสพนักงาน ${r.EmployeeID}</div>`,
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+  _showLoader();
+  const { error } = await _sb.from('signup_requests').update({ Status: 'ปฏิเสธ', ReviewNote: reason.trim() }).eq('_row_id', rowId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+  _logAudit('REJECT', 'signup_requests', r.EmployeeID, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  signupreqLoadData();
+}
+
+// ══════════════════════════════════════════════
 // Login / Logout
 // ══════════════════════════════════════════════
+// สร้าง Username จากชื่อ-นามสกุลภาษาอังกฤษตามกฎที่แอดมินใช้จริง: 5 ตัวหน้าของชื่อ + "." + ตัวแรกของนามสกุล
+// (เช่น "Somchai"+"Kittiwat" → "Somch.K") — ใช้ทั้งตอนแสดงในหน้า "คำขอสมัครใช้งาน" และตอนแปลงเป็นอีเมลปลอม
+function _computeUsername(firstName, lastName) {
+  const first5 = (firstName || '').trim().slice(0, 5);
+  const lastInitial = (lastName || '').trim().slice(0, 1);
+  return `${first5}.${lastInitial}`;
+}
+
+// Supabase Auth ต้องมี "email" เป็น identity เสมอ แต่พนักงาน login ด้วย Username ไม่ใช่อีเมลจริง — สร้าง
+// อีเมลปลอมจาก Username ส่งเข้า Supabase Auth แทน (ผู้ใช้ไม่เห็นที่มา) ใช้ .internal เพราะเป็น TLD ที่
+// IANA สงวนไว้ไม่ให้ resolve จริงบนอินเทอร์เน็ตเลย ต่างจากเดา domain สมมติแบบ .com ที่อาจมีคนใช้จริงอยู่แล้ว
+function _usernameToSyntheticEmail(username) {
+  return `${username.trim().toLowerCase()}@proflow.internal`;
+}
+
+// สลับมุมมอง login/signup ใน loginGate (คนที่ยังไม่ login เห็นแค่ 2 มุมมองนี้ ไม่มีหน้าอื่นให้เห็นเลย)
+function _loginGateShowSignup() {
+  document.getElementById('loginGateLoginView').style.display = 'none';
+  document.getElementById('loginGateSignupView').style.display = 'block';
+}
+function _loginGateShowLogin() {
+  document.getElementById('loginGateSignupView').style.display = 'none';
+  document.getElementById('loginGateLoginView').style.display = 'block';
+}
+
 async function loginSubmit() {
-  const email = document.getElementById('loginEmail').value.trim();
+  const typed = document.getElementById('loginEmail').value.trim();
+  // รองรับ 2 รูปแบบบัญชีพร้อมกัน: บัญชีเก่าที่สร้างด้วยอีเมลจริง (มี "@" อยู่แล้ว → ส่งตรงๆ ไม่แปลง)
+  // และบัญชีใหม่แบบ Username (ไม่มี "@" → แปลงเป็นอีเมลปลอมก่อนส่งเข้า Supabase Auth)
+  const email = typed.includes('@') ? typed : _usernameToSyntheticEmail(typed);
   const password = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
   const btn = document.getElementById('loginSubmitBtn');
@@ -12617,11 +12843,41 @@ async function loginSubmit() {
   const { error } = await _sb.auth.signInWithPassword({ email, password });
   btn.disabled = false;
   if (error) {
-    errEl.textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    errEl.textContent = 'Username/อีเมล หรือรหัสผ่านไม่ถูกต้อง';
     errEl.style.display = 'block';
     return;
   }
   // สำเร็จ: onAuthStateChange (ด้านล่าง) จะซ่อน loginGate และโหลดหน้าแรกให้เอง
+}
+
+// ส่งคำขอสมัครใช้งาน — ทำงานได้ตอนยังไม่ login เพราะ signup_requests มี policy anon_can_submit
+// (ดู create_signup_requests.sql) อนุญาตแค่ INSERT ไม่ให้อ่าน/แก้ข้อมูลคนอื่นได้
+async function signupRequestSubmit() {
+  const firstName  = document.getElementById('signup-f-firstname').value.trim();
+  const lastName    = document.getElementById('signup-f-lastname').value.trim();
+  const employeeId = document.getElementById('signup-f-employeeid').value.trim();
+  const phone       = document.getElementById('signup-f-phone').value.trim();
+  const realEmail   = document.getElementById('signup-f-email').value.trim();
+  const errEl = document.getElementById('signupError');
+  const btn = document.getElementById('signupSubmitBtn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  const { error } = await _sb.from('signup_requests').insert({
+    FirstName: firstName, LastName: lastName, EmployeeID: employeeId,
+    Phone: phone || null, RealEmail: realEmail,
+  });
+  btn.disabled = false;
+  if (error) {
+    errEl.textContent = 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่';
+    errEl.style.display = 'block';
+    return;
+  }
+  await Swal.fire({
+    icon: 'success', title: 'ส่งคำขอแล้ว',
+    text: 'รอแอดมินติดต่อกลับพร้อม Username และรหัสผ่าน',
+  });
+  document.getElementById('signup-f-firstname').closest('form').reset();
+  _loginGateShowLogin();
 }
 
 async function logoutUser() {
@@ -12638,6 +12894,11 @@ function _renderCurrentUserBadge() {
     <a href="#" onclick="event.preventDefault(); logoutUser();" title="ออกจากระบบ" class="ms-1">
       <i class="fas fa-right-from-bracket"></i>
     </a>`;
+  // หน้า "คำขอสมัครใช้งาน" มีข้อมูลส่วนตัวจริงของผู้สมัครทุกคน (เบอร์โทร/รหัสพนักงาน/อีเมลจริง) — ซ่อน
+  // ลิงก์นี้จาก sidebar สำหรับคนที่ไม่ใช่ admin (แค่ความสะดวก UI เฉยๆ ตัวบังคับจริงคือ RLS policy
+  // admin_full_access ใน create_signup_requests.sql — คนที่ไม่ใช่ admin เข้าหน้านี้ตรงๆก็เห็นรายการเปล่า)
+  const navEl = document.getElementById('nav-signuprequests');
+  if (navEl) navEl.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -12650,6 +12911,9 @@ document.addEventListener('DOMContentLoaded', function() {
       _currentUser = {
         email: session.user.email,
         name: session.user.user_metadata?.full_name || session.user.email,
+        // app_metadata มาจาก JWT ตอน login/refresh token — ผู้ใช้ทั่วไปแก้เองผ่าน client SDK ไม่ได้
+        // (ต่างจาก user_metadata ด้านบนที่แก้เองได้) จึงใช้เป็นตัวเช็คสิทธิ์ admin ได้อย่างปลอดภัย
+        isAdmin: session.user.app_metadata?.role === 'admin',
       };
       document.getElementById('loginGate').style.display = 'none';
       _renderCurrentUserBadge();
