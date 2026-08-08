@@ -128,6 +128,13 @@ body {
   #page-fgout .fgout-kpi-row > .col-md { flex: 0 0 auto; max-width: 135px; }
   #page-fgout .fgout-kpi-divider { margin-left: 28px; }
 }
+/* เส้นแบ่งกลุ่ม KPI หน้า Stock วัตถุดิบ — แยกกลุ่ม "รายการทั้งหมด/BULK/PAC" (ซ้าย) จากกลุ่ม "หมดแล้ว/ใกล้หมดอายุ/มูลค่า" (ขวา) เหมือน pattern เดียวกับ fgout-kpi-divider */
+#page-stock .stock-kpi-divider .kpi-card { border-left-width: 4px; }
+#page-stock .stock-kpi-divider { position: relative; }
+#page-stock .stock-kpi-divider::before {
+  content: ''; position: absolute; left: -2px; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #94a3b8;
+}
+@media (max-width: 767px) { #page-stock .stock-kpi-divider::before { display: none; } }
 /* Loading overlay */
 #loadingOverlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.55);
@@ -170,6 +177,15 @@ body {
   display: flex; align-items: center; justify-content: center; color: #fff; font-size: .92rem;
   box-shadow: 0 4px 10px rgba(0,0,0,.12);
 }
+.home-forecast-card {
+  background: #fff; border: 1px solid rgba(200,210,230,.6); border-radius: 10px; padding: 10px 10px 12px;
+  transition: transform .15s, box-shadow .15s;
+}
+.home-forecast-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,58,138,.12); }
+.home-forecast-code { font-size: .78rem; font-weight: 700; color: #1e293b; }
+.home-forecast-name { font-size: .66rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.home-forecast-num { font-size: .85rem; font-weight: 800; color: #1e3a8a; }
+.home-forecast-unit { font-size: .62rem; color: #64748b; }
 .home-guide-step {
   display: flex; gap: 10px; align-items: center; padding: 4px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;
 }
@@ -743,9 +759,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           <div class="fw-bold" style="color:#1e3a8a;font-size:.88rem">
             <i class="fas fa-circle-info me-2"></i>วิธีใช้งานเบื้องต้น — ขั้นตอนการทำงานของโรงงาน
           </div>
-          <i class="fas fa-chevron-up" id="home-guide-chevron"></i>
+          <i class="fas fa-chevron-up collapsed" id="home-guide-chevron"></i>
         </div>
-        <div id="home-guide-body" class="mt-2">
+        <div id="home-guide-body" class="mt-2 collapsed">
           <div class="home-guide-step">
             <div class="home-guide-stepnum">1</div>
             <div class="flex-grow-1" style="min-width:160px;font-size:.8rem">
@@ -890,6 +906,23 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           </div>
         </div>
       </div>
+
+      <!-- BULK ที่เบิกออก/รับเข้าบ่อยที่สุด (ตามปริมาณ) — ไตรมาสปัจจุบัน -->
+      <div class="kpi-section-label mt-2" id="home-bulk-chart-label">BULK ที่เบิกออก/รับเข้าบ่อยที่สุด</div>
+      <div class="glass-card">
+        <div class="fw-bold small text-muted mb-2" id="home-bulk-chart-sub">Top 5 ตามปริมาณเข้า-ออกรวม (Kg)</div>
+        <div style="position:relative;height:220px">
+          <canvas id="home-bulk-chart"></canvas>
+          <div id="home-bulk-chart-empty" class="text-center text-muted py-4 d-none">ยังไม่มีรายการรับเข้า/เบิกออก BULK ในไตรมาสนี้</div>
+        </div>
+      </div>
+
+      <!-- พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — Top 5 ชุดเดียวกับกราฟด้านบน แสดงเป็นกราฟเส้นเล็กต่อการ์ด -->
+      <div class="kpi-section-label mt-2">พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน</div>
+      <div class="glass-card">
+        <div class="fw-bold small text-muted mb-2">เส้นทึบ = ประวัติเบิกออกจริง (ต่อเดือน) · เส้นประ = พยากรณ์ 2 เดือนข้างหน้า · badge "พอ/ไม่พอ" เทียบยอดพยากรณ์รวมกับสต็อกคงเหลือให้แล้ว</div>
+        <div class="row g-2" id="home-forecast-cards"></div>
+      </div>
     </div>
   </div>
 
@@ -910,10 +943,17 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
               placeholder="🔍 ค้นหา รหัส / ชื่อ / Lot..." oninput="renderStockCards()">
             <i class="fas fa-times-circle search-clear-icon" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา"></i>
           </span>
-          <select id="stock-filter-status" class="form-select form-select-sm" style="max-width:160px" onchange="renderStockCards()">
+          <select id="stock-filter-type" class="form-select form-select-sm" style="max-width:140px" onchange="renderStockCards()">
+            <option value="">ประเภท: ทั้งหมด</option>
+            <option value="BULK">BULK</option>
+            <option value="PAC">PAC</option>
+            <option value="none">ไม่ระบุประเภท</option>
+          </select>
+          <select id="stock-filter-status" class="form-select form-select-sm" style="max-width:180px" onchange="renderStockCards()">
             <option value="">ทั้งหมด</option>
             <option value="low">ใกล้หมด ⚠️</option>
             <option value="out">หมดแล้ว 🔴</option>
+            <option value="expiring">ใกล้หมดอายุ (≤20 เดือน)</option>
           </select>
           <button class="btn btn-sm btn-primary ms-auto" onclick="loadStockData()">
             <i class="fas fa-sync-alt me-1"></i>รีเฟรช
@@ -924,25 +964,37 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     <div class="scroll-content">
       <!-- KPI -->
       <div class="row g-3 mb-3" id="stock-kpi-row">
-        <div class="col-6 col-md-3">
-          <div class="kpi-card">
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="cursor:pointer" onclick="stockClearFilters()" title="กดเพื่อดูรายการทั้งหมด (ล้างฟิลเตอร์)">
             <div class="kpi-num" id="kpi-total-items">—</div>
             <div class="kpi-label">รายการทั้งหมด</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#f59e0b">
-            <div class="kpi-num text-warning" id="kpi-low-stock">—</div>
-            <div class="kpi-label">ใกล้หมด</div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#7c3aed;cursor:pointer" onclick="stockFilterByType('BULK')" title="กดเพื่อกรองเฉพาะ BULK">
+            <div class="kpi-num" style="color:#7c3aed" id="kpi-type-bulk">—</div>
+            <div class="kpi-label">BULK</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#ef4444">
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#0dcaf0;cursor:pointer" onclick="stockFilterByType('PAC')" title="กดเพื่อกรองเฉพาะ PAC">
+            <div class="kpi-num" style="color:#0891b2" id="kpi-type-pac">—</div>
+            <div class="kpi-label">PAC</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2 stock-kpi-divider">
+          <div class="kpi-card" style="border-color:#ef4444;cursor:pointer" onclick="stockFilterByStatus('out')" title="กดเพื่อกรองเฉพาะที่หมดแล้ว">
             <div class="kpi-num text-danger" id="kpi-out-stock">—</div>
             <div class="kpi-label">หมดแล้ว</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="stockFilterByStatus('expiring')" title="กดเพื่อกรองเฉพาะล็อตที่เหลืออายุ 20 เดือนหรือน้อยกว่า">
+            <div class="kpi-num text-warning" id="kpi-expiring">—</div>
+            <div class="kpi-label">ใกล้หมดอายุ (≤20 เดือน)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
           <div class="kpi-card" style="border-color:#22c55e">
             <div class="kpi-num text-success" id="kpi-stock-value">—</div>
             <div class="kpi-label">มูลค่าสต็อก (฿)</div>
@@ -3895,10 +3947,12 @@ function homeToggleGuide() {
   if (chevron) chevron.classList.toggle('collapsed', isCollapsed);
   localStorage.setItem(_homeGuideCollapsedKey, isCollapsed ? '1' : '0');
 }
+// ค่าเริ่มต้นคือ "พับเก็บ" เสมอ (ตั้งไว้ใน HTML แล้ว) — ยกเว้นผู้ใช้เคยกางออกเองมาก่อน (เก็บ '0' ไว้ใน localStorage)
+// พับเก็บเป็นค่าเริ่มต้นเพื่อเปิดที่ว่างให้กราฟ "BULK ที่เบิกออก/รับเข้าบ่อยที่สุด" ด้านล่าง ไม่ต้องเลื่อนจอเพิ่มถ้าไม่จำเป็น
 (function _homeGuideRestoreState() {
-  if (localStorage.getItem(_homeGuideCollapsedKey) === '1') {
-    document.getElementById('home-guide-body')?.classList.add('collapsed');
-    document.getElementById('home-guide-chevron')?.classList.add('collapsed');
+  if (localStorage.getItem(_homeGuideCollapsedKey) === '0') {
+    document.getElementById('home-guide-body')?.classList.remove('collapsed');
+    document.getElementById('home-guide-chevron')?.classList.remove('collapsed');
   }
 })();
 
@@ -3912,17 +3966,45 @@ async function loadHomeData() {
     el('home-greeting').textContent = `วัน${days[now.getDay()]}ที่ ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear() + 543}`;
   }
 
+  // ไตรมาสปัจจุบันตามปฏิทิน (Q1 ม.ค.-มี.ค., Q2 เม.ย.-มิ.ย., Q3 ก.ค.-ก.ย., Q4 ต.ค.-ธ.ค.) — รวมข้อมูลตั้งแต่ต้นไตรมาสจนถึงวันนี้ ไม่รอให้ไตรมาสจบก่อน
+  // ใช้ค่าปีเดือนวันตามเวลาท้องถิ่นตรงๆ ห้ามใช้ .toISOString() เพราะแปลงเป็น UTC จะเลื่อนวันที่ผิดสำหรับโซนเวลา +7
+  const _ymdLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  const qStart = new Date(now.getFullYear(), qStartMonth, 1);
+  const qStartStr = _ymdLocal(qStart);
+  const qEndStr = _ymdLocal(now);
+  const quarterNum = qStartMonth / 3 + 1;
+
+  // ย้อนหลัง 12 เดือน สำหรับพยากรณ์แนวโน้ม (กว้างกว่าไตรมาสของกราฟด้านบน) — ดึงครั้งเดียวแล้วกรองเอาช่วงไตรมาสมาใช้กับกราฟซ้ำ ไม่ยิง query ซ้อนสองรอบ
+  const trendStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const trendStartStr = _ymdLocal(trendStart);
+
   _showLoader();
-  const [moRes, coRes, stockRes, matRes] = await Promise.all([
+  const [moRes, coRes, stockRes, matRes, mrRes, issueRes, miscRes] = await Promise.all([
     _sb.from('manufacturing_orders').select('Status'),
     _sb.from('customer_orders').select('Status'),
-    _sb.from('stock_balance').select('MaterialCode,QtyBalance'),
-    _sb.from('materials').select('MaterialCode,MinStock'),
+    _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
+    _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
+    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', qStartStr).lte('Date', qEndStr),
+    _sb.from('issue_production').select('MaterialCode,IssuedQty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
+    // issue_misc: คอลัมน์จริงในฐานข้อมูลเป็นตัวพิมพ์เล็กทั้งหมด (materialcode/issuedqty/date) ไม่ตรงกับที่โค้ดทั้งแอปสมมติไว้
+    // (PascalCase เหมือนตารางอื่น) — ยืนยันแล้วว่า select('MaterialCode') จริงจะพัง 42703 "column does not exist"
+    // ดึงด้วย select('*') แล้ว normalize เคสเอาเอง กันพังไว้ก่อน ไม่กรองวันที่ฝั่ง server เพราะชื่อคอลัมน์ไม่ตรงกับที่คิดไว้เหมือนกัน
+    _sb.from('issue_misc').select('*'),
   ]);
   _hideLoader();
 
-  const firstErr = moRes.error || coRes.error || stockRes.error || matRes.error;
+  const firstErr = moRes.error || coRes.error || stockRes.error || matRes.error || mrRes.error || issueRes.error || miscRes.error;
   if (firstErr) { _err('โหลดข้อมูลหน้าแรกไม่ได้', firstErr.message); return; }
+
+  // normalize เคสของ issue_misc (ดูหมายเหตุตรง select ด้านบน) แล้วกรองช่วงวันที่ย้อนหลัง 12 เดือนเอาเองฝั่ง client แทน
+  const miscRows = (miscRes.data || [])
+    .map(r => ({
+      MaterialCode: r.MaterialCode ?? r.materialcode,
+      IssuedQty: r.IssuedQty ?? r.issuedqty,
+      Date: r.Date ?? r.date,
+    }))
+    .filter(r => (r.Date || '') >= trendStartStr && (r.Date || '') <= qEndStr);
 
   const moActiveCount = (moRes.data || []).filter(r => _prodStatusActiveMOStatuses.includes(r.Status)).length;
   const coOpenCount   = (coRes.data || []).filter(r => !_coDoneStatuses.includes(r.Status)).length;
@@ -3944,6 +4026,191 @@ async function loadHomeData() {
   if (el('home-kpi-co'))        el('home-kpi-co').textContent        = coOpenCount.toLocaleString();
   if (el('home-kpi-lowstock'))  el('home-kpi-lowstock').textContent  = lowCount.toLocaleString();
   if (el('home-kpi-outstock'))  el('home-kpi-outstock').textContent  = outCount.toLocaleString();
+
+  // BULK ที่เบิกออก/รับเข้าบ่อยที่สุด — ตามปริมาณรวม (Kg ฯลฯ) ไม่ใช่จำนวนครั้งที่ทำรายการ (ยืนยันกับผู้ใช้แล้ว)
+  const typeByMat = {};
+  (matRes.data || []).forEach(m => { typeByMat[m.MaterialCode] = m.TYPE || ''; });
+  const nameByMat = {};
+  const uomByMat = {};
+  (stockRes.data || []).forEach(r => {
+    if (!nameByMat[r.MaterialCode]) nameByMat[r.MaterialCode] = r.MaterialName;
+    if (!uomByMat[r.MaterialCode]) uomByMat[r.MaterialCode] = r.UOM;
+  });
+
+  const bulkAgg = {};
+  const addQty = (code, field, qty) => {
+    if (!code || typeByMat[code] !== 'BULK') return;
+    if (!bulkAgg[code]) bulkAgg[code] = { in: 0, out: 0 };
+    bulkAgg[code][field] += qty;
+  };
+  // issueRes/miscRes ดึงมา 12 เดือนเพื่อใช้กับพยากรณ์ด้านล่างด้วย — กราฟนี้ใช้แค่ช่วงไตรมาสปัจจุบัน กรองเอาเฉพาะแถวในช่วงนั้น
+  (mrRes.data || []).forEach(r => addQty(r.MaterialCode, 'in', parseFloat(r.Qty) || 0));
+  (issueRes.data || []).forEach(r => { if ((r.Date||'') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
+  miscRows.forEach(r => { if ((r.Date||'') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
+
+  const topBulk = Object.entries(bulkAgg)
+    .map(([code, v]) => ({ code, name: nameByMat[code] || code, ...v, total: v.in + v.out }))
+    .filter(x => x.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+
+  if (el('home-bulk-chart-sub')) {
+    el('home-bulk-chart-sub').textContent = `Top 5 ตามปริมาณเข้า-ออกรวม · Q${quarterNum}/${now.getFullYear() + 543} (${_fmtDate(qStartStr)} – ${_fmtDate(qEndStr)})`;
+  }
+  _homeDestroyBulkChart();
+  if (el('home-bulk-chart-empty')) el('home-bulk-chart-empty').classList.toggle('d-none', topBulk.length > 0);
+  if (el('home-bulk-chart')) el('home-bulk-chart').style.display = topBulk.length ? '' : 'none';
+  if (topBulk.length) {
+    _homeBulkChart = new Chart(el('home-bulk-chart'), {
+      type: 'bar',
+      data: {
+        labels: topBulk.map(x => x.name),
+        datasets: [
+          { label: 'รับเข้า (MR)', data: topBulk.map(x => x.in), backgroundColor: '#16a34a', borderRadius: 4 },
+          { label: 'เบิกออก (Issue)', data: topBulk.map(x => x.out), backgroundColor: '#dc2626', borderRadius: 4 },
+        ],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } },
+      },
+    });
+  }
+
+  // ── พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — แนวโน้มเชิงเส้น (least squares) จากประวัติเบิกออกรายเดือน ย้อนหลังสูงสุด 12 เดือน
+  // ครอบคลุมทุก BULK ที่ "มีสต็อกอยู่จริง" (ไม่จำกัดแค่ Top 5 ในกราฟด้านบน) ตามที่ผู้ใช้ยืนยัน — เทียบกับสต็อกคงเหลือ ว่า "พอ/ไม่พอ"
+  const monthKey = dateStr => String(dateStr).slice(0, 7); // 'YYYY-MM-DD' -> 'YYYY-MM'
+  const monthlyByMat = {};
+  const addMonthly = (code, dateStr, qty) => {
+    if (!code || typeByMat[code] !== 'BULK' || !dateStr) return;
+    const mk = monthKey(dateStr);
+    if (!monthlyByMat[code]) monthlyByMat[code] = {};
+    monthlyByMat[code][mk] = (monthlyByMat[code][mk] || 0) + qty;
+  };
+  (issueRes.data || []).forEach(r => addMonthly(r.MaterialCode, r.Date, parseFloat(r.IssuedQty) || 0));
+  miscRows.forEach(r => addMonthly(r.MaterialCode, r.Date, parseFloat(r.IssuedQty) || 0));
+
+  const currentMonthKey = monthKey(qEndStr);
+  function _monthsBetween(startKey, endKey) {
+    const [sy, sm] = startKey.split('-').map(Number);
+    const [ey, em] = endKey.split('-').map(Number);
+    const out = [];
+    let y = sy, m = sm;
+    while (y < ey || (y === ey && m <= em)) {
+      out.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return out;
+  }
+  function _linearForecast2mo(series) {
+    const n = series.length;
+    if (n === 0) return null;
+    if (n === 1) return { forecast: Math.max(0, series[0] * 2), months: 1 };
+    const meanX = (n - 1) / 2;
+    const meanY = series.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (i - meanX) * (series[i] - meanY); den += (i - meanX) ** 2; }
+    const slope = den === 0 ? 0 : num / den;
+    const intercept = meanY - slope * meanX;
+    const predAt = x => intercept + slope * x;
+    return { forecast: Math.max(0, predAt(n)) + Math.max(0, predAt(n + 1)), months: n };
+  }
+
+  // Top 5 เดียวกับกราฟแท่งด้านบน (ยืนยันกับผู้ใช้แล้ว — ไม่ใช่เลือกใหม่ตามความเร่งด่วน) แสดงเป็นกราฟเส้นเล็กต่อการ์ด
+  function _linearFit(series) {
+    const n = series.length;
+    const meanX = (n - 1) / 2;
+    const meanY = series.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (i - meanX) * (series[i] - meanY); den += (i - meanX) ** 2; }
+    const slope = den === 0 ? 0 : num / den;
+    return { slope, intercept: meanY - slope * meanX };
+  }
+
+  const forecastCards = topBulk.map(b => {
+    const code = b.code;
+    const currentStock = matMap[code]?.total || 0;
+    const uom = uomByMat[code] || '';
+    const monthMap = monthlyByMat[code] || {};
+    const dataMonthKeys = Object.keys(monthMap).sort();
+    if (!dataMonthKeys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
+    const series = _monthsBetween(dataMonthKeys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
+    const n = series.length;
+    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2) };
+    const { slope, intercept } = _linearFit(series);
+    const predAt = x => Math.max(0, intercept + slope * x);
+    const f1 = predAt(n), f2 = predAt(n + 1);
+    return { code, name: b.name, uom, currentStock, monthsWithData: n, series, forecast: f1 + f2, predicted: [f1, f2] };
+  });
+
+  _homeDestroyForecastCharts();
+  const fcContainer = el('home-forecast-cards');
+  if (fcContainer) {
+    if (!forecastCards.length) {
+      fcContainer.innerHTML = '<div class="text-center text-muted py-3 w-100">ยังไม่มี BULK ที่มีกิจกรรมในไตรมาสนี้ให้พยากรณ์</div>';
+    } else {
+      fcContainer.innerHTML = forecastCards.map((c, i) => {
+        const noData = c.forecast === null;
+        const short = !noData && c.forecast > c.currentStock;
+        const badge = noData
+          ? '<span class="badge bg-light text-muted border" style="font-size:.62rem">ไม่มีข้อมูล</span>'
+          : short
+            ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined,{maximumFractionDigits:1})}</span>`
+            : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
+        const chartArea = c.monthsWithData >= 2
+          ? `<div style="position:relative;height:70px"><canvas id="home-forecast-chart-${i}"></canvas></div>`
+          : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:70px;font-size:.66rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
+        return `<div class="col-6 col-md">
+          <div class="home-forecast-card">
+            <div class="home-forecast-code">${c.code}</div>
+            <div class="home-forecast-name">${c.name || ''}</div>
+            ${chartArea}
+            <div class="d-flex justify-content-between align-items-center mt-1">
+              <div>
+                <div class="home-forecast-num">${noData ? '—' : c.forecast.toLocaleString(undefined,{maximumFractionDigits:1}) + ' ' + c.uom}</div>
+                <div class="home-forecast-unit">คาดใช้อีก 2 เดือน</div>
+              </div>
+              ${badge}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      forecastCards.forEach((c, i) => {
+        if (c.monthsWithData < 2) return;
+        const canvas = el(`home-forecast-chart-${i}`);
+        if (!canvas) return;
+        const n = c.series.length;
+        const labels = [...Array(n).keys(), n, n + 1].map(x => x < n ? '' : '');
+        _homeForecastCharts.push(new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              { label: 'ประวัติจริง', data: [...c.series, null, null], borderColor: '#1e3a8a', backgroundColor: '#1e3a8a', pointRadius: 2, borderWidth: 2, tension: .25 },
+              { label: 'พยากรณ์', data: [...Array(n - 1).fill(null), c.series[n - 1], ...c.predicted], borderColor: '#60a5fa', backgroundColor: '#60a5fa', pointRadius: 2, borderWidth: 2, borderDash: [4, 3], tension: .25 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: { x: { display: false }, y: { display: false, beginAtZero: true } },
+            elements: { line: { spanGaps: false } },
+          },
+        }));
+      });
+    }
+  }
+}
+let _homeBulkChart = null;
+function _homeDestroyBulkChart() {
+  if (_homeBulkChart) { _homeBulkChart.destroy(); _homeBulkChart = null; }
+}
+let _homeForecastCharts = [];
+function _homeDestroyForecastCharts() {
+  _homeForecastCharts.forEach(c => c.destroy());
+  _homeForecastCharts = [];
 }
 
 function showPage(page, navEl) {
@@ -4028,26 +4295,72 @@ async function loadStockData() {
   renderStockCards();
 }
 
+// จำนวนเดือนที่เหลือก่อนหมดอายุ นับจากวันนี้ — ใช้ค่าคงที่ 20 เดือน เป็นเกณฑ์ "ใกล้หมดอายุ" ทั้งแอป
+// (ไม่ใช่ต่อวัตถุดิบเหมือน MinStock — ผู้ใช้ยืนยันแล้วว่าอยากให้เป็นค่าคงที่ก่อน)
+const STOCK_EXPIRING_MONTHS_THRESHOLD = 20;
+function _stockRemainingMonths(expDate) {
+  if (!expDate) return null;
+  const exp = new Date(String(expDate).split('T')[0]);
+  if (isNaN(exp.getTime())) return null;
+  const now = new Date();
+  return (exp.getFullYear() - now.getFullYear()) * 12 + (exp.getMonth() - now.getMonth())
+    - (exp.getDate() < now.getDate() ? 1 : 0);
+}
+
 function updateStockKPIs() {
   const matMap = {};
   for (const r of _stockData) {
     const key = r.MaterialCode || r.MaterialName || '—';
-    if (!matMap[key]) matMap[key] = { total: 0, minStock: (_matMasterMap[r.MaterialCode]?.minStock) || r.MinStock || 100 };
+    if (!matMap[key]) matMap[key] = {
+      total: 0, minStock: (_matMasterMap[r.MaterialCode]?.minStock) || r.MinStock || 100,
+      type: _matMasterMap[r.MaterialCode]?.type || '',
+    };
     matMap[key].total += r.QtyBalance;
   }
   const mats     = Object.values(matMap);
   const totalVal = _stockData.reduce((s, r) => s + r.StockValue, 0);
-  const lowCount = mats.filter(m => m.total > 0 && m.total < m.minStock).length;
   const outCount = mats.filter(m => m.total <= 0).length;
-  document.getElementById('kpi-total-items').textContent = mats.filter(m => m.total > 0).length.toLocaleString();
-  document.getElementById('kpi-low-stock').textContent   = lowCount.toLocaleString();
+  // นับต่อรหัสวัตถุดิบ (สอดคล้องกับ "รายการทั้งหมด" ด้านบน — รวมกันแล้วต้องเท่ากับตัวนั้น)
+  const activeMats  = mats.filter(m => m.total > 0);
+  const bulkCount   = activeMats.filter(m => m.type === 'BULK').length;
+  const pacCount    = activeMats.filter(m => m.type === 'PAC').length;
+  // "ใกล้หมดอายุ" นับต่อ Lot (คนละหน่วยกับด้านบนโดยตั้งใจ — วันหมดอายุเป็นคุณสมบัติของแต่ละ Lot ไม่ใช่ของวัตถุดิบทั้งรหัส)
+  const expiringLotCount = _stockData.filter(r => {
+    if ((r.QtyBalance || 0) <= 0 || !r.ExpDate) return false;
+    const m = _stockRemainingMonths(r.ExpDate);
+    return m !== null && m <= STOCK_EXPIRING_MONTHS_THRESHOLD;
+  }).length;
+  document.getElementById('kpi-total-items').textContent = activeMats.length.toLocaleString();
   document.getElementById('kpi-out-stock').textContent   = outCount.toLocaleString();
   document.getElementById('kpi-stock-value').textContent = '฿' + totalVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
+  document.getElementById('kpi-type-bulk').textContent   = bulkCount.toLocaleString();
+  document.getElementById('kpi-type-pac').textContent    = pacCount.toLocaleString();
+  document.getElementById('kpi-expiring').textContent    = expiringLotCount.toLocaleString();
+}
+
+// ── กด KPI เพื่อกรองรายการด้านล่างทันที (เหมือน pattern การ์ด KPI ที่หน้าแรก) ──
+function stockClearFilters() {
+  const t = document.getElementById('stock-filter-type');
+  const s = document.getElementById('stock-filter-status');
+  if (t) t.value = '';
+  if (s) s.value = '';
+  renderStockCards();
+}
+function stockFilterByType(type) {
+  const el = document.getElementById('stock-filter-type');
+  if (el) el.value = type;
+  renderStockCards();
+}
+function stockFilterByStatus(status) {
+  const el = document.getElementById('stock-filter-status');
+  if (el) el.value = status;
+  renderStockCards();
 }
 
 function renderStockCards() {
   const q      = (document.getElementById('stock-search')?.value || '').toLowerCase();
   const status = document.getElementById('stock-filter-status')?.value || '';
+  const typeF  = document.getElementById('stock-filter-type')?.value || '';
   const container = document.getElementById('stock-cards');
 
   // Group by MaterialCode
@@ -4064,15 +4377,25 @@ function renderStockCards() {
 
   let items = Object.values(groupMap).filter(g => {
     const total = g.lots.reduce((s, r) => s + r.QtyBalance, 0);
-    if (total <= 0) return false;
+    // ซ่อนวัตถุดิบที่หมดสต็อกไปเลยตามปกติ ยกเว้นตอนกำลังดูฟิลเตอร์ "หมดแล้ว" อยู่ — ไม่งั้นกดการ์ด "หมดแล้ว" แล้วจะไม่เจอรายการใดๆ เลย
+    if (status !== 'out' && total <= 0) return false;
     if (q) {
       const hay = [g.code, g.name, ...g.lots.map(r => r.Lot)].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     const master   = _matMasterMap[g.code] || {};
     const minStock = master.minStock || g.lots[0]?.MinStock || 100;
+    const matType  = master.type || '';
+    if (typeF === 'BULK' && matType !== 'BULK') return false;
+    if (typeF === 'PAC' && matType !== 'PAC') return false;
+    if (typeF === 'none' && matType !== '') return false;
     if (status === 'low' && !(total > 0 && total < minStock)) return false;
     if (status === 'out' && !(total <= 0)) return false;
+    if (status === 'expiring') {
+      const hasExpiring = g.lots.some(r => (r.QtyBalance||0) > 0 && r.ExpDate
+        && _stockRemainingMonths(r.ExpDate) !== null && _stockRemainingMonths(r.ExpDate) <= STOCK_EXPIRING_MONTHS_THRESHOLD);
+      if (!hasExpiring) return false;
+    }
     return true;
   });
 
@@ -4085,7 +4408,8 @@ function renderStockCards() {
     const master     = _matMasterMap[g.code] || {};
     const matType    = master.type || '';
     const minStock   = master.minStock || g.lots[0]?.MinStock || 100;
-    const activeLots = g.lots.filter(r => r.QtyBalance > 0);
+    // มุมมอง "หมดแล้ว" โชว์ Lot ที่ยอดเหลือ 0 ให้ดูด้วย (เพื่อรู้ว่า Lot ไหนหมด) ปกติมุมมองอื่นซ่อน Lot ที่หมดแล้วเหมือนเดิม
+    const activeLots = status === 'out' ? g.lots : g.lots.filter(r => r.QtyBalance > 0);
     const total      = activeLots.reduce((s, r) => s + r.QtyBalance, 0);
     const totalVal   = activeLots.reduce((s, r) => s + r.StockValue, 0);
     // มูลค่าเฉลี่ย/หน่วย = ถ่วงน้ำหนักตามสต็อกจริงที่มีอยู่ (มูลค่าคงเหลือรวม ÷ จำนวนคงเหลือรวม ของทุก Lot ที่เหลือ)
@@ -4102,14 +4426,20 @@ function renderStockCards() {
         : '';
 
     // Status badge
-    const statusBadge = isLow
-      ? '<span class="badge bg-warning text-dark">ใกล้หมด</span>'
-      : '<span class="badge bg-success">ปกติ</span>';
+    const statusBadge = total <= 0
+      ? '<span class="badge bg-danger">หมดแล้ว</span>'
+      : isLow
+        ? '<span class="badge bg-warning text-dark">ใกล้หมด</span>'
+        : '<span class="badge bg-success">ปกติ</span>';
 
     // Earliest expiry
     const sortedExp   = activeLots.filter(r => r.ExpDate).sort((a,b) => a.ExpDate > b.ExpDate ? 1 : -1);
     const earliestExp = sortedExp[0]?.ExpDate;
     const expStr      = earliestExp ? _fmtDate(earliestExp) : null;
+    const earliestRemainingMonths = earliestExp ? _stockRemainingMonths(earliestExp) : null;
+    const expiringBadge = (earliestRemainingMonths !== null && earliestRemainingMonths <= STOCK_EXPIRING_MONTHS_THRESHOLD)
+      ? `<span class="badge" style="background:#fff1e6;color:#c2410c;border:1px solid #fdba74" title="ล็อตที่ใกล้หมดอายุที่สุดเหลืออีก ${earliestRemainingMonths} เดือน">ใกล้หมดอายุ (${earliestRemainingMonths} ด.)</span>`
+      : '';
 
     // Grid row ใช้ CSS grid fixed 8 columns — ไม่ขยับตาม content
     const lotGridStyle = 'display:grid;grid-template-columns:2fr 1fr 1.2fr 1.2fr 1fr 1fr .8fr .8fr;gap:0;align-items:center;font-size:.8rem;padding:.35rem .75rem;border-bottom:1px solid #f1f5f9';
@@ -4128,7 +4458,7 @@ function renderStockCards() {
       activeLots.map(r => `
       <div style="${lotGridStyle}">
         <span><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></span>
-        <span style="text-align:right;font-weight:700">${r.QtyBalance.toLocaleString()}</span>
+        <span style="text-align:right;font-weight:700;color:#1e3a8a">${r.QtyBalance.toLocaleString()}</span>
         <span style="color:#64748b">${r.UOM||''}</span>
         <span style="color:#64748b">${_fmtDate(r.ExpDate)||'—'}</span>
         <span style="text-align:right">฿${r.UnitCost.toLocaleString()}</span>
@@ -4139,15 +4469,15 @@ function renderStockCards() {
 
     return `
     <div class="glass-card mb-2 p-0 overflow-hidden">
-      <div style="display:grid;grid-template-columns:auto auto 1fr auto auto auto auto;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
            onclick="stockToggleLots(this)">
         <span class="badge bg-secondary">${g.code||'—'}</span>
         ${typeBadge}
-        <span class="fw-semibold" style="font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name||'—'}</span>
+        <span class="fw-semibold" style="font-size:.9rem;flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name||'—'}</span>
         <span style="font-size:.8rem;color:#64748b;white-space:nowrap">
           <i class="fas fa-layer-group me-1 opacity-50"></i>${activeLots.length} Lot
           &nbsp;·&nbsp;
-          <b style="color:#1e293b">${total.toLocaleString()}</b> ${g.uom||''}
+          <b style="color:#1e3a8a;font-weight:800">${total.toLocaleString()}</b> ${g.uom||''}
           &nbsp;·&nbsp;
           <span style="color:#16a34a;font-weight:600">฿${totalVal.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
           &nbsp;·&nbsp;
@@ -4158,6 +4488,7 @@ function renderStockCards() {
           <i class="fas fa-lock me-1"></i>จอง ${_stockReservedByMaterial[g.code].total.toLocaleString()}
         </span>` : ''}
         ${statusBadge}
+        ${expiringBadge}
         ${g.code ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem" onclick="event.stopPropagation();stockOpenCardReport('${g.code}','${(g.name||'').replace(/'/g,"\\'")}')" title="ดูการ์ดสต็อก">
           <i class="fas fa-address-card"></i>
         </button>` : '<span></span>'}
