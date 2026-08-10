@@ -131,6 +131,13 @@ body {
   #page-fgout .fgout-kpi-row > .col-md { flex: 0 0 auto; max-width: 135px; }
   #page-fgout .fgout-kpi-divider { margin-left: 28px; }
 }
+/* โหมดแท็บเลตคลัง: การ์ดคงที่ 135px ด้านบน (คิดไว้สำหรับจอเดสก์ท็อปกว้าง) ที่ความกว้างจอแท็บเลตจริงพอดี
+   ทำให้ 7 การ์ดตัดแถวไม่เท่ากันเป็น 5+2 — บังคับ 4 คอลัมน์ต่อแถวแทน (4+3) ให้ดูเป็นระเบียบกว่า */
+body.wh-desktop-mode #page-fgout .fgout-kpi-row > .col-md { flex: 0 0 25%; max-width: 25%; }
+/* แถบ 7 วันของหน้าภาพรวมการผลิต — .planweek-day-card ตั้ง min-width:128px ไว้สำหรับจอเดสก์ท็อป (7 การ์ด
+   ต้องการอย่างน้อย ~944px) กว้างกว่าพื้นที่จริงของแท็บเลต (~726px) เลยต้องเลื่อนซ้าย-ขวาเสมอ ทั้งที่ความกว้าง
+   จอน่าจะพอใส่ได้ครบถ้าลด min-width ลง */
+body.wh-desktop-mode .planweek-day-card { min-width: 90px; padding: .55rem .4rem; font-size: .7rem; }
 /* เส้นแบ่งกลุ่ม KPI หน้า Stock วัตถุดิบ — แยกกลุ่ม "รายการทั้งหมด/BULK/PAC" (ซ้าย) จากกลุ่ม "หมดแล้ว/ใกล้หมดอายุ/มูลค่า" (ขวา) เหมือน pattern เดียวกับ fgout-kpi-divider */
 #page-stock .stock-kpi-divider .kpi-card { border-left-width: 4px; }
 #page-stock .stock-kpi-divider { position: relative; }
@@ -189,6 +196,9 @@ body {
 .wh-forecast-bar-bg  { height: 6px; background: #e2e8f0; border-radius: 100px; overflow: hidden; }
 .wh-forecast-bar-fill{ height: 100%; border-radius: 100px; }
 .wh-sched-row  { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #f8fafc; border-radius: 10px; font-size: .76rem; margin-bottom: 5px; }
+/* แถวเตือน (วัตถุดิบเหลือน้อย/ล็อตใกล้หมดอายุ) หน้าพยากรณ์ BULK — ต้องแน่นกว่า .wh-sched-row เพราะหน้านี้
+   ห้ามสกอล (ต้องแบ่งพื้นที่กับกราฟพยากรณ์ 5 การ์ดด้านบนด้วย) พอดีกับจอแท็บเลตแนวนอนที่สูงน้อยกว่าด้วย */
+.wh-alert-row  { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: #f8fafc; border-radius: 8px; font-size: .72rem; margin-bottom: 3px; }
 .wh-sched-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .wh-sched-time { color: #6b6d70; width: 42px; flex-shrink: 0; }
 .wh-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0 2px; flex-shrink: 0; }
@@ -231,6 +241,15 @@ body {
    ทางเดียวที่จะออกจากหน้านี้คือปุ่มลอย "กลับหน้าคลัง" (#whBackFab) เท่านั้น */
 body.wh-desktop-mode .sidebar { display: none; }
 body.wh-desktop-mode .main-content { margin-left: 0; width: 100%; }
+/* .page-header/.sticky-toolbar/.scroll-content ไม่มีพื้นหลังเป็นของตัวเอง (โปร่งใสทุกหน้าทั้งแอป) —
+   ปกติพื้นที่ padding 30px ของมันโชว์ sidebar สีเทาด้านซ้ายบัง แต่พอซ่อน sidebar ในโหมดนี้ ช่อง padding
+   30px รอบด้านนี้เลยกลายเป็นเห็น body gradient สีน้ำเงินโป่งเป็นกรอบหนาล้อมรอบเนื้อหาแทน (ยิ่งเห็นชัดเพราะ
+   ปุ่ม/ตัวอักษรโหมดนี้ขยายใหญ่ขึ้นด้วย) ลด padding ให้เหลือแค่กรอบบางๆ สวยๆ แทน ไม่ใช่แก้พื้นหลังจริง */
+body.wh-desktop-mode .page-header { padding: 12px 12px 8px 12px; }
+body.wh-desktop-mode .sticky-toolbar { padding: 0 12px; }
+/* padding-bottom เผื่อพื้นที่ให้ปุ่มลอย "กลับหน้าคลัง" (#whBackFab, fixed bottom:20px) เสมอ — ไม่งั้นหน้า
+   ที่เนื้อหาน้อย (เช่นตารางว่าง) แถวสุดท้ายจะเลื่อนไปอยู่ใต้ปุ่มพอดี กดโดนปุ่มแทนเนื้อหา */
+body.wh-desktop-mode .scroll-content { padding: 0 12px 76px 12px; }
 body.wh-desktop-mode .page-header h4 { font-size: 1.35rem; }
 body.wh-desktop-mode .btn { padding: .6rem 1.1rem; font-size: .95rem; border-radius: 8px; }
 body.wh-desktop-mode .btn-sm { padding: .5rem .9rem; font-size: .88rem; }
@@ -253,6 +272,34 @@ body.wh-desktop-mode .wh-hide-cost { display: none; }
    ก็เพียงพอต่อการระบุของจริงหน้างานแล้ว (ผู้ใช้ยืนยันแล้วว่าไม่ต้องใช้ระบุ) ช่วยให้คอลัมน์ที่เหลือกว้างขึ้น
    อ่านง่ายขึ้นไปอีกในตัว — ไม่กระทบหน้า desktop ปกติ, ไม่กระทบข้อมูลจริง (แค่ไม่แสดงในตารางนี้) */
 body.wh-desktop-mode .wh-hide-code { display: none; }
+/* ตัดคอลัมน์ "หมายเหตุ" ของหน้ารับวัตถุดิบ (MR) และซ่อนช่องหมายเหตุในฟอร์มเบิกวัตถุดิบ (Issue) ตอนอยู่
+   ในโหมดแท็บเลตคลัง — ไม่ใช่สิ่งที่ต้องกรอก/เช็คหน้างานบ่อย ช่วยให้เอาพื้นที่ไปขยาย Lot/Supplier/ชื่อ
+   วัตถุดิบแทน (class ".wh-hide-remark" ติดไว้เฉพาะจุดที่ต้องการ ไม่กระทบหน้า desktop ปกติ, ไม่กระทบข้อมูลจริง) */
+body.wh-desktop-mode .wh-hide-remark { display: none; }
+/* ขยายคอลัมน์ Lot/Supplier ของตาราง MR ให้กว้างขึ้นแทนที่ "หมายเหตุ" ที่ถูกซ่อนไป — ต้องกำหนดความกว้าง
+   คอลัมน์อื่นที่เหลือด้วย (วันที่/วันหมดอายุ/จำนวน/UOM) ไม่งั้นถูกบีบจนตัวเลข/วันที่ตัดขึ้นบรรทัดใหม่ 3 บรรทัด
+   (table-layout:fixed หารพื้นที่ที่เหลือทั้งหมดเท่าๆ กันให้คอลัมน์ที่ไม่ได้กำหนดความกว้างไว้) */
+body.wh-desktop-mode .mr-table-inner .mr-col-name { width: 24%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-lot { width: 16%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-exp { width: 12%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-qty { width: 10%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-uom { width: 9%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-supplier { width: 22%; }
+/* คลาสความกว้างคอลัมน์แบบทั่วไป ใช้ซ้ำได้กับทุกตารางอื่นในโหมดแท็บเลต (ตาราง MR ใช้ชุด .mr-col-* ของตัวเอง
+   ด้านบนอยู่ก่อนแล้ว ไม่ย้ายมาใช้ร่วม กันกระทบของเดิมที่ทดสอบแล้ว) — เกิดจากปัญหาเดียวกันที่เจอซ้ำในหลายหน้า
+   (รับ FG, เบิก FG, เบิกเบ็ดเตล็ด, Stock Card, Master วัตถุดิบ, ตาราง MO ในภาพรวมการผลิต): table-layout:fixed
+   หารความกว้างเท่าๆ กันทุกคอลัมน์ถ้าไม่กำหนดเอง ทำให้คอลัมน์ชื่อสินค้า/วัตถุดิบที่ควรกว้างที่สุดถูกบีบจนตัดคำ
+   ทีละตัวอักษร — xs/sm สำหรับข้อมูลสั้นๆ (วันที่/ตัวเลข/UOM/ประเภท), md สำหรับ Lot/รหัสอ้างอิง,
+   lg สำหรับชื่อสินค้า/วัตถุดิบที่ยาว */
+body.wh-desktop-mode .wh-col-xs { width: 8%; }
+body.wh-desktop-mode .wh-col-sm { width: 11%; }
+body.wh-desktop-mode .wh-col-md { width: 16%; }
+body.wh-desktop-mode .wh-col-lg { width: 24%; }
+/* ฟอร์มเบิกวัตถุดิบ (Issue) โหมดแก้ไข — ลบช่องหมายเหตุแล้วยืด "วันที่เบิก"/"MO Reference" ให้เต็มแถวแทน
+   และขยาย "ชื่อวัตถุดิบ" เป็นเต็มความกว้าง (Lot No. จะตกไปอยู่แถวถัดไปเอง ไม่ต้องจัดการเพิ่ม) */
+body.wh-desktop-mode #issue-date-col { flex: 0 0 33.33%; max-width: 33.33%; }
+body.wh-desktop-mode #issue-mo-col { flex: 0 0 66.67%; max-width: 66.67%; }
+body.wh-desktop-mode #issue-matname-col { flex: 0 0 100%; max-width: 100%; }
 body.wh-desktop-mode .table thead th, body.wh-desktop-mode .table tbody td {
   white-space: normal; word-break: break-word; overflow-wrap: break-word;
 }
@@ -266,7 +313,10 @@ body.wh-desktop-mode .table td .badge {
 }
 body.wh-desktop-mode .glass-card { padding: 20px; }
 body.wh-desktop-mode .kpi-card { padding: 16px 16px; }
-body.wh-desktop-mode .kpi-card .kpi-num { font-size: 1.7rem; white-space: nowrap; }
+/* เดิม white-space:nowrap ทำให้ตัวเลข KPI ยาวๆ (เช่น "฿2,398,288" หน้า Stock) ล้นกล่องแล้วโดน
+   .scroll-content ที่มี overflow-x:hidden อยู่แล้วบังหายไปเงียบๆ ครึ่งค่า ไม่ใช่แค่ล้นแล้วเห็น — ยอมให้ตัด
+   บรรทัดแทน (เหมือนแนวทาง .table cell ด้านบนที่ยอม wrap แทนซ่อนเนื้อหา) ลดขนาดฟอนต์ลงหน่อยให้พอดีขึ้นด้วย */
+body.wh-desktop-mode .kpi-card .kpi-num { font-size: 1.45rem; white-space: normal; word-break: break-word; line-height: 1.15; }
 body.wh-desktop-mode .kpi-card .kpi-label { font-size: .78rem; }
 body.wh-desktop-mode .modal-header, body.wh-desktop-mode .modal-body, body.wh-desktop-mode .modal-footer { padding: 18px 22px; }
 body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
@@ -466,10 +516,15 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .issue-type-div{font-size:.76rem;color:#64748b;font-weight:700;letter-spacing:.04em;padding:.15rem 0 .35rem;border-bottom:1px solid #e2e8f0;margin-bottom:.55rem;display:flex;align-items:center;gap:.4rem}
 .plan-shift-row{overflow-x:auto}
 .plan-shift-row .form-check-label{font-size:.86rem}
+/* min-width:0 บน grid item (.plan-day-cell) จำเป็นมาก — ค่า default ของ grid item คือ min-width:auto
+   ซึ่งยึดตาม min-content ของเนื้อหาข้างใน (ชื่อสินค้ายาวๆ ใน .plan-chip แม้จะตั้ง white-space:nowrap +
+   text-overflow:ellipsis ไว้แล้วก็ตาม) ถ้าไม่ตั้ง min-width:0 คอลัมน์ที่มีแผนจะดันความกว้างเกิน 1fr ที่
+   ควรได้จริง ทำให้ทั้งตาราง 7 คอลัมน์ล้นขวาและตัดคอลัมน์ "ส" หายไป — ยิ่งเห็นชัดตอนจอแคบ (แท็บเลต/มือถือ)
+   เพราะพื้นที่ต่อคอลัมน์เหลือน้อยกว่าความกว้างของข้อความในชิป ellipsis เลยไม่มีผลจนกว่าจะตั้งค่านี้ */
 .plan-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .plan-cal-dow{text-align:center;font-size:.75rem;font-weight:700;color:#64748b;padding:.3rem 0}
 .plan-cal-dow.dow-sunday{color:#dc2626}
-.plan-day-cell{min-height:92px;border:1px solid #e5e7eb;border-radius:8px;padding:.3rem;background:#fff;cursor:pointer;transition:box-shadow .15s;display:flex;flex-direction:column;gap:3px}
+.plan-day-cell{min-height:92px;min-width:0;border:1px solid #e5e7eb;border-radius:8px;padding:.3rem;background:#fff;cursor:pointer;transition:box-shadow .15s;display:flex;flex-direction:column;gap:3px}
 .plan-day-cell:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
 .plan-day-cell.plan-day-outside{background:#f8fafc;opacity:.5}
 .plan-day-cell.plan-day-today{border-color:#3b82f6;border-width:2px}
@@ -1736,9 +1791,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <table class="table table-hover mb-0">
               <thead>
                 <tr>
-                  <th>MO ID</th><th>สินค้า</th><th>Lot</th><th>กำหนดส่ง</th>
-                  <th class="text-end">สั่ง</th><th class="text-end">ผลิตแล้ว</th><th class="text-end">คงค้าง</th>
-                  <th style="width:140px">ความคืบหน้า</th><th>สถานะ</th><th>แผนผลิต</th>
+                  <th class="wh-col-sm">MO ID</th><th class="wh-col-lg">สินค้า</th><th class="wh-col-sm">Lot</th><th class="wh-col-sm">กำหนดส่ง</th>
+                  <th class="text-end wh-col-xs">สั่ง</th><th class="text-end wh-col-xs">ผลิตแล้ว</th><th class="text-end wh-col-xs">คงค้าง</th>
+                  <th style="width:140px">ความคืบหน้า</th><th class="wh-col-sm">สถานะ</th><th class="wh-col-md">แผนผลิต</th>
                 </tr>
               </thead>
               <tbody id="prodstatus-mo-tbody">
@@ -1845,35 +1900,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
         </div>
       </div>
 
-      <!-- Table -->
-      <div class="glass-card p-0 overflow-hidden">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0" id="mr-table">
-            <thead>
-              <tr>
-                <th style="width:36px">
-                  <input type="checkbox" id="mr-check-all" onchange="mrToggleAll(this)">
-                </th>
-                <th>วันที่</th>
-                <th style="width:26%">ชื่อวัตถุดิบ</th>
-                <th class="wh-hide-code">รหัส</th>
-                <th>Lot</th>
-                <th>วันหมดอายุ</th>
-                <th class="text-end">จำนวน</th>
-                <th>UOM</th>
-                <th class="text-end wh-hide-cost">ราคา/หน่วย</th>
-                <th>Supplier</th>
-                <th>หมายเหตุ</th>
-                <th class="text-center" style="width:90px">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody id="mr-tbody">
-              <tr><td colspan="12" class="text-center py-4 text-muted">
-                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
-              </td></tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- รายการรับวัตถุดิบ: จัดกลุ่มตามวันที่รับ — พับเก็บเป็นค่าเริ่มต้น กดหัวการ์ดเพื่อดูรายละเอียดวัตถุดิบที่รับวันนั้น -->
+      <div id="mr-tbody">
+        <div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
       </div>
     </div>
   </div>
@@ -2273,17 +2302,17 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
             <!-- ── Top row ── -->
             <div class="row g-3 mb-3">
-              <div class="col-md-3">
+              <div class="col-md-3" id="issue-date-col">
                 <label class="form-label">วันที่เบิก <span class="text-danger">*</span></label>
                 <input type="date" id="issue-f-date" class="form-control" required>
               </div>
-              <div class="col-md-5">
+              <div class="col-md-5" id="issue-mo-col">
                 <label class="form-label">MO Reference (ใบสั่งผลิต)</label>
                 <select id="issue-f-mo" class="form-select" onchange="issueOnMOChange()">
                   <option value="">— เลือก MO —</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-4 wh-hide-remark">
                 <label class="form-label">หมายเหตุ</label>
                 <input type="text" id="issue-f-remark" class="form-control" placeholder="หมายเหตุเพิ่มเติม">
               </div>
@@ -2307,7 +2336,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <!-- ── EDIT MODE: single row ── -->
             <div id="issue-edit-section" style="display:none">
               <div class="row g-3">
-                <div class="col-md-8 position-relative">
+                <div class="col-md-8 position-relative" id="issue-matname-col">
                   <label class="form-label">ชื่อวัตถุดิบ <span class="text-danger">*</span></label>
                   <input type="text" id="issue-f-mat-search" class="form-control"
                     placeholder="พิมพ์เพื่อค้นหา..." autocomplete="off"
@@ -2420,9 +2449,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="fg-check-all" onchange="fgToggleAll(this)"></th>
-                <th>วันที่</th><th>ประเภท</th><th>ชื่อสินค้า</th><th class="wh-hide-code">รหัส</th>
-                <th>Lot FG</th><th class="text-end">จำนวน</th><th>UOM</th>
-                <th>วันหมดอายุ</th><th>CustPO/Ref</th><th>หมายเหตุ</th>
+                <th class="wh-col-sm">วันที่</th><th class="wh-col-xs">ประเภท</th><th class="wh-col-lg">ชื่อสินค้า</th><th class="wh-hide-code">รหัส</th>
+                <th class="wh-col-md">Lot FG</th><th class="text-end wh-col-xs">จำนวน</th><th class="wh-col-xs">UOM</th>
+                <th class="wh-col-sm">วันหมดอายุ</th><th class="wh-col-sm">CustPO/Ref</th><th class="wh-hide-remark">หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
               </tr>
             </thead>
@@ -2646,10 +2675,10 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="fgout-check-all" onchange="fgoutToggleAll(this)"></th>
-                <th>วันที่</th><th>ประเภท</th><th class="wh-hide-code">รหัส</th><th>ชื่อสินค้า</th>
-                <th>Lot FG</th><th class="text-end">จำนวนเบิก</th><th>UOM</th>
-                <th>ลูกค้า / ปลายทาง</th><th>หมายเหตุ</th>
-                <th>เลขที่ใบส่งสินค้า</th><th>สถานะจัดส่ง</th>
+                <th class="wh-col-sm">วันที่</th><th class="wh-col-sm">ประเภท</th><th class="wh-hide-code">รหัส</th><th class="wh-col-lg">ชื่อสินค้า</th>
+                <th class="wh-col-md">Lot FG</th><th class="text-end wh-col-xs">จำนวนเบิก</th><th class="wh-col-xs">UOM</th>
+                <th class="wh-col-sm">ลูกค้า / ปลายทาง</th><th class="wh-hide-remark">หมายเหตุ</th>
+                <th class="wh-col-sm">เลขที่ใบส่งสินค้า</th><th class="wh-col-sm">สถานะจัดส่ง</th>
                 <th class="text-center" style="width:150px">จัดการ</th>
               </tr>
             </thead>
@@ -2848,9 +2877,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="misc-check-all" onchange="miscToggleAll(this)"></th>
-                <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th>
-                <th>Lot</th><th class="text-end">จำนวน</th><th>UOM</th>
-                <th>ประเภท</th><th>หมายเหตุ</th>
+                <th class="wh-col-sm">วันที่</th><th class="wh-col-lg">ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th>
+                <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">จำนวน</th><th class="wh-col-xs">UOM</th>
+                <th class="wh-col-xs">ประเภท</th><th class="wh-hide-remark">หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
               </tr>
             </thead>
@@ -3167,8 +3196,8 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           <table class="table table-hover mb-0">
             <thead>
               <tr>
-                <th>รหัส</th><th>ชื่อวัตถุดิบ</th><th>ประเภท</th><th>UOM</th>
-                <th class="text-end">Min Stock</th><th>Supplier</th><th>หมายเหตุ</th>
+                <th class="wh-col-sm">รหัส</th><th class="wh-col-lg">ชื่อวัตถุดิบ</th><th class="wh-col-xs">ประเภท</th><th class="wh-col-xs">UOM</th>
+                <th class="text-end wh-col-xs">Min Stock</th><th class="wh-col-md">Supplier</th><th class="wh-hide-remark">หมายเหตุ</th>
                 <th class="text-center" style="width:70px">จัดการ</th>
               </tr>
             </thead>
@@ -3551,9 +3580,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <table class="table table-sm table-hover mb-0">
               <thead>
                 <tr>
-                  <th>วันที่</th><th>ประเภท</th><th>เลขที่เอกสาร</th><th>Lot</th>
-                  <th class="text-end">รับเข้า</th><th class="text-end">จ่ายออก</th>
-                  <th class="text-end">คงเหลือสะสม</th><th>UOM</th><th>อ้างอิง/ที่มา</th>
+                  <th class="wh-col-sm">วันที่</th><th class="wh-col-xs">ประเภท</th><th class="wh-col-sm">เลขที่เอกสาร</th><th class="wh-col-md">Lot</th>
+                  <th class="text-end wh-col-xs">รับเข้า</th><th class="text-end wh-col-xs">จ่ายออก</th>
+                  <th class="text-end wh-col-xs">คงเหลือสะสม</th><th class="wh-col-xs">UOM</th><th class="wh-col-lg">อ้างอิง/ที่มา</th>
                 </tr>
               </thead>
               <tbody id="stockcard-tbody"></tbody>
@@ -3567,9 +3596,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <table class="table table-sm table-hover mb-0">
               <thead>
                 <tr>
-                  <th>Lot</th><th class="text-end">ยอดยกมา</th><th class="text-end">รับเข้า</th>
-                  <th class="text-end">จ่ายออก</th><th class="text-end">คงเหลือ</th><th>วันหมดอายุ</th>
-                  <th class="text-end" id="stockcard-lot-value-head">มูลค่าคงเหลือ</th>
+                  <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">ยอดยกมา</th><th class="text-end wh-col-xs">รับเข้า</th>
+                  <th class="text-end wh-col-xs">จ่ายออก</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-sm">วันหมดอายุ</th>
+                  <th class="text-end wh-col-sm" id="stockcard-lot-value-head">มูลค่าคงเหลือ</th>
                 </tr>
               </thead>
               <tbody id="stockcard-lot-tbody"></tbody>
@@ -3730,6 +3759,11 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           <div id="wh-forecast-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
             <div class="text-center text-muted py-4" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
           </div>
+
+          <div class="wh-section-label mt-2" style="margin-bottom:4px">วัตถุดิบเหลือน้อย</div>
+          <div id="wh-lowstock-list"></div>
+          <div class="wh-section-label mt-1" style="margin-bottom:4px">ล็อตใกล้หมดอายุ (≤20 เดือน)</div>
+          <div id="wh-expiring-list"></div>
         </div>
 
         <!-- หน้า 1 (กลาง, ค่าเริ่มต้น): ภาพรวมการผลิต -->
@@ -4590,6 +4624,7 @@ async function loadWhTabletData() {
   _whRenderSchedule();
   _whRenderUpcomingPlan();
   _whComputeBulkForecast().then(_whRenderForecast);
+  _whComputeStockAlerts().then(_whRenderStockAlerts);
 }
 
 // สถานะไลน์ "วันนี้" ต่อ 1 ใน PLAN_LINES — running (กำลังผลิตตามแผน) / behind (ล่าช้ากว่าที่ควร) /
@@ -4886,6 +4921,68 @@ function _whRenderForecast() {
       },
     }));
   });
+}
+
+// วัตถุดิบเหลือน้อย/ล็อตใกล้หมดอายุ ในหน้าพยากรณ์ BULK — สูตรเดียวกับ updateStockKPIs()/loadHomeData()
+// เป๊ะ (low stock: total>0 && total<minStock ต่อรหัส, ใกล้หมดอายุ: ใช้ STOCK_EXPIRING_MONTHS_THRESHOLD
+// เดียวกัน ต่อ Lot) แค่แยกก๊อปปี้เป็นของตัวเอง (เหตุผลเดียวกับ _whComputeBulkForecast ด้านบน — ไม่แก้โค้ด
+// หน้า Stock/หน้าแรก desktop ที่ทดสอบแล้ว) และโชว์เป็นรายการ ไม่ใช่แค่ตัวเลขสรุป จำกัด 4 รายการเร่งด่วน
+// สุดต่อลิสต์ (เรียงจากสัดส่วนคงเหลือน้อยสุด/ใกล้หมดอายุสุด) ไม่ให้ล้นพื้นที่ — หน้านี้ตั้งใจไม่ให้สกอล
+let _whLowStockList = [];
+let _whExpiringList = [];
+async function _whComputeStockAlerts() {
+  const [stockRes, matRes] = await Promise.all([
+    _sb.from('stock_balance').select('MaterialCode,MaterialName,QtyBalance,UOM,Lot,ExpDate'),
+    _sb.from('materials').select('MaterialCode,MinStock'),
+  ]);
+  if (stockRes.error || matRes.error) { _whLowStockList = []; _whExpiringList = []; return; }
+
+  const minStockByMat = {};
+  (matRes.data || []).forEach(m => { minStockByMat[m.MaterialCode] = parseFloat(m.MinStock) || 0; });
+
+  const matMap = {};
+  (stockRes.data || []).forEach(r => {
+    const key = r.MaterialCode || '—';
+    if (!matMap[key]) matMap[key] = { total: 0, name: r.MaterialName, uom: r.UOM, minStock: minStockByMat[r.MaterialCode] || 100 };
+    matMap[key].total += parseFloat(r.QtyBalance) || 0;
+  });
+  _whLowStockList = Object.values(matMap)
+    .filter(m => m.total > 0 && m.total < m.minStock)
+    .sort((a, b) => (a.total / a.minStock) - (b.total / b.minStock))
+    .slice(0, 3);
+
+  _whExpiringList = (stockRes.data || [])
+    .filter(r => (parseFloat(r.QtyBalance) || 0) > 0 && r.ExpDate)
+    .map(r => ({ name: r.MaterialName, lot: r.Lot, months: _stockRemainingMonths(r.ExpDate) }))
+    .filter(r => r.months !== null && r.months <= STOCK_EXPIRING_MONTHS_THRESHOLD)
+    .sort((a, b) => a.months - b.months)
+    .slice(0, 3);
+}
+
+function _whRenderStockAlerts() {
+  const lowEl = document.getElementById('wh-lowstock-list');
+  const expEl = document.getElementById('wh-expiring-list');
+  if (lowEl) {
+    lowEl.innerHTML = !_whLowStockList.length
+      ? '<div class="text-muted text-center py-1" style="font-size:.7rem">ไม่มีรายการเหลือน้อย</div>'
+      : _whLowStockList.map(m => `<div class="wh-alert-row">
+          <span class="wh-sched-dot" style="background:#f59e0b"></span>
+          <div class="flex-grow-1 text-truncate">${m.name || '—'}</div>
+          <div class="fw-bold text-nowrap" style="color:#b45309">${(m.total||0).toLocaleString(undefined,{maximumFractionDigits:1})}/${m.minStock.toLocaleString()} ${m.uom||''}</div>
+        </div>`).join('');
+  }
+  if (expEl) {
+    expEl.innerHTML = !_whExpiringList.length
+      ? '<div class="text-muted text-center py-1" style="font-size:.7rem">ไม่มีล็อตใกล้หมดอายุ</div>'
+      : _whExpiringList.map(r => {
+          const urgent = r.months <= 6;
+          return `<div class="wh-alert-row">
+          <span class="wh-sched-dot" style="background:${urgent ? '#ef4444' : '#f59e0b'}"></span>
+          <div class="flex-grow-1 text-truncate">${r.name || '—'} <span class="text-muted">Lot ${r.lot || '—'}</span></div>
+          <div class="fw-bold text-nowrap" style="color:${urgent ? '#dc2626' : '#b45309'}">เหลือ ${r.months} ด.</div>
+        </div>`;
+        }).join('');
+  }
 }
 
 function showPage(page, navEl) {
@@ -5806,10 +5903,12 @@ async function moForceClose(rowId) {
 let _mrData      = [];
 let _mrMaterials = [];
 let _mrModal     = null;
+let _mrExpandedSet = new Set();   // วันที่ (date string) ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
+let _mrLastGroups  = [];          // เก็บผลลัพธ์ group ล่าสุดไว้ ให้ toggle expand อ้างอิงด้วย index
 
 async function loadMRData() {
   _showLoader();
-  const _cancelPlaceholder = _deferLoadingPlaceholder('mr-tbody', '<tr><td colspan="13" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
+  const _cancelPlaceholder = _deferLoadingPlaceholder('mr-tbody', '<div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
   // โหลด MR + Materials พร้อมกัน
   const [mrRes, matRes] = await Promise.all([
@@ -5842,6 +5941,13 @@ function mrUpdateKPIs() {
   if (el('mr-kpi-value'))  el('mr-kpi-value').textContent  = '฿' + totalVal.toLocaleString('th-TH', {maximumFractionDigits:0});
 }
 
+function mrToggleGroup(gi) {
+  const dateKey = _mrLastGroups[gi]?.date;
+  if (dateKey === undefined) return;
+  if (_mrExpandedSet.has(dateKey)) _mrExpandedSet.delete(dateKey); else _mrExpandedSet.add(dateKey);
+  mrRenderTable();
+}
+
 function mrRenderTable() {
   const q    = (document.getElementById('mr-search')?.value||'').toLowerCase();
   const from = document.getElementById('mr-date-from')?.value||'';
@@ -5862,36 +5968,87 @@ function mrRenderTable() {
     return true;
   });
 
-  const tbody = document.getElementById('mr-tbody');
+  const container = document.getElementById('mr-tbody');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>';
+    container.innerHTML = '<div class="glass-card text-center py-4 text-muted">ไม่พบข้อมูล</div>';
+    _mrLastGroups = [];
     return;
   }
 
-  tbody.innerHTML = rows.map(r => {
-    const qty   = parseFloat(r.Qty||r.QtyIn||0);
-    const cost  = parseFloat(r.UnitCost||0);
-    return `<tr>
-      <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
-      <td>${_fmtDate(r[dateCol])}</td>
-      <td>${r.MaterialName||'—'}</td>
-      <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
-      <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
-      <td>${_fmtDate(r.ExpDate)}</td>
-      <td class="text-end fw-bold text-primary">${qty.toLocaleString()}</td>
-      <td>${r.UOM||'—'}</td>
-      <td class="text-end text-success wh-hide-cost">฿${cost.toLocaleString()}</td>
-      <td>${r.Supplier||'—'}</td>
-      <td><small class="text-muted">${r.Remark||''}</small></td>
-      <td class="text-center">
-        <button class="btn btn-xs btn-outline-primary btn-sm py-0 px-2 me-1" onclick="mrOpenModal(${r._row_id})" title="แก้ไข">
-          <i class="fas fa-edit"></i>
-        </button>
-        <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-2" onclick="mrDelete(${r._row_id})" title="ลบ">
-          <i class="fas fa-trash"></i>
-        </button>
-      </td>
-    </tr>`;
+  // จัดกลุ่มตามวันที่รับ (1 การ์ด = 1 วัน) — เรียงวันที่ล่าสุดก่อน
+  const groupMap = new Map();
+  rows.forEach(r => {
+    const key = String(r[dateCol] || '—');
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(r);
+  });
+
+  const groups = Array.from(groupMap.entries()).map(([date, lines]) => ({
+    date,
+    lines,
+    supplierCount: new Set(lines.map(l => l.Supplier).filter(Boolean)).size,
+  })).sort((a, b) => b.date.localeCompare(a.date));
+
+  _mrLastGroups = groups;
+
+  container.innerHTML = groups.map((g, gi) => {
+    const expanded = _mrExpandedSet.has(g.date);
+    const rowsHtml = g.lines.map(r => {
+      const qty   = parseFloat(r.Qty||r.QtyIn||0);
+      const cost  = parseFloat(r.UnitCost||0);
+      return `<tr>
+        <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
+        <td class="mr-col-name">${r.MaterialName||'—'}</td>
+        <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
+        <td class="mr-col-lot"><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
+        <td class="mr-col-exp">${_fmtDate(r.ExpDate)}</td>
+        <td class="text-end fw-bold text-primary mr-col-qty">${qty.toLocaleString()}</td>
+        <td class="mr-col-uom">${r.UOM||'—'}</td>
+        <td class="text-end text-success wh-hide-cost">฿${cost.toLocaleString()}</td>
+        <td class="mr-col-supplier">${r.Supplier||'—'}</td>
+        <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
+        <td class="text-center">
+          <button class="btn btn-xs btn-outline-primary btn-sm py-0 px-2 me-1" onclick="mrOpenModal(${r._row_id})" title="แก้ไข">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-2" onclick="mrDelete(${r._row_id})" title="ลบ">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="glass-card mb-2 p-0 overflow-hidden">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="mrToggleGroup(${gi})">
+        <div>
+          <span class="fw-semibold me-2">${_fmtDate(g.date)}</span>
+          <span class="text-muted small">${g.lines.length} รายการ</span>
+          <span class="text-muted small ms-2">${g.supplierCount} ซัพพลายเออร์</span>
+        </div>
+        <i class="fas fa-chevron-${expanded?'up':'down'} text-muted"></i>
+      </div>
+      ${!expanded ? '' : `
+      <div class="table-responsive border-top">
+        <table class="table table-sm table-hover mb-0 mr-table-inner">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th class="mr-col-name" style="width:26%">ชื่อวัตถุดิบ</th>
+              <th class="wh-hide-code">รหัส</th>
+              <th class="mr-col-lot">Lot</th>
+              <th class="mr-col-exp">วันหมดอายุ</th>
+              <th class="text-end mr-col-qty">จำนวน</th>
+              <th class="mr-col-uom">UOM</th>
+              <th class="text-end wh-hide-cost">ราคา/หน่วย</th>
+              <th class="mr-col-supplier">Supplier</th>
+              <th class="wh-hide-remark">หมายเหตุ</th>
+              <th class="text-center" style="width:90px">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`}
+    </div>`;
   }).join('');
 }
 
@@ -5899,11 +6056,6 @@ function mrCheckState() {
   const n = document.querySelectorAll('.mr-row-check:checked').length;
   const btn = document.getElementById('mr-bulk-del-btn');
   if (btn) { btn.classList.toggle('d-none', n === 0); btn.textContent = `ลบที่เลือก (${n})`; }
-}
-
-function mrToggleAll(cb) {
-  document.querySelectorAll('.mr-row-check').forEach(c => c.checked = cb.checked);
-  mrCheckState();
 }
 
 // ── Modal Open ──
@@ -6155,7 +6307,6 @@ async function mrBulkDelete() {
   _logAudit('BULK_DELETE', 'mr_receive', rowsToDelete.map(r => r.MR_ID || r.MaterialCode).join(', '), `ลบ ${ids.length} รายการ`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
-  document.getElementById('mr-check-all').checked = false;
   loadMRData();
 }
 
@@ -6563,7 +6714,7 @@ function fgRenderTable() {
       <td>${r.UOM||'—'}</td>
       <td>${_fmtDate(r[exp])}</td>
       <td><small class="text-muted">${r.CustPO_Ref||'—'}</small></td>
-      <td><small class="text-muted">${r.Remark||''}</small></td>
+      <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
       <td class="text-center">
         <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="fgOpenModal(${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>
         <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="fgDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
@@ -7029,7 +7180,7 @@ function fgoutRenderTable() {
     <td class="text-end fw-bold text-danger">${(parseFloat(r.QtyFG||r.Qty)||0).toLocaleString()}</td>
     <td>${r.UOM||'—'}</td>
     <td>${r.CustomerName||'—'}</td>
-    <td><small class="text-muted">${r.Remark||''}</small></td>
+    <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
     <td>${dlv ? (dlv.DeliveryBillNo||'—') : '—'}</td>
     <td>${dlv ? _deliveryStatusBadge(dlv.Status) : '—'}</td>
     <td class="text-center">
@@ -9600,7 +9751,7 @@ function materialRenderTable() {
     <td>${r.UOM || '—'}</td>
     <td class="text-end">${r.MinStock != null ? parseFloat(r.MinStock).toLocaleString() : '—'}</td>
     <td>${r.SUPPLIER || '—'}</td>
-    <td><small class="text-muted">${r.Remark || ''}</small></td>
+    <td class="wh-hide-remark"><small class="text-muted">${r.Remark || ''}</small></td>
     <td class="text-center">
       <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="materialOpenModal(${r._row_id})" title="แก้ไข">
         <i class="fas fa-edit"></i>
@@ -13291,7 +13442,7 @@ function miscRenderTable() {
     <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
     <td>${r.UOM||'—'}</td>
     <td><span class="badge bg-info text-dark">${r.Category||'—'}</span></td>
-    <td><small class="text-muted">${r.Remark||''}</small></td>
+    <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
     <td class="text-center">
       <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="miscOpenModal(${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>
       <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="miscDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
