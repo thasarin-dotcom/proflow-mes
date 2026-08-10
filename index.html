@@ -164,7 +164,7 @@ body {
   display: none; justify-content: center; padding: 14px;
 }
 .wh-frame {
-  width: 100%; max-width: 480px; background: #fff; border-radius: 20px;
+  width: 100%; max-width: 900px; background: #fff; border-radius: 20px;
   box-shadow: 0 8px 30px rgba(0,0,0,.12); padding: 16px 16px 8px;
   display: flex; flex-direction: column; height: calc(100vh - 28px);
 }
@@ -209,6 +209,13 @@ body {
 .wh-tile i { font-size: 1.15rem; color: #155092; }
 .wh-tile span { font-size: .68rem; text-align: center; line-height: 1.2; color: #1e293b; }
 .wh-tile-action i { color: #16a34a; }
+/* จอกว้างระดับแท็บเลต (>700px) ขยายกริดตามความกว้างของ .wh-frame ที่โตขึ้น (ดู .wh-frame max-width
+   ด้านบน) ไม่งั้น tile จะดูห่างว่างเกินไป — ต้องอยู่ "หลัง" .wh-tile-grid/.wh-line-grid ตัวฐานในไฟล์นี้
+   เพราะ specificity เท่ากัน กฎที่มาทีหลังใน source order ชนะ ไม่เกี่ยวกับอยู่ใน @media หรือไม่ */
+@media (min-width: 700px) {
+  .wh-tile-grid { grid-template-columns: repeat(4,1fr); }
+  .wh-line-grid { grid-template-columns: repeat(3,1fr); }
+}
 #whBackFab {
   /* z-index ตั้งใจให้ต่ำกว่า Bootstrap modal-backdrop (1050) เสมอ — ตอนเปิด modal พิมพ์รายงาน (เช่น
      mrReportModal) ปุ่มนี้ต้องถูก backdrop บังไปเลย ไม่ใช่ลอยทับปุ่ม "พิมพ์"/"ปิด" ในหน้าต่างนั้น
