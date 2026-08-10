@@ -112,6 +112,9 @@ body {
 }
 .kpi-card .kpi-num { font-size: 1.6rem; font-weight: 700; color: #1e3a8a; }
 .kpi-card .kpi-label { font-size: .74rem; color: #64748b; }
+/* หัวข้อหมวด (เช่น "ภาพรวมวันนี้") วางอยู่บนพื้นหลังไล่สีน้ำเงินของ body ตรงๆ ไม่มีการ์ดสีขาวรองอยู่ข้างหลัง
+   ไม่เคยมี base rule กำหนดสีมาก่อน (พึ่งค่า default ของเบราว์เซอร์ ซึ่งเป็นสีเข้มอ่านยากมากบนพื้นน้ำเงิน) */
+.kpi-section-label { font-weight: 700; color: #fff; font-size: .82rem; letter-spacing: .01em; margin-bottom: 6px; }
 /* เบิก FG / จัดส่ง มี KPI 7 การ์ดในแถวเดียว (รวมการเบิก+การจัดส่ง) — ย่อเฉพาะหน้านี้ให้กระชับขึ้น เอาพื้นที่แนวตั้งไปให้ตารางด้านล่างมากขึ้น */
 #page-fgout .kpi-card { padding: 7px 14px; }
 #page-fgout .kpi-card .kpi-num { font-size: 1.1rem; }
@@ -149,6 +152,69 @@ body {
   z-index: 100000; flex-direction: column;
 }
 #loginGate .glass-card { width: 340px; margin-bottom: 0; }
+
+/* ══════════════════════════════════════════════
+   WAREHOUSE TABLET MODE (WH01) — ดู onAuthStateChange (isWarehouse) + loadWhTabletData()
+   ══════════════════════════════════════════════ */
+/* สี CI บริษัท — สุ่มค่าจริงจากไฟล์โลโก้ wisenovation_LOGO -Cut.png (ตัวอักษร WISE + ดาว = น้ำเงิน,
+   ตัวอักษร NOVATION = เทา) ไม่ใช่สีน้ำเงิน Tailwind (#1e3a8a) ที่ใช้อยู่ทั่วแอปเดิม — ใช้เฉพาะโหมด
+   แท็บเลตคลัง (#whTabletView) เท่านั้น ไม่แก้สีของหน้า desktop เดิมที่ทดสอบแล้ว */
+#whTabletView {
+  position: fixed; inset: 0; z-index: 5000; background: #eef1f4;
+  display: none; justify-content: center; padding: 14px;
+}
+.wh-frame {
+  width: 100%; max-width: 480px; background: #fff; border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.12); padding: 16px 16px 8px;
+  display: flex; flex-direction: column; height: calc(100vh - 28px);
+}
+.wh-topbar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; margin-bottom: 10px; }
+.wh-user-pill { background: #e3ebf3; color: #155092; font-size: .68rem; font-weight: 700; padding: 4px 10px; border-radius: 100px; }
+.wh-swipe-area { flex: 1; overflow: hidden; position: relative; touch-action: pan-y; }
+.wh-track { display: flex; width: 300%; height: 100%; transition: transform .28s ease; transform: translateX(-33.3334%); }
+.wh-page { width: 33.3334%; flex-shrink: 0; overflow-y: auto; padding: 0 2px; }
+.wh-section-label { font-size: .72rem; font-weight: 700; color: #6b6d70; letter-spacing: .03em; margin: 4px 0 8px; }
+.wh-kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom: 14px; }
+.wh-kpi-tile { background: #f8fafc; border-radius: 12px; padding: 8px 6px; text-align: center; }
+.wh-kpi-num { font-size: 1.15rem; font-weight: 700; color: #1e293b; }
+.wh-kpi-label { font-size: .62rem; color: #6b6d70; }
+.wh-line-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.wh-linecard { background: #f8fafc; border-radius: 14px; padding: 11px; }
+.wh-linecard-idle { opacity: .7; }
+.wh-badge { font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
+.wh-badge-success { background: #dcfce7; color: #15803d; }
+.wh-badge-warning { background: #fef3c7; color: #b45309; }
+.wh-badge-danger  { background: #fee2e2; color: #b91c1c; }
+.wh-badge-muted   { background: #eceded; color: #6b6d70; }
+.wh-forecast-bar-bg  { height: 6px; background: #e2e8f0; border-radius: 100px; overflow: hidden; }
+.wh-forecast-bar-fill{ height: 100%; border-radius: 100px; }
+.wh-sched-row  { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #f8fafc; border-radius: 10px; font-size: .76rem; margin-bottom: 5px; }
+.wh-sched-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.wh-sched-time { color: #6b6d70; width: 42px; flex-shrink: 0; }
+.wh-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0 2px; flex-shrink: 0; }
+.wh-dot { width: 7px; height: 7px; border-radius: 100px; background: #c7c9cb; cursor: pointer; transition: all .2s; border: none; padding: 0; }
+.wh-dot.active { width: 20px; background: #155092; }
+/* จุดกลาง (หน้าโฮม) เป็นไอคอนบ้านแทนจุดเปล่าๆ ให้เห็นชัดว่าเป็นหน้าโฮม แยกจาก 2 จุดข้าง — วางกฎนี้ไว้หลัง
+   .wh-dot/.wh-dot.active เพราะ specificity เท่ากัน ต้องพึ่ง source order ชนะ */
+.wh-dot-home {
+  width: 18px; height: 18px; border-radius: 50%; background: #e2e4e6;
+  display: flex; align-items: center; justify-content: center; font-size: .6rem; color: #8b8d90;
+}
+.wh-dot-home.active { width: 18px; background: #155092; color: #fff; }
+.wh-tile-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.wh-tile {
+  height: 92px; border: 1px solid #e2e8f0; border-radius: 14px; background: #f8fafc;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.wh-tile i { font-size: 1.15rem; color: #155092; }
+.wh-tile span { font-size: .68rem; text-align: center; line-height: 1.2; color: #1e293b; }
+.wh-tile-action i { color: #16a34a; }
+#whBackFab {
+  position: fixed; bottom: 20px; left: 20px; z-index: 5100; display: none;
+  background: #155092; color: #fff; border: none; border-radius: 100px;
+  padding: 10px 18px; font-size: .85rem; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+
 /* Top loader bar */
 #topLoader {
   position: fixed; top: 0; left: 0; height: 3px;
@@ -164,28 +230,30 @@ body {
 }
 
 /* ── หน้าแรก (Home / Onboarding) — ย่อให้พอดีจอเดียว ไม่ต้องเลื่อนสกอล (2026-08-05) ── */
-#page-home .page-header { padding: 12px 30px 8px 30px; }
-#page-home .scroll-content { padding-bottom: 14px; }
-#page-home .glass-card { padding: 10px 14px; margin-bottom: 10px; }
+#page-home .page-header { padding: 8px 30px 4px 30px; }
+#page-home .scroll-content { padding-bottom: 4px; }
+#page-home .glass-card { padding: 8px 12px; margin-bottom: 6px; }
 #page-home .planweek-kpi { padding: .5rem .65rem; }
 #page-home .planweek-kpi-icon { width: 32px; height: 32px; font-size: .9rem; }
-#page-home .kpi-section-label { margin-bottom: 4px; }
+#page-home .kpi-section-label { margin-top: 18px; margin-bottom: 6px; }
+#page-home .kpi-section-label:first-child { margin-top: 0; }
+.home-section-gap { margin-top: 18px; }
 .home-shortcut-card { cursor: pointer; transition: transform .15s, box-shadow .15s; }
 .home-shortcut-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(30,58,138,.15); }
 .home-shortcut-icon {
-  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; color: #fff; font-size: .92rem;
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem;
   box-shadow: 0 4px 10px rgba(0,0,0,.12);
 }
 .home-forecast-card {
-  background: #fff; border: 1px solid rgba(200,210,230,.6); border-radius: 10px; padding: 10px 10px 12px;
+  background: #fff; border: 1px solid rgba(200,210,230,.6); border-radius: 10px; padding: 6px 8px 8px;
   transition: transform .15s, box-shadow .15s;
 }
 .home-forecast-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,58,138,.12); }
-.home-forecast-code { font-size: .78rem; font-weight: 700; color: #1e293b; }
-.home-forecast-name { font-size: .66rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
-.home-forecast-num { font-size: .85rem; font-weight: 800; color: #1e3a8a; }
-.home-forecast-unit { font-size: .62rem; color: #64748b; }
+.home-forecast-code { font-size: .74rem; font-weight: 700; color: #1e293b; line-height: 1.1; }
+.home-forecast-name { font-size: .74rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; line-height: 1.2; display: block; max-width: 100%; }
+.home-forecast-num { font-size: .8rem; font-weight: 800; color: #1e3a8a; line-height: 1.1; }
+.home-forecast-unit { font-size: .58rem; color: #64748b; line-height: 1.1; }
 .home-guide-step {
   display: flex; gap: 10px; align-items: center; padding: 4px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;
 }
@@ -826,8 +894,8 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
       </div>
 
       <!-- ภาพรวมวันนี้ -->
-      <div class="kpi-section-label mt-1">ภาพรวมวันนี้</div>
-      <div class="row g-2 mb-2">
+      <div class="kpi-section-label">ภาพรวมวันนี้</div>
+      <div class="row g-1 mb-1">
         <div class="col-6 col-md-3">
           <div class="planweek-kpi home-shortcut-card" onclick="showPage('mo', document.getElementById('nav-mo'))">
             <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6)"><i class="fas fa-industry"></i></div>
@@ -856,72 +924,91 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
       <!-- ทางลัดเมนูที่ใช้บ่อย -->
       <div class="kpi-section-label">เมนูที่ใช้บ่อย</div>
-      <div class="row g-2">
+      <div class="row g-1">
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('mr', document.getElementById('nav-mr'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6)"><i class="fas fa-truck-ramp-box"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">รับวัตถุดิบ (MR)</b><br><span class="text-muted">บันทึกวัตถุดิบที่รับเข้าคลัง</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">รับวัตถุดิบ (MR)</b><br><span class="text-muted">บันทึกวัตถุดิบที่รับเข้าคลัง</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('co', document.getElementById('nav-co'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#0d9488,#2dd4bf)"><i class="fas fa-file-invoice"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">คำสั่งลูกค้า (CO)</b><br><span class="text-muted">รับออเดอร์ ดูยอดสั่ง/ค้างส่ง</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">คำสั่งลูกค้า (CO)</b><br><span class="text-muted">รับออเดอร์ ดูยอดสั่ง/ค้างส่ง</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('mo', document.getElementById('nav-mo'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)"><i class="fas fa-industry"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">ไลน์ผลิต (MO)</b><br><span class="text-muted">ติดตามสถานะใบสั่งผลิต</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">ไลน์ผลิต (MO)</b><br><span class="text-muted">ติดตามสถานะใบสั่งผลิต</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('plan', document.getElementById('nav-plan'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#0ea5e9,#38bdf8)"><i class="fas fa-calendar-alt"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">แผนผลิต</b><br><span class="text-muted">จัดคิวงานผลิตลงไลน์/กะ</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">แผนผลิต</b><br><span class="text-muted">จัดคิวงานผลิตลงไลน์/กะ</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('issue', document.getElementById('nav-issue'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#d97706,#fbbf24)"><i class="fas fa-dolly"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">เบิกผลิต (Issue)</b><br><span class="text-muted">เบิกวัตถุดิบเข้าสายผลิต</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">เบิกผลิต (Issue)</b><br><span class="text-muted">เบิกวัตถุดิบเข้าสายผลิต</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('fg', document.getElementById('nav-fg'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#16a34a,#4ade80)"><i class="fas fa-cubes"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">รับ FG</b><br><span class="text-muted">รับสินค้าสำเร็จรูปเข้าคลัง</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">รับ FG</b><br><span class="text-muted">รับสินค้าสำเร็จรูปเข้าคลัง</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('fgout', document.getElementById('nav-fgout'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#db2777,#f472b6)"><i class="fas fa-truck"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">เบิก FG / จัดส่ง</b><br><span class="text-muted">เบิกส่งลูกค้า ออกใบส่งของ</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">เบิก FG / จัดส่ง</b><br><span class="text-muted">เบิกส่งลูกค้า ออกใบส่งของ</span></div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="glass-card home-shortcut-card h-100 mb-0 d-flex align-items-center gap-2" onclick="showPage('stock', document.getElementById('nav-stock'))">
             <div class="home-shortcut-icon" style="background:linear-gradient(135deg,#64748b,#94a3b8)"><i class="fas fa-boxes-stacked"></i></div>
-            <div style="font-size:.78rem;line-height:1.25"><b style="color:#1e293b">Stock วัตถุดิบ</b><br><span class="text-muted">เช็คยอดคงเหลือ</span></div>
+            <div style="font-size:.72rem;line-height:1.15"><b style="color:#1e293b">Stock วัตถุดิบ</b><br><span class="text-muted">เช็คยอดคงเหลือ</span></div>
           </div>
         </div>
       </div>
 
-      <!-- BULK ที่เบิกออก/รับเข้าบ่อยที่สุด (ตามปริมาณ) — ไตรมาสปัจจุบัน -->
-      <div class="kpi-section-label mt-2" id="home-bulk-chart-label">BULK ที่เบิกออก/รับเข้าบ่อยที่สุด</div>
-      <div class="glass-card">
-        <div class="fw-bold small text-muted mb-2" id="home-bulk-chart-sub">Top 5 ตามปริมาณเข้า-ออกรวม (Kg)</div>
-        <div style="position:relative;height:220px">
-          <canvas id="home-bulk-chart"></canvas>
-          <div id="home-bulk-chart-empty" class="text-center text-muted py-4 d-none">ยังไม่มีรายการรับเข้า/เบิกออก BULK ในไตรมาสนี้</div>
+      <!-- BULK ที่เบิกออก/รับเข้าบ่อยที่สุด (ซ้าย 70%) + BULK ที่ไม่เคลื่อนไหว 3 เดือน (ขวา 25%) -->
+      <div class="d-flex gap-2 flex-wrap home-section-gap">
+        <div style="flex:1 1 70%;min-width:320px">
+          <div class="kpi-section-label" id="home-bulk-chart-label">BULK ที่เบิกออก/รับเข้าบ่อยที่สุด</div>
+          <div class="glass-card">
+            <div class="d-flex justify-content-between align-items-baseline mb-1">
+              <div class="fw-bold small text-muted" id="home-bulk-chart-sub">Top 5 ตามปริมาณเข้า-ออกรวม (Kg)</div>
+              <div style="font-size:.64rem;color:#64748b;white-space:nowrap">
+                <span style="display:inline-block;width:8px;height:8px;background:#16a34a;border-radius:2px;margin-right:3px"></span>รับเข้า
+                <span style="display:inline-block;width:8px;height:8px;background:#dc2626;border-radius:2px;margin:0 3px 0 8px"></span>เบิกออก
+              </div>
+            </div>
+            <div style="position:relative;height:210px">
+              <canvas id="home-bulk-chart"></canvas>
+              <div id="home-bulk-chart-empty" class="text-center text-muted py-4 d-none">ยังไม่มีรายการรับเข้า/เบิกออก BULK ในไตรมาสนี้</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1 1 25%;min-width:200px">
+          <div class="kpi-section-label">ไม่เคลื่อนไหว 3 เดือน</div>
+          <div class="glass-card">
+            <div class="fw-bold small text-muted mb-1">ไม่มีรับเข้า/เบิกออกเลยในช่วง 3 เดือนล่าสุด</div>
+            <div style="max-height:210px;overflow-y:auto" id="home-idle-list">
+              <div class="text-center text-muted py-4" style="font-size:.8rem"><i class="fas fa-spinner fa-spin me-2"></i>กำลังตรวจสอบ...</div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — Top 5 ชุดเดียวกับกราฟด้านบน แสดงเป็นกราฟเส้นเล็กต่อการ์ด -->
-      <div class="kpi-section-label mt-2">พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน</div>
+      <div class="kpi-section-label">พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน</div>
       <div class="glass-card">
         <div class="fw-bold small text-muted mb-2">เส้นทึบ = ประวัติเบิกออกจริง (ต่อเดือน) · เส้นประ = พยากรณ์ 2 เดือนข้างหน้า · badge "พอ/ไม่พอ" เทียบยอดพยากรณ์รวมกับสต็อกคงเหลือให้แล้ว</div>
-        <div class="row g-2" id="home-forecast-cards"></div>
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px" id="home-forecast-cards"></div>
       </div>
     </div>
   </div>
@@ -3524,6 +3611,91 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
 </div><!-- /main-content -->
 
+<!-- ═══════════════════════════════════════════════════
+     WAREHOUSE TABLET MODE (WH01) — เต็มจอทับ sidebar/main-content ปกติ
+     เปิดเมื่อ _currentUser.isWarehouse === true (ดู onAuthStateChange ท้ายไฟล์)
+     ═══════════════════════════════════════════════════ -->
+<div id="whTabletView">
+  <div class="wh-frame">
+    <div class="wh-topbar">
+      <img src="wisenovation_LOGO -Cut.png" alt="Wise Novation" style="height:22px;width:auto">
+      <div class="d-flex align-items-center gap-2">
+        <span class="wh-user-pill"><i class="fas fa-warehouse me-1"></i>WH01 · คลัง</span>
+        <a href="#" onclick="event.preventDefault(); logoutUser();" title="ออกจากระบบ" style="color:#64748b">
+          <i class="fas fa-right-from-bracket"></i>
+        </a>
+      </div>
+    </div>
+
+    <div id="wh-swipe-area" class="wh-swipe-area">
+      <div id="wh-track" class="wh-track">
+
+        <!-- หน้า 0 (ซ้ายสุด): พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — สไวป์ขวาจากหน้าภาพรวมมาที่นี่ -->
+        <div class="wh-page">
+          <div style="font-size:1.1rem;font-weight:700;color:#1e293b">พยากรณ์การใช้ BULK</div>
+          <div class="text-muted mb-1" style="font-size:.75rem">2-month bulk usage forecast</div>
+          <div class="text-muted mb-3" style="font-size:.68rem">ประมาณการจากแนวโน้มย้อนหลัง — ใช้เตือนล่วงหน้าเท่านั้น ไม่ใช่ตัวเลขสั่งซื้อจริง</div>
+          <div id="wh-forecast-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+            <div class="text-center text-muted py-4" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
+          </div>
+        </div>
+
+        <!-- หน้า 1 (กลาง, ค่าเริ่มต้น): ภาพรวมการผลิต -->
+        <div class="wh-page">
+          <div style="font-size:1.1rem;font-weight:700;color:#1e293b">ภาพรวมการผลิต</div>
+          <div class="text-muted mb-2" style="font-size:.75rem">Production Overview</div>
+
+          <div class="wh-kpi-row">
+            <div class="wh-kpi-tile"><div class="wh-kpi-num" id="wh-kpi-mo">—</div><div class="wh-kpi-label">MO กำลังผลิต</div></div>
+            <div class="wh-kpi-tile"><div class="wh-kpi-num" style="color:#16a34a" id="wh-kpi-running">—</div><div class="wh-kpi-label">ไลน์กำลังเดิน</div></div>
+            <div class="wh-kpi-tile"><div class="wh-kpi-num" id="wh-kpi-done">—</div><div class="wh-kpi-label">เสร็จวันนี้</div></div>
+            <div class="wh-kpi-tile"><div class="wh-kpi-num" style="color:#f59e0b" id="wh-kpi-behind">—</div><div class="wh-kpi-label">ล่าช้า</div></div>
+          </div>
+
+          <div id="wh-line-cards" class="wh-line-grid">
+            <div class="text-center text-muted py-4 w-100"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
+          </div>
+
+          <div class="wh-section-label">แผนผลิตวันนี้</div>
+          <div id="wh-schedule-list" class="mb-3"></div>
+        </div>
+
+        <!-- หน้า 2 (ขวาสุด): เมนู -->
+        <div class="wh-page">
+          <div class="wh-section-label">ข้อมูล (ดูอย่างเดียว)</div>
+          <div class="wh-tile-grid mb-3">
+            <button class="wh-tile" onclick="_whOpenDesktopPage('stock')"><i class="fas fa-boxes-stacked"></i><span>Stock วัตถุดิบ</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('fgstock')"><i class="fas fa-box"></i><span>Stock FG</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('prodstatus')"><i class="fas fa-industry"></i><span>ภาพรวมการผลิต</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('mo')"><i class="fas fa-diagram-project"></i><span>ไลน์ผลิต</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('plan')"><i class="fas fa-calendar-alt"></i><span>แผนผลิต</span></button>
+          </div>
+          <div class="wh-section-label">บันทึกข้อมูล</div>
+          <div class="wh-tile-grid">
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('mr')"><i class="fas fa-truck-ramp-box"></i><span>รับวัตถุดิบ</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('issue')"><i class="fas fa-dolly"></i><span>เบิกผลิต</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fg')"><i class="fas fa-cubes"></i><span>รับ FG</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fgout')"><i class="fas fa-truck"></i><span>เบิก FG</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('misc')"><i class="fas fa-box-open"></i><span>เบิกเบ็ดเตล็ด</span></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="wh-dots">
+      <span class="wh-dot" id="wh-dot-0" onclick="_whGoPage(0)"></span>
+      <button class="wh-dot wh-dot-home active" id="wh-dot-1" onclick="_whGoPage(1)" aria-label="หน้าโฮม"><i class="fas fa-house"></i></button>
+      <span class="wh-dot" id="wh-dot-2" onclick="_whGoPage(2)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ปุ่มลอย "กลับหน้าคลัง" — โผล่เฉพาะตอนเปิดหน้า desktop จาก tile ในเมนูคลัง (ดู _whOpenDesktopPage) -->
+<button id="whBackFab" onclick="_whBackToTablet()">
+  <i class="fas fa-arrow-left me-1"></i>กลับหน้าคลัง
+</button>
+
 <!-- Loading Overlay -->
 <div id="loadingOverlay">
   <div class="spinner-border text-light mb-2" style="width:2.5rem;height:2.5rem"></div>
@@ -3985,7 +4157,8 @@ async function loadHomeData() {
     _sb.from('customer_orders').select('Status'),
     _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
     _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
-    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', qStartStr).lte('Date', qEndStr),
+    // ดึงย้อนหลัง 12 เดือนเหมือน issue_production ด้านล่าง — ใช้ทั้งกับกราฟ Top 5 (กรองเอาแค่ไตรมาสนี้ทีหลัง) และเช็ค "ไม่เคลื่อนไหว 3 เดือน"
+    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
     _sb.from('issue_production').select('MaterialCode,IssuedQty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
     // issue_misc: คอลัมน์จริงในฐานข้อมูลเป็นตัวพิมพ์เล็กทั้งหมด (materialcode/issuedqty/date) ไม่ตรงกับที่โค้ดทั้งแอปสมมติไว้
     // (PascalCase เหมือนตารางอื่น) — ยืนยันแล้วว่า select('MaterialCode') จริงจะพัง 42703 "column does not exist"
@@ -4043,8 +4216,8 @@ async function loadHomeData() {
     if (!bulkAgg[code]) bulkAgg[code] = { in: 0, out: 0 };
     bulkAgg[code][field] += qty;
   };
-  // issueRes/miscRes ดึงมา 12 เดือนเพื่อใช้กับพยากรณ์ด้านล่างด้วย — กราฟนี้ใช้แค่ช่วงไตรมาสปัจจุบัน กรองเอาเฉพาะแถวในช่วงนั้น
-  (mrRes.data || []).forEach(r => addQty(r.MaterialCode, 'in', parseFloat(r.Qty) || 0));
+  // mrRes/issueRes/miscRes ดึงมา 12 เดือนเพื่อใช้กับพยากรณ์+เช็ค "ไม่เคลื่อนไหว" ด้านล่างด้วย — กราฟนี้ใช้แค่ช่วงไตรมาสปัจจุบัน กรองเอาเฉพาะแถวในช่วงนั้น
+  (mrRes.data || []).forEach(r => { if ((r.Date||'') >= qStartStr) addQty(r.MaterialCode, 'in', parseFloat(r.Qty) || 0); });
   (issueRes.data || []).forEach(r => { if ((r.Date||'') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
   miscRows.forEach(r => { if ((r.Date||'') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
 
@@ -4072,14 +4245,18 @@ async function loadHomeData() {
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
-        scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } },
+        plugins: { legend: { display: false } },
+        layout: { padding: { right: 8 } },
+        scales: {
+          x: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } },
+          y: { stacked: true, ticks: { font: { size: 10.5 }, autoSkip: false, crossAlign: 'far' } },
+        },
       },
     });
   }
 
   // ── พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — แนวโน้มเชิงเส้น (least squares) จากประวัติเบิกออกรายเดือน ย้อนหลังสูงสุด 12 เดือน
-  // ครอบคลุมทุก BULK ที่ "มีสต็อกอยู่จริง" (ไม่จำกัดแค่ Top 5 ในกราฟด้านบน) ตามที่ผู้ใช้ยืนยัน — เทียบกับสต็อกคงเหลือ ว่า "พอ/ไม่พอ"
+  // เฉพาะ Top 5 ชุดเดียวกับกราฟด้านบน (ยืนยันกับผู้ใช้แล้ว) — เทียบกับสต็อกคงเหลือ ว่า "พอ/ไม่พอ"
   const monthKey = dateStr => String(dateStr).slice(0, 7); // 'YYYY-MM-DD' -> 'YYYY-MM'
   const monthlyByMat = {};
   const addMonthly = (code, dateStr, qty) => {
@@ -4159,10 +4336,9 @@ async function loadHomeData() {
             ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined,{maximumFractionDigits:1})}</span>`
             : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
         const chartArea = c.monthsWithData >= 2
-          ? `<div style="position:relative;height:70px"><canvas id="home-forecast-chart-${i}"></canvas></div>`
-          : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:70px;font-size:.66rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
-        return `<div class="col-6 col-md">
-          <div class="home-forecast-card">
+          ? `<div style="position:relative;height:20px"><canvas id="home-forecast-chart-${i}"></canvas></div>`
+          : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:20px;font-size:.55rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
+        return `<div class="home-forecast-card">
             <div class="home-forecast-code">${c.code}</div>
             <div class="home-forecast-name">${c.name || ''}</div>
             ${chartArea}
@@ -4173,8 +4349,7 @@ async function loadHomeData() {
               </div>
               ${badge}
             </div>
-          </div>
-        </div>`;
+          </div>`;
       }).join('');
 
       forecastCards.forEach((c, i) => {
@@ -4202,6 +4377,43 @@ async function loadHomeData() {
       });
     }
   }
+
+  // ── BULK ที่ "ไม่เคลื่อนไหว 3 เดือน" — ไม่มีรับเข้า (MR) และไม่มีเบิกออก (Issue/เบ็ดเตล็ด) เลยในช่วง 3 เดือนล่าสุด
+  // ใช้ข้อมูล 12 เดือนที่ดึงมาอยู่แล้ว (mrRes/issueRes/miscRows) หาวันที่เคลื่อนไหวล่าสุดต่อรหัส ไม่ต้อง query เพิ่ม
+  const threeMoAgoStr = _ymdLocal(new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()));
+  const lastMoveByMat = {};
+  const noteMove = (code, dateStr) => {
+    if (!code || typeByMat[code] !== 'BULK' || !dateStr) return;
+    if (!lastMoveByMat[code] || dateStr > lastMoveByMat[code]) lastMoveByMat[code] = dateStr;
+  };
+  (mrRes.data || []).forEach(r => noteMove(r.MaterialCode, r.Date));
+  (issueRes.data || []).forEach(r => noteMove(r.MaterialCode, r.Date));
+  miscRows.forEach(r => noteMove(r.MaterialCode, r.Date));
+
+  const idleBulk = Object.keys(matMap)
+    .filter(code => typeByMat[code] === 'BULK' && matMap[code].total > 0)
+    .filter(code => !lastMoveByMat[code] || lastMoveByMat[code] < threeMoAgoStr)
+    .map(code => ({ code, name: nameByMat[code] || code, uom: uomByMat[code] || '', qty: matMap[code].total, lastMove: lastMoveByMat[code] || null }))
+    .sort((a, b) => b.qty - a.qty);
+
+  const idleContainer = el('home-idle-list');
+  if (idleContainer) {
+    if (!idleBulk.length) {
+      idleContainer.innerHTML = '<div class="text-center text-muted py-4" style="font-size:.8rem">ไม่มี BULK ที่นิ่งนาน 3 เดือน</div>';
+    } else {
+      idleContainer.innerHTML = idleBulk.map(x => `
+        <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;font-size:.76rem">
+          <div style="min-width:0;overflow:hidden">
+            <div class="fw-bold" style="color:#1e293b">${x.code}</div>
+            <div class="text-muted" style="font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.name}</div>
+          </div>
+          <div class="text-end flex-shrink-0 ms-2">
+            <div class="fw-bold" style="color:#1e3a8a">${x.qty.toLocaleString()} ${x.uom}</div>
+            <div class="text-muted" style="font-size:.65rem">${x.lastMove ? 'ล่าสุด ' + _fmtDate(x.lastMove) : 'ไม่มีประวัติ'}</div>
+          </div>
+        </div>`).join('');
+    }
+  }
 }
 let _homeBulkChart = null;
 function _homeDestroyBulkChart() {
@@ -4211,6 +4423,332 @@ let _homeForecastCharts = [];
 function _homeDestroyForecastCharts() {
   _homeForecastCharts.forEach(c => c.destroy());
   _homeForecastCharts = [];
+}
+
+// ══════════════════════════════════════════════
+// WAREHOUSE TABLET MODE (WH01) — โหมดแท็บเลตสำหรับพนักงานคลัง
+// เปิดจาก onAuthStateChange เมื่อ _currentUser.isWarehouse === true แทนที่ sidebar/main-content ปกติ
+// ทั้งหมด (ดู #whTabletView ใน HTML) ใช้ข้อมูล/global เดิมของหน้าภาพรวมการผลิต
+// (loadProdStatusData, _prodStatusPlanWeekData, _prodStatusMOData, _prodStatusRecords, PLAN_LINES,
+// PLAN_SHIFTS) ไม่สร้าง query ซ้อนใหม่สำหรับส่วนนั้น — ยกเว้นส่วนพยากรณ์ BULK ที่จงใจแยกเป็นฟังก์ชันของ
+// ตัวเอง (_whComputeBulkForecast) เพราะสูตรเดิมอยู่ใน loadHomeData() ซึ่งผูกกับ DOM ของหน้าแรก desktop
+// ที่ทดสอบแล้ว ไม่อยากแก้โค้ดที่ทำงานอยู่แล้วเพื่อดึงมาแชร์ — ถ้าแก้สูตรพยากรณ์ใน loadHomeData ต้องมา
+// แก้ที่นี่ให้ตรงกันด้วย (ทั้งสองจุดใช้ materials.TYPE==='BULK' เป็นตัวจำแนก Bulk เหมือนกัน)
+// ══════════════════════════════════════════════
+
+let _whPage = 1; // 0 = พยากรณ์ BULK (ซ้าย), 1 = ภาพรวมการผลิต (กลาง, ค่าเริ่มต้น), 2 = เมนู (ขวา)
+const _whPageCount = 3;
+
+function _whGoPage(p) {
+  _whPage = Math.max(0, Math.min(_whPageCount - 1, p));
+  const track = document.getElementById('wh-track');
+  if (track) track.style.transform = `translateX(${-_whPage * (100 / _whPageCount)}%)`;
+  for (let i = 0; i < _whPageCount; i++) document.getElementById('wh-dot-' + i)?.classList.toggle('active', _whPage === i);
+}
+
+function _whInitSwipe() {
+  const area = document.getElementById('wh-swipe-area');
+  if (!area || area._whSwipeBound) return;
+  area._whSwipeBound = true;
+  let startX = 0, startY = 0, dragging = false;
+  area.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY; dragging = true;
+  }, { passive: true });
+  area.addEventListener('touchend', e => {
+    if (!dragging) return; dragging = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) _whGoPage(_whPage + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+}
+
+// เปิดหน้า desktop เดิมจาก tile ในเมนูคลัง (ยังเป็นหน้า/ฟังก์ชันเดิมของแอปทุกอย่าง — ไม่มีสิทธิ์แยก
+// เพราะแอปนี้ไม่มีระบบสิทธิ์แบบจำกัดการเข้าถึง มีแค่ audit log ว่าใครทำอะไร ตามที่ตกลงไว้ทั้งแอป)
+// ใช้ปุ่มลอย #whBackFab กลับเข้าโหมดแท็บเลตคลังได้ทุกเมื่อ
+function _whOpenDesktopPage(page) {
+  document.getElementById('whTabletView').style.display = 'none';
+  document.getElementById('whBackFab').style.display = 'flex';
+  showPage(page, document.getElementById('nav-' + page));
+}
+function _whBackToTablet() {
+  document.getElementById('whBackFab').style.display = 'none';
+  document.getElementById('whTabletView').style.display = 'flex';
+  _whGoPage(1); // กลับมาที่หน้าคลังทีไร ให้อยู่หน้าโฮม (ภาพรวมการผลิต) เสมอ ไม่จำตำแหน่งที่สไวป์ค้างไว้ก่อนออกไป
+}
+
+async function loadWhTabletData() {
+  _whInitSwipe();
+  _whGoPage(1); // เข้าโหมดคลังครั้งแรกหลัง login ก็ให้เริ่มที่หน้าโฮมเสมอ
+  await loadProdStatusData();
+  _whRenderKPIs();
+  _whRenderLineCards();
+  _whRenderSchedule();
+  _whComputeBulkForecast().then(_whRenderForecast);
+}
+
+// สถานะไลน์ "วันนี้" ต่อ 1 ใน PLAN_LINES — running (กำลังผลิตตามแผน) / behind (ล่าช้ากว่าที่ควร) /
+// done (ผลิตครบตามแผนแล้ว) / idle (ไม่มีแผนวันนี้เลย)
+// เกณฑ์ "behind": มีผลจริงแล้วแต่ได้ < 70% ของแผน (สอดคล้อง threshold สีแดง/เหลืองที่ prodStatusRenderTodayCards
+// ใช้อยู่แล้ว) หรือยังไม่มีผลจริงแต่เลยเวลาสิ้นสุดกะที่วางแผนไว้แล้ว (PLAN_SHIFTS[shift].end)
+function _whLineStatus(line) {
+  const days = _planWeekRange();
+  const todayStr = days[_planWeekTodayIdx];
+  const items = _prodStatusPlanWeekData.filter(r => r.PlanDate === todayStr && r.Line === line);
+  if (!items.length) return { status: 'idle' };
+
+  const isDoneItem = r => {
+    const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
+    if (!rec || rec.FG_Actual == null) return false;
+    const planned = parseFloat(rec.FG_Planned) || parseFloat(r.PlanQty) || 0;
+    return (parseFloat(rec.FG_Actual) || 0) >= planned;
+  };
+  const item = items.find(r => !isDoneItem(r)) || items[items.length - 1];
+
+  const rec = item.ProdRecord_Ref ? _prodStatusRecords[item.ProdRecord_Ref] : null;
+  const planQty = parseFloat(item.PlanQty) || 0;
+  const planned = rec ? (parseFloat(rec.FG_Planned) || planQty) : planQty;
+  const actual  = rec && rec.FG_Actual != null ? (parseFloat(rec.FG_Actual) || 0) : null;
+  const pct = actual != null && planned > 0 ? Math.round(actual / planned * 100) : null;
+  const mo = item.MO_Ref ? _prodStatusMOData.find(m => m.MO_ID === item.MO_Ref) : null;
+
+  let status = 'running';
+  if (actual != null) {
+    status = actual >= planned ? 'done' : (pct < 70 ? 'behind' : 'running');
+  } else {
+    const shiftInfo = PLAN_SHIFTS[item.Shift];
+    const nowHM = new Date().toTimeString().slice(0, 5);
+    if (shiftInfo && nowHM > shiftInfo.end) status = 'behind';
+  }
+  return { status, item, mo, planned, actual, pct };
+}
+
+function _whRenderKPIs() {
+  const el = id => document.getElementById(id);
+  let running = 0, behind = 0, done = 0;
+  PLAN_LINES.forEach(line => {
+    const s = _whLineStatus(line).status;
+    if (s === 'running') running++;
+    else if (s === 'behind') behind++;
+    else if (s === 'done') done++;
+  });
+  if (el('wh-kpi-mo'))      el('wh-kpi-mo').textContent      = _prodStatusMOData.length.toLocaleString();
+  if (el('wh-kpi-running')) el('wh-kpi-running').textContent = running.toLocaleString();
+  if (el('wh-kpi-done'))    el('wh-kpi-done').textContent    = done.toLocaleString();
+  if (el('wh-kpi-behind'))  el('wh-kpi-behind').textContent  = behind.toLocaleString();
+}
+
+function _whRenderLineCards() {
+  const container = document.getElementById('wh-line-cards');
+  if (!container) return;
+  const badgeMap = {
+    running: ['กำลังผลิต', 'wh-badge-success'],
+    behind : ['ล่าช้า',     'wh-badge-warning'],
+    done   : ['เสร็จแล้ว',  'wh-badge-success'],
+    idle   : ['ว่าง',       'wh-badge-muted'],
+  };
+  container.innerHTML = PLAN_LINES.map(line => {
+    const r = _whLineStatus(line);
+    const [label, cls] = badgeMap[r.status];
+    if (r.status === 'idle') {
+      return `<div class="wh-linecard wh-linecard-idle">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div style="font-size:.78rem;font-weight:700;color:#1e293b">${line}</div>
+          <span class="wh-badge ${cls}">${label}</span>
+        </div>
+        <div class="text-muted" style="font-size:.74rem">ไม่มีแผนผลิตวันนี้</div>
+      </div>`;
+    }
+    const pct = r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
+    const barColor = r.status === 'behind' ? '#ef4444' : '#22c55e';
+    return `<div class="wh-linecard">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div style="font-size:.78rem;font-weight:700;color:#1e293b">${line}</div>
+        <span class="wh-badge ${cls}">${label}</span>
+      </div>
+      <div class="text-muted" style="font-size:.7rem;margin-bottom:2px">${r.mo?.MO_ID || '—'}</div>
+      <div style="font-size:.8rem;font-weight:600;margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.item.ProductName || '—'}</div>
+      <div class="wh-forecast-bar-bg" style="margin-bottom:4px"><div class="wh-forecast-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+      <div class="text-muted" style="font-size:.68rem">${r.actual != null ? r.actual.toLocaleString() : '0'} / ${r.planned.toLocaleString()} ${r.item.UOM || ''} · ${r.item.Shift || '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function _whRenderSchedule() {
+  const el = document.getElementById('wh-schedule-list');
+  if (!el) return;
+  const days = _planWeekRange();
+  const todayStr = days[_planWeekTodayIdx];
+  const items = _prodStatusPlanWeekData
+    .filter(r => r.PlanDate === todayStr)
+    .slice()
+    .sort((a, b) => (a.TimeStart || '').localeCompare(b.TimeStart || ''));
+  if (!items.length) { el.innerHTML = '<div class="text-center text-muted py-3" style="font-size:.8rem">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
+  el.innerHTML = items.map(r => {
+    const dotColor = r.Status === 'ยืนยันแล้ว' ? '#22c55e' : '#94a3b8';
+    return `<div class="wh-sched-row">
+      <span class="wh-sched-dot" style="background:${dotColor}"></span>
+      <span class="wh-sched-time">${r.TimeStart || '—'}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.Line || ''} · ${r.ProductName || ''}</span>
+    </div>`;
+  }).join('');
+}
+
+// พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — สูตรเดียวกับ loadHomeData() (แนวโน้มเชิงเส้นจากประวัติเบิกออก
+// รายเดือน ย้อนหลังสูงสุด 12 เดือน, Top 5 ตามปริมาณเข้า-ออกรวมของไตรมาสนี้) แต่แยกก๊อปปี้เพื่อไม่แก้โค้ด
+// หน้าแรก desktop ที่ทดสอบแล้ว — ดูหมายเหตุที่หัวไฟล์ส่วนนี้ ถ้าแก้ตรงนี้ควรพิจารณาแก้ loadHomeData ด้วย
+let _whForecastCards = [];
+async function _whComputeBulkForecast() {
+  const now = new Date();
+  const _ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const qEndStr = _ymd(now);
+  const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  const qStartStr = _ymd(new Date(now.getFullYear(), qStartMonth, 1));
+  const trendStartStr = _ymd(new Date(now.getFullYear(), now.getMonth() - 11, 1));
+
+  const [matRes, stockRes, mrRes, issueRes, miscRes] = await Promise.all([
+    _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
+    _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
+    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', qStartStr).lte('Date', qEndStr),
+    _sb.from('issue_production').select('MaterialCode,IssuedQty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
+    _sb.from('issue_misc').select('*'),
+  ]);
+  if (matRes.error || stockRes.error || mrRes.error || issueRes.error || miscRes.error) { _whForecastCards = []; return; }
+
+  // issue_misc: คอลัมน์จริงเป็นตัวพิมพ์เล็กทั้งหมด — normalize เหมือน loadHomeData()
+  const miscRows = (miscRes.data || [])
+    .map(r => ({ MaterialCode: r.MaterialCode ?? r.materialcode, IssuedQty: r.IssuedQty ?? r.issuedqty, Date: r.Date ?? r.date }))
+    .filter(r => (r.Date || '') >= trendStartStr && (r.Date || '') <= qEndStr);
+
+  const typeByMat = {};
+  (matRes.data || []).forEach(m => { typeByMat[m.MaterialCode] = m.TYPE || ''; });
+  const matMap = {};
+  (stockRes.data || []).forEach(r => {
+    const key = r.MaterialCode || '—';
+    if (!matMap[key]) matMap[key] = { total: 0, name: r.MaterialName, uom: r.UOM };
+    matMap[key].total += parseFloat(r.QtyBalance) || 0;
+  });
+
+  const bulkAgg = {};
+  const addQty = (code, field, qty) => {
+    if (!code || typeByMat[code] !== 'BULK') return;
+    (bulkAgg[code] ||= { in: 0, out: 0 })[field] += qty;
+  };
+  (mrRes.data || []).forEach(r => addQty(r.MaterialCode, 'in', parseFloat(r.Qty) || 0));
+  (issueRes.data || []).forEach(r => { if ((r.Date || '') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
+  miscRows.forEach(r => { if ((r.Date || '') >= qStartStr) addQty(r.MaterialCode, 'out', parseFloat(r.IssuedQty) || 0); });
+
+  const topBulk = Object.entries(bulkAgg)
+    .map(([code, v]) => ({ code, name: matMap[code]?.name || code, total: v.in + v.out }))
+    .filter(x => x.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+
+  const monthKey = s => String(s).slice(0, 7);
+  const monthlyByMat = {};
+  const addMonthly = (code, dateStr, qty) => {
+    if (!code || typeByMat[code] !== 'BULK' || !dateStr) return;
+    const mk = monthKey(dateStr);
+    (monthlyByMat[code] ||= {})[mk] = (monthlyByMat[code][mk] || 0) + qty;
+  };
+  (issueRes.data || []).forEach(r => addMonthly(r.MaterialCode, r.Date, parseFloat(r.IssuedQty) || 0));
+  miscRows.forEach(r => addMonthly(r.MaterialCode, r.Date, parseFloat(r.IssuedQty) || 0));
+
+  const currentMonthKey = monthKey(qEndStr);
+  const monthsBetween = (a, b) => {
+    const [sy, sm] = a.split('-').map(Number); const [ey, em] = b.split('-').map(Number);
+    const out = []; let y = sy, m = sm;
+    while (y < ey || (y === ey && m <= em)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } }
+    return out;
+  };
+  const linearFit = series => {
+    const n = series.length; const meanX = (n - 1) / 2; const meanY = series.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (i - meanX) * (series[i] - meanY); den += (i - meanX) ** 2; }
+    const slope = den === 0 ? 0 : num / den;
+    return { slope, intercept: meanY - slope * meanX };
+  };
+
+  // เก็บ series/predicted ไว้ด้วย (ไม่ใช่แค่ forecast รวม) เพื่อวาดกราฟเส้นเล็กแบบเดียวกับหน้าแรก desktop
+  _whForecastCards = topBulk.map(b => {
+    const code = b.code;
+    const currentStock = matMap[code]?.total || 0;
+    const uom = matMap[code]?.uom || '';
+    const monthMap = monthlyByMat[code] || {};
+    const keys = Object.keys(monthMap).sort();
+    if (!keys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
+    const series = monthsBetween(keys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
+    const n = series.length;
+    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2) };
+    const { slope, intercept } = linearFit(series);
+    const predAt = x => Math.max(0, intercept + slope * x);
+    const f1 = predAt(n), f2 = predAt(n + 1);
+    return { code, name: b.name, uom, currentStock, monthsWithData: n, series, forecast: f1 + f2, predicted: [f1, f2] };
+  });
+}
+
+// การ์ดพยากรณ์ — หน้าตาเดียวกับ .home-forecast-card ของหน้าแรก desktop เป๊ะ (คลาส CSS เดียวกัน,
+// กราฟเส้นเล็ก Chart.js แบบเดียวกัน: เส้นทึบ = ประวัติจริง, เส้นประ = พยากรณ์) แค่จัดกริด 2 คอลัมน์ให้
+// เหมาะกับความกว้างแท็บเลตแทน 5 คอลัมน์ของจอเดสก์ท็อป
+let _whForecastCharts = [];
+function _whDestroyForecastCharts() {
+  _whForecastCharts.forEach(c => c.destroy());
+  _whForecastCharts = [];
+}
+
+function _whRenderForecast() {
+  const el = document.getElementById('wh-forecast-cards');
+  if (!el) return;
+  _whDestroyForecastCharts();
+  if (!_whForecastCards.length) { el.innerHTML = '<div class="text-center text-muted py-4" style="grid-column:1/-1;font-size:.8rem">ยังไม่มี BULK ที่มีกิจกรรมให้พยากรณ์</div>'; return; }
+
+  el.innerHTML = _whForecastCards.map((c, i) => {
+    const noData = c.forecast === null;
+    const short = !noData && c.forecast > c.currentStock;
+    const badge = noData
+      ? '<span class="badge bg-light text-muted border" style="font-size:.62rem">ไม่มีข้อมูล</span>'
+      : short
+        ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>`
+        : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
+    const chartArea = c.monthsWithData >= 2
+      ? `<div style="position:relative;height:28px"><canvas id="wh-forecast-chart-${i}"></canvas></div>`
+      : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:28px;font-size:.6rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
+    return `<div class="home-forecast-card">
+        <div class="home-forecast-code">${c.code}</div>
+        <div class="home-forecast-name">${c.name || ''}</div>
+        ${chartArea}
+        <div class="d-flex justify-content-between align-items-center mt-1">
+          <div>
+            <div class="home-forecast-num">${noData ? '—' : c.forecast.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' ' + c.uom}</div>
+            <div class="home-forecast-unit">คาดใช้อีก 2 เดือน</div>
+          </div>
+          ${badge}
+        </div>
+      </div>`;
+  }).join('');
+
+  _whForecastCards.forEach((c, i) => {
+    if (c.monthsWithData < 2) return;
+    const canvas = document.getElementById(`wh-forecast-chart-${i}`);
+    if (!canvas) return;
+    const n = c.series.length;
+    const labels = [...Array(n + 2).keys()].map(() => '');
+    _whForecastCharts.push(new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'ประวัติจริง', data: [...c.series, null, null], borderColor: '#155092', backgroundColor: '#155092', pointRadius: 2, borderWidth: 2, tension: .25 },
+          { label: 'พยากรณ์', data: [...Array(n - 1).fill(null), c.series[n - 1], ...c.predicted], borderColor: '#7fa8ce', backgroundColor: '#7fa8ce', pointRadius: 2, borderWidth: 2, borderDash: [4, 3], tension: .25 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false, beginAtZero: true } },
+        elements: { line: { spanGaps: false } },
+      },
+    }));
+  });
 }
 
 function showPage(page, navEl) {
@@ -4798,9 +5336,12 @@ const _moWaitStatuses = ['Wait', 'รอเบิก', 'แพลนแล้ว
 
 // เช็คว่าวัตถุดิบแต่ละตัวใน BOM ของ MO นี้ พอเบิกหรือไม่ เทียบกับ stock_balance รวมทุก Lot
 // สูตรคำนวณยอดที่ต้องใช้เหมือนหน้าเบิกวัตถุดิบ (issueOnMOChange): QtyWithScrap × OrderQty, Pac ปัดขึ้นเต็มหน่วย
-function _moComputeMaterialCheck(mo) {
-  const orderQty = parseFloat(mo.OrderQty) || 0;
-  const rawBom = _moBOM.filter(b => b.ProductCode === mo.ProductCode);
+// คำนวณยอดวัตถุดิบที่ต้องใช้ตาม BOM สำหรับสินค้า+จำนวนที่ระบุ (ไม่เกี่ยวกับสต็อก/ยอดจอง) — แยกออกมาจาก
+// _moComputeMaterialCheck เพื่อให้ moSubmit เรียกใช้ตรงๆ ตอนต้อง recompute ยอดจองใหม่หลังแก้ไข OrderQty
+// (ดู _moSyncReservationAndPlan) โดยไม่ต้องพ่วงเรื่องเช็คสต็อกมาด้วย
+function _moBomRequirementForQty(productCode, qty) {
+  const orderQty = parseFloat(qty) || 0;
+  const rawBom = _moBOM.filter(b => b.ProductCode === productCode);
   // bom มีแถวซ้ำจากการ import หลายรอบ — dedupe ตาม MaterialCode+ประเภท เหมือน pattern ที่ใช้ในหน้า BOM/เบิกวัตถุดิบ
   const seenKeys = new Set();
   const bomLines = rawBom.filter(b => {
@@ -4810,22 +5351,25 @@ function _moComputeMaterialCheck(mo) {
     return true;
   });
 
-  const lines = bomLines.map(b => {
+  return bomLines.map(b => {
     const isPac    = (b.Remark||'').toLowerCase() === 'pac';
     const qtyScrap = parseFloat(b.QtyWithScrap || b.QtyPerBase || 0);
     const rawTotal = qtyScrap * orderQty;
     const required = (isPac && rawTotal % 1 !== 0) ? Math.ceil(rawTotal) : parseFloat(rawTotal.toFixed(3));
+    return { matCode: b.MaterialCode || '', matName: b.MaterialName || '', uom: b.UOM || '', required };
+  });
+}
+
+function _moComputeMaterialCheck(mo) {
+  const bomLines = _moBomRequirementForQty(mo.ProductCode, mo.OrderQty);
+  const lines = bomLines.map(l => {
     // หักยอดที่ MO ใบอื่นจองไว้แล้ว (WIP) ออกจากสต็อกจริงก่อนเทียบ — กัน MO สองใบเห็น "พอ" พร้อมกันทั้งคู่
     // ทั้งที่รวมกันเกินสต็อกจริง ไม่หักยอดที่ MO ใบนี้เองจองไว้ (ถ้ามี) เพื่อไม่ให้บล็อกตัวเอง
-    const totalReserved = _moReservedByMaterial[b.MaterialCode] || 0;
-    const ownReserved    = (_moReservedByMO[mo.MO_ID] || {})[b.MaterialCode] || 0;
-    const available = (_moStockMap[b.MaterialCode] || 0) - (totalReserved - ownReserved);
-    return {
-      matCode: b.MaterialCode || '', matName: b.MaterialName || '', uom: b.UOM || '',
-      required, available, ok: available >= required,
-    };
+    const totalReserved = _moReservedByMaterial[l.matCode] || 0;
+    const ownReserved    = (_moReservedByMO[mo.MO_ID] || {})[l.matCode] || 0;
+    const available = (_moStockMap[l.matCode] || 0) - (totalReserved - ownReserved);
+    return { ...l, available, ok: available >= l.required };
   });
-
   return { lines, shortfallCount: lines.filter(l => !l.ok).length };
 }
 
@@ -10762,6 +11306,29 @@ async function moOpenModal(rowId = null) {
   _moModal.show();
 }
 
+// เรียกจาก moSubmit เท่านั้น หลังบันทึก OrderQty ใหม่สำเร็จแล้ว (ผ่านการเช็คสต็อกพอแล้ว) — ปรับยอดจอง
+// วัตถุดิบให้ตรงกับ OrderQty ใหม่เป๊ะ โดย recompute จาก BOM ทั้งชุดใหม่ (ไม่ scale ตัวเลขเดิม กันเศษปัดสะสม
+// คลาดเคลื่อน) แล้วปรับ PlanQty ในแผนผลิตทุกแถวของ MO นี้ตามสัดส่วนเดิม (เผื่อ MO ถูกแบ่งแพลนหลายวัน ยอดรวม
+// ทุกวันควรขยับตามสัดส่วนเดียวกัน ไม่ใช่ยัดส่วนต่างไปวันเดียว)
+async function _moSyncReservationAndPlan({ moId, productCode, oldQty, newQty }) {
+  const newLines = _moBomRequirementForQty(productCode, newQty);
+  await _sb.from('mo_material_reservations').delete().eq('MO_Ref', moId);
+  if (newLines.length) {
+    await _sb.from('mo_material_reservations').insert(newLines.map(l => ({
+      MO_Ref: moId, MaterialCode: l.matCode, MaterialName: l.matName, ReservedQty: l.required, UOM: l.uom,
+    })));
+  }
+
+  if (oldQty > 0) {
+    const ratio = newQty / oldQty;
+    const { data: plans } = await _sb.from('production_plan').select('_row_id,PlanQty').eq('MO_Ref', moId);
+    for (const p of (plans || [])) {
+      const newPlanQty = Math.round((parseFloat(p.PlanQty) || 0) * ratio * 1000) / 1000;
+      await _sb.from('production_plan').update({ PlanQty: newPlanQty }).eq('_row_id', p._row_id);
+    }
+  }
+}
+
 async function moSubmit(e) {
   e.preventDefault();
   const editId  = document.getElementById('mo-edit-id').value;
@@ -10780,6 +11347,7 @@ async function moSubmit(e) {
     Status      : document.getElementById('mo-f-status').value,
   };
   let oldRow;
+  let _moPlanSyncInfo = null; // ถ้าไม่ null แปลว่าต้อง sync ยอดจอง+แผนผลิตหลังบันทึก MO สำเร็จ (ดูท้ายฟังก์ชัน)
   if (!isEdit) {
     payload.MO_Received = 0;
     payload.Pending     = qty;
@@ -10791,6 +11359,24 @@ async function moSubmit(e) {
     oldRow = _moData.find(d => d._row_id === parseInt(editId));
     const received = parseFloat(oldRow?.MO_Received) || 0;
     payload.Pending = qty - received;
+
+    // แก้ไข OrderQty ของ MO ที่ "แพลนแล้ว" (จองวัตถุดิบไว้แล้วตาม BOM×OrderQty เดิม) ต้องปรับยอดจอง
+    // (mo_material_reservations) กับยอดในแผนผลิต (production_plan.PlanQty) ให้เชื่อมโยงตามไปด้วยเสมอ — เดิม
+    // เป็น snapshot ตายตัวไม่ผูกสดกับ OrderQty ที่แก้ทีหลัง (ผู้ใช้ยืนยันไว้ก่อนหน้าว่ารับความเสี่ยงได้ ตอนนี้ขอ
+    // ให้เชื่อมกันแทน) เช็คสต็อกจริงก่อนด้วยว่าพอสำหรับจำนวนใหม่ไหม (เหมือนตอนกดปุ่ม "แพลนการผลิต" ครั้งแรก) —
+    // ถ้าไม่พอ บล็อกการบันทึกทั้งหมดไปเลย กันยอดจอง/แผนผลิตเพี้ยนไม่ตรงกับ OrderQty จริง
+    const oldQty = parseFloat(oldRow?.OrderQty) || 0;
+    if (oldRow?.Status === 'แพลนแล้ว' && qty > 0 && qty !== oldQty) {
+      const shortfallCheck = _moComputeMaterialCheck({ ...oldRow, OrderQty: qty });
+      if (shortfallCheck.shortfallCount > 0) {
+        const shortLines = shortfallCheck.lines.filter(l => !l.ok)
+          .map(l => `${l.matName||l.matCode} (ต้องการ ${l.required.toLocaleString()}, มีจริง ${Math.max(0,l.available).toLocaleString()} ${l.uom})`)
+          .join('<br>');
+        _err('ปรับจำนวนไม่ได้', `วัตถุดิบไม่พอสำหรับจำนวนใหม่ (ยอดจองเดิมยังคงไว้ ไม่ได้แก้ไข):<br>${shortLines}`);
+        return;
+      }
+      _moPlanSyncInfo = { moId: oldRow.MO_ID, productCode: payload.ProductCode, oldQty, newQty: qty };
+    }
   }
 
   const saveBtn = document.getElementById('mo-save-btn');
@@ -10814,6 +11400,7 @@ async function moSubmit(e) {
 
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
 
+  if (_moPlanSyncInfo) await _moSyncReservationAndPlan(_moPlanSyncInfo);
   if (isEdit) _logAudit('EDIT', 'manufacturing_orders', payload.MO_ID, _diffFields(oldRow, payload));
   _moModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
@@ -13243,14 +13830,21 @@ document.addEventListener('DOMContentLoaded', function() {
         email: session.user.email,
         name: session.user.user_metadata?.full_name || session.user.email,
         // app_metadata มาจาก JWT ตอน login/refresh token — ผู้ใช้ทั่วไปแก้เองผ่าน client SDK ไม่ได้
-        // (ต่างจาก user_metadata ด้านบนที่แก้เองได้) จึงใช้เป็นตัวเช็คสิทธิ์ admin ได้อย่างปลอดภัย
+        // (ต่างจาก user_metadata ด้านบนที่แก้เองได้) จึงใช้เป็นตัวเช็คสิทธิ์ admin/warehouse ได้อย่างปลอดภัย
         isAdmin: session.user.app_metadata?.role === 'admin',
+        isWarehouse: session.user.app_metadata?.role === 'warehouse',
       };
       document.getElementById('loginGate').style.display = 'none';
-      _renderCurrentUserBadge();
-      if (!_bootstrapped) {
-        _bootstrapped = true;
-        showPage('home', document.getElementById('nav-home'));
+      if (_currentUser.isWarehouse) {
+        // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
+        document.getElementById('whTabletView').style.display = 'flex';
+        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
+      } else {
+        _renderCurrentUserBadge();
+        if (!_bootstrapped) {
+          _bootstrapped = true;
+          showPage('home', document.getElementById('nav-home'));
+        }
       }
     } else {
       _currentUser = null;
