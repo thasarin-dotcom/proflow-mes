@@ -2443,25 +2443,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           </div>
         </div>
       </div>
-      <div class="glass-card p-0 overflow-hidden">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th style="width:36px"><input type="checkbox" id="fg-check-all" onchange="fgToggleAll(this)"></th>
-                <th class="wh-col-sm">วันที่</th><th class="wh-col-xs">ประเภท</th><th class="wh-col-lg">ชื่อสินค้า</th><th class="wh-hide-code">รหัส</th>
-                <th class="wh-col-md">Lot FG</th><th class="text-end wh-col-xs">จำนวน</th><th class="wh-col-xs">UOM</th>
-                <th class="wh-col-sm">วันหมดอายุ</th><th class="wh-col-sm">CustPO/Ref</th><th class="wh-hide-remark">หมายเหตุ</th>
-                <th class="text-center" style="width:90px">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody id="fg-tbody">
-              <tr><td colspan="11" class="text-center py-4 text-muted">
-                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
-              </td></tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- รายการรับ FG: จัดกลุ่มตามวันที่รับ — พับเก็บเป็นค่าเริ่มต้น กดหัวการ์ดเพื่อดูรายละเอียดสินค้าที่รับวันนั้น -->
+      <div id="fg-tbody">
+        <div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
       </div>
     </div>
   </div>
@@ -4583,19 +4567,41 @@ function _whGoPage(p) {
   for (let i = 0; i < _whPageCount; i++) document.getElementById('wh-dot-' + i)?.classList.toggle('active', _whPage === i);
 }
 
+// เดิมมีแค่ touchstart/touchend (ไม่มี touchmove เลย) แปลว่าตอนลากนิ้ว การ์ดไม่ขยับตามนิ้วเลยจนกว่าจะปล่อย
+// แล้วค่อยกระโดดเปลี่ยนหน้าทีเดียว — รู้สึกกระตุกไม่สมูทเหมือนสไวป์จริง เพิ่ม touchmove ให้ track ขยับตามนิ้ว
+// สดๆ (ปิด transition ระหว่างลาก), ล็อกแกนตามทิศทางแรกที่ขยับ (ซ้าย-ขวา = สไวป์เปลี่ยนหน้า, บน-ล่าง = ปล่อยให้
+// scroll แนวตั้งของ .wh-page ทำงานตามปกติ ไม่ไปยุ่ง) และมี rubber-band หน่วงมือที่ขอบหน้าแรก/หน้าสุดท้าย
 function _whInitSwipe() {
-  const area = document.getElementById('wh-swipe-area');
-  if (!area || area._whSwipeBound) return;
+  const area  = document.getElementById('wh-swipe-area');
+  const track = document.getElementById('wh-track');
+  if (!area || !track || area._whSwipeBound) return;
   area._whSwipeBound = true;
-  let startX = 0, startY = 0, dragging = false;
+  let startX = 0, startY = 0, dragging = false, lockedAxis = null, dragDx = 0;
+
   area.addEventListener('touchstart', e => {
-    startX = e.touches[0].clientX; startY = e.touches[0].clientY; dragging = true;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    dragging = true; lockedAxis = null; dragDx = 0;
+    track.style.transition = 'none';
   }, { passive: true });
-  area.addEventListener('touchend', e => {
-    if (!dragging) return; dragging = false;
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) _whGoPage(_whPage + (dx < 0 ? 1 : -1));
+
+  area.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!lockedAxis) lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (lockedAxis === 'y') return;
+    const atEdge = (_whPage === 0 && dx > 0) || (_whPage === _whPageCount - 1 && dx < 0);
+    dragDx = atEdge ? dx / 3 : dx;
+    const pct = -_whPage * (100 / _whPageCount) + (dragDx / area.clientWidth) * (100 / _whPageCount);
+    track.style.transform = `translateX(${pct}%)`;
+  }, { passive: true });
+
+  area.addEventListener('touchend', () => {
+    if (!dragging) return;
+    dragging = false;
+    track.style.transition = '';
+    if (lockedAxis === 'x' && Math.abs(dragDx) > 40) _whGoPage(_whPage + (dragDx < 0 ? 1 : -1));
+    else _whGoPage(_whPage);
   }, { passive: true });
 }
 
@@ -6618,6 +6624,8 @@ let _fgMOList  = [];
 let _fgBOMList = [];   // distinct products from BOM (for autocomplete)
 let _fgBOMFull = [];   // full BOM with MaterialCode+Remark (for ExpDate lookup)
 let _fgModal   = null;
+let _fgExpandedSet = new Set();   // วันที่ (date string) ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
+let _fgLastGroups  = [];          // เก็บผลลัพธ์ group ล่าสุดไว้ ให้ toggle expand อ้างอิงด้วย index
 // column name detection — detected once at first load ถ้ามีข้อมูลจริงให้ sniff จาก _fgDetectCols(); ค่าเริ่มต้น
 // ตรงนี้ต้องเป็นชื่อคอลัมน์จริงที่ยืนยันแล้ว (Lot_FG/QtyFG/ExpireDate) ไม่ใช่แค่เดา — เพราะ _fgDetectCols() คืนค่า
 // ทันทีเฉยๆ ถ้า fg_receive ว่างเปล่า (เช่นหลังรีเซ็ตตาราง TRANSACTION ทั้งหมดเมื่อ 2026-07-23) ทำให้ค่าเริ่มต้นนี้
@@ -6636,7 +6644,7 @@ function _fgDetectCols(data) {
 
 async function loadFGData() {
   _showLoader();
-  const _cancelPlaceholder = _deferLoadingPlaceholder('fg-tbody', '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
+  const _cancelPlaceholder = _deferLoadingPlaceholder('fg-tbody', '<div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
   const [fgRes, moRes, bomRes] = await Promise.all([
     _sb.from('fg_receive').select('*').order('_row_id', { ascending: false }),
@@ -6678,6 +6686,13 @@ function fgUpdateKPIs() {
   if (el('fg-kpi-qty'))   el('fg-kpi-qty').textContent   = monthQty.toLocaleString();
 }
 
+function fgToggleGroup(gi) {
+  const dateKey = _fgLastGroups[gi]?.date;
+  if (dateKey === undefined) return;
+  if (_fgExpandedSet.has(dateKey)) _fgExpandedSet.delete(dateKey); else _fgExpandedSet.add(dateKey);
+  fgRenderTable();
+}
+
 function fgRenderTable() {
   const q    = (document.getElementById('fg-search')?.value||'').toLowerCase();
   const from = document.getElementById('fg-date-from')?.value||'';
@@ -6695,31 +6710,75 @@ function fgRenderTable() {
     return true;
   });
 
-  const tbody = document.getElementById('fg-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  const container = document.getElementById('fg-tbody');
+  if (!rows.length) { container.innerHTML = '<div class="glass-card text-center py-4 text-muted">ไม่พบข้อมูล</div>'; _fgLastGroups = []; return; }
 
-  tbody.innerHTML = rows.map(r => {
-    const fgType = r.FG_Type || (r.MO_ID ? 'ไลน์ผลิต' : 'ทั่วไป');
-    const typeBadge = fgType === 'ไลน์ผลิต'
-      ? `<span class="badge bg-primary">ไลน์ผลิต</span>${r.MO_ID ? `<br><small class="text-muted">${r.MO_ID}</small>` : ''}`
-      : `<span class="badge bg-secondary">ทั่วไป</span>`;
-    return `<tr>
-      <td><input type="checkbox" class="fg-row-check" value="${r._row_id}" onchange="fgCheckState()"></td>
-      <td>${_fmtDate(r.Date)}</td>
-      <td>${typeBadge}</td>
-      <td>${r.ProductName||'—'}</td>
-      <td class="wh-hide-code"><span class="badge bg-light text-dark border">${r.ProductCode||'—'}</span></td>
-      <td><span class="badge bg-light text-dark border">${r[lot]||'—'}</span></td>
-      <td class="text-end fw-bold text-success">${(parseFloat(r[qty])||0).toLocaleString()}</td>
-      <td>${r.UOM||'—'}</td>
-      <td>${_fmtDate(r[exp])}</td>
-      <td><small class="text-muted">${r.CustPO_Ref||'—'}</small></td>
-      <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
-      <td class="text-center">
-        <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="fgOpenModal(${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="fgDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
-      </td>
-    </tr>`;
+  // จัดกลุ่มตามวันที่รับ (1 การ์ด = 1 วัน) — เรียงวันที่ล่าสุดก่อน
+  const groupMap = new Map();
+  rows.forEach(r => {
+    const key = String(r.Date || '—');
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(r);
+  });
+
+  const groups = Array.from(groupMap.entries()).map(([date, lines]) => ({
+    date,
+    lines,
+    productCount: new Set(lines.map(l => l.ProductCode || l.ProductName).filter(Boolean)).size,
+  })).sort((a, b) => b.date.localeCompare(a.date));
+
+  _fgLastGroups = groups;
+
+  container.innerHTML = groups.map((g, gi) => {
+    const expanded = _fgExpandedSet.has(g.date);
+    const rowsHtml = g.lines.map(r => {
+      const fgType = r.FG_Type || (r.MO_ID ? 'ไลน์ผลิต' : 'ทั่วไป');
+      const typeBadge = fgType === 'ไลน์ผลิต'
+        ? `<span class="badge bg-primary">ไลน์ผลิต</span>${r.MO_ID ? `<br><small class="text-muted">${r.MO_ID}</small>` : ''}`
+        : `<span class="badge bg-secondary">ทั่วไป</span>`;
+      return `<tr>
+        <td><input type="checkbox" class="fg-row-check" value="${r._row_id}" onchange="fgCheckState()"></td>
+        <td class="wh-col-xs">${typeBadge}</td>
+        <td class="wh-col-lg">${r.ProductName||'—'}</td>
+        <td class="wh-hide-code"><span class="badge bg-light text-dark border">${r.ProductCode||'—'}</span></td>
+        <td class="wh-col-md"><span class="badge bg-light text-dark border">${r[lot]||'—'}</span></td>
+        <td class="text-end fw-bold text-success wh-col-xs">${(parseFloat(r[qty])||0).toLocaleString()}</td>
+        <td class="wh-col-xs">${r.UOM||'—'}</td>
+        <td class="wh-col-sm">${_fmtDate(r[exp])}</td>
+        <td class="wh-col-sm"><small class="text-muted">${r.CustPO_Ref||'—'}</small></td>
+        <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
+        <td class="text-center">
+          <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="fgOpenModal(${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="fgDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="glass-card mb-2 p-0 overflow-hidden">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="fgToggleGroup(${gi})">
+        <div>
+          <span class="fw-semibold me-2">${_fmtDate(g.date)}</span>
+          <span class="text-muted small">${g.lines.length} รายการ</span>
+          <span class="text-muted small ms-2">${g.productCount} สินค้า</span>
+        </div>
+        <i class="fas fa-chevron-${expanded?'up':'down'} text-muted"></i>
+      </div>
+      ${!expanded ? '' : `
+      <div class="table-responsive border-top">
+        <table class="table table-sm table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th class="wh-col-xs">ประเภท</th><th class="wh-col-lg">ชื่อสินค้า</th><th class="wh-hide-code">รหัส</th>
+              <th class="wh-col-md">Lot FG</th><th class="text-end wh-col-xs">จำนวน</th><th class="wh-col-xs">UOM</th>
+              <th class="wh-col-sm">วันหมดอายุ</th><th class="wh-col-sm">CustPO/Ref</th><th class="wh-hide-remark">หมายเหตุ</th>
+              <th class="text-center" style="width:90px">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`}
+    </div>`;
   }).join('');
 }
 
@@ -6727,10 +6786,6 @@ function fgCheckState() {
   const n = document.querySelectorAll('.fg-row-check:checked').length;
   const btn = document.getElementById('fg-bulk-del-btn');
   if (btn) { btn.classList.toggle('d-none', n === 0); btn.textContent = `ลบที่เลือก (${n})`; }
-}
-function fgToggleAll(cb) {
-  document.querySelectorAll('.fg-row-check').forEach(c => c.checked = cb.checked);
-  fgCheckState();
 }
 
 // ── Mode Toggle ──
@@ -7045,7 +7100,6 @@ async function fgBulkDelete() {
   }
   _logAudit('BULK_DELETE', 'fg_receive', toDelete.map(r => r.ProductCode).join(', '), `ลบ ${ids.length} รายการ`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
-  document.getElementById('fg-check-all').checked = false;
   loadFGData();
 }
 
@@ -12757,14 +12811,13 @@ function issueRenderTable() {
       const actualUsed = _issueActualUsedMap[`${g.moId}|${r.MaterialCode}|${r.Lot}`];
       return `<tr>
         <td><input type="checkbox" class="issue-row-check" value="${r._row_id}" onchange="issueCheckState()"></td>
-        <td>${_fmtDate(r.Date)}</td>
         <td>${r.MaterialName||'—'}</td>
         <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
         <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
         <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
         <td class="text-end">${actualUsed != null ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${actualUsed.toLocaleString()}</span>` : '<span class="text-muted">—</span>'}</td>
         <td>${r.UOM||'—'}</td>
-        <td><small class="text-muted">${r.Remark||''}</small></td>
+        <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
         <td class="text-center">
           <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="issueOpenModal(${r._row_id})" title="แก้ไข">
             <i class="fas fa-edit"></i>
@@ -12802,8 +12855,8 @@ function issueRenderTable() {
           <thead>
             <tr>
               <th style="width:36px"></th>
-              <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th><th>Lot</th>
-              <th class="text-end">จำนวนเบิก</th><th class="text-end">ใช้จริง<br><small class="fw-normal text-muted">(อนุมัติแล้ว)</small></th><th>UOM</th><th>หมายเหตุ</th>
+              <th class="wh-col-lg">ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th><th class="wh-col-md">Lot</th>
+              <th class="text-end wh-col-xs">จำนวนเบิก</th><th class="text-end wh-col-sm">ใช้จริง<br><small class="fw-normal text-muted">(อนุมัติแล้ว)</small></th><th class="wh-col-xs">UOM</th><th class="wh-hide-remark">หมายเหตุ</th>
               <th class="text-center" style="width:90px">จัดการ</th>
             </tr>
           </thead>
