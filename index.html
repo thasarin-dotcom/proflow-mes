@@ -210,10 +210,59 @@ body {
 .wh-tile span { font-size: .68rem; text-align: center; line-height: 1.2; color: #1e293b; }
 .wh-tile-action i { color: #16a34a; }
 #whBackFab {
-  position: fixed; bottom: 20px; left: 20px; z-index: 5100; display: none;
+  /* z-index ตั้งใจให้ต่ำกว่า Bootstrap modal-backdrop (1050) เสมอ — ตอนเปิด modal พิมพ์รายงาน (เช่น
+     mrReportModal) ปุ่มนี้ต้องถูก backdrop บังไปเลย ไม่ใช่ลอยทับปุ่ม "พิมพ์"/"ปิด" ในหน้าต่างนั้น
+     (เจอจริงตอนเทส mrReportModal — ปุ่มนี้ z-index สูงกว่า modal เดิม 5100 > 1055 ทับกันได้) */
+  position: fixed; bottom: 20px; left: 20px; z-index: 1030; display: none;
   background: #155092; color: #fff; border: none; border-radius: 100px;
   padding: 10px 18px; font-size: .85rem; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,.25);
 }
+/* เปิดเมื่อเปิดหน้า desktop เดิมจาก tile ในเมนูคลัง (ดู _whOpenDesktopPage/_whBackToTablet) — ขยาย
+   ปุ่ม/ช่องกรอก/ตาราง/เมนูให้แตะง่ายขึ้นบนแท็บเลต โดยไม่แก้ HTML ของแต่ละหน้าเลย ใช้กับหน้าเดิมทุกหน้า
+   ที่เปิดจากเมนูคลังได้ทันที ไม่ต้องสร้างหน้าใหม่แยกทีละหน้า */
+/* ซ่อน sidebar ทั้งแถบ — พนักงานคลังไม่ควรกดหลุดไปหน้าอื่นที่ไม่เกี่ยวกับ tile ที่เลือกมา
+   ทางเดียวที่จะออกจากหน้านี้คือปุ่มลอย "กลับหน้าคลัง" (#whBackFab) เท่านั้น */
+body.wh-desktop-mode .sidebar { display: none; }
+body.wh-desktop-mode .main-content { margin-left: 0; width: 100%; }
+body.wh-desktop-mode .page-header h4 { font-size: 1.35rem; }
+body.wh-desktop-mode .btn { padding: .6rem 1.1rem; font-size: .95rem; border-radius: 8px; }
+body.wh-desktop-mode .btn-sm { padding: .5rem .9rem; font-size: .88rem; }
+body.wh-desktop-mode .form-control, body.wh-desktop-mode .form-select {
+  padding: .6rem .8rem; font-size: .95rem; min-height: 46px; border-radius: 8px;
+}
+body.wh-desktop-mode .form-check-input { width: 20px; height: 20px; }
+/* บีบตารางให้พอดีจอ ไม่ต้องสกอลซ้าย-ขวา — ปิด overflow-x ของ .table-responsive แล้วบังคับ
+   table-layout:fixed (แบ่งความกว้างคอลัมน์ตามที่มีจริง ไม่ยืดตามเนื้อหา) + ให้ตัวอักษรตัดคำ/ขึ้นบรรทัด
+   ใหม่ได้ในแต่ละเซลล์แทนการ์ดล้นออกไปข้างตาราง — คอลัมน์ที่ตั้งใจ nowrap ไว้เอง (เช่นปุ่ม "จัดการ") ยัง
+   คุม nowrap ต่อได้เพราะ inline style specificity สูงกว่ากฎนี้ */
+body.wh-desktop-mode .table-responsive { overflow-x: hidden; }
+body.wh-desktop-mode .table { table-layout: fixed; width: 100% !important; }
+/* ซ่อนคอลัมน์ราคา/ต้นทุน (ราคา/หน่วย, ราคารวม บนหน้ารับวัตถุดิบ MR) ตอนอยู่ในโหมดแท็บเลตคลัง —
+   เป็นข้อมูลบัญชี/จัดซื้อ ไม่ใช่สิ่งที่พนักงานรับวัตถุดิบต้องเช็คหน้างาน ช่วยให้คอลัมน์ที่เหลือ (รหัส/Lot/
+   วันหมดอายุ/จำนวน) กว้างขึ้น อ่านง่ายขึ้นด้วยในตัว (ดู mrRenderTable + thead ของ page-mr, class
+   ".wh-hide-cost" ติดไว้ที่ th/td ทั้งสองคอลัมน์นั้นโดยเฉพาะ ไม่กระทบหน้า desktop ปกติ) */
+body.wh-desktop-mode .wh-hide-cost { display: none; }
+/* ตัดคอลัมน์ "รหัส" (MaterialCode/ProductCode) ในทุกหน้าบันทึกข้อมูล — ชื่อวัตถุดิบ/สินค้า + Lot
+   ก็เพียงพอต่อการระบุของจริงหน้างานแล้ว (ผู้ใช้ยืนยันแล้วว่าไม่ต้องใช้ระบุ) ช่วยให้คอลัมน์ที่เหลือกว้างขึ้น
+   อ่านง่ายขึ้นไปอีกในตัว — ไม่กระทบหน้า desktop ปกติ, ไม่กระทบข้อมูลจริง (แค่ไม่แสดงในตารางนี้) */
+body.wh-desktop-mode .wh-hide-code { display: none; }
+body.wh-desktop-mode .table thead th, body.wh-desktop-mode .table tbody td {
+  white-space: normal; word-break: break-word; overflow-wrap: break-word;
+}
+body.wh-desktop-mode .table thead th { padding: 12px 8px; font-size: .82rem; }
+body.wh-desktop-mode .table tbody td { padding: 11px 8px; font-size: .8rem; }
+/* badge/pill (รหัสวัตถุดิบ, Lot ฯลฯ) ปกติมี white-space:nowrap จาก Bootstrap เอง — ถ้าไม่ตัดคำ มันจะ
+   ล้นออกไปทับคอลัมน์ข้างๆ แม้ตัว td จะถูกบีบด้วย table-layout:fixed แล้วก็ตาม (td ไม่ clip overflow
+   ให้เองโดย default) ต้องบังคับ wrap ที่ตัว badge ตรงๆ ด้วย */
+body.wh-desktop-mode .table td .badge {
+  white-space: normal !important; word-break: break-all; display: inline-block; max-width: 100%;
+}
+body.wh-desktop-mode .glass-card { padding: 20px; }
+body.wh-desktop-mode .kpi-card { padding: 16px 16px; }
+body.wh-desktop-mode .kpi-card .kpi-num { font-size: 1.7rem; white-space: nowrap; }
+body.wh-desktop-mode .kpi-card .kpi-label { font-size: .78rem; }
+body.wh-desktop-mode .modal-header, body.wh-desktop-mode .modal-body, body.wh-desktop-mode .modal-footer { padding: 18px 22px; }
+body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 
 /* Top loader bar */
 #topLoader {
@@ -1763,13 +1812,13 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
                 </th>
                 <th>วันที่</th>
                 <th>ชื่อวัตถุดิบ</th>
-                <th>รหัส</th>
+                <th class="wh-hide-code">รหัส</th>
                 <th>Lot</th>
                 <th>วันหมดอายุ</th>
                 <th class="text-end">จำนวน</th>
                 <th>UOM</th>
-                <th class="text-end">ราคา/หน่วย</th>
-                <th class="text-end">ราคารวม</th>
+                <th class="text-end wh-hide-cost">ราคา/หน่วย</th>
+                <th class="text-end wh-hide-cost">ราคารวม</th>
                 <th>Supplier</th>
                 <th>หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
@@ -2328,7 +2377,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="fg-check-all" onchange="fgToggleAll(this)"></th>
-                <th>วันที่</th><th>ประเภท</th><th>ชื่อสินค้า</th><th>รหัส</th>
+                <th>วันที่</th><th>ประเภท</th><th>ชื่อสินค้า</th><th class="wh-hide-code">รหัส</th>
                 <th>Lot FG</th><th class="text-end">จำนวน</th><th>UOM</th>
                 <th>วันหมดอายุ</th><th>CustPO/Ref</th><th>หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
@@ -2554,7 +2603,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="fgout-check-all" onchange="fgoutToggleAll(this)"></th>
-                <th>วันที่</th><th>ประเภท</th><th>รหัส</th><th>ชื่อสินค้า</th>
+                <th>วันที่</th><th>ประเภท</th><th class="wh-hide-code">รหัส</th><th>ชื่อสินค้า</th>
                 <th>Lot FG</th><th class="text-end">จำนวนเบิก</th><th>UOM</th>
                 <th>ลูกค้า / ปลายทาง</th><th>หมายเหตุ</th>
                 <th>เลขที่ใบส่งสินค้า</th><th>สถานะจัดส่ง</th>
@@ -2756,7 +2805,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <thead>
               <tr>
                 <th style="width:36px"><input type="checkbox" id="misc-check-all" onchange="miscToggleAll(this)"></th>
-                <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th>รหัส</th>
+                <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th>
                 <th>Lot</th><th class="text-end">จำนวน</th><th>UOM</th>
                 <th>ประเภท</th><th>หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
@@ -4468,11 +4517,13 @@ function _whInitSwipe() {
 function _whOpenDesktopPage(page) {
   document.getElementById('whTabletView').style.display = 'none';
   document.getElementById('whBackFab').style.display = 'flex';
+  document.body.classList.add('wh-desktop-mode'); // ขยายปุ่ม/ช่องกรอก/ตาราง ฯลฯ ให้แตะง่ายขึ้น (ดู CSS ด้านบน)
   showPage(page, document.getElementById('nav-' + page));
 }
 function _whBackToTablet() {
   document.getElementById('whBackFab').style.display = 'none';
   document.getElementById('whTabletView').style.display = 'flex';
+  document.body.classList.remove('wh-desktop-mode');
   _whGoPage(1); // กลับมาที่หน้าคลังทีไร ให้อยู่หน้าโฮม (ภาพรวมการผลิต) เสมอ ไม่จำตำแหน่งที่สไวป์ค้างไว้ก่อนออกไป
 }
 
@@ -5739,13 +5790,13 @@ function mrRenderTable() {
       <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
       <td>${_fmtDate(r[dateCol])}</td>
       <td>${r.MaterialName||'—'}</td>
-      <td><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
+      <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
       <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
       <td>${_fmtDate(r.ExpDate)}</td>
       <td class="text-end">${qty.toLocaleString()}</td>
       <td>${r.UOM||'—'}</td>
-      <td class="text-end">฿${cost.toLocaleString()}</td>
-      <td class="text-end fw-bold">฿${total.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>
+      <td class="text-end wh-hide-cost">฿${cost.toLocaleString()}</td>
+      <td class="text-end fw-bold wh-hide-cost">฿${total.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>
       <td>${r.Supplier||'—'}</td>
       <td><small class="text-muted">${r.Remark||''}</small></td>
       <td class="text-center">
@@ -6422,7 +6473,7 @@ function fgRenderTable() {
       <td>${_fmtDate(r.Date)}</td>
       <td>${typeBadge}</td>
       <td>${r.ProductName||'—'}</td>
-      <td><span class="badge bg-light text-dark border">${r.ProductCode||'—'}</span></td>
+      <td class="wh-hide-code"><span class="badge bg-light text-dark border">${r.ProductCode||'—'}</span></td>
       <td><span class="badge bg-light text-dark border">${r[lot]||'—'}</span></td>
       <td class="text-end fw-bold text-success">${(parseFloat(r[qty])||0).toLocaleString()}</td>
       <td>${r.UOM||'—'}</td>
@@ -6888,7 +6939,7 @@ function fgoutRenderTable() {
     <td><input type="checkbox" class="fgout-row-check" value="${r._row_id}" data-dlvid="${dlv ? dlv._row_id : ''}" onchange="fgoutCheckState()"></td>
     <td>${_fmtDate(r.Date)}</td>
     <td>${typeBadge}${r.CO_Ref ? `<br><small class="text-muted">${r.CO_Ref}</small>` : ''}</td>
-    <td><span class="badge bg-secondary">${r.ProductCode||'—'}</span></td>
+    <td class="wh-hide-code"><span class="badge bg-secondary">${r.ProductCode||'—'}</span></td>
     <td>${r.ProductName||'—'}</td>
     <td><span class="badge bg-light text-dark border">${r.Lot_FG||'—'}</span></td>
     <td class="text-end fw-bold text-danger">${(parseFloat(r.QtyFG||r.Qty)||0).toLocaleString()}</td>
@@ -12287,7 +12338,7 @@ function issueRenderTable() {
         <td><input type="checkbox" class="issue-row-check" value="${r._row_id}" onchange="issueCheckState()"></td>
         <td>${_fmtDate(r.Date)}</td>
         <td>${r.MaterialName||'—'}</td>
-        <td><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
+        <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
         <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
         <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
         <td class="text-end">${actualUsed != null ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${actualUsed.toLocaleString()}</span>` : '<span class="text-muted">—</span>'}</td>
@@ -12330,7 +12381,7 @@ function issueRenderTable() {
           <thead>
             <tr>
               <th style="width:36px"></th>
-              <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th>รหัส</th><th>Lot</th>
+              <th>วันที่</th><th>ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th><th>Lot</th>
               <th class="text-end">จำนวนเบิก</th><th class="text-end">ใช้จริง<br><small class="fw-normal text-muted">(อนุมัติแล้ว)</small></th><th>UOM</th><th>หมายเหตุ</th>
               <th class="text-center" style="width:90px">จัดการ</th>
             </tr>
@@ -12965,7 +13016,7 @@ function miscRenderTable() {
     <td><input type="checkbox" class="misc-row-check" value="${r._row_id}" onchange="miscCheckState()"></td>
     <td>${_fmtDate(r.Date)}</td>
     <td>${r.MaterialName||'—'}</td>
-    <td><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
+    <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
     <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
     <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
     <td>${r.UOM||'—'}</td>
