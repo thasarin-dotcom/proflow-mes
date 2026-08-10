@@ -237,10 +237,10 @@ body.wh-desktop-mode .form-check-input { width: 20px; height: 20px; }
    คุม nowrap ต่อได้เพราะ inline style specificity สูงกว่ากฎนี้ */
 body.wh-desktop-mode .table-responsive { overflow-x: hidden; }
 body.wh-desktop-mode .table { table-layout: fixed; width: 100% !important; }
-/* ซ่อนคอลัมน์ราคา/ต้นทุน (ราคา/หน่วย, ราคารวม บนหน้ารับวัตถุดิบ MR) ตอนอยู่ในโหมดแท็บเลตคลัง —
-   เป็นข้อมูลบัญชี/จัดซื้อ ไม่ใช่สิ่งที่พนักงานรับวัตถุดิบต้องเช็คหน้างาน ช่วยให้คอลัมน์ที่เหลือ (รหัส/Lot/
-   วันหมดอายุ/จำนวน) กว้างขึ้น อ่านง่ายขึ้นด้วยในตัว (ดู mrRenderTable + thead ของ page-mr, class
-   ".wh-hide-cost" ติดไว้ที่ th/td ทั้งสองคอลัมน์นั้นโดยเฉพาะ ไม่กระทบหน้า desktop ปกติ) */
+/* ซ่อนคอลัมน์ราคา/ต้นทุน (ราคา/หน่วย บนหน้ารับวัตถุดิบ MR — คอลัมน์ราคารวมถูกตัดออกจากตารางนี้แล้ว)
+   ตอนอยู่ในโหมดแท็บเลตคลัง — เป็นข้อมูลบัญชี/จัดซื้อ ไม่ใช่สิ่งที่พนักงานรับวัตถุดิบต้องเช็คหน้างาน ช่วยให้
+   คอลัมน์ที่เหลือ (รหัส/Lot/วันหมดอายุ/จำนวน) กว้างขึ้น อ่านง่ายขึ้นด้วยในตัว (ดู mrRenderTable + thead
+   ของ page-mr, class ".wh-hide-cost" ติดไว้ที่ th/td คอลัมน์นั้นโดยเฉพาะ ไม่กระทบหน้า desktop ปกติ) */
 body.wh-desktop-mode .wh-hide-cost { display: none; }
 /* ตัดคอลัมน์ "รหัส" (MaterialCode/ProductCode) ในทุกหน้าบันทึกข้อมูล — ชื่อวัตถุดิบ/สินค้า + Lot
    ก็เพียงพอต่อการระบุของจริงหน้างานแล้ว (ผู้ใช้ยืนยันแล้วว่าไม่ต้องใช้ระบุ) ช่วยให้คอลัมน์ที่เหลือกว้างขึ้น
@@ -1316,6 +1316,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           <button class="btn btn-light fw-bold text-primary shadow-sm ms-2" onclick="planOpenAddModal()">
             <i class="fas fa-plus-circle me-2"></i>เพิ่มแผน
           </button>
+          <button class="btn btn-light fw-bold text-info shadow-sm" onclick="planOpenReportModal()">
+            <i class="fas fa-share-alt me-2"></i>Report
+          </button>
         </div>
       </div>
     </div>
@@ -1518,6 +1521,40 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Plan: Report Link Modal ════════════ -->
+  <div class="modal fade" id="planReportModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#0ea5e9;color:white">
+          <h5 class="modal-title"><i class="fas fa-share-alt me-2"></i>สร้างลิงก์รายงานแผนผลิต</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">ช่วงเวลา</label>
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="plan-report-period" id="plan-report-period-week" value="week" checked onchange="planReportPeriodChanged()">
+              <label class="btn btn-outline-primary" for="plan-report-period-week">รายสัปดาห์</label>
+              <input type="radio" class="btn-check" name="plan-report-period" id="plan-report-period-month" value="month" onchange="planReportPeriodChanged()">
+              <label class="btn btn-outline-primary" for="plan-report-period-month">รายเดือน</label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" id="plan-report-date-label">เลือกวันที่ในสัปดาห์ที่ต้องการ</label>
+            <input type="date" id="plan-report-date" class="form-control" oninput="planReportUpdatePreview()">
+          </div>
+          <div class="alert alert-light border py-2 mb-0" style="font-size:.85rem" id="plan-report-range-preview"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="plan-report-generate-btn" onclick="planGenerateReportLink()">
+            <i class="fas fa-link me-1"></i>สร้างลิงก์
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1811,21 +1848,20 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
                   <input type="checkbox" id="mr-check-all" onchange="mrToggleAll(this)">
                 </th>
                 <th>วันที่</th>
-                <th>ชื่อวัตถุดิบ</th>
+                <th style="width:26%">ชื่อวัตถุดิบ</th>
                 <th class="wh-hide-code">รหัส</th>
                 <th>Lot</th>
                 <th>วันหมดอายุ</th>
                 <th class="text-end">จำนวน</th>
                 <th>UOM</th>
                 <th class="text-end wh-hide-cost">ราคา/หน่วย</th>
-                <th class="text-end wh-hide-cost">ราคารวม</th>
                 <th>Supplier</th>
                 <th>หมายเหตุ</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
               </tr>
             </thead>
             <tbody id="mr-tbody">
-              <tr><td colspan="13" class="text-center py-4 text-muted">
+              <tr><td colspan="12" class="text-center py-4 text-muted">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -3707,6 +3743,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
           <div class="wh-section-label">แผนผลิตวันนี้</div>
           <div id="wh-schedule-list" class="mb-3"></div>
+
+          <div class="wh-section-label">แผนผลิตล่วงหน้า 2 วัน</div>
+          <div id="wh-upcoming-plan-list" class="mb-3"></div>
         </div>
 
         <!-- หน้า 2 (ขวาสุด): เมนู -->
@@ -3749,6 +3788,14 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 <div id="loadingOverlay">
   <div class="spinner-border text-light mb-2" style="width:2.5rem;height:2.5rem"></div>
   <div id="loadingText">กำลังโหลด...</div>
+</div>
+
+<!-- Public Report View — โหมดพิเศษเมื่อ URL มี ?report=TOKEN ข้าม login gate ทั้งหมด ดูฟังก์ชัน
+     _renderPublicReport ท้ายไฟล์ (เรียกจาก DOMContentLoaded ก่อนเช็ค session ใดๆ) -->
+<div id="publicReportView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
+  <div style="max-width:960px;margin:0 auto;padding:16px" id="publicReportBody">
+    <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
+  </div>
 </div>
 
 <!-- Login Gate — บังทั้งแอปจนกว่าจะ login ผ่าน Supabase Auth สำเร็จ -->
@@ -4534,6 +4581,7 @@ async function loadWhTabletData() {
   _whRenderKPIs();
   _whRenderLineCards();
   _whRenderSchedule();
+  _whRenderUpcomingPlan();
   _whComputeBulkForecast().then(_whRenderForecast);
 }
 
@@ -4640,6 +4688,37 @@ function _whRenderSchedule() {
       <span class="wh-sched-dot" style="background:${dotColor}"></span>
       <span class="wh-sched-time">${r.TimeStart || '—'}</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.Line || ''} · ${r.ProductName || ''}</span>
+    </div>`;
+  }).join('');
+}
+
+// แผนผลิตล่วงหน้า 2 วัน (พรุ่งนี้/มะรืนนี้) — ให้คลังรู้ล่วงหน้าว่าต้องเตรียมวัตถุดิบ/FG อะไรบ้าง
+// ใช้ _prodStatusPlanWeekData ตัวเดิม (loadProdStatusData ดึงมาทั้งสัปดาห์ 7 วันอยู่แล้ว ตั้งแต่เมื่อวาน
+// ถึง +5 วัน — ดู _planWeekRange/_planWeekTodayIdx) ไม่ต้อง query เพิ่ม แค่กรองวันที่คนละวันกับ
+// _whRenderSchedule (ซึ่งกรองแค่วันนี้)
+function _whRenderUpcomingPlan() {
+  const el = document.getElementById('wh-upcoming-plan-list');
+  if (!el) return;
+  const days = _planWeekRange();
+  const targets = [
+    { label: 'พรุ่งนี้', date: days[_planWeekTodayIdx + 1] },
+    { label: 'มะรืนนี้', date: days[_planWeekTodayIdx + 2] },
+  ];
+  el.innerHTML = targets.map(t => {
+    const items = _prodStatusPlanWeekData
+      .filter(r => r.PlanDate === t.date)
+      .slice()
+      .sort((a, b) => (a.Line || '').localeCompare(b.Line || '') || (a.TimeStart || '').localeCompare(b.TimeStart || ''));
+    const rows = items.length
+      ? items.map(r => `<div class="wh-sched-row">
+          <span class="wh-sched-dot" style="background:${_planLineColor(r.Line)}"></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.Line || ''} · ${r.ProductName || ''}</span>
+          <span class="text-muted" style="font-size:.68rem;flex-shrink:0">${r.Shift || '—'}</span>
+        </div>`).join('')
+      : '<div class="text-center text-muted py-2" style="font-size:.76rem">ยังไม่มีแผนผลิต</div>';
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:.76rem;font-weight:700;color:#1e293b;margin-bottom:4px">${t.label} · ${_fmtDate(t.date)}</div>
+      ${rows}
     </div>`;
   }).join('');
 }
@@ -5778,14 +5857,13 @@ function mrRenderTable() {
 
   const tbody = document.getElementById('mr-tbody');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="13" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>';
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
     const qty   = parseFloat(r.Qty||r.QtyIn||0);
     const cost  = parseFloat(r.UnitCost||0);
-    const total = parseFloat(r.TotalCost||0);
     return `<tr>
       <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
       <td>${_fmtDate(r[dateCol])}</td>
@@ -5793,10 +5871,9 @@ function mrRenderTable() {
       <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
       <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
       <td>${_fmtDate(r.ExpDate)}</td>
-      <td class="text-end">${qty.toLocaleString()}</td>
+      <td class="text-end fw-bold text-primary">${qty.toLocaleString()}</td>
       <td>${r.UOM||'—'}</td>
-      <td class="text-end wh-hide-cost">฿${cost.toLocaleString()}</td>
-      <td class="text-end fw-bold wh-hide-cost">฿${total.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>
+      <td class="text-end text-success wh-hide-cost">฿${cost.toLocaleString()}</td>
       <td>${r.Supplier||'—'}</td>
       <td><small class="text-muted">${r.Remark||''}</small></td>
       <td class="text-center">
@@ -8264,7 +8341,9 @@ function _planRowActions(r) {
     actions += `<button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="planOpenAddModal(null,${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
   }
   // ยืนยันแผนแล้ว (ออกใบบันทึกผลิตแล้ว) และมี MO ผูกอยู่ — เพิ่มปุ่มลัดไปเบิกผลิตได้เลย ไม่ต้องย้อนไปกดที่หน้า MO
-  if (r.Status === 'ยืนยันแล้ว' && r.MO_Ref) {
+  // แต่ถ้า MO นี้เบิกวัตถุดิบไปแล้ว (สถานะเลยพ้น _moWaitStatuses ไปเป็น 'กำลังผลิต' ตอน issueSubmit) ไม่ต้องโชว์ปุ่มซ้ำ
+  // — เกณฑ์เดียวกับปุ่ม "สั่งเบิก" ที่หน้า MO เอง (ดู isWait ใน moRenderTable) ไม่ตั้งเงื่อนไขใหม่แยกจากกัน
+  if (r.Status === 'ยืนยันแล้ว' && r.MO_Ref && _moWaitStatuses.includes(_planMOList.find(m => m.MO_ID === r.MO_Ref)?.Status)) {
     actions += `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="if(_planDayModal)_planDayModal.hide();moIssueNow('${r.MO_Ref}')" title="เบิกวัตถุดิบเพื่อผลิต"><i class="fas fa-dolly"></i></button>`;
   }
   actions += `<button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="planDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>`;
@@ -8701,21 +8780,205 @@ async function planConfirmSubmit(e) {
     title: 'ออกใบบันทึกผลิตสำเร็จ',
     html: `เลขที่ <b>${prodId}</b>`,
     showCancelButton: true,
-    confirmButtonText: '<i class="fas fa-eye me-1"></i>ดูใบบันทึกผลิต',
+    confirmButtonText: '<i class="fas fa-print me-1"></i>ไปพิมพ์ BPR',
     confirmButtonColor: '#15803d',
     cancelButtonText: 'ปิด',
   });
-  if (result.isConfirmed) await planGoToProdRecord(prodId);
+  if (result.isConfirmed) await planGoToBPR(prodId);
 }
 
-async function planGoToProdRecord(prodId) {
+async function planGoToBPR(prodId) {
   document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-prodrecord').classList.add('active');
-  document.getElementById('nav-prodrecord').classList.add('active');
-  await prodrecordLoadData();
-  const searchBox = document.getElementById('prodrecord-search');
-  if (searchBox) { searchBox.value = prodId; prodrecordRenderTable(); }
+  document.getElementById('page-bpr').classList.add('active');
+  document.getElementById('nav-bpr').classList.add('active');
+  await bprLoadData();
+  const searchBox = document.getElementById('bpr-search');
+  if (searchBox) { searchBox.value = prodId; bprRenderTable(); }
+}
+
+// ══════════════════════════════════════════════
+// Plan: ปุ่ม "Report" — สร้างลิงก์สาธารณะ (ไม่ต้อง login) ให้เจ้านาย/ผู้บริหารกดดูตารางแผนผลิต
+// รายสัปดาห์/รายเดือนได้เลย โดยยิงไปที่ Edge Function `plan-report` (อ่านข้อมูลด้วย service_role
+// ที่ฝั่งเซิร์ฟเวอร์ ไม่เกี่ยวกับ RLS/login ของแอปนี้เลย — ดูรายละเอียดที่ supabase_functions/plan-report)
+// บันทึกแค่ Token + ช่วงวันที่ไว้ในตาราง plan_report_links (ต้องรัน create_plan_report_links.sql ก่อน)
+// ══════════════════════════════════════════════
+let _planReportModal;
+
+function planOpenReportModal() {
+  if (!_planReportModal) _planReportModal = new bootstrap.Modal(document.getElementById('planReportModal'));
+  document.getElementById('plan-report-date').value = _planWeekLocalDateStr(new Date());
+  document.getElementById('plan-report-period-week').checked = true;
+  planReportPeriodChanged();
+  _planReportModal.show();
+}
+
+function planReportPeriodChanged() {
+  const isWeek = document.getElementById('plan-report-period-week').checked;
+  document.getElementById('plan-report-date-label').textContent =
+    isWeek ? 'เลือกวันที่ในสัปดาห์ที่ต้องการ' : 'เลือกวันที่ในเดือนที่ต้องการ';
+  planReportUpdatePreview();
+}
+
+// คำนวณช่วงวันที่จริงจากวันที่เลือก — สัปดาห์ = ปฏิทินจันทร์–อาทิตย์ (ไม่ใช่ 7 วันหมุนแบบ _planWeekRange
+// ของหน้าภาพรวมการผลิต เพราะรายงานนี้ตั้งใจให้เป็นช่วงคงที่ตามวันที่เลือก ไม่ใช่ช่วง "วันนี้ ±N" ที่ขยับทุกวัน)
+function _planReportComputeRange() {
+  const period = document.querySelector('input[name="plan-report-period"]:checked').value;
+  const dateVal = document.getElementById('plan-report-date').value;
+  if (!dateVal) return null;
+  const [y, m, d] = dateVal.split('-').map(Number);
+  const base = new Date(y, m - 1, d);
+  if (period === 'week') {
+    const dow = base.getDay();
+    const diffToMon = dow === 0 ? -6 : 1 - dow;
+    const mon = new Date(base.getFullYear(), base.getMonth(), base.getDate() + diffToMon);
+    const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+    return { period, start: _planWeekLocalDateStr(mon), end: _planWeekLocalDateStr(sun) };
+  }
+  const first = new Date(base.getFullYear(), base.getMonth(), 1);
+  const last  = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return { period, start: _planWeekLocalDateStr(first), end: _planWeekLocalDateStr(last) };
+}
+
+function planReportUpdatePreview() {
+  const range = _planReportComputeRange();
+  const el = document.getElementById('plan-report-range-preview');
+  el.innerHTML = range
+    ? `ช่วงที่จะรายงาน: <b>${_planFmtDateLabel(range.start)}</b> ถึง <b>${_planFmtDateLabel(range.end)}</b>`
+    : 'กรุณาเลือกวันที่';
+}
+
+async function planGenerateReportLink() {
+  const range = _planReportComputeRange();
+  if (!range) { _err('กรุณาเลือกวันที่', ''); return; }
+
+  const btn = document.getElementById('plan-report-generate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังสร้างลิงก์...';
+
+  const token = crypto.randomUUID();
+  const { error } = await _sb.from('plan_report_links').insert({
+    Token: token, Period: range.period, StartDate: range.start, EndDate: range.end,
+    CreatedBy: _currentUser?.email || null,
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-link me-1"></i>สร้างลิงก์';
+
+  if (error) { _err('สร้างลิงก์ไม่สำเร็จ', error.message); return; }
+
+  // ลิงก์ชี้ไปที่ตัวแอปเอง (โฮสต์บน Vercel) ไม่ใช่ URL ของ Edge Function ตรงๆ — index.html จะเช็ค
+  // ?report=TOKEN แล้วข้าม login gate ไป fetch ข้อมูล (JSON) จาก Edge Function มา render เอง ดูเหตุผล
+  // เต็มๆ ที่คอมเมนต์บนสุดของ supabase_functions/plan-report/index.ts (Edge Function ตอบ HTML ตรงๆ
+  // ไม่ได้ เพราะ Supabase บังคับ Content-Type เป็น text/plain เสมอ)
+  const url = `https://proflow-mes.vercel.app/?report=${token}`;
+  _planReportModal.hide();
+
+  const result = await Swal.fire({
+    icon: 'success',
+    title: 'สร้างลิงก์รายงานสำเร็จ',
+    html: `<div class="text-start">
+      <div class="small text-muted mb-2">เปิดดูได้เลยโดยไม่ต้อง login — ส่งลิงก์นี้ให้เจ้านายได้ทันที (ลิงก์หมดอายุใน 60 วัน)</div>
+      <input type="text" class="form-control" readonly value="${url}" onclick="this.select()">
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: '<i class="fas fa-copy me-1"></i>คัดลอกลิงก์',
+    confirmButtonColor: '#0ea5e9',
+    cancelButtonText: 'ปิด',
+  });
+  if (result.isConfirmed) {
+    await navigator.clipboard.writeText(url);
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'คัดลอกลิงก์แล้ว', showConfirmButton: false, timer: 2000 });
+  }
+}
+
+// เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
+// login/RLS เลย (ข้อมูลมาจาก Edge Function plan-report ที่อ่านด้วย service_role) ใช้ CSS/คลาสของแอป
+// เอง (glass-card, table, badge ฯลฯ) ที่โหลดอยู่แล้วในหน้านี้ ไม่ต้องทำหน้าแยก
+async function _renderPublicReport(token) {
+  document.getElementById('publicReportView').style.display = 'block';
+  const bodyEl = document.getElementById('publicReportBody');
+  const showError = (msg) => {
+    bodyEl.innerHTML = `<div class="text-center py-5">
+      <div style="font-size:1.3rem;font-weight:700;margin-bottom:8px">⚠️ ${msg}</div>
+      <div class="text-muted small">ลิงก์นี้อาจหมดอายุ ถูกลบ หรือพิมพ์/คัดลอกมาไม่ครบ — กรุณาขอลิงก์ใหม่จากผู้ที่ส่งให้</div>
+    </div>`;
+  };
+
+  let data;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/plan-report?token=${encodeURIComponent(token)}`);
+    data = await res.json();
+  } catch (e) {
+    showError('เชื่อมต่อไม่สำเร็จ'); return;
+  }
+  if (!data || !data.ok) {
+    const msgMap = { not_found: 'ไม่พบรายงานนี้', expired: 'ลิงก์นี้หมดอายุแล้ว', missing_token: 'ลิงก์ไม่ถูกต้อง' };
+    showError(msgMap[data?.error] || 'ไม่สามารถโหลดรายงานได้'); return;
+  }
+
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 3 });
+  const fmtDate = (dateStr, withDow) => {
+    if (!dateStr) return '—';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dow = withDow ? `วัน${['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'][new Date(y, m - 1, d).getDay()]} ` : '';
+    return `${dow}${d} ${_planDowThaiMonths[m - 1]} ${y + 543}`;
+  };
+
+  const periodLabel = data.period === 'week' ? 'รายสัปดาห์' : 'รายเดือน';
+  const rangeLabel = `${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}`;
+
+  const byDate = {};
+  data.planRows.forEach(r => (byDate[r.PlanDate] ||= []).push(r));
+  const dateKeys = Object.keys(byDate).sort();
+
+  const planStatusColor = { 'วางแผน': '#d97706', 'ยืนยันแล้ว': '#16a34a' };
+  const planStatusLabel = { 'วางแผน': 'รอยืนยัน', 'ยืนยันแล้ว': 'ยืนยันแล้ว' };
+
+  const planSection = !dateKeys.length ? `<div class="text-center text-muted py-4">ไม่มีแผนผลิตในช่วงนี้</div>` : dateKeys.map(dateStr => {
+    const rows = byDate[dateStr];
+    return `<div style="background:#eff6ff;font-weight:700;padding:8px 10px;border-radius:8px;margin:14px 0 6px;font-size:.85rem">${fmtDate(dateStr, true)}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>ไลน์</th><th>กะ</th><th>เวลา</th><th>สินค้า</th><th class="text-end">จำนวน</th><th>MO อ้างอิง</th><th>สถานะ</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${r.Line||''}</td>
+        <td>${r.Shift||''}</td>
+        <td>${(r.TimeStart||'').slice(0,5)}–${(r.TimeEnd||'').slice(0,5)}</td>
+        <td>${r.ProductName||''}<br><span class="text-muted small">${r.ProductCode||''}</span></td>
+        <td class="text-end">${fmtQty(r.PlanQty)} ${r.UOM||''}</td>
+        <td>${r.MO_Ref||'—'}</td>
+        <td><span class="badge" style="background:${planStatusColor[r.Status]||'#64748b'}">${planStatusLabel[r.Status]||r.Status||''}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }).join('');
+
+  const moStatusColor = { 'แพลนแล้ว':'#d97706','ยืนยันการผลิต':'#334155','เบิกแล้ว':'#0ea5e9','กำลังผลิต':'#2563eb' };
+  const activeStatuses = ['แพลนแล้ว','ยืนยันการผลิต','เบิกแล้ว','กำลังผลิต'];
+  const counts = {}; activeStatuses.forEach(s => counts[s] = 0);
+  data.moRows.forEach(m => counts[m.Status] = (counts[m.Status]||0) + 1);
+
+  const moSection = !data.moRows.length ? `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ตอนนี้</div>` : `
+    <div class="row g-2 mb-3 text-center">${activeStatuses.map(s => `<div class="col-6 col-md-3">
+      <div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold" style="color:${moStatusColor[s]}">${counts[s]}</div><div class="text-muted small">${s}</div></div></div>`).join('')}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>MO</th><th>สินค้า</th><th>สถานะ</th><th class="text-end">สั่งผลิต</th><th class="text-end">รับแล้ว</th><th class="text-end">คงค้าง</th><th>กำหนดส่ง</th></tr></thead>
+      <tbody>${data.moRows.map(m => `<tr>
+        <td>${m.MO_ID||''}</td>
+        <td>${m.ProductName||''}<br><span class="text-muted small">${m.ProductCode||''}</span></td>
+        <td><span class="badge" style="background:${moStatusColor[m.Status]||'#64748b'}">${m.Status||''}</span></td>
+        <td class="text-end">${fmtQty(m.OrderQty)}</td>
+        <td class="text-end">${fmtQty(m.MO_Received)}</td>
+        <td class="text-end">${fmtQty(m.Pending)}</td>
+        <td>${fmtDate(m.DeliveryDate)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+
+  bodyEl.innerHTML = `
+    <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
+      <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
+    <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ตารางแผนผลิตตามไลน์ / กะ / วันที่</h6>${planSection}</div>
+    <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
+    <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
 }
 
 // ══════════════════════════════════════════════
@@ -13874,6 +14137,10 @@ function _renderCurrentUserBadge() {
 // Init — เช็ค session ก่อนปล่อยเข้าแอป แล้วโหลดหน้าแรก
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
+  // โหมดรายงานสาธารณะ (?report=TOKEN) — ข้าม login/auth ทั้งหมด ไม่ต้องรอ session ใดๆ
+  const _reportToken = new URLSearchParams(location.search).get('report');
+  if (_reportToken) { _renderPublicReport(_reportToken); return; }
+
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
