@@ -7130,11 +7130,23 @@ async function loadFGOutData() {
 
   _fgoutData    = outRes.data  || [];
   _fgoutStockFG = stockRes.data || [];
+  // FG คงเหลือรวมทุก Lot ต่อ ProductCode (จาก stock_fg ที่ดึงมาแล้วด้านบน ไม่ต้อง query ใหม่) — ใช้เช็คเคส CO ที่
+  // ยังไม่มี MO เลย (ยังไม่สั่งผลิต) แต่ดันมีของเหลือในสต็อกพอให้เบิกได้ทันที (เช่น สต็อกเหลือจากรอบผลิตอื่นของ
+  // สินค้ารหัสเดียวกัน) — ดูหมายเหตุ "รอสั่งผลิต" ด้านล่าง
+  const fgStockByProduct = {};
+  _fgoutStockFG.forEach(s => { fgStockByProduct[s.ProductCode] = (fgStockByProduct[s.ProductCode] || 0) + (parseFloat(s.FGBalance) || 0); });
   // กรองด้วย "สถานะรวม" (ผสม MO + ยอดเบิกจริง — ดู _coComputeDisplayStatus) ไม่ใช่ r.Status ดิบๆ เหมือนเดิม เพราะ
   // Status จริงอาจค้างผิดพลาด (เช่น CO ที่ MO ผลิตเสร็จแล้วแต่ Status ยังโชว์ "รอสั่งผลิต") ทำให้ CO ที่พร้อมเบิกจริง
   // หายไปจากดรอปดาวน์แบบไม่มีใครรู้ตัว — เอาเฉพาะ 3 สถานะที่ยังเหลือให้เบิกได้จริง (ไม่รวม "รอส่งถึง" เพราะเบิกครบยอด
-  // สั่งไปแล้ว ไม่มีอะไรให้เบิกเพิ่ม)
-  _fgoutCOList  = (coRes.data || []).filter(c => ['รอจัดส่ง', 'กำลังผลิต', 'จัดส่งบางส่วน'].includes(_coComputeDisplayStatus(c)));
+  // สั่งไปแล้ว ไม่มีอะไรให้เบิกเพิ่ม) — บวกอีกเคส: CO ที่ยังไม่มี MO เลย (สถานะรวม = "รอสั่งผลิต" ตรงตัว) แต่มีสต็อก
+  // FG ของสินค้านั้นเหลืออยู่แล้ว (ไม่ต้องรอผลิตใหม่) ก็ให้เบิกได้ทันที ตรงกับปุ่ม "เบิกจากคลัง" บนหน้า CO ที่เปิด
+  // ให้กดได้อยู่แล้วเมื่อ fgStock > 0 (ดู coWithdrawFromStock) — ไม่งั้น CO นั้นจะกดเบิกจากคลังไม่ได้เพราะดรอปดาวน์
+  // นี้ไม่มีให้เลือก ทั้งที่ปุ่มบนหน้า CO บอกว่าเบิกได้
+  _fgoutCOList  = (coRes.data || []).filter(c => {
+    const ds = _coComputeDisplayStatus(c);
+    if (['รอจัดส่ง', 'กำลังผลิต', 'จัดส่งบางส่วน'].includes(ds)) return true;
+    return ds === 'รอสั่งผลิต' && (fgStockByProduct[c.ProductCode] || 0) > 0;
+  });
 
   // Populate CO reference select
   const coSel = document.getElementById('fgout-f-co-ref');
@@ -12329,7 +12341,7 @@ async function coWithdrawFromStock(idx) {
   const coSel = document.getElementById('fgout-f-co-ref');
   coSel.value = r.Order_ID;
   if (coSel.value !== r.Order_ID) {
-    Swal.fire('ไม่พบ CO นี้ในหน้าเบิก FG', 'สถานะ CO อาจไม่ตรงเงื่อนไขของหน้าเบิก FG (สั่งผลิตแล้ว/ส่งบางส่วน) กรุณาเลือก CO เอง', 'warning');
+    Swal.fire('ไม่พบ CO นี้ในหน้าเบิก FG', 'CO นี้อาจปิดงานไปแล้ว (ส่งครบ/ส่งสำเร็จ) หรือเบิกครบยอดสั่งไปแล้วทั้งหมด กรุณาเลือก CO เอง', 'warning');
     return;
   }
   fgoutCOSelect();
