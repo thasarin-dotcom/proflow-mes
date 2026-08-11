@@ -748,30 +748,33 @@ table.pcost-cost-table td.val.emph{color:#1e3a8a;font-weight:800}
 
 /* ── Delivery: ใบส่งสินค้า (Delivery Bill Print) — แนวตั้ง A4, มิเรอร์โครง .mrrpt-* แต่ตามฟอร์แมตใบตัวอย่างจริง FM-SM-01-03 ── */
 #dlvbillModal .modal-dialog{max-width:1100px}
+/* หมายเหตุ (2026-08-11): เดิม padding:15mm เนื้อหาจริงพอดี 297mm เป๊ะๆ (เหลือ buffer ~0) ทำให้ preview บนจอดูพอดี
+   แต่ปริ้นจริงล้นไปหน้า 2 แบบไม่มีหัวกระดาษซ้ำ (โครงหน้านี้ไม่มีระบบแบ่งหน้าจริง เป็น div เดียวยาวๆ ต่อสำเนา) —
+   ลด padding/margin/font ของหลายจุดด้านล่างเพื่อเผื่อ buffer ~20-25mm (ยังไม่ใช่ระบบแบ่งหน้าจริง แค่กันล้นสำหรับ
+   ออร์เดอร์ขนาดปกติ ออร์เดอร์ที่มีสินค้า/Lot จำนวนมากยังมีโอกาสล้นอยู่) */
 .dlvbill-page{
   font-family:Sarabun,sans-serif;font-size:12px;color:#1e293b;
-  width:210mm;min-height:297mm;box-sizing:border-box;padding:15mm;
+  width:210mm;min-height:297mm;box-sizing:border-box;padding:12mm;
   background:#fff;margin:0 auto 16px;box-shadow:0 2px 10px rgba(0,0,0,.4);
   display:flex;flex-direction:column;
   page-break-after:always;
 }
 .dlvbill-page:last-child{page-break-after:auto;margin-bottom:0}
-.dlvbill-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:10px}
+.dlvbill-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e3a8a;padding-bottom:7px;margin-bottom:7px}
 .dlvbill-brand{display:flex;align-items:center;gap:10px}
 .dlvbill-logo-img{height:44px;width:auto}
-.dlvbill-company{font-size:10.5px;color:#64748b;line-height:1.5}
+.dlvbill-company{font-size:10.5px;color:#64748b;line-height:1.4}
 .dlvbill-meta{text-align:right;font-size:11.5px;color:#334155;white-space:nowrap}
 .dlvbill-meta b{color:#1e3a8a}
+.dlvbill-formcode{font-size:8.5px;color:#94a3b8;margin-bottom:3px}
 .dlvbill-copytag{display:inline-block;font-size:10.5px;font-weight:700;color:#1e3a8a;border:1px solid #1e3a8a;border-radius:4px;padding:1px 10px;margin-bottom:5px}
-.dlvbill-title{text-align:center;font-size:15px;font-weight:800;color:#1e3a8a;background:#eaf0fb;padding:7px 0;border-radius:6px;margin-bottom:12px}
-.dlvbill-cust-box{border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin-bottom:14px}
-.dlvbill-cust-row{display:grid;grid-template-columns:180px 1fr;gap:6px;padding:2px 0;font-size:12px}
+.dlvbill-title{text-align:center;font-size:15px;font-weight:800;color:#1e3a8a;background:#eaf0fb;padding:5px 0;border-radius:6px;margin-bottom:9px}
+.dlvbill-cust-box{border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;margin-bottom:10px}
+.dlvbill-cust-row{display:grid;grid-template-columns:180px 1fr;gap:4px;padding:1px 0;font-size:12px}
 .dlvbill-cust-row .lbl{color:#64748b}
 table.dlvbill-table{width:100%;border-collapse:collapse;font-size:12px}
-table.dlvbill-table th{background:#1e3a8a;color:#fff;padding:6px 7px;text-align:left;font-weight:700;font-size:10.5px}
-table.dlvbill-table th.qty{text-align:right}
-table.dlvbill-table th.exp{text-align:center}
-table.dlvbill-table td{padding:5px 7px;border:1px solid #e2e8f0}
+table.dlvbill-table th{background:#1e3a8a;color:#fff;padding:4px 7px;text-align:center;font-weight:700;font-size:10.5px}
+table.dlvbill-table td{padding:3px 7px;border:1px solid #e2e8f0}
 table.dlvbill-table td.num{text-align:center;color:#94a3b8}
 table.dlvbill-table td.qty{text-align:right;font-variant-numeric:tabular-nums}
 table.dlvbill-table td.exp{text-align:center;font-variant-numeric:tabular-nums}
@@ -780,12 +783,12 @@ tr.dlvbill-lot-row td{color:#64748b;font-size:11.5px}
 tr.dlvbill-lot-row td.qty,tr.dlvbill-lot-row td.exp{color:#1e293b}
 tr.dlvbill-total-row td{font-weight:800;border-top:1.5px solid #1e293b}
 tr.dlvbill-mix-row td{color:#1e3a8a;font-size:11.5px;font-style:italic}
-.dlvbill-po-strip{text-align:center;font-weight:700;font-size:12px;color:#1e3a8a;margin:10px 0}
-.dlvbill-notes{font-size:10.5px;color:#64748b;padding:8px 0;border-top:1px solid #e2e8f0}
+.dlvbill-po-strip{text-align:center;font-weight:700;font-size:12px;color:#1e3a8a;margin:6px 0}
+.dlvbill-notes{font-size:10.5px;color:#64748b;padding:5px 0;border-top:1px solid #e2e8f0}
 .dlvbill-notes div{padding:1px 0}
-.dlvbill-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:26px;font-size:11px;color:#64748b}
+.dlvbill-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:16px;font-size:11px;color:#64748b}
 .dlvbill-sign{text-align:center;width:31%}
-.dlvbill-sign .line{border-top:1px solid #94a3b8;margin-top:32px;padding-top:4px}
+.dlvbill-sign .line{border-top:1px solid #94a3b8;margin-top:24px;padding-top:4px}
 .dlvbill-sign .date{margin-top:6px;font-size:10px}
 
 /* ── Delivery Bill: ขั้นตอน 1.5 กำหนดแพ็คกิ้ง (ในโมดัล ไม่ใช่ตอนพิมพ์) ── */
@@ -8433,6 +8436,7 @@ async function dlvbillRenderPreview() {
           </div>
         </div>
         <div class="dlvbill-meta">
+          <div class="dlvbill-formcode">FM-SM-01-03 / Rev. 00 / Eff. Date 01/03/2025</div>
           <div class="dlvbill-copytag">${copyLabel}</div>
           <div>เอกสารเลขที่ (Document No.): <b>${docNo}</b></div>
           <div>วันที่ (Date): <b>${docDate}</b></div>
@@ -8450,9 +8454,9 @@ async function dlvbillRenderPreview() {
 
       <table class="dlvbill-table">
         <thead><tr>
-          <th style="width:6%">ลำดับ<br>(No.)</th><th style="width:47%">รายละเอียดสินค้า<br>(Description)</th>
+          <th style="width:6%">ลำดับ<br>(No.)</th><th style="width:54%">รายละเอียดสินค้า<br>(Description)</th>
           <th class="exp" style="width:15%">วันหมดอายุ<br>(Exp. Date)</th>
-          <th class="qty" style="width:20%">จำนวน<br>(Quantity)</th><th style="width:12%">หน่วย<br>(Unit)</th>
+          <th class="qty" style="width:13%">จำนวน<br>(Quantity)</th><th style="width:12%">หน่วย<br>(Unit)</th>
         </tr></thead>
         <tbody>${groupHtml}</tbody>
       </table>
@@ -11375,8 +11379,8 @@ function _pcostHalfHTML(d, copyLabel) {
     </table>
     <table class="pcost-table">
       <thead><tr>
-        <th style="width:4%">ลำดับ</th><th style="width:9%">รหัส</th><th style="width:43%">ชื่อวัตถุดิบ</th><th style="width:9%">Lot</th>
-        <th style="width:10%">ใช้จริง</th><th style="width:13%">หน่วย</th><th style="width:6%">ต้นทุน/หน่วย</th><th style="width:6%">ต้นทุนรวม</th>
+        <th style="width:4%">ลำดับ</th><th style="width:9%">รหัส</th><th style="width:33%">ชื่อวัตถุดิบ</th><th style="width:13%">Lot</th>
+        <th style="width:10%">ใช้จริง</th><th style="width:13%">หน่วย</th><th style="width:6%">ต้นทุน/หน่วย</th><th style="width:12%">ต้นทุนรวม</th>
       </tr></thead>
       <tbody>
         ${matRows || '<tr><td colspan="8" class="text-center" style="color:#94a3b8">ไม่มีข้อมูลวัตถุดิบ</td></tr>'}
