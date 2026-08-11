@@ -2753,22 +2753,29 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
               <!-- ── Lot + Qty ── -->
               <div class="col-md-5">
-                <label class="form-label">Lot FG <span class="text-danger">*</span></label>
+                <label class="form-label">Lot FG</label>
                 <!-- lot select สำหรับ CO mode -->
-                <select id="fgout-f-lot-select" class="form-select">
-                  <option value="">— เลือก Lot —</option>
+                <select id="fgout-f-lot-select" class="form-select" onchange="fgoutUpdateSplitPreview()">
+                  <option value="">— เลือก Lot (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ) —</option>
                 </select>
                 <!-- lot text สำหรับ misc mode (hidden ตอนแรก) -->
-                <input type="text" id="fgout-f-lot-text" class="form-control d-none" placeholder="Lot FG">
+                <input type="text" id="fgout-f-lot-text" class="form-control d-none" placeholder="Lot FG (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ)" oninput="fgoutUpdateSplitPreview()">
               </div>
               <div class="col-md-4">
                 <label class="form-label">จำนวนเบิก <span class="text-danger">*</span></label>
-                <input type="number" id="fgout-f-qty" class="form-control" min="0.001" step="0.001" required>
+                <input type="number" id="fgout-f-qty" class="form-control" min="0.001" step="0.001" required oninput="fgoutUpdateSplitPreview()">
                 <small id="fgout-stock-hint" class="text-muted"></small>
               </div>
               <div class="col-md-3">
                 <label class="form-label">ลูกค้า / ปลายทาง</label>
                 <input type="text" id="fgout-f-customer" class="form-control" placeholder="—">
+              </div>
+              <!-- ── Multi-lot auto-split preview (โผล่เฉพาะตอนเว้น Lot ว่างไว้ในโหมดเพิ่มรายการใหม่) ── -->
+              <div class="col-12" id="fgout-split-preview" style="display:none">
+                <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:.5rem .9rem;font-size:.82rem">
+                  <b><i class="fas fa-layer-group me-1"></i>ไม่ได้เลือก Lot — ระบบจะแบ่งเบิกจากหลาย Lot อัตโนมัติ:</b>
+                  <div id="fgout-split-list" class="mt-1"></div>
+                </div>
               </div>
               <div class="col-md-12">
                 <label class="form-label">หมายเหตุ</label>
@@ -7137,15 +7144,26 @@ async function loadFGOutData() {
   _fgoutStockFG.forEach(s => { fgStockByProduct[s.ProductCode] = (fgStockByProduct[s.ProductCode] || 0) + (parseFloat(s.FGBalance) || 0); });
   // กรองด้วย "สถานะรวม" (ผสม MO + ยอดเบิกจริง — ดู _coComputeDisplayStatus) ไม่ใช่ r.Status ดิบๆ เหมือนเดิม เพราะ
   // Status จริงอาจค้างผิดพลาด (เช่น CO ที่ MO ผลิตเสร็จแล้วแต่ Status ยังโชว์ "รอสั่งผลิต") ทำให้ CO ที่พร้อมเบิกจริง
-  // หายไปจากดรอปดาวน์แบบไม่มีใครรู้ตัว — เอาเฉพาะ 3 สถานะที่ยังเหลือให้เบิกได้จริง (ไม่รวม "รอส่งถึง" เพราะเบิกครบยอด
-  // สั่งไปแล้ว ไม่มีอะไรให้เบิกเพิ่ม) — บวกอีกเคส: CO ที่ยังไม่มี MO เลย (สถานะรวม = "รอสั่งผลิต" ตรงตัว) แต่มีสต็อก
-  // FG ของสินค้านั้นเหลืออยู่แล้ว (ไม่ต้องรอผลิตใหม่) ก็ให้เบิกได้ทันที ตรงกับปุ่ม "เบิกจากคลัง" บนหน้า CO ที่เปิด
-  // ให้กดได้อยู่แล้วเมื่อ fgStock > 0 (ดู coWithdrawFromStock) — ไม่งั้น CO นั้นจะกดเบิกจากคลังไม่ได้เพราะดรอปดาวน์
-  // นี้ไม่มีให้เลือก ทั้งที่ปุ่มบนหน้า CO บอกว่าเบิกได้
+  // หายไปจากดรอปดาวน์แบบไม่มีใครรู้ตัว — 3 กติกา (OR กัน) ที่ทำให้ CO หนึ่งใบยังเลือกเบิกซ้ำได้:
+  //  1) สถานะรวมเป็น รอจัดส่ง/กำลังผลิต/จัดส่งบางส่วน (มี MO ผูกอยู่) — ไม่รวม "รอส่งถึง" เพราะเบิกครบยอดสั่งไปแล้ว
+  //  2) Status จริงไม่ใช่ "รอสั่งผลิต" (แปลว่าเคยเบิกมาแล้วอย่างน้อย 1 ครั้ง เช่น "กำลังเบิก"/"ส่งบางส่วน" แม้ไม่มี
+  //     MO ผูกเลยก็ตาม เคสแบบ CO-2608-16 ที่เบิกจากสต็อกเดิมได้ตรงๆ — ผู้ใช้ต้องเลือก CO นี้ซ้ำได้ตอนเบิกรอบต่อไป
+  //     เพราะยังส่งไม่ครบยอด)
+  //  3) Status จริงเป็น "รอสั่งผลิต" ตรงตัว (ยังไม่มี MO และไม่เคยเบิกเลย) แต่มีสต็อก FG ของสินค้านั้นเหลืออยู่แล้ว
+  //     (ไม่ต้องรอผลิตใหม่) ตรงกับปุ่ม "เบิกจากคลัง" บนหน้า CO ที่เปิดให้กดได้เมื่อ fgStock > 0 (ดู coWithdrawFromStock)
+  // ทุกกติกาต้องเช็คก่อนว่ายังไม่ปิดงาน (_coDoneStatuses) และยังเบิกไม่ครบยอดสั่ง (remain > 0) — ไม่งั้น CO ที่เบิก
+  // ครบยอดไปแล้วจริงๆ (แค่ Status จริงค้างไม่ทันอัปเดต) จะโผล่ให้เบิกซ้ำเกินยอดสั่งได้
   _fgoutCOList  = (coRes.data || []).filter(c => {
+    if (_coDoneStatuses.includes(c.Status)) return false;
+    // ใช้ _coTotalWithdrawnMap (เบิกจากคลังจริงทุกแถว ไม่สนสถานะจัดส่ง) ไม่ใช่ _coShippedMap (กรองตามสถานะจัดส่ง
+    // แล้ว) เพราะคำถามตรงนี้คือ "คลังเบิกครบยอดสั่งหรือยัง" ไม่ใช่ "จัดส่งครบหรือยัง" — ถ้าใช้ _coShippedMap ผิด
+    // จะเบิกซ้ำเกินยอดสั่งได้ตอนที่เบิกไปแล้วแต่ยังไม่มี delivery ยืนยันสถานะ
+    const remain = (parseFloat(c.OrderQty) || 0) - (_coTotalWithdrawnMap[c.Order_ID] || 0);
+    if (remain <= 0) return false;
     const ds = _coComputeDisplayStatus(c);
     if (['รอจัดส่ง', 'กำลังผลิต', 'จัดส่งบางส่วน'].includes(ds)) return true;
-    return ds === 'รอสั่งผลิต' && (fgStockByProduct[c.ProductCode] || 0) > 0;
+    if (c.Status !== 'รอสั่งผลิต') return true;
+    return (fgStockByProduct[c.ProductCode] || 0) > 0;
   });
 
   // Populate CO reference select
@@ -7294,9 +7312,8 @@ function fgoutToggleMode(mode) {
   // Sections
   document.getElementById('fgout-co-section').classList.toggle('d-none', !isCustomer);
   document.getElementById('fgout-misc-section').classList.toggle('d-none', isCustomer);
-  // Lot fields
+  // Lot fields — เว้นว่างได้ทั้ง 2 โหมด (ไม่ required อีกต่อไป) เพื่อให้แบ่งเบิกหลาย Lot อัตโนมัติได้ (ดู fgoutUpdateSplitPreview/fgoutSubmit)
   document.getElementById('fgout-f-lot-select').classList.toggle('d-none', !isCustomer);
-  document.getElementById('fgout-f-lot-select').required = isCustomer;
   document.getElementById('fgout-f-lot-text').classList.toggle('d-none', isCustomer);
   // Clear auto-filled fields when switching
   document.getElementById('fgout-f-prodname-display').value = '';
@@ -7307,7 +7324,7 @@ function fgoutToggleMode(mode) {
   // Reset CO select if switching to customer
   if (isCustomer) {
     document.getElementById('fgout-f-co-ref').value = '';
-    document.getElementById('fgout-f-lot-select').innerHTML = '<option value="">— เลือก Lot —</option>';
+    document.getElementById('fgout-f-lot-select').innerHTML = '<option value="">— เลือก Lot (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ) —</option>';
   } else {
     document.getElementById('fgout-f-mat-search').value = '';
     document.getElementById('fgout-f-product-code').value = '';
@@ -7316,6 +7333,7 @@ function fgoutToggleMode(mode) {
     document.getElementById('fgout-f-lot-text').value = '';
   }
   document.getElementById('fgout-f-co-rowid').value = '';
+  fgoutUpdateSplitPreview();
 }
 
 // ── CO Reference เลือกแล้ว → auto-fill ──
@@ -7328,9 +7346,10 @@ function fgoutCOSelect() {
     document.getElementById('fgout-f-uom').value = '';
     document.getElementById('fgout-f-customer').value = '';
     document.getElementById('fgout-f-co-rowid').value = '';
-    document.getElementById('fgout-f-lot-select').innerHTML = '<option value="">— เลือก Lot —</option>';
+    document.getElementById('fgout-f-lot-select').innerHTML = '<option value="">— เลือก Lot (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ) —</option>';
     document.getElementById('fgout-stock-bar').style.display = 'none';
     document.getElementById('fgout-stock-hint').textContent = '';
+    fgoutUpdateSplitPreview();
     return;
   }
   const prodCode = opt.dataset.prodcode || '';
@@ -7350,20 +7369,22 @@ function fgoutCOSelect() {
   const allLots = _fgoutStockFG.filter(s => s.ProductCode === prodCode);
   const lotSel = document.getElementById('fgout-f-lot-select');
   if (lots.length > 0) {
-    lotSel.innerHTML = '<option value="">— เลือก Lot —</option>' +
+    lotSel.innerHTML = '<option value="">— เลือก Lot (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ) —</option>' +
       lots.map(s => `<option value="${s.LotFG||''}">${s.LotFG||'—'} (คงเหลือ: ${(parseFloat(s.FGBalance)||0).toLocaleString()} ${s.UOM||''})</option>`).join('');
   } else if (allLots.length > 0) {
-    lotSel.innerHTML = '<option value="">— เลือก Lot —</option>' +
+    lotSel.innerHTML = '<option value="">— เลือก Lot (เว้นว่าง = แบ่งหลาย Lot อัตโนมัติ) —</option>' +
       allLots.map(s => `<option value="${s.LotFG||''}">${s.LotFG||'—'} (คงเหลือ: ${(parseFloat(s.FGBalance)||0).toLocaleString()} ${s.UOM||''})</option>`).join('');
   } else {
     lotSel.innerHTML = '<option value="">— ไม่มี Lot ใน Stock —</option>';
   }
 
-  // Lot select: update hint when changed
+  // Lot select: update hint when changed — ตั้งผ่าน .onchange ตรงๆ (ทับ inline onchange จาก HTML) จึงต้องเรียก
+  // fgoutUpdateSplitPreview() ต่อในนี้ด้วย ไม่งั้น preview จะไม่อัปเดตตอนเปลี่ยน Lot ในโหมด CO
   lotSel.onchange = function() {
     const lotRow = _fgoutStockFG.find(s => s.ProductCode === prodCode && s.LotFG === this.value);
     document.getElementById('fgout-stock-hint').textContent =
       lotRow ? `คงเหลือ: ${(parseFloat(lotRow.FGBalance)||0).toLocaleString()} ${lotRow.UOM||''}` : '';
+    fgoutUpdateSplitPreview();
   };
 
   // Show stock bar — total FGBalance for this product
@@ -7380,6 +7401,7 @@ function fgoutCOSelect() {
     `<b>ส่งแล้ว:</b> ${alreadySent.toLocaleString()} ${uom} &nbsp;|&nbsp; `+
     `<b>คงค้าง:</b> <span class="${remaining > 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">${remaining.toLocaleString()} ${uom}</span>`;
   stockBar.style.display = 'block';
+  fgoutUpdateSplitPreview();
 }
 
 function fgoutOpenModal(rowId = null) {
@@ -7469,6 +7491,55 @@ function fgoutSelectProduct(code, name, lot, uom, balance) {
   document.getElementById('fgout-mat-hint').textContent    = `รหัส: ${code}`;
   document.getElementById('fgout-stock-hint').textContent  = `คงเหลือใน Stock FG: ${balance.toLocaleString()} ${uom}`;
   document.getElementById('fgout-mat-dropdown').style.display = 'none';
+  fgoutUpdateSplitPreview();
+}
+
+// ── แบ่งจำนวนที่ต้องการเบิกออกเป็นหลาย Lot อัตโนมัติ เมื่อเว้นช่อง Lot FG ว่างไว้ ──
+// เรียงตามรหัส Lot จากน้อยไปมาก (เหมือน coWithdrawFromStock ~ FEFO คร่าวๆ) ไล่ดึงจนกว่าจะครบจำนวนที่ขอ
+// หรือของหมด — คืน splits (รายการ {lot, qty, uom} ที่จะ insert เป็น fg_withdraw คนละแถวกัน) และ shortfall
+// (ส่วนที่ของในสต็อกไม่พอ ถ้า >0)
+function _fgoutComputeLotSplit(prodCode, totalQty) {
+  const lots = _fgoutStockFG
+    .filter(s => s.ProductCode === prodCode && (parseFloat(s.FGBalance) || 0) > 0)
+    .sort((a, b) => (a.LotFG || '').localeCompare(b.LotFG || ''));
+  let remaining = totalQty;
+  const splits = [];
+  for (const s of lots) {
+    if (remaining <= 0) break;
+    const avail = parseFloat(s.FGBalance) || 0;
+    const take = Math.min(remaining, avail);
+    if (take <= 0) continue;
+    splits.push({ lot: s.LotFG, qty: take, uom: s.UOM });
+    remaining -= take;
+  }
+  return { splits, shortfall: Math.max(0, remaining) };
+}
+
+// ── แสดง preview การแบ่ง Lot แบบสดๆ ตอนกรอกจำนวน/เลือกสินค้า — โผล่เฉพาะตอนเพิ่มรายการใหม่ (ไม่ใช่แก้ไข)
+// และเว้นช่อง Lot FG ว่างไว้เท่านั้น (เลือก Lot เจาะจงเอง = ไม่ auto-split เหมือนเดิมทุกอย่าง) ──
+function fgoutUpdateSplitPreview() {
+  const wrap = document.getElementById('fgout-split-preview');
+  const isEdit = !!document.getElementById('fgout-edit-id').value;
+  const isCustomer = document.getElementById('fgout-btn-customer').classList.contains('btn-primary');
+  const lot = isCustomer
+    ? document.getElementById('fgout-f-lot-select').value
+    : document.getElementById('fgout-f-lot-text').value;
+  const prodCode = document.getElementById('fgout-f-prodcode-display').value ||
+                   document.getElementById('fgout-f-product-code').value;
+  const qty = parseFloat(document.getElementById('fgout-f-qty').value) || 0;
+
+  if (isEdit || lot || !prodCode || qty <= 0) { wrap.style.display = 'none'; return; }
+
+  const { splits, shortfall } = _fgoutComputeLotSplit(prodCode, qty);
+  if (!splits.length) { wrap.style.display = 'none'; return; }
+
+  const uom = splits[0].uom || '';
+  let html = splits.map(s => `<span class="badge bg-primary me-1 mb-1">Lot ${s.lot}: ${s.qty.toLocaleString()} ${uom}</span>`).join('');
+  if (shortfall > 0) {
+    html += `<div class="text-danger mt-1"><i class="fas fa-exclamation-triangle me-1"></i>สต็อกไม่พอ ขาดอีก ${shortfall.toLocaleString()} ${uom} (ระบบจะให้ยืนยันเบิกเท่าที่มีตอนบันทึก)</div>`;
+  }
+  document.getElementById('fgout-split-list').innerHTML = html;
+  wrap.style.display = 'block';
 }
 
 document.addEventListener('click', function(e) {
@@ -7502,7 +7573,7 @@ async function fgoutSubmit(e) {
   if (qty <= 0) { _err('กรุณาระบุจำนวน', 'จำนวนต้องมากกว่า 0'); return; }
   if (!prodCode) { _err('กรุณาเลือกสินค้า', isCustomer ? 'เลือก CO ก่อน' : 'พิมพ์ค้นหาสินค้า'); return; }
 
-  // Check stock availability
+  // Check stock availability — เฉพาะกรณีเลือก Lot เจาะจงเอง (single-lot path เดิม)
   if (!isEdit && prodCode && lot) {
     const stockRow = _fgoutStockFG.find(m => m.ProductCode === prodCode && m.LotFG === lot);
     if (stockRow && (parseFloat(stockRow.FGBalance)||0) < qty) {
@@ -7513,6 +7584,24 @@ async function fgoutSubmit(e) {
       });
       if (!ok.isConfirmed) return;
     }
+  }
+
+  // เพิ่มรายการใหม่ + เว้น Lot ว่างไว้ → แบ่งเบิกหลาย Lot อัตโนมัติ (เรียงรหัส Lot น้อย→มาก) ต้องคำนวณ/ยืนยัน
+  // ก่อนเข้าสู่ขั้นตอนบันทึกจริงด้านล่าง (เหมือน stock-check ข้างบน แต่ครอบคลุมหลาย Lot)
+  let multiLotSplits = null;
+  if (!isEdit && !lot) {
+    const { splits, shortfall } = _fgoutComputeLotSplit(prodCode, qty);
+    if (!splits.length) { _err('ไม่มี Lot ให้เบิก', 'ไม่มีสต็อกคงเหลือของสินค้านี้เลยในระบบ'); return; }
+    if (shortfall > 0) {
+      const uomLabel = document.getElementById('fgout-f-uom').value || '';
+      const ok = await Swal.fire({
+        icon:'warning', title:'Stock FG ไม่พอตามที่ขอ',
+        html:`มีของรวมทุก Lot ให้เบิกได้ <b>${(qty-shortfall).toLocaleString()}</b> ${uomLabel} จากที่ขอ <b>${qty.toLocaleString()}</b><br>ยังขาดอีก <b>${shortfall.toLocaleString()}</b> — เบิกเท่าที่มีทั้งหมดเลยไหม?`,
+        showCancelButton:true, confirmButtonText:'เบิกเท่าที่มี', cancelButtonText:'ยกเลิก'
+      });
+      if (!ok.isConfirmed) return;
+    }
+    multiLotSplits = splits;
   }
 
   const payload = {
@@ -7550,6 +7639,30 @@ async function fgoutSubmit(e) {
       if (oldCoRef && oldCoRef !== newCoRef) await fgoutUpdateCOStatus(oldCoRef);
       if (newCoRef) await fgoutUpdateCOStatus(newCoRef);
     }
+  } else if (multiLotSplits) {
+    // แบ่งเบิกหลาย Lot อัตโนมัติ — insert แยกทีละแถว (1 fg_withdraw + 1 delivery ต่อ Lot เหมือนโครงสร้างเดิม)
+    // ไม่มี transaction rollback ในระบบนี้ (เหมือนที่อื่นทั้งแอป) — ถ้าล้มกลางทาง Lot ที่บันทึกไปแล้วจะค้างอยู่จริง
+    // ต้องแจ้งผู้ใช้ตรงๆ ว่าสำเร็จไปแล้วกี่ Lot ก่อนเจอปัญหา ไม่ใช่แค่บอก "บันทึกไม่สำเร็จ" เฉยๆ
+    let numLotsInserted = 0;
+    for (const s of multiLotSplits) {
+      const rowPayload = { ...payload, Lot_FG: s.lot, QtyFG: s.qty, UOM: s.uom || payload.UOM };
+      const insertRes = await _sb.from('fg_withdraw').insert(rowPayload).select('_row_id').single();
+      if (insertRes.error) { error = insertRes.error; break; }
+      numLotsInserted++;
+      await fgUpdateStock(prodCode, prodName, s.lot, s.qty, rowPayload.UOM, null, null, false);
+      if (mode === 'customer') await deliveryAutoCreate(insertRes.data._row_id, rowPayload);
+    }
+    if (!error && mode === 'customer' && coRef) await fgoutUpdateCOStatus(coRef);
+    if (error && numLotsInserted > 0) {
+      _hideLoader();
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึกการเบิก';
+      _err('บันทึกไม่สำเร็จกลางทาง',
+        `เบิกสำเร็จไปแล้ว ${numLotsInserted} จาก ${multiLotSplits.length} Lot ก่อนเจอปัญหา: ${error.message} — กรุณาตรวจสอบรายการเบิกก่อนเบิกซ้ำ ไม่ต้องเบิก Lot ที่สำเร็จไปแล้วซ้ำอีก`);
+      loadFGOutData();
+      loadFGStockData();
+      return;
+    }
   } else {
     const insertRes = await _sb.from('fg_withdraw').insert(payload).select('_row_id').single();
     error = insertRes.error;
@@ -7575,7 +7688,7 @@ async function fgoutSubmit(e) {
   if (isEdit) _logAudit('EDIT', 'fg_withdraw', payload.ProductCode, _diffFields(prevRow, payload));
   _fgoutModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขสำเร็จ' : 'เบิก FG สำเร็จ',
+    title: isEdit ? 'แก้ไขสำเร็จ' : (multiLotSplits ? `เบิก FG สำเร็จ (${multiLotSplits.length} Lot)` : 'เบิก FG สำเร็จ'),
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadFGOutData();
   loadFGStockData();
@@ -12013,6 +12126,10 @@ let _coShippedMap   = {};
 // แล้วยังไม่ถูกนับเป็นยอดส่ง (ไม่รวมรายการที่ delivery.Status = "ยกเลิก" หรือไม่มี delivery ผูกเลย — ถือเป็น
 // ยอดค้างที่ยังไม่มีการจัดส่งจริงเกิดขึ้น ไม่ใช่ของที่รอจัดส่งอยู่)
 let _coPendingDispatchMap = {};
+// { Order_ID → ยอดเบิกจาก fg_withdraw รวมทุกแถวจริง ไม่สนสถานะจัดส่งเลย (คนละความหมายกับ _coShippedMap ที่กรอง
+// ตามสถานะจัดส่งแล้ว) — ใช้เช็คว่า "เบิกครบยอดสั่งไปแล้วหรือยัง" สำหรับตัดสินใจว่า CO นี้ยังเลือกเบิกซ้ำได้ไหม
+// (nav-fgout CO-ref dropdown) เพราะคำถามนั้นคือ "คลังเบิกครบหรือยัง" ไม่ใช่ "จัดส่งครบหรือยัง"
+let _coTotalWithdrawnMap = {};
 let _coFGStockMap   = {};   // { ProductCode → FG คงเหลือรวมทุก Lot จาก stock_fg }
 let _coOpenMOSet    = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) และ MO นั้นยังไม่ปิดงาน — กันปุ่ม "สั่งผลิต" กดซ้ำ
 let _coAnyMOSet      = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) อย่างน้อย 1 ใบ ไม่ว่าจะปิดงานแล้วหรือยัง — ใช้แยก "ยังไม่มี MO เลย" ออกจาก "มี MO ครบทุกใบแล้ว" ใน _coComputeDisplayStatus
@@ -12079,9 +12196,11 @@ async function _coRefreshMOAndShippedMaps() {
 
   _coShippedMap = {};
   _coPendingDispatchMap = {};
+  _coTotalWithdrawnMap = {};
   (wdRes.data || []).forEach(w => {
     if (!w.CO_Ref) return;
     const qty = parseFloat(w.QtyFG) || 0;
+    _coTotalWithdrawnMap[w.CO_Ref] = (_coTotalWithdrawnMap[w.CO_Ref] || 0) + qty;
     const dlvStatus = dlvStatusByWD[String(w._row_id)];
     if (dlvStatus === 'จัดส่งแล้ว' || dlvStatus === 'ส่งถึงแล้ว') {
       _coShippedMap[w.CO_Ref] = (_coShippedMap[w.CO_Ref] || 0) + qty;
@@ -12089,7 +12208,7 @@ async function _coRefreshMOAndShippedMaps() {
       _coPendingDispatchMap[w.CO_Ref] = (_coPendingDispatchMap[w.CO_Ref] || 0) + qty;
     }
     // dlvStatus === 'ยกเลิก' หรือไม่มี delivery ผูกเลย (เคสกำพร้า) — ไม่นับที่ไหนเลย ถือเป็นยอดค้างที่ยังไม่มี
-    // การจัดส่งเกิดขึ้นจริง ไม่ใช่ของที่กำลังรอจัดส่งอยู่
+    // การจัดส่งเกิดขึ้นจริง ไม่ใช่ของที่กำลังรอจัดส่งอยู่ (แต่ยังนับใน _coTotalWithdrawnMap เพราะเบิกจากคลังจริงไปแล้ว)
   });
 
   _coOpenMOSet = new Set((moRes.data || []).filter(m => m.CO_Ref && !_moDoneStatuses.includes(m.Status)).map(m => m.CO_Ref));
