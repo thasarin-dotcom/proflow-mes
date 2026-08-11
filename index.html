@@ -7533,7 +7533,8 @@ function fgoutUpdateSplitPreview() {
   const { splits, shortfall } = _fgoutComputeLotSplit(prodCode, qty);
   if (!splits.length) { wrap.style.display = 'none'; return; }
 
-  const uom = splits[0].uom || '';
+  // ใช้ UOM จากฟอร์ม (ค่าถูกต้องเสมอ) ไม่ใช่ของ Lot จาก stock_fg — เหตุผลเดียวกับใน fgoutSubmit
+  const uom = document.getElementById('fgout-f-uom').value || splits[0].uom || '';
   let html = splits.map(s => `<span class="badge bg-primary me-1 mb-1">Lot ${s.lot}: ${s.qty.toLocaleString()} ${uom}</span>`).join('');
   if (shortfall > 0) {
     html += `<div class="text-danger mt-1"><i class="fas fa-exclamation-triangle me-1"></i>สต็อกไม่พอ ขาดอีก ${shortfall.toLocaleString()} ${uom} (ระบบจะให้ยืนยันเบิกเท่าที่มีตอนบันทึก)</div>`;
@@ -7645,7 +7646,10 @@ async function fgoutSubmit(e) {
     // ต้องแจ้งผู้ใช้ตรงๆ ว่าสำเร็จไปแล้วกี่ Lot ก่อนเจอปัญหา ไม่ใช่แค่บอก "บันทึกไม่สำเร็จ" เฉยๆ
     let numLotsInserted = 0;
     for (const s of multiLotSplits) {
-      const rowPayload = { ...payload, Lot_FG: s.lot, QtyFG: s.qty, UOM: s.uom || payload.UOM };
+      // UOM ใช้ค่าจากฟอร์ม (payload.UOM) เสมอ ไม่ใช้ s.uom (UOM ของ Lot นั้นจาก stock_fg) — stock_fg มี UOM
+      // ไม่ตรงกันข้ามแต่ละ Lot ของสินค้าเดียวกันได้จริง (ข้อมูลเดิมสะสมมาไม่สม่ำเสมอ) ฟอร์มค่าถูกต้องเสมอเพราะ
+      // มาจาก CO/สินค้าที่เลือกตรงๆ เช่นเดียวกับที่ path เบิก Lot เดียวเดิมทำ (ไม่เคยอ้าง stock_fg.UOM เลย)
+      const rowPayload = { ...payload, Lot_FG: s.lot, QtyFG: s.qty };
       const insertRes = await _sb.from('fg_withdraw').insert(rowPayload).select('_row_id').single();
       if (insertRes.error) { error = insertRes.error; break; }
       numLotsInserted++;
