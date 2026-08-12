@@ -537,20 +537,22 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip.st-confirmed{background:#dcfce7;color:#15803d;border:1px solid #86efac}
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
-/* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root{display:none}
+/* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root{display:none}
 @media print{
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
   #deliverybill-print-root{display:none !important}
   #pcost-print-root{display:none !important}
+  #weeklyreport-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
   body.print-mode-delivery #deliverybill-print-root{display:block !important}
   body.print-mode-pcost #pcost-print-root{display:block !important}
+  body.print-mode-weeklyreport #weeklyreport-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -564,6 +566,10 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      .pcost-page ใช้ height (ไม่ใช่ min-height) แบ่งครึ่งตายตัวเป็นต้นฉบับ/สำเนา ห้ามตั้ง override ใดๆ ที่มากระทบ
      ความสูงตอนพิมพ์ (ไม่ต้องมี min-height:0 เหมือน .bpr-page เพราะไม่ได้ใช้ min-height ตั้งแต่แรก) */
   #pcost-print-root .pcost-page{box-shadow:none !important;margin:0 !important}
+  /* รายงานรายสัปดาห์ แนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมด้านล่างได้เลย (ไม่ต้อง named page) —
+     .wreport-print-page ไม่ตั้ง min-height (ปล่อยให้สูงตามเนื้อหาจริง) กันบั๊กเดียวกับที่เจอใน BPR
+     (min-height ทำให้วัด scrollHeight ผิด) เพราะหน้านี้ไม่มีการวัดความสูงเพื่อจัดหน้าอัตโนมัติเลย */
+  #weeklyreport-print-root .wreport-print-page{box-shadow:none !important;margin:0 !important}
   @page{size:A4;margin:0}
   /* หน้ารายงาน MR ต้องพิมพ์แนวนอน — @page ไม่รองรับการ scope ด้วย selector/body class ตรงๆ (คุมได้แค่ทั้งเอกสาร)
      ต้องใช้ named page แทน (ประกาศ @page ชื่อ mrreport แล้วผูกกับ .mrrpt-page ด้วย CSS property "page:")
@@ -626,6 +632,72 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 .bpr-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 6px;font-size:9px}
 .bpr-frac .num,.bpr-frac .den{padding:1px 4px}
 .bpr-frac .num{border-bottom:1px solid #000}
+
+/* ── รายงานรายสัปดาห์: Print/PDF Modal (อินโฟกราฟิกสรุปผลิต-จัดส่ง — แทนที่ปุ่มร่างอีเมลเดิม) ── */
+#weeklyreportPrintModal .modal-dialog{max-width:900px}
+#weeklyreportPrintModal .modal-body{background:#525659;padding:24px;max-height:82vh;overflow:auto}
+.wreport-print-page{
+  font-family:Sarabun,sans-serif;color:#1e293b;
+  width:210mm;box-sizing:border-box;padding:14mm;
+  background:#fff;margin:0 auto 16px;box-shadow:0 2px 10px rgba(0,0,0,.4);
+}
+.wreport-hero{
+  background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;border-radius:14px;
+  padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px;
+}
+.wreport-hero-title{font-size:20px;font-weight:700;display:flex;align-items:center;gap:10px}
+.wreport-hero-range{font-size:12.5px;opacity:.92;margin-top:4px}
+.wreport-hero-logo{height:34px;width:auto}
+.wreport-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.wreport-kpi{border:1px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center;background:#f8fafc}
+.wreport-kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;margin:0 auto 8px}
+.wreport-kpi-num{font-size:26px;font-weight:700;color:#0f172a;line-height:1.1}
+.wreport-kpi-label{font-size:11.5px;color:#64748b;font-weight:600;margin-top:2px}
+.wreport-kpi-sub{font-size:10.5px;color:#94a3b8;margin-top:4px}
+.wreport-section{margin-bottom:18px}
+.wreport-section-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1e3a8a;border-left:4px solid #0ea5e9;padding-left:9px;margin-bottom:10px}
+.wreport-section-title i{color:#0ea5e9}
+.wreport-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:11.5px}
+.wreport-bar-label{width:34%;flex-shrink:0;color:#334155;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wreport-bar-track{flex:1;height:16px;background:#f1f5f9;border-radius:8px;overflow:hidden}
+.wreport-bar-fill{height:100%;border-radius:8px}
+.wreport-bar-value{width:22%;flex-shrink:0;text-align:right;font-weight:700;color:#0f172a;white-space:nowrap}
+.wreport-progress-row{margin-bottom:10px;font-size:11.5px}
+.wreport-progress-head{display:flex;justify-content:space-between;margin-bottom:3px}
+.wreport-progress-track{height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden}
+.wreport-progress-fill{height:100%;border-radius:7px}
+.wreport-donut-wrap{display:flex;align-items:center;gap:20px}
+.wreport-donut{width:110px;height:110px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.wreport-donut-hole{width:66px;height:66px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.wreport-donut-hole b{font-size:19px;color:#0f172a;line-height:1}
+.wreport-donut-hole span{font-size:9px;color:#94a3b8}
+.wreport-legend{flex:1;display:flex;flex-direction:column;gap:6px}
+.wreport-legend-item{display:flex;align-items:center;gap:7px;font-size:11.5px}
+.wreport-legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.wreport-legend-label{flex:1;color:#334155}
+.wreport-legend-count{font-weight:700;color:#0f172a}
+.wreport-empty{color:#94a3b8;font-size:11.5px;text-align:center;padding:10px 0}
+.wreport-footer{text-align:center;font-size:10px;color:#94a3b8;margin-top:6px;padding-top:10px;border-top:1px solid #e2e8f0}
+/* รายละเอียด Lot + เลขใบส่ง ต่อสินค้า — เดินคู่กับ bar-row เดิม (bar = ยอดรวม, chip = แจกแจงเป็น Lot) */
+.wreport-detail-row{margin-bottom:12px}
+.wreport-lotchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.wreport-lotchip{display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:2px 9px 2px 10px;font-size:10px;color:#1e40af;line-height:1.6}
+.wreport-lotchip.ship{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+.wreport-lotchip .lot{font-family:'Courier New',Consolas,monospace;font-weight:700}
+.wreport-lotchip .qty{color:#334155;font-weight:600}
+.wreport-lotchip .bill{background:rgba(255,255,255,.7);border-radius:999px;padding:0 6px;font-family:'Courier New',Consolas,monospace;color:#7c3aed;font-weight:700}
+/* ภาพรวมรายสัปดาห์ของเดือน — ใช้ style เดียวกันทั้งบนจอ (ในการ์ด glass-card) และในหน้าพิมพ์ ไม่ทำ 2 ชุด
+   ใช้ flex-wrap แทน grid คอลัมน์ตายตัว เพราะจำนวนสัปดาห์ต่อเดือนไม่คงที่ (4-6 สัปดาห์ ขึ้นกับว่าวันที่ 1/วันสุดท้าย
+   ของเดือนตรงกับจันทร์/เสาร์พอดีหรือไม่ — ดู _weeklyreportMonthWeekRanges) ให้ล้นบรรทัดไปเองถ้าสัปดาห์เยอะ */
+.wreport-week-grid{display:flex;flex-wrap:wrap;gap:10px}
+.wreport-week-card{flex:1 1 150px;border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#f8fafc;min-width:0}
+.wreport-week-card.wreport-week-current{border-color:#3b82f6;background:#eff6ff}
+.wreport-week-range{font-size:11px;font-weight:700;color:#1e3a8a;text-align:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px dashed #cbd5e1}
+.wreport-week-sub-title{font-size:9.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.03em;margin:6px 0 4px;display:flex;align-items:center;gap:4px}
+.wreport-week-item{display:flex;justify-content:space-between;gap:6px;font-size:10.5px;color:#334155;margin-bottom:2px}
+.wreport-week-item span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.wreport-week-item span:last-child{font-weight:700;flex-shrink:0}
+.wreport-week-empty{font-size:10px;color:#94a3b8;text-align:center;padding:4px 0}
 
 /* ── MR Receive: Print Report Modal (เลือกข้อมูล + เลข RC No) ── */
 #mrReportModal .modal-dialog{max-width:1100px}
@@ -771,9 +843,10 @@ table.pcost-cost-table td.val.emph{color:#1e3a8a;font-weight:800}
 .dlvbill-title{text-align:center;font-size:15px;font-weight:800;color:#1e3a8a;background:#eaf0fb;padding:5px 0;border-radius:6px;margin-bottom:9px}
 .dlvbill-cust-box{border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;margin-bottom:10px}
 .dlvbill-cust-row{display:grid;grid-template-columns:180px 1fr;gap:4px;padding:1px 0;font-size:12px}
+.dlvbill-cust-row.dlvbill-cust-row-combo{grid-template-columns:180px 1fr 180px 1fr}
 .dlvbill-cust-row .lbl{color:#64748b}
 table.dlvbill-table{width:100%;border-collapse:collapse;font-size:12px}
-table.dlvbill-table th{background:#1e3a8a;color:#fff;padding:4px 7px;text-align:center;font-weight:700;font-size:10.5px}
+table.dlvbill-table th{background:#e2e8f0;color:#1e293b;padding:4px 7px;text-align:center;font-weight:700;font-size:10.5px}
 table.dlvbill-table td{padding:3px 7px;border:1px solid #e2e8f0}
 table.dlvbill-table td.num{text-align:center;color:#94a3b8}
 table.dlvbill-table td.qty{text-align:right;font-variant-numeric:tabular-nums}
@@ -783,7 +856,7 @@ tr.dlvbill-lot-row td{color:#64748b;font-size:11.5px}
 tr.dlvbill-lot-row td.qty,tr.dlvbill-lot-row td.exp{color:#1e293b}
 tr.dlvbill-total-row td{font-weight:800;border-top:1.5px solid #1e293b}
 tr.dlvbill-mix-row td{color:#1e3a8a;font-size:11.5px;font-style:italic}
-.dlvbill-po-strip{text-align:center;font-weight:700;font-size:12px;color:#1e3a8a;margin:6px 0}
+.dlvbill-po-strip{text-align:left;font-weight:700;font-size:12px;color:#1e3a8a;margin:6px 0}
 .dlvbill-notes{font-size:10.5px;color:#64748b;padding:5px 0;border-top:1px solid #e2e8f0}
 .dlvbill-notes div{padding:1px 0}
 .dlvbill-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:16px;font-size:11px;color:#64748b}
@@ -846,6 +919,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     </a>
     <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
       <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-weeklyreport" onclick="showPage('weeklyreport',this)" title="รายงานรายสัปดาห์">
+      <i class="fas fa-paper-plane me-2"></i><span>รายงานรายสัปดาห์</span>
     </a>
     </div>
 
@@ -1450,6 +1526,11 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <input type="hidden" id="plan-edit-id">
             <input type="hidden" id="plan-f-prodcode">
             <input type="hidden" id="plan-f-prodname">
+            <input type="hidden" id="plan-f-co-ref">
+
+            <div class="col-12 mb-2" id="plan-co-ref-badge" style="display:none">
+              <span class="badge bg-info text-dark"><i class="fas fa-link me-1"></i>ลงแผนจาก CO: <span id="plan-co-ref-label"></span> — ยังไม่มี MO จนกว่าจะเช็ควัตถุดิบแล้วกด "สั่งผลิต"</span>
+            </div>
 
             <div class="d-flex gap-0 mb-3 rounded overflow-hidden border" id="plan-mode-wrap" style="border-color:#1e3a8a!important">
               <button type="button" id="plan-btn-mo" onclick="planToggleMode('mo')"
@@ -2656,6 +2737,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
           </div>
         </div>
       </div>
+      <div id="fgout-bill-groups"></div>
       <div class="glass-card p-0 overflow-hidden">
         <div class="table-responsive">
           <table class="table table-hover mb-0">
@@ -3437,6 +3519,50 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
   </div>
 
   <!-- ════════════════════════════════════ -->
+  <!-- PAGE: รายงานผลิต-จัดส่งรายสัปดาห์ (สรุป + ร่างอีเมลส่งเจ้านาย) -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-weeklyreport">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-paper-plane me-2"></i>รายงานผลิต-จัดส่งรายสัปดาห์</h4>
+        <button class="btn btn-sm btn-light fw-bold text-primary" onclick="weeklyreportRun()">
+          <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+        </button>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="glass-card mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label mb-1">เลือกวันที่ในสัปดาห์ที่ต้องการ</label>
+            <input type="date" id="wreport-date" class="form-control" onchange="weeklyreportRun()">
+          </div>
+          <div class="col">
+            <div class="alert alert-light border py-2 mb-0" style="font-size:.85rem" id="wreport-range-preview"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card mb-3">
+        <h6 class="fw-bold text-muted mb-3" style="border-left:4px solid #0ea5e9;padding-left:8px"><i class="fas fa-calendar-week me-1"></i>ภาพรวมรายสัปดาห์ — <span id="wreport-4week-month"></span></h6>
+        <div id="wreport-4week">
+          <div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลด...</div>
+        </div>
+      </div>
+
+      <div id="wreport-summary">
+        <div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลด...</div>
+      </div>
+
+      <div class="glass-card mb-3 text-center">
+        <button type="button" class="btn btn-primary btn-lg" onclick="weeklyreportOpenPrintPreview()">
+          <i class="fas fa-print me-1"></i>พิมพ์รายงาน / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
   <!-- PAGE: รายงาน BPR (Batch Packing Record) -->
   <!-- ════════════════════════════════════ -->
   <div class="page-view" id="page-bpr">
@@ -3933,6 +4059,26 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 
 <!-- Stock Card Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P) -->
 <div id="stockcard-print-root"></div>
+
+<!-- ── รายงานรายสัปดาห์: Print/PDF Modal + Print Template ── -->
+<div class="modal fade" id="weeklyreportPrintModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-file-pdf me-2"></i>ตัวอย่างรายงานรายสัปดาห์ — ตรวจสอบก่อนพิมพ์</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="weeklyreport-preview-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="weeklyreport-print-root"></div>
 
 <!-- BPR Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P) -->
 <div id="bpr-print-root"></div>
@@ -5028,6 +5174,7 @@ function showPage(page, navEl) {
     'stockcard' : stockcardLoadData,
     'codash'    : codashLoadData,
     'prodstatus': loadProdStatusData,
+    'weeklyreport': weeklyreportLoadData,
     'auditlog'  : auditlogLoadData,
     'signuprequests': signupreqLoadData,
   };
@@ -5549,17 +5696,15 @@ let _moLastRows  = [];   // ผลลัพธ์ filter ล่าสุด ใ�
 let _moReservedByMaterial = {};  // MaterialCode → ยอดจอง (WIP) รวมจากทุก MO ที่ "แพลนแล้ว"
 let _moReservedByMO       = {};  // MO_ID → { MaterialCode: ยอดจองของ MO นั้นเอง }
 
-async function loadMOData() {
-  _showLoader();
-  const [moRes, bomRes, stockRes, resvRes] = await Promise.all([
-    _sb.from('manufacturing_orders').select('*').order('_row_id', { ascending: false }),
+// แยกส่วนโหลด BOM/สต็อก/ยอดจอง ออกจาก loadMOData เพื่อให้หน้าอื่น (แผนผลิต — planCheckMaterial) เรียกใช้ชุดข้อมูล
+// เดียวกัน คำนวณความพอของวัตถุดิบด้วยสูตรเดียวกัน (_moBomRequirementForQty/_moComputeMaterialCheck) ได้เลย
+// โดยไม่ต้องพึ่ง _moData ของหน้า MO (ซึ่งอาจยังไม่เคยโหลดถ้าผู้ใช้ยังไม่เข้าหน้า MO เลยในเซสชันนี้)
+async function _moLoadMaterialCheckData() {
+  const [bomRes, stockRes, resvRes] = await Promise.all([
     _bomFetchPaged('ProductCode,MaterialCode,MaterialName,QtyPerBase,QtyWithScrap,UOM,Remark', [{ col: '_row_id', ascending: true }]),
     _sb.from('stock_balance').select('MaterialCode,QtyBalance'),
     _sb.from('mo_material_reservations').select('MO_Ref,MaterialCode,ReservedQty'),
   ]);
-  _hideLoader();
-  if (moRes.error) { _err('โหลด MO ไม่ได้', moRes.error.message); return; }
-  _moData  = moRes.data  || [];
   _moBOM   = bomRes.data || [];
   _moReservedByMaterial = {};
   _moReservedByMO = {};
@@ -5572,6 +5717,17 @@ async function loadMOData() {
   (stockRes.data || []).forEach(s => {
     _moStockMap[s.MaterialCode] = (_moStockMap[s.MaterialCode] || 0) + (parseFloat(s.QtyBalance) || 0);
   });
+}
+
+async function loadMOData() {
+  _showLoader();
+  const [moRes] = await Promise.all([
+    _sb.from('manufacturing_orders').select('*').order('_row_id', { ascending: false }),
+    _moLoadMaterialCheckData(),
+  ]);
+  _hideLoader();
+  if (moRes.error) { _err('โหลด MO ไม่ได้', moRes.error.message); return; }
+  _moData  = moRes.data  || [];
   renderMOTable();
 }
 
@@ -7211,6 +7367,9 @@ function fgoutRenderTable() {
   const from    = document.getElementById('fgout-date-from')?.value||'';
   const to      = document.getElementById('fgout-date-to')?.value||'';
   const dlvStat = document.getElementById('fgout-dlv-status-filter')?.value||'';
+  // ถ้ากำลังค้นหา/กรองสถานะอยู่ ให้เห็นทุกแถวปกติ (รวมแถวที่ออกใบส่งสินค้าแล้ว) เพราะผู้ใช้ตั้งใจหา/ตรวจสอบอยู่ —
+  // ไม่งั้นกดค้นหาแล้วหาไม่เจอแถวที่ย้ายไปอยู่การ์ดข้างบนจะดูเหมือนหาย
+  const hasActiveFilter = !!(q || dlvStat);
 
   const rows = _fgoutData.filter(r => {
     const d = String(r.Date||'');
@@ -7222,11 +7381,17 @@ function fgoutRenderTable() {
       const hay = [r.ProductName, r.ProductCode, r.Lot_FG, r.CustomerName, r.Remark, r.CO_Ref, r.WithdrawType, dlv?.DeliveryBillNo].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    // ออกใบส่งสินค้าแล้ว (มี DeliveryBillNo) → ย้ายไปรวมเป็นการ์ดใน #fgout-bill-groups ข้างบนแทน ไม่ต้องซ้ำในตารางนี้อีก
+    if (!hasActiveFilter && dlv && dlv.DeliveryBillNo) return false;
     return true;
   });
 
   const tbody = document.getElementById('fgout-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="13" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="13" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>';
+    fgoutRenderBillGroups();
+    return;
+  }
 
   tbody.innerHTML = rows.map(r => {
     const typeBadge = (r.WithdrawType === 'misc')
@@ -7277,6 +7442,112 @@ function fgoutRenderTable() {
     </td>
   </tr>`;
   }).join('');
+
+  fgoutRenderBillGroups();
+}
+
+// ── จัดกรุ๊ปรายการที่ออกใบส่งสินค้าแล้ว (มี DeliveryBillNo) มาเป็นการ์ดเดียวต่อเลขใบ (2026-08-11: จัดกรุ๊ปทุกใบที่
+// มีเลขแล้ว ไม่ใช่แค่ใบที่ยังค้าง — เดิมกรองเฉพาะใบที่ยังไม่ส่งถึงครบ ทำให้ใบที่ส่งถึงแล้วครบยังกระจัดกระจายเป็น
+// แถวเดี่ยวๆในตารางเหมือนไม่ได้จัดกรุ๊ปอะไรเลย) ใบที่ยังส่งไม่ครบมีปุ่ม "ส่งสำเร็จ" กดทีเดียวจบทั้งใบ ไม่ต้องไล่กด
+// ปุ่มไล่สถานะทีละแถว ส่วนใบที่ส่งถึงแล้วครบทุกแถวแล้วโชว์เป็น badge เขียวเฉยๆ ไม่มีปุ่มให้กดซ้ำ — แถวที่ถูกจัดกรุ๊ป
+// ไปแบบนี้จะไม่โชว้ซ้ำในตารางเบิก FG ด้านล่างอีก (ดู fgoutRenderTable's hasActiveFilter check) ──
+let _fgoutBillExpandedSet = new Set();
+
+function _fgoutBuildBillGroups() {
+  const byBill = {};
+  _deliveryData.forEach(d => {
+    if (!d.DeliveryBillNo) return;
+    (byBill[d.DeliveryBillNo] = byBill[d.DeliveryBillNo] || []).push(d);
+  });
+  return Object.keys(byBill)
+    .map(billNo => ({ billNo, rows: byBill[billNo] }))
+    .sort((a, b) => b.billNo.localeCompare(a.billNo));
+}
+
+function fgoutToggleBillExpand(billNo) {
+  if (_fgoutBillExpandedSet.has(billNo)) _fgoutBillExpandedSet.delete(billNo);
+  else _fgoutBillExpandedSet.add(billNo);
+  fgoutRenderBillGroups();
+}
+
+function fgoutRenderBillGroups() {
+  const wrap = document.getElementById('fgout-bill-groups');
+  if (!wrap) return;
+  const groups = _fgoutBuildBillGroups();
+  if (!groups.length) { wrap.innerHTML = ''; return; }
+
+  wrap.innerHTML = `<div class="kpi-section-label" style="margin:2px 0 6px">ออกใบส่งสินค้าแล้ว (${groups.length})</div>` +
+    groups.map(g => {
+      const expanded = _fgoutBillExpandedSet.has(g.billNo);
+      const customer = g.rows[0]?.CustomerName || '—';
+      const totalQty = g.rows.reduce((s, r) => s + (parseFloat(r.QtyDelivered) || 0), 0);
+      const uom = g.rows[0]?.UOM || '';
+      const productCount = new Set(g.rows.map(r => r.ProductCode)).size;
+      const allArrived = g.rows.every(r => r.Status === 'ส่งถึงแล้ว');
+      const statusCounts = {};
+      g.rows.forEach(r => { statusCounts[r.Status] = (statusCounts[r.Status] || 0) + 1; });
+      const statusSummary = Object.entries(statusCounts).map(([st, n]) => `${_deliveryStatusBadge(st)} <small class="text-muted">${n}</small>`).join(' ');
+      const actionHtml = allArrived
+        ? `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>ส่งสำเร็จแล้ว</span>`
+        : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();fgoutBillAdvanceAll('${g.billNo}')" title="ทำเครื่องหมายส่งถึงลูกค้าสำเร็จทั้งใบ">
+             <i class="fas fa-check-circle me-1"></i>ส่งสำเร็จ
+           </button>`;
+
+      return `<div class="glass-card mb-2 p-0 overflow-hidden${allArrived ? ' border-success border-2' : ''}">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="fgoutToggleBillExpand('${g.billNo}')">
+          <div>
+            <span class="badge bg-primary me-2"><i class="fas fa-file-invoice me-1"></i>${g.billNo}</span>
+            <b>${customer}</b>
+            <span class="text-muted mx-1">·</span>
+            <span>${productCount} สินค้า</span>
+            <span class="text-muted mx-1">·</span>
+            <span class="fw-bold text-danger">${totalQty.toLocaleString()} ${uom}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${statusSummary}
+            ${actionHtml}
+            <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
+          </div>
+        </div>
+        ${!expanded ? '' : `<div class="border-top p-3">
+          ${g.rows.map(r => `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <div>${r.ProductName || '—'} <span class="badge bg-light text-dark border ms-1">Lot ${r.Lot_FG || '—'}</span></div>
+            <div class="d-flex align-items-center gap-2">
+              <span>${(parseFloat(r.QtyDelivered) || 0).toLocaleString()} ${r.UOM || ''}</span>
+              ${_deliveryStatusBadge(r.Status)}
+            </div>
+          </div>`).join('')}
+        </div>`}
+      </div>`;
+    }).join('');
+}
+
+// กด "ส่งสำเร็จ" บนการ์ด → เปลี่ยนสถานะจัดส่งทุกแถวที่ยังไม่ "ส่งถึงแล้ว" ในใบนี้เป็น "ส่งถึงแล้ว" พร้อมกันทีเดียว
+// (ข้ามขั้น "จัดส่งแล้ว" ได้เลยถ้ายังไม่เคยกด) แทนการไล่กด deliveryAdvanceStatus ทีละแถว
+async function fgoutBillAdvanceAll(billNo) {
+  const rows = _deliveryData.filter(d => d.DeliveryBillNo === billNo && d.Status !== 'ส่งถึงแล้ว');
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันว่าส่งสำเร็จทั้งใบ ${billNo}?`,
+    html: `${rows.length} รายการจะถูกทำเครื่องหมาย "ส่งถึงแล้ว" พร้อมกัน`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยันส่งสำเร็จ', cancelButtonText: 'ยกเลิก'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error } = await _sb.from('delivery').update({ Status: 'ส่งถึงแล้ว' }).in('_row_id', ids);
+  _hideLoader();
+  if (error) { _err('อัปเดตสถานะไม่สำเร็จ', error.message); return; }
+
+  // อัปเดตการ์ด/ตารางให้เห็นผลก่อนเลย ไม่ต้องรอ fg_withdraw/เช็คปิด CO ด้านล่าง (เหตุผลเดียวกับ deliveryAdvanceStatus)
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ส่งสำเร็จทั้งใบ ${billNo}`, showConfirmButton: false, timer: 1800 });
+  await loadDeliveryData();
+
+  const wdRefs = rows.map(r => parseInt(r.WD_Ref)).filter(n => !isNaN(n));
+  if (wdRefs.length) await _sb.from('fg_withdraw').update({ 'ส่งแล้ว': 1 }).in('_row_id', wdRefs);
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  for (const coRef of coRefs) await _deliveryCheckCOComplete(coRef);
 }
 
 function fgoutCheckState() {
@@ -8448,8 +8719,10 @@ async function dlvbillRenderPreview() {
       <div class="dlvbill-cust-box">
         <div class="dlvbill-cust-row"><span class="lbl">ชื่อบริษัทลูกค้า (Company Name)</span><span class="val">${customer||'—'}</span></div>
         <div class="dlvbill-cust-row"><span class="lbl">ที่อยู่ (Address)</span><span class="val">${address||'—'}</span></div>
-        <div class="dlvbill-cust-row"><span class="lbl">ผู้ติดต่อ (Contact Person)</span><span class="val">${contact||'—'}</span></div>
-        <div class="dlvbill-cust-row"><span class="lbl">เบอร์โทร (Telephone Number)</span><span class="val">${tel||'—'}</span></div>
+        <div class="dlvbill-cust-row dlvbill-cust-row-combo">
+          <span class="lbl">ผู้ติดต่อ (Contact Person)</span><span class="val">${contact||'—'}</span>
+          <span class="lbl">เบอร์โทร (Telephone Number)</span><span class="val">${tel||'—'}</span>
+        </div>
       </div>
 
       <table class="dlvbill-table">
@@ -8461,7 +8734,7 @@ async function dlvbillRenderPreview() {
         <tbody>${groupHtml}</tbody>
       </table>
 
-      <div class="dlvbill-po-strip">*${poNos.length ? poNos.join(', ') : '—'}*</div>
+      <div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>
 
       <div class="dlvbill-notes">
         <div>หมายเหตุ: 1. กรุณาตรวจเช็คสินค้า ไม่เกิน 3-5 วัน</div>
@@ -8499,6 +8772,9 @@ let _planData          = [];   // production_plan rows ของเดือน�
 let _planMOList        = [];   // manufacturing_orders ที่ยังไม่เสร็จสิ้น (สำหรับผูกแผน)
 let _planBOMList       = [];   // distinct product จาก bom (สำหรับโหมดกำหนดเอง)
 let _planCurrentMonth  = null; // Date ของวันที่ 1 ของเดือนที่กำลังดู
+// production_plan._row_id ที่เช็ค+จองวัตถุดิบไว้แล้ว (ผ่าน mo_material_reservations ที่ MO_Ref='PLAN-<row_id>')
+// แต่ยังไม่มี MO จริง — ใช้สลับปุ่ม "เช็ควัตถุดิบ" ↔ "สั่งผลิต" ใน _planRowActions (ดู planCheckMaterial/planOrderProduction)
+let _planReservedRowIds = new Set();
 
 const PLAN_LINES = [
   'ห้องผสมใหญ่',
@@ -8556,6 +8832,9 @@ async function planLoadData() {
     // สถานะ "เสร็จสิ้น" จริงมีทั้ง 'Finished' (ข้อมูลเก่า) และ 'เสร็จสิ้น' (ค่าใหม่) — ต้องกันทั้งคู่ไม่งั้น MO เก่าที่เสร็จแล้วจะโผล่ในตัวเลือกแผนผลิต
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,UOM,LOT,Pending,Status').not('Status', 'in', '("Finished","เสร็จสิ้น")').order('_row_id', { ascending: false }),
     _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay'),
+    // ใช้ชุด BOM/สต็อก/ยอดจองเดียวกับหน้า MO เพื่อให้ปุ่ม "เช็ควัตถุดิบ" บนแถวแผนที่ยังไม่มี MO (planCheckMaterial)
+    // คำนวณด้วยสูตรเดียวกันเป๊ะ ไม่ใช่สูตรที่ 4 แยกต่างหาก (ดู _moLoadMaterialCheckData/_moComputeMaterialCheck)
+    _moLoadMaterialCheckData(),
   ]);
 
   _hideLoader();
@@ -8563,6 +8842,14 @@ async function planLoadData() {
 
   _planData   = planRes.data || [];
   _planMOList = moRes.data   || [];
+
+  // แถวแผนที่มีการจองวัตถุดิบไว้แล้วภายใต้ MO_Ref ชั่วคราว 'PLAN-<row_id>' (ยังไม่มี MO จริง) — ดู planCheckMaterial
+  _planReservedRowIds = new Set(
+    Object.keys(_moReservedByMO)
+      .filter(k => k.startsWith('PLAN-'))
+      .map(k => parseInt(k.slice(5)))
+      .filter(n => !isNaN(n))
+  );
 
   const seen = new Set();
   _planBOMList = (bomRes.data || []).filter(b => {
@@ -8681,8 +8968,23 @@ function planOpenDayModal(dateStr) {
 
 function _planRowActions(r) {
   let actions = '';
-  if (r.Status === 'วางแผน') {
+  // แผนที่ยังไม่มี MO เลย (ลงแผนตรงจาก CO ผ่านปุ่ม "ลงแผนผลิต" หรือโหมดกำหนดเองแบบเดิม) — ต้องเช็ค+จองวัตถุดิบ
+  // ผ่านก่อนถึงจะสั่งผลิต (ออก MO) ได้ ดู planCheckMaterial/planOrderProduction — ยอดจองคั่นไว้ด้วย MO_Ref ชั่วคราว
+  // 'PLAN-<row_id>' ใน _planReservedRowIds (มาจาก planLoadData)
+  if (r.Status === 'วางแผน' && !r.MO_Ref) {
+    if (!_planReservedRowIds.has(r._row_id)) {
+      actions += `<button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" onclick="planCheckMaterial(${r._row_id})" title="เช็ควัตถุดิบตาม BOM ก่อนสั่งผลิต"><i class="fas fa-clipboard-check"></i></button>`;
+    } else {
+      actions += `<button class="btn btn-success btn-sm py-0 px-2 me-1" onclick="planOrderProduction(${r._row_id})" title="วัตถุดิบพอแล้ว (จองไว้แล้ว) — สั่งผลิตออก MO"><i class="fas fa-industry"></i></button>`;
+      actions += `<button class="btn btn-outline-secondary btn-sm py-0 px-2 me-1" onclick="planCancelMaterialCheck(${r._row_id})" title="ยกเลิกการจองวัตถุดิบ"><i class="fas fa-rotate-left"></i></button>`;
+    }
+  }
+  // แผนที่ผูก CO ไว้แต่ยังไม่มี MO — บล็อกปุ่ม "ยืนยัน → ออกใบบันทึกผลิต" ไว้ก่อน ต้องสั่งผลิต (ออก MO) ให้เสร็จก่อน
+  // ตามโปรเซสที่ตกลงกันไว้ (เช็ค→จอง→สั่งผลิต→ยืนยัน) ส่วนแผนแบบกำหนดเองเดิมที่ไม่มี CO_Ref ยังยืนยันได้ตามปกติ
+  if (r.Status === 'วางแผน' && (r.MO_Ref || !r.CO_Ref)) {
     actions += `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="planOpenConfirmModal(${r._row_id})" title="ยืนยัน → ออกใบบันทึกผลิต"><i class="fas fa-clipboard-check"></i></button>`;
+  }
+  if (r.Status === 'วางแผน') {
     actions += `<button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="planOpenAddModal(null,${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
   }
   // ยืนยันแผนแล้ว (ออกใบบันทึกผลิตแล้ว) และมี MO ผูกอยู่ — เพิ่มปุ่มลัดไปเบิกผลิตได้เลย ไม่ต้องย้อนไปกดที่หน้า MO
@@ -8693,6 +8995,156 @@ function _planRowActions(r) {
   }
   actions += `<button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="planDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>`;
   return actions;
+}
+
+// ── ปุ่ม "เช็ควัตถุดิบ" บนแถวแผนที่ยังไม่มี MO — คำนวณ BOM×PlanQty เทียบสต็อกจริงหักยอดจองของแผน/MO อื่น
+// ด้วยสูตรเดียวกับหน้า MO เป๊ะ (_moBomRequirementForQty/_moComputeMaterialCheck, ผ่าน object จำลอง MO_ID=
+// 'PLAN-<row_id>') ถ้าพอ ให้จองจริงทันที (insert mo_material_reservations ภายใต้ MO_Ref ชั่วคราวนี้) กัน
+// แผน/MO อื่นมาแย่งวัตถุดิบชุดเดียวกันไปก่อนที่ผู้ใช้จะกด "สั่งผลิต" จริง ──
+async function planCheckMaterial(rowId) {
+  const r = _planData.find(d => d._row_id === rowId);
+  if (!r) return;
+
+  _showLoader();
+  await _moLoadMaterialCheckData(); // โหลดสด กันสต็อก/ยอดจองเปลี่ยนไปตั้งแต่ planLoadData ครั้งล่าสุด
+  _hideLoader();
+
+  const pseudo = { ProductCode: r.ProductCode, OrderQty: r.PlanQty, MO_ID: 'PLAN-' + rowId };
+  const matCheck = _moComputeMaterialCheck(pseudo);
+  if (!matCheck.lines.length) { _err('ไม่พบ BOM', 'ไม่พบ BOM สำหรับสินค้านี้ จึงเช็ควัตถุดิบไม่ได้'); return; }
+
+  const rowsHtml = matCheck.lines.map(l => `<tr class="${l.ok?'':'table-danger'}">
+    <td class="text-start">${l.matName||'—'} <span class="text-muted">(${l.matCode})</span></td>
+    <td class="text-end">${l.required.toLocaleString()}</td>
+    <td class="text-end ${l.ok?'text-success':'text-danger fw-bold'}">${l.available.toLocaleString()}</td>
+    <td>${l.uom||'—'}</td>
+  </tr>`).join('');
+
+  const res = await Swal.fire({
+    title: matCheck.shortfallCount === 0 ? 'วัตถุดิบพอ' : `วัตถุดิบไม่พอ ${matCheck.shortfallCount} รายการ`,
+    icon: matCheck.shortfallCount === 0 ? 'success' : 'error',
+    html: `<div class="table-responsive"><table class="table table-sm">
+      <thead><tr><th class="text-start">วัตถุดิบ</th><th class="text-end">ต้องใช้</th><th class="text-end">คงเหลือ</th><th>UOM</th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table></div>`,
+    showCancelButton: matCheck.shortfallCount === 0,
+    confirmButtonText: matCheck.shortfallCount === 0 ? 'จองวัตถุดิบ' : 'ปิด',
+    cancelButtonText: 'ปิด',
+  });
+  if (matCheck.shortfallCount > 0 || !res.isConfirmed) return;
+
+  _showLoader();
+  const rows = matCheck.lines.map(l => ({
+    MO_Ref: 'PLAN-' + rowId, MaterialCode: l.matCode, MaterialName: l.matName, ReservedQty: l.required, UOM: l.uom,
+  }));
+  const { error } = await _sb.from('mo_material_reservations').insert(rows);
+  _hideLoader();
+  if (error) { _err('จองวัตถุดิบไม่สำเร็จ', error.message); return; }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'จองวัตถุดิบแล้ว — กด "สั่งผลิต" ได้เลย', showConfirmButton:false, timer:2500 });
+  const dateStr = r.PlanDate;
+  await planLoadData();
+  if (dateStr) planOpenDayModal(dateStr);
+}
+
+// ── ปุ่ม "ยกเลิกการจองวัตถุดิบ" — ปล่อยยอดจองที่ผูกกับ MO_Ref ชั่วคราว 'PLAN-<row_id>' คืน (ยังไม่มี MO จริง
+// ให้ต้องถอยสถานะอะไร ต่างจาก moCancelPlan ที่ต้องถอย MO.Status กลับด้วย) ──
+async function planCancelMaterialCheck(rowId) {
+  const r = _planData.find(d => d._row_id === rowId);
+  if (!r) return;
+  const res = await Swal.fire({
+    title: 'ยกเลิกการจองวัตถุดิบ?', text: `ปล่อยวัตถุดิบที่จองไว้สำหรับแผนนี้คืนทั้งหมด`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#d33', confirmButtonText: 'ยกเลิกจอง', cancelButtonText: 'ปิด',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId);
+  _hideLoader();
+  if (error) { _err('ยกเลิกจองไม่สำเร็จ', error.message); return; }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกจองแล้ว', showConfirmButton:false, timer:1500 });
+  const dateStr = r.PlanDate;
+  await planLoadData();
+  if (dateStr) planOpenDayModal(dateStr);
+}
+
+// สร้าง MO_ID ใหม่แบบ query สดจาก DB (ไม่พึ่ง _moData ของหน้า MO ซึ่งอาจยังไม่เคยโหลดเลยถ้าเปิดมาจากหน้าแผนผลิต/
+// CO โดยตรง — ตาม pattern เดียวกับ deliveryGenerateID ที่ query สดด้วยเหตุผลเดียวกัน) มี UNIQUE constraint บน
+// MO_ID กันชนซ้ำอยู่แล้วเป็นตาข่ายนิรภัยชั้นสุดท้าย (ดู add_unique_constraints.sql)
+async function _planGenerateMOId() {
+  const now    = new Date();
+  const yy     = String(now.getFullYear()).slice(-2);
+  const mm     = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `MO-${yy}${mm}-`;
+  const { data } = await _sb.from('manufacturing_orders').select('MO_ID').ilike('MO_ID', `${prefix}%`);
+  let maxSeq = 0;
+  (data || []).forEach(r => {
+    const seq = parseInt(String(r.MO_ID||'').slice(prefix.length)) || 0;
+    if (seq > maxSeq) maxSeq = seq;
+  });
+  return `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+}
+
+// ── ปุ่ม "สั่งผลิต" บนแถวแผนที่เช็ค+จองวัตถุดิบไว้แล้วแต่ยังไม่มี MO — จุดที่ MO เกิดขึ้นจริงเป็นครั้งแรกของ flow
+// "ลงแผนผลิตจาก CO ก่อน" (สถานะเริ่มที่ 'แพลนแล้ว' ทันที ข้าม 'รอเบิก' เพราะจองวัตถุดิบไปแล้วจริง) แล้วโอนยอดจอง
+// จาก MO_Ref ชั่วคราว 'PLAN-<row_id>' ไปเป็น MO_ID จริง (update ไม่ insert ใหม่ กันคำนวณเพี้ยนถ้าสต็อก/BOM
+// เปลี่ยนไปตั้งแต่ตอนเช็ค — ยอดที่จองไว้ ณ ตอนเช็คคือยอดที่ล็อกไว้แล้ว) จากนั้นผูก production_plan.MO_Ref กลับไป
+// หา MO ใหม่ และเลื่อนสถานะ CO ต้นทาง (ถ้ามี) เหมือน moSubmit ปกติทุกอย่าง ──
+async function planOrderProduction(rowId) {
+  const r = _planData.find(d => d._row_id === rowId);
+  if (!r) return;
+  const dateStr = r.PlanDate;
+  const planMORef = 'PLAN-' + rowId;
+
+  const res = await Swal.fire({
+    title: 'สั่งผลิต?',
+    html: `<div class="text-start">สร้างใบสั่งผลิต (MO) จาก <b>${r.ProductName||''}</b> จำนวน ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}
+      ${r.CO_Ref ? `<br>อ้างอิง CO: <b>${r.CO_Ref}</b>` : ''}
+      <div class="text-muted small mt-1">วัตถุดิบที่จองไว้ตอนเช็คจะถูกโอนไปผูกกับ MO ใหม่นี้โดยตรง</div></div>`,
+    icon: 'question', showCancelButton: true,
+    confirmButtonText: 'สั่งผลิตเลย', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const moId = await _planGenerateMOId();
+  const payload = {
+    MO_ID       : moId,
+    MO_Date     : new Date().toISOString().split('T')[0],
+    DeliveryDate: null,
+    CO_Ref      : r.CO_Ref || null,
+    ProductCode : r.ProductCode,
+    ProductName : r.ProductName,
+    LOT         : '',
+    OrderQty    : parseFloat(r.PlanQty) || 0,
+    MO_Received : 0,
+    Pending     : parseFloat(r.PlanQty) || 0,
+    Status      : 'แพลนแล้ว',
+  };
+  const { error: moErr } = await _sb.from('manufacturing_orders').insert(payload);
+  if (moErr) { _hideLoader(); _err('สร้าง MO ไม่สำเร็จ', moErr.message); return; }
+
+  const { error: resvErr } = await _sb.from('mo_material_reservations').update({ MO_Ref: moId }).eq('MO_Ref', planMORef);
+  if (resvErr) {
+    _hideLoader();
+    _err('โอนยอดจองไม่สำเร็จ', resvErr.message + ` — สร้าง MO ${moId} ไปแล้ว กรุณาตรวจสอบยอดจองวัตถุดิบด้วยตนเอง`);
+    return;
+  }
+
+  const { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).eq('_row_id', rowId);
+  if (planErr) {
+    _hideLoader();
+    _err('ผูกแผนกับ MO ไม่สำเร็จ', planErr.message + ` — สร้าง MO ${moId} และโอนยอดจองแล้ว กรุณาผูกแผนนี้กับ MO ด้วยตนเอง`);
+    return;
+  }
+
+  if (r.CO_Ref) await _coPromoteToOrdered(r.CO_Ref);
+  _hideLoader();
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`สั่งผลิตสำเร็จ — ${moId}`, showConfirmButton:false, timer:2500 });
+  await planLoadData();
+  if (dateStr) planOpenDayModal(dateStr);
 }
 
 function _planRenderDayTable(dateStr) {
@@ -8833,6 +9285,14 @@ function planUpdateCapacityEstimate() {
   </div>`;
 }
 
+// แสดง/ซ่อนป้าย "ลงแผนจาก CO" ในฟอร์มแผนผลิต ตามค่า plan-f-co-ref ปัจจุบัน — เรียกทุกครั้งที่ค่านี้เปลี่ยน
+// (เปิดฟอร์มใหม่ว่างๆ, เปิดแก้ไขแถวที่มี CO_Ref, หรือ coPlanProduction ตั้งค่าให้จากหน้า CO)
+function _planUpdateCORefBadge() {
+  const coRef = document.getElementById('plan-f-co-ref').value;
+  document.getElementById('plan-co-ref-badge').style.display = coRef ? 'block' : 'none';
+  document.getElementById('plan-co-ref-label').textContent = coRef || '';
+}
+
 function planOpenAddModal(dateStr = null, rowId = null) {
   if (!_planModal) _planModal = new bootstrap.Modal(document.getElementById('planModal'));
   if (_planDayModal) _planDayModal.hide();
@@ -8867,6 +9327,7 @@ function planOpenAddModal(dateStr = null, rowId = null) {
     planShiftChanged();
     document.getElementById('plan-f-workers').value = r.Workers || '';
     document.getElementById('plan-f-remark').value = r.Remark || '';
+    document.getElementById('plan-f-co-ref').value = r.CO_Ref || '';
     if (mode === 'mo' && r.MO_Ref) {
       const moSel = document.getElementById('plan-f-mo-ref');
       if (!Array.from(moSel.options).find(o => o.value === r.MO_Ref)) {
@@ -8881,6 +9342,7 @@ function planOpenAddModal(dateStr = null, rowId = null) {
     document.getElementById('plan-f-date').value = dateStr || new Date().toISOString().split('T')[0];
     planToggleMode('mo');
   }
+  _planUpdateCORefBadge();
   planUpdateCapacityEstimate();
   _planModal.show();
 }
@@ -8960,6 +9422,7 @@ async function planSubmit(e) {
     PlanQty     : qty,
     UOM         : document.getElementById('plan-f-uom').value,
     MO_Ref      : isMOMode ? (document.getElementById('plan-f-mo-ref').value || null) : null,
+    CO_Ref      : document.getElementById('plan-f-co-ref').value || null,
     Line        : line,
     Shift       : shift.shiftLabel,
     TimeStart   : shift.timeStart,
@@ -9022,6 +9485,11 @@ async function planDelete(rowId) {
         await _sb.from('manufacturing_orders').update({ Status: 'รอเบิก' }).eq('_row_id', mo._row_id);
       }
     }
+  } else {
+    // แผนที่ยังไม่มี MO แต่เคย "เช็ควัตถุดิบ" จองไว้แล้ว (ดู planCheckMaterial) ถูกลบตรงๆ โดยไม่ผ่าน
+    // "ยกเลิกการจองวัตถุดิบ" ก่อน — ต้องปล่อยยอดจองภายใต้ MO_Ref ชั่วคราว 'PLAN-<rowId>' คืนด้วย ไม่งั้นจะค้าง
+    // เป็นขยะกันวัตถุดิบไว้เฉยๆ ตลอดไปโดยไม่มีใครมาโอน/ปล่อยอีกแล้ว (ไม่มี MO ให้ planOrderProduction มาทำงานต่อ)
+    await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId);
   }
 
   _hideLoader();
@@ -9324,6 +9792,441 @@ async function _renderPublicReport(token) {
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ตารางแผนผลิตตามไลน์ / กะ / วันที่</h6>${planSection}</div>
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
+}
+
+// ══════════════════════════════════════════════
+// PAGE: รายงานผลิต-จัดส่งรายสัปดาห์ — สรุปข้อมูล 3 แหล่ง (production_records, production_plan,
+// delivery) ของสัปดาห์จันทร์–เสาร์ที่เลือก + ภาพรวมย้อนหลัง 4 สัปดาห์ (ผลิต/จัดส่งสินค้าอะไรบ้าง)
+// แล้วพิมพ์/บันทึกเป็น PDF (ไม่ใช้ Edge Function/service_role เพราะผู้ใช้ที่กดปุ่มนี้ login เข้าแอป
+// อยู่แล้ว อ่านข้อมูลตรงผ่าน Supabase client ได้เลย)
+// ══════════════════════════════════════════════
+let _wreportSummary = null;
+let _wreportMonthWeekData = null; // array สัปดาห์ทั้งหมดของเดือน (เก่า→ใหม่, ตัดตามเดือนจริง) — {range, produced, shipped} ต่อสัปดาห์
+
+function weeklyreportLoadData() {
+  if (!document.getElementById('wreport-date').value) {
+    document.getElementById('wreport-date').value = _planWeekLocalDateStr(new Date());
+  }
+  weeklyreportRun();
+}
+
+// จันทร์–เสาร์ของสัปดาห์ที่ dateStr อยู่ (ตัดวันอาทิตย์ทิ้ง ต่างจาก _planReportComputeRange ที่เป็น
+// จันทร์–อาทิตย์ — ผู้ใช้ยืนยันแล้วว่ารายงานนี้ตั้งใจให้จบที่วันเสาร์ ตรงกับวันที่กดส่งจริงทุกสัปดาห์)
+function _weeklyreportRange(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const base = new Date(y, m - 1, d);
+  const dow = base.getDay();
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(base.getFullYear(), base.getMonth(), base.getDate() + diffToMon);
+  const sat = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 5);
+  return { start: _planWeekLocalDateStr(mon), end: _planWeekLocalDateStr(sat) };
+}
+
+// เลื่อนวันที่ (yyyy-mm-dd) ไป n วัน (n ติดลบได้) แบบ local date ล้วน — ห้ามผ่าน .toISOString() เด็ดขาด
+// (บั๊กเดิมที่เจอมาแล้วในฟีเจอร์แผนผลิต: timezone บวกจะเลื่อนวันผิดไป 1 วัน) ใช้ helper เดียวกับที่มีอยู่แล้ว
+function _weeklyreportShiftDate(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return _planWeekLocalDateStr(new Date(y, m - 1, d + days));
+}
+
+// แบ่งเดือนของ dateVal เป็นสัปดาห์จันทร์–เสาร์เต็ม 6 วันเสมอ (คอนเวนชันเดียวกับรายงานสัปดาห์เดียวด้านบน) —
+// สัปดาห์ที่คาบเกี่ยว 2 เดือน (เช่น จ.27ก.ค.–ส.1ส.ค.) จะไม่ถูกตัดเป็นเศษอีกต่อไป (ผู้ใช้ขอแก้ 2026-08-13 หลัง
+// เห็นเวอร์ชันตัดเศษก่อนหน้านี้) แต่ยก "ทั้งสัปดาห์" ให้เป็นของเดือนที่มีวันส่วนใหญ่ในสัปดาห์นั้นแทน (รวมกับ
+// เดือนก่อนหน้า/ถัดไปให้เต็ม 6 วัน) — ใช้ "เดือนของวันพฤหัสบดี" ของสัปดาห์นั้นตัดสิน เพราะเท่ากับกฎเสียงข้างมาก
+// พอดี (ถ้า 4+ วันอยู่เดือนไหน วันพฤหัสฯ อยู่เดือนนั้นเสมอ) ยกเว้นกรณีเสมอกันพอดี 3-3 วัน (เกิดเมื่อวันสุดท้าย
+// ของเดือนตรงกับวันพุธพอดี) จะตัดสินให้เดือนถัดไปเป็นผู้ชนะ — เป็นทางเลือกที่สมเหตุสมผลพอกัน ไม่มีกฎ "ถูกต้อง"
+// ตายตัวกว่านี้สำหรับกรณีเสมอ
+function _weeklyreportMonthWeekRanges(dateVal) {
+  const [ty, tm] = dateVal.split('-').map(Number);
+  const monthStart = _planWeekLocalDateStr(new Date(ty, tm - 1, 1));
+  const monthEnd = _planWeekLocalDateStr(new Date(ty, tm, 0));
+
+  const weeks = [];
+  let cursor = _weeklyreportRange(monthStart).start; // จันทร์ของสัปดาห์แรกที่แตะเดือนนี้ (อาจเป็นจันทร์เดือนก่อนหน้า)
+  while (cursor <= monthEnd) {
+    const wk = _weeklyreportRange(cursor);
+    const [thuY, thuM] = _weeklyreportShiftDate(wk.start, 3).split('-').map(Number); // พฤหัสฯ ของสัปดาห์นี้
+    if (thuY === ty && thuM === tm) weeks.push(wk);
+    cursor = _weeklyreportShiftDate(wk.end, 2); // ข้ามอาทิตย์ ไปจันทร์ของสัปดาห์ถัดไปเสมอ (เต็มสัปดาห์ทุกครั้ง)
+  }
+  return weeks;
+}
+
+async function weeklyreportRun() {
+  const dateVal = document.getElementById('wreport-date').value;
+  if (!dateVal) return;
+  const range = _weeklyreportRange(dateVal);
+  document.getElementById('wreport-range-preview').innerHTML =
+    `ช่วงที่จะรายงาน: <b>${_planFmtDateLabel(range.start)}</b> ถึง <b>${_planFmtDateLabel(range.end)}</b> (จันทร์–เสาร์)`;
+
+  const monthWeeks = _weeklyreportMonthWeekRanges(dateVal);
+  const spanStart = monthWeeks[0].start, spanEnd = monthWeeks[monthWeeks.length - 1].end;
+
+  _showLoader();
+  const [prodRes, planRes, dlvRes, prodMonthRes, dlvMonthRes] = await Promise.all([
+    _sb.from('production_records').select('*').gte('Date_Start', range.start).lte('Date_Start', range.end),
+    _sb.from('production_plan').select('*').gte('PlanDate', range.start).lte('PlanDate', range.end),
+    _sb.from('delivery').select('*').gte('Date', range.start).lte('Date', range.end),
+    // ดึงข้อมูลทั้งเดือนช่วงเดียว (ไม่ query แยกทีละสัปดาห์หลายรอบ) แล้วค่อยแบ่งกลุ่มตามช่วงวันที่ฝั่ง client
+    _sb.from('production_records').select('ProductCode,ProductName,UOM,FG_Actual,Date_Start').gte('Date_Start', spanStart).lte('Date_Start', spanEnd),
+    _sb.from('delivery').select('ProductCode,ProductName,UOM,QtyDelivered,Status,Date').gte('Date', spanStart).lte('Date', spanEnd),
+  ]);
+  _hideLoader();
+  if (prodRes.error || planRes.error || dlvRes.error || prodMonthRes.error || dlvMonthRes.error) {
+    _err('โหลดข้อมูลรายงานไม่ได้', prodRes.error?.message || planRes.error?.message || dlvRes.error?.message || prodMonthRes.error?.message || dlvMonthRes.error?.message);
+    return;
+  }
+
+  _wreportSummary = _weeklyreportBuildSummary(range, prodRes.data || [], planRes.data || [], dlvRes.data || []);
+  weeklyreportRenderPreview(_wreportSummary);
+
+  _wreportMonthWeekData = _weeklyreportBuildMonthWeekData(monthWeeks, prodMonthRes.data || [], dlvMonthRes.data || [], dateVal);
+  weeklyreportRenderMonthWeeks(_wreportMonthWeekData, dateVal);
+}
+
+// จัดกลุ่มข้อมูลผลิต/จัดส่งของทุกสัปดาห์ในเดือน — สินค้าไหนผลิต/ส่งไปเท่าไหร่ (ไม่รวมยอดจัดส่งที่ยกเลิก
+// เหมือน logic ของสรุปสัปดาห์เดียวด้านบน)
+function _weeklyreportBuildMonthWeekData(weeks, prodRows, dlvRows) {
+  return weeks.map(range => {
+    const produced = {};
+    prodRows.forEach(r => {
+      if (r.Date_Start < range.start || r.Date_Start > range.end) return;
+      const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
+      produced[key] ||= { name: r.ProductName || key, uom: r.UOM || '', qty: 0 };
+      produced[key].qty += parseFloat(r.FG_Actual) || 0;
+    });
+    const shipped = {};
+    dlvRows.forEach(r => {
+      if (r.Status === 'ยกเลิก') return;
+      if (r.Date < range.start || r.Date > range.end) return;
+      const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
+      shipped[key] ||= { name: r.ProductName || key, uom: r.UOM || '', qty: 0 };
+      shipped[key].qty += parseFloat(r.QtyDelivered) || 0;
+    });
+    return { range, produced, shipped };
+  });
+}
+
+// ป้ายชื่อ "เดือน ปี" (พ.ศ.) จากวันที่ที่เลือกอยู่ — ใช้ทั้งบนจอและในหน้าพิมพ์
+function _weeklyreportMonthLabel(dateVal) {
+  const [y, m] = dateVal.split('-').map(Number);
+  return `${_planDowThaiMonths[m - 1]} ${y + 543}`;
+}
+
+function weeklyreportRenderMonthWeeks(weeksData, dateVal) {
+  const monthEl = document.getElementById('wreport-4week-month');
+  if (monthEl) monthEl.textContent = _weeklyreportMonthLabel(dateVal);
+  const el = document.getElementById('wreport-4week');
+  if (el) el.innerHTML = _weeklyreportBuildMonthWeekHTML(weeksData, dateVal);
+}
+
+// ใช้ร่วมกันทั้งบนจอ (#wreport-4week) และในหน้าพิมพ์ (_weeklyreportBuildPrintHTML) — เขียน markup จุดเดียว
+// ไม่แยกสองชุด กันโค้ดเพี้ยนไม่ตรงกันระหว่างจอกับ PDF
+// selectedDateVal ใช้เช็คว่าสัปดาห์ไหน "คือสัปดาห์ที่กำลังดูอยู่" (เทียบด้วยช่วงวันที่ ไม่ใช่ index สุดท้าย
+// เหมือนตอนเป็น rolling 4 สัปดาห์ เพราะตอนนี้สัปดาห์ที่เลือกอาจไม่ใช่สัปดาห์สุดท้ายของเดือนแล้ว)
+function _weeklyreportBuildMonthWeekHTML(weeksData, selectedDateVal) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+  const cards = weeksData.map(wk => {
+    const isCurrent = selectedDateVal >= wk.range.start && selectedDateVal <= wk.range.end;
+    const { top: prodTop } = _weeklyreportTopN(wk.produced, 5);
+    const { top: dlvTop } = _weeklyreportTopN(wk.shipped, 5);
+    const prodList = !prodTop.length ? `<div class="wreport-week-empty">ไม่มีการผลิต</div>` :
+      prodTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
+    const dlvList = !dlvTop.length ? `<div class="wreport-week-empty">ไม่มีการจัดส่ง</div>` :
+      dlvTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
+    const rangeLabel = `${_planFmtDateLabel(wk.range.start)} – ${_planFmtDateLabel(wk.range.end)}`;
+    return `<div class="wreport-week-card${isCurrent ? ' wreport-week-current' : ''}">
+      <div class="wreport-week-range">${rangeLabel}${isCurrent ? '<br><span style="color:#3b82f6">(สัปดาห์นี้)</span>' : ''}</div>
+      <div class="wreport-week-sub-title"><i class="fas fa-industry"></i>ผลิต</div>
+      ${prodList}
+      <div class="wreport-week-sub-title"><i class="fas fa-truck"></i>จัดส่ง</div>
+      ${dlvList}
+    </div>`;
+  }).join('');
+  return `<div class="wreport-week-grid">${cards}</div>`;
+}
+
+// เรียงตาม qty มาก→น้อย แล้วตัดเหลือ n รายการแรก คืนจำนวนที่เหลือไว้ด้วยสำหรับข้อความ "และอีก N รายการ"
+function _weeklyreportTopN(map, n) {
+  const entries = Object.entries(map).sort((a, b) => b[1].qty - a[1].qty);
+  return { top: entries.slice(0, n), restCount: Math.max(0, entries.length - n) };
+}
+
+// สร้าง chip แสดง Lot + จำนวนต่อ Lot (+ เลขใบส่งถ้ามี สำหรับฝั่งจัดส่ง) ต่อ 1 สินค้า — ใช้ร่วมกันทั้งบนจอ
+// และในหน้าพิมพ์ (ผู้ใช้ขอเพิ่ม 2026-08-13 ให้เห็น Lot/เลขใบส่งในรายละเอียดการผลิต-จัดส่ง ไม่ใช่แค่ยอดรวม)
+function _weeklyreportBuildLotChips(lots, variant) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+  if (!lots || !lots.length) return '';
+  return lots
+    .slice().sort((a, b) => b.qty - a.qty)
+    .map(l => `<span class="wreport-lotchip${variant === 'ship' ? ' ship' : ''}">
+      <span class="lot">Lot ${l.lot}</span><span class="qty">${fmtQty(l.qty)}</span>${l.billNo ? `<span class="bill">#${l.billNo}</span>` : ''}
+    </span>`).join('');
+}
+
+// bar-list (ยอดรวมต่อสินค้า เทียบสัดส่วนกัน) + chip รายละเอียด Lot ต่อสินค้า ด้านล่างแถบทันที — ใช้แทน bar-list
+// ล้วนแบบเดิมทั้งในการ์ด preview บนจอและในหน้าพิมพ์ (เขียน markup จุดเดียว ไม่แยก 2 ชุด)
+function _weeklyreportBuildDetailList(byProductMap, variant, cap) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+  const { top, restCount } = _weeklyreportTopN(byProductMap, cap);
+  if (!top.length) return `<div class="wreport-empty">ไม่มี${variant === 'ship' ? 'การจัดส่ง' : 'การผลิต'}ในสัปดาห์นี้</div>`;
+  const max = Math.max(1, ...top.map(([, v]) => v.qty));
+  const barColor = variant === 'ship' ? '#16a34a' : '#3b82f6';
+  const rows = top.map(([, v]) => `
+    <div class="wreport-detail-row">
+      <div class="wreport-bar-row" style="margin-bottom:0">
+        <div class="wreport-bar-label">${v.name}</div>
+        <div class="wreport-bar-track"><div class="wreport-bar-fill" style="width:${Math.max(4, v.qty / max * 100)}%;background:${barColor}"></div></div>
+        <div class="wreport-bar-value">${fmtQty(v.qty)} ${v.uom}</div>
+      </div>
+      <div class="wreport-lotchips">${_weeklyreportBuildLotChips(v.lots, variant)}</div>
+    </div>`).join('');
+  return rows + (restCount > 0 ? `<div class="wreport-empty">และอีก ${restCount} รายการ ดูรายละเอียดเต็มในระบบ</div>` : '');
+}
+
+function _weeklyreportBuildSummary(range, prodRows, planRows, dlvRows) {
+  // 1) การผลิต — นับทุกสถานะ แต่แยกจำนวนที่ยังรอเช็คต้นทุนไว้ต่างหาก
+  const approvedCount = prodRows.filter(r => r.Status === 'อนุมัติแล้ว').length;
+  const pendingCount  = prodRows.filter(r => r.Status === 'รอเช็คต้นทุน').length;
+  const prodByProduct = {};
+  prodRows.forEach(r => {
+    const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
+    const qty = parseFloat(r.FG_Actual) || 0;
+    prodByProduct[key] ||= { name: r.ProductName || key, uom: r.UOM || '', qty: 0, lots: [] };
+    prodByProduct[key].qty += qty;
+    if (r.Lot_FG != null) prodByProduct[key].lots.push({ lot: r.Lot_FG, qty, status: r.Status });
+  });
+
+  // 2) แผนผลิต vs ผลจริง — นับ PlanQty เฉพาะแผนที่ยืนยันแล้ว จับคู่ผลจริงผ่าน ProdRecord_Ref → ProdRecord_ID
+  //    (คีย์นี้ผูกตอนกดยืนยันแผนที่หน้าแผนผลิต ดู planSubmit/planConfirm)
+  const prodById = {};
+  prodRows.forEach(r => { if (r.ProdRecord_ID) prodById[r.ProdRecord_ID] = r; });
+  const confirmedPlans = planRows.filter(r => r.Status === 'ยืนยันแล้ว');
+  const unconfirmedCount = planRows.filter(r => r.Status === 'วางแผน').length;
+  const planByProduct = {};
+  confirmedPlans.forEach(r => {
+    const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
+    planByProduct[key] ||= { name: r.ProductName || key, uom: r.UOM || '', planQty: 0, actualQty: 0 };
+    planByProduct[key].planQty += parseFloat(r.PlanQty) || 0;
+    const actual = r.ProdRecord_Ref && prodById[r.ProdRecord_Ref];
+    if (actual) planByProduct[key].actualQty += parseFloat(actual.FG_Actual) || 0;
+  });
+
+  // 3) การจัดส่ง — สถานะจริง 4 ค่า (ยืนยันจากโค้ด _deliveryStatusBadge) ไม่รวมรายการยกเลิกในยอด qty
+  const dlvStatusCount = { 'รอจัดส่ง': 0, 'จัดส่งแล้ว': 0, 'ส่งถึงแล้ว': 0, 'ยกเลิก': 0 };
+  dlvRows.forEach(r => { if (dlvStatusCount[r.Status] !== undefined) dlvStatusCount[r.Status]++; });
+  const dlvActiveRows = dlvRows.filter(r => r.Status !== 'ยกเลิก');
+  const dlvByProduct = {};
+  const dlvByCustomer = {};
+  dlvActiveRows.forEach(r => {
+    const qty = parseFloat(r.QtyDelivered) || 0;
+    const pKey = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
+    dlvByProduct[pKey] ||= { name: r.ProductName || pKey, uom: r.UOM || '', qty: 0, lots: [] };
+    dlvByProduct[pKey].qty += qty;
+    if (r.Lot_FG != null) dlvByProduct[pKey].lots.push({ lot: r.Lot_FG, qty, billNo: r.DeliveryBillNo || null, status: r.Status });
+    const cKey = r.CustomerName || '(ไม่ระบุ)';
+    dlvByCustomer[cKey] ||= { name: cKey, qty: 0 };
+    dlvByCustomer[cKey].qty += qty;
+  });
+
+  return {
+    range,
+    production: { total: prodRows.length, approvedCount, pendingCount, byProduct: prodByProduct },
+    plan: { byProduct: planByProduct, unconfirmedCount },
+    delivery: { statusCount: dlvStatusCount, byProduct: dlvByProduct, byCustomer: dlvByCustomer },
+  };
+}
+
+function weeklyreportRenderPreview(s) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+
+  // การ์ดบนจอใช้ component เดียวกับหน้าพิมพ์ (bar + Lot chip) — ผู้ใช้ขอให้เห็น Lot/เลขใบส่งและให้ดูทันสมัยขึ้น
+  // (2026-08-13) เลยรวมดีไซน์เดียวกันทั้ง 2 ที่แทนตาราง Bootstrap ธรรมดาแบบเดิม
+  const prodDetailHTML = _weeklyreportBuildDetailList(s.production.byProduct, 'prod', 8);
+
+  const planEntries = Object.entries(s.plan.byProduct);
+  const planTable = !planEntries.length ? `<div class="text-muted small">ไม่มีแผนผลิตที่ยืนยันแล้วในสัปดาห์นี้</div>` : `
+    <table class="table table-sm mb-0"><thead><tr><th>สินค้า</th><th class="text-end">แผน</th><th class="text-end">ผลิตจริง</th><th class="text-end">% สำเร็จ</th></tr></thead>
+    <tbody>${planEntries.map(([, v]) => {
+      const pct = v.planQty > 0 ? (v.actualQty / v.planQty * 100) : 0;
+      return `<tr><td>${v.name}</td><td class="text-end">${fmtQty(v.planQty)} ${v.uom}</td><td class="text-end">${fmtQty(v.actualQty)} ${v.uom}</td><td class="text-end">${pct.toFixed(0)}%</td></tr>`;
+    }).join('')}</tbody></table>
+    ${s.plan.unconfirmedCount > 0 ? `<div class="text-muted small mt-1">มีอีก ${s.plan.unconfirmedCount} แผนที่ยังไม่ยืนยัน (ไม่รวมในตารางนี้)</div>` : ''}`;
+
+  const dlvStatusBadges = Object.entries(s.delivery.statusCount)
+    .map(([st, n]) => `${_deliveryStatusBadge(st)} <span class="text-muted small me-2">${n}</span>`).join('');
+  const dlvDetailHTML = _weeklyreportBuildDetailList(s.delivery.byProduct, 'ship', 8);
+
+  const { top: custTop, restCount: custRest } = _weeklyreportTopN(s.delivery.byCustomer, 8);
+  const dlvCustomerList = !custTop.length ? '' : `
+    <div class="text-muted small fw-bold mt-3 mb-1">ลูกค้าที่จัดส่งมากที่สุด</div>
+    <table class="table table-sm mb-0"><thead><tr><th>ลูกค้า</th><th class="text-end">จำนวน</th></tr></thead>
+    <tbody>${custTop.map(([, v]) => `<tr><td>${v.name}</td><td class="text-end">${fmtQty(v.qty)}</td></tr>`).join('')}</tbody></table>
+    ${custRest > 0 ? `<div class="text-muted small mt-1">และอีก ${custRest} ราย</div>` : ''}`;
+
+  document.getElementById('wreport-summary').innerHTML = `
+    <div class="glass-card mb-3">
+      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การผลิต</h6>
+      <div class="mb-2">ใบบันทึกผลิตทั้งหมด <b>${s.production.total}</b> ใบ (อนุมัติแล้ว ${s.production.approvedCount} · รอเช็คต้นทุน ${s.production.pendingCount})</div>
+      ${s.production.pendingCount > 0 ? `<div class="alert alert-warning py-1 px-2 mb-2" style="font-size:.8rem">มี ${s.production.pendingCount} ใบยังรอเช็คต้นทุน</div>` : ''}
+      ${prodDetailHTML}
+    </div>
+    <div class="glass-card mb-3">
+      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">แผนผลิต vs ผลจริง</h6>
+      <div class="table-responsive">${planTable}</div>
+    </div>
+    <div class="glass-card mb-3">
+      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การจัดส่ง</h6>
+      <div class="mb-2">${dlvStatusBadges}</div>
+      ${dlvDetailHTML}
+      <div class="table-responsive">${dlvCustomerList}</div>
+    </div>`;
+}
+
+// ── พิมพ์รายงานรายสัปดาห์เป็น PDF/กระดาษ (แทนที่ปุ่มร่างอีเมลเดิม ตามคำขอผู้ใช้ 2026-08-13) ──
+// ใช้ print-root pattern เดียวกับ BPR/Stock Card (ดู body class print-mode-xxx บน CSS ด้านบน)
+// ดีไซน์เป็นอินโฟกราฟิก: hero banner + KPI tile 3 ใบ + bar-list/progress-bar/donut ล้วนเป็น CSS
+// ธรรมดา (ไม่ใช้ Chart.js/canvas) เพื่อความชัวร์ตอนพิมพ์จริง ตาม gotcha เดิมเรื่อง canvas พิมพ์ไม่เสถียร
+function _weeklyreportPct(actual, plan) { return plan > 0 ? Math.round(actual / plan * 100) : 0; }
+function _weeklyreportPctColor(pct) { return pct >= 90 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626'; }
+
+let _weeklyreportPrintModal = null;
+
+function weeklyreportOpenPrintPreview() {
+  if (!_wreportSummary) { _err('ยังโหลดข้อมูลไม่เสร็จ', 'กรุณารอสักครู่แล้วลองใหม่'); return; }
+  const html = _weeklyreportBuildPrintHTML(_wreportSummary, _wreportMonthWeekData);
+  document.getElementById('weeklyreport-print-root').innerHTML = html;
+  document.getElementById('weeklyreport-preview-body').innerHTML = html;
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-pcost');
+  document.body.classList.add('print-mode-weeklyreport');
+  if (!_weeklyreportPrintModal) _weeklyreportPrintModal = new bootstrap.Modal(document.getElementById('weeklyreportPrintModal'));
+  _weeklyreportPrintModal.show();
+}
+
+function _weeklyreportBuildPrintHTML(s, monthWeekData) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+  const rangeLabel = `${_planFmtDateLabel(s.range.start)} – ${_planFmtDateLabel(s.range.end)}`;
+  const printedAt = _planFmtDateLabel(_planWeekLocalDateStr(new Date()));
+
+  const planEntries = Object.entries(s.plan.byProduct);
+  const totalPlanQty = planEntries.reduce((sum, [, v]) => sum + (parseFloat(v.planQty) || 0), 0);
+  const totalActualQty = planEntries.reduce((sum, [, v]) => sum + (parseFloat(v.actualQty) || 0), 0);
+  const overallPct = _weeklyreportPct(totalActualQty, totalPlanQty);
+  const overallColor = _weeklyreportPctColor(overallPct);
+
+  const sc = s.delivery.statusCount;
+  const dlvActiveTotal = sc['รอจัดส่ง'] + sc['จัดส่งแล้ว'] + sc['ส่งถึงแล้ว'];
+
+  // ── การผลิต: bar-list + Lot chip (component เดียวกับบนจอ) ──
+  const prodDetailHTML = _weeklyreportBuildDetailList(s.production.byProduct, 'prod', 8);
+
+  // ── แผนผลิต vs ผลจริง: progress bar ต่อสินค้า ──
+  const planRows = !planEntries.length ? `<div class="wreport-empty">ไม่มีแผนผลิตที่ยืนยันแล้วในสัปดาห์นี้</div>` : planEntries.slice(0, 8).map(([, v]) => {
+    const pct = _weeklyreportPct(v.actualQty, v.planQty);
+    const color = _weeklyreportPctColor(pct);
+    return `<div class="wreport-progress-row">
+      <div class="wreport-progress-head">
+        <span style="font-weight:600;color:#334155">${v.name}</span>
+        <span style="font-weight:700;color:${color}">${pct}%</span>
+      </div>
+      <div class="wreport-progress-track"><div class="wreport-progress-fill" style="width:${Math.min(100, pct)}%;background:${color}"></div></div>
+      <div style="color:#94a3b8;margin-top:2px">แผน ${fmtQty(v.planQty)} ${v.uom} · ผลิตจริง ${fmtQty(v.actualQty)} ${v.uom}</div>
+    </div>`;
+  }).join('');
+  const planFooterNote = s.plan.unconfirmedCount > 0
+    ? `<div class="wreport-empty">มีอีก ${s.plan.unconfirmedCount} แผนที่ยังไม่ยืนยัน (ไม่รวมในสรุปนี้)</div>` : '';
+
+  // ── การจัดส่ง: donut สถานะ + bar-list สินค้า/ลูกค้า ──
+  const donutColors = { 'รอจัดส่ง': '#d97706', 'จัดส่งแล้ว': '#0ea5e9', 'ส่งถึงแล้ว': '#16a34a', 'ยกเลิก': '#94a3b8' };
+  const donutTotal = Object.values(sc).reduce((a, b) => a + b, 0);
+  let accDeg = 0;
+  const stops = [];
+  Object.entries(sc).forEach(([k, v]) => {
+    if (!v || !donutTotal) return;
+    const start = accDeg; accDeg += v / donutTotal * 360;
+    stops.push(`${donutColors[k]} ${start}deg ${accDeg}deg`);
+  });
+  const donutBg = stops.length ? `conic-gradient(${stops.join(',')})` : '#e2e8f0';
+  const legend = Object.entries(sc).map(([k, v]) => `
+    <div class="wreport-legend-item">
+      <span class="wreport-legend-dot" style="background:${donutColors[k]}"></span>
+      <span class="wreport-legend-label">${k}</span>
+      <span class="wreport-legend-count">${v}</span>
+    </div>`).join('');
+
+  // ── การจัดส่ง: bar-list + Lot/เลขใบส่ง chip (component เดียวกับบนจอ) ──
+  const dlvDetailHTML = _weeklyreportBuildDetailList(s.delivery.byProduct, 'ship', 8);
+
+  const { top: custTop, restCount: custRest } = _weeklyreportTopN(s.delivery.byCustomer, 8);
+  const custMax = Math.max(1, ...custTop.map(([, v]) => v.qty));
+  const custBars = !custTop.length ? '' : `
+    <div style="margin-top:10px;font-size:11px;font-weight:700;color:#334155">ลูกค้าที่จัดส่งมากที่สุด</div>` +
+    custTop.map(([, v]) => `
+    <div class="wreport-bar-row">
+      <div class="wreport-bar-label">${v.name}</div>
+      <div class="wreport-bar-track"><div class="wreport-bar-fill" style="width:${Math.max(4, v.qty / custMax * 100)}%;background:#8b5cf6"></div></div>
+      <div class="wreport-bar-value">${fmtQty(v.qty)}</div>
+    </div>`).join('') + (custRest > 0 ? `<div class="wreport-empty">และอีก ${custRest} ราย</div>` : '');
+
+  return `<div class="wreport-print-page">
+    <div class="wreport-hero">
+      <div>
+        <div class="wreport-hero-title"><i class="fas fa-chart-line"></i>รายงานผลิต-จัดส่งประจำสัปดาห์</div>
+        <div class="wreport-hero-range">${rangeLabel} (จันทร์–เสาร์) · พิมพ์เมื่อ ${printedAt}</div>
+      </div>
+      <img src="wisenovation_LOGO%20-Cut.png" class="wreport-hero-logo" onerror="this.style.display='none'">
+    </div>
+
+    <div class="wreport-kpi-row">
+      <div class="wreport-kpi">
+        <div class="wreport-kpi-icon" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6)"><i class="fas fa-industry"></i></div>
+        <div class="wreport-kpi-num">${s.production.total}</div>
+        <div class="wreport-kpi-label">ใบบันทึกผลิต</div>
+        <div class="wreport-kpi-sub">อนุมัติแล้ว ${s.production.approvedCount} · รอเช็คต้นทุน ${s.production.pendingCount}</div>
+      </div>
+      <div class="wreport-kpi">
+        <div class="wreport-kpi-icon" style="background:linear-gradient(135deg,${overallColor},${overallColor}cc)"><i class="fas fa-bullseye"></i></div>
+        <div class="wreport-kpi-num">${overallPct}%</div>
+        <div class="wreport-kpi-label">ผลิตได้ตามแผน</div>
+        <div class="wreport-kpi-sub">ยืนยันแล้ว ${planEntries.length} สินค้า${s.plan.unconfirmedCount > 0 ? ` · รออีก ${s.plan.unconfirmedCount}` : ''}</div>
+      </div>
+      <div class="wreport-kpi">
+        <div class="wreport-kpi-icon" style="background:linear-gradient(135deg,#b45309,#d97706)"><i class="fas fa-truck"></i></div>
+        <div class="wreport-kpi-num">${dlvActiveTotal}</div>
+        <div class="wreport-kpi-label">รายการจัดส่ง</div>
+        <div class="wreport-kpi-sub">รอ ${sc['รอจัดส่ง']} · ส่งแล้ว ${sc['จัดส่งแล้ว']} · ถึงแล้ว ${sc['ส่งถึงแล้ว']}</div>
+      </div>
+    </div>
+
+    ${monthWeekData ? `<div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-calendar-week"></i>ภาพรวมรายสัปดาห์ — ${_weeklyreportMonthLabel(s.range.start)}</div>
+      ${_weeklyreportBuildMonthWeekHTML(monthWeekData, s.range.start)}
+    </div>` : ''}
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-flask"></i>การผลิต</div>
+      ${s.production.pendingCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:6px 10px;font-size:11px;margin-bottom:8px"><i class="fas fa-triangle-exclamation me-1"></i>มี ${s.production.pendingCount} ใบยังรอเช็คต้นทุน</div>` : ''}
+      ${prodDetailHTML}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-clipboard-check"></i>แผนผลิต vs ผลจริง</div>
+      ${planRows}
+      ${planFooterNote}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-truck-fast"></i>การจัดส่ง</div>
+      <div class="wreport-donut-wrap">
+        <div class="wreport-donut" style="background:${donutBg}"><div class="wreport-donut-hole"><b>${donutTotal}</b><span>รายการ</span></div></div>
+        <div class="wreport-legend">${legend}</div>
+      </div>
+      ${dlvDetailHTML}
+      ${custBars}
+    </div>
+
+    <div class="wreport-footer">ProFlow Wise MES · รายงานสร้างอัตโนมัติจากระบบ</div>
+  </div>`;
 }
 
 // ══════════════════════════════════════════════
@@ -10644,6 +11547,7 @@ let _prodrecordLastRows = [];        // ผลลัพธ์กรอง/ค้
 let _prodrecordExpandedSet = new Set();
 let _prodrecordDetailsByRecord = {}; // ProdRecord_ID → array ของ production_record_details (cache, โหลดตอนกางการ์ด)
 let _prodrecordPendingMOs = [];      // MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิตครบทุก Lot FG — {mo, lots, noFgData}
+let _prodrecordMOStatusMap = {};     // MO_ID → Status ของ MO ทั้งหมด — ใช้กรองการ์ดในตาราง (โชว์เฉพาะ MO ที่เสร็จแล้ว)
 
 // ขั้นตอนกำลังคน — ใช้ชุดเดียวกับ 3 ขั้นตอนที่หน้า "ภาพรวมการผลิต" (Gantt) ใช้อยู่แล้ว
 // (_prodStatusSteps) ข้ามขั้นตอนที่สินค้านั้นไม่ได้ตั้งค่ากำลังผลิต/วันไว้ในหน้า BOM เพื่อไม่ต้องกรอกขั้นที่ไม่เกี่ยวข้อง
@@ -10659,18 +11563,21 @@ async function prodrecordLoadData() {
 
   const [prRes, moRes] = await Promise.all([
     _sb.from('production_records').select('*').order('_row_id', { ascending: false }),
-    _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,OrderQty,MO_Received').in('Status', _moDoneStatuses),
+    _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,OrderQty,MO_Received,Status'),
   ]);
   _cancelPlaceholder();
   _hideLoader();
   if (prRes.error) { _err('โหลดบันทึกผลิตไม่ได้', prRes.error.message); return; }
   _prodrecordData = prRes.data || [];
 
+  const allMOs = moRes.data || [];
+  _prodrecordMOStatusMap = Object.fromEntries(allMOs.map(m => [m.MO_ID, m.Status]));
+
   // ── MO ที่เสร็จสิ้นแล้วแต่ยังไม่มีบันทึกผลิตครบทุก Lot FG ──
   // MO เสร็จได้ 2 ทางที่ไม่ผ่านหน้า "แผนผลิต" เลย: fgUpdateMOProgress() (รับ FG ครบยอดอัตโนมัติ)
   // และ moForceClose() (ตัดจบงาน) — ทั้งคู่ไม่เคยสร้าง production_records ให้ ต้องมาตามหาที่นี่แทน
   _prodrecordPendingMOs = [];
-  const doneMOs = moRes.data || [];
+  const doneMOs = allMOs.filter(m => _moDoneStatuses.includes(m.Status));
   if (doneMOs.length) {
     const moIds = doneMOs.map(m => m.MO_ID);
     const { data: fgRows } = await _sb.from('fg_receive').select('*').in('MO_ID', moIds);
@@ -10795,10 +11702,22 @@ function _prodrecordRenderPending() {
     <hr class="my-3">`;
 }
 
+// การ์ดในตารางนี้ควรขึ้นก็ต่อเมื่อ MO ของบันทึกนั้น "เสร็จแล้ว" เท่านั้น (รับ FG ครบตามยอดสั่ง, ตัดจบงาน,
+// หรือ Status='เสร็จสิ้น' โดยตรง — ทั้งหมดสะท้อนผ่าน _moDoneStatuses อยู่แล้ว) ผู้ใช้ยืนยันแล้วว่าไม่
+// ต้องการเห็นบันทึกของ MO ที่ยังผลิตไม่เสร็จปนอยู่ในหน้านี้ (2026-08-13) — บันทึกที่ถูกซ่อนยังอยู่ใน DB
+// ปกติ (ยังพิมพ์ BPR ได้ที่หน้า "รายงาน BPR") แค่ไม่โผล่เป็นการ์ดที่นี่จนกว่า MO จะเสร็จ
+// เผื่อกรณี MO_Ref ว่าง/หา MO ไม่เจอ (ข้อมูลเก่า/ผิดปกติ) ให้แสดงไว้ก่อน ปลอดภัยกว่าซ่อนเงียบๆ
+function _prodrecordMOIsDone(r) {
+  if (!r.MO_Ref) return true;
+  const status = _prodrecordMOStatusMap[r.MO_Ref];
+  return status === undefined || _moDoneStatuses.includes(status);
+}
+
 function prodrecordRenderTable() {
   _prodrecordRenderPending();
   const q = (document.getElementById('prodrecord-search')?.value||'').toLowerCase();
   const rows = _prodrecordData.filter(r => {
+    if (!_prodrecordMOIsDone(r)) return false;
     if (!q) return true;
     const hay = [r.ProdRecord_ID, r.ProductName, r.ProductCode, r.Lot_FG, r.MO_Ref].join(' ').toLowerCase();
     return hay.includes(q);
@@ -10824,7 +11743,7 @@ function prodrecordRenderTable() {
           <span class="text-muted small me-2">แผน ${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}${hasActual ? ` · จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()}` : ''}</span>
           ${!hasActual ? `<button class="btn btn-sm btn-primary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-pen me-1"></i>กรอกผลผลิต</button>` : ''}
           ${hasActual && !approved ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
-            <button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}
+            ${_currentUser?.isAdmin ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})"><i class="fas fa-print me-1"></i>พิมพ์รายงานต้นทุน</button>
             <button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}
           <button class="btn btn-sm btn-outline-secondary" title="${expanded?'ย่อ':'ดูรายละเอียด'}">
@@ -12407,6 +13326,11 @@ function coRenderTable() {
             title="${_coOpenMOSet.has(r.Order_ID) ? 'มี MO ของ CO นี้ค้างอยู่แล้ว (ยังไม่ปิดงาน) กันสั่งผลิตซ้ำ' : 'เด้งไปเปิดหน้าสั่งผลิต (MO) พร้อมข้อมูลจาก CO นี้'}">
             <i class="fas fa-industry me-1"></i>${_coOpenMOSet.has(r.Order_ID) ? 'สั่งผลิตแล้ว (มี MO ค้าง)' : `สั่งผลิต${needProduce>0 ? ` (${needProduce.toLocaleString()})` : ''}`}
           </button>
+          ${!_coOpenMOSet.has(r.Order_ID) ? `
+          <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation();coPlanProduction(${idx})"
+            title="ลงแผนผลิตก่อน (เลือกไลน์/วันที่/กะ) ยังไม่สร้าง MO จนกว่าจะเช็ค+จองวัตถุดิบผ่านแล้วกด &quot;สั่งผลิต&quot; ที่หน้าแผนผลิต">
+            <i class="fas fa-calendar-plus me-1"></i>ลงแผนผลิต
+          </button>` : ''}
           ${(remain>0 && fgStock>0) ? `
           <button class="btn btn-sm btn-success" onclick="event.stopPropagation();coWithdrawFromStock(${idx})" title="เด้งไปเปิดหน้าเบิก FG พร้อมแนะนำ Lot และจำนวน">
             <i class="fas fa-dolly me-1"></i>เบิกจากคลัง
@@ -12446,6 +13370,35 @@ function coOrderProduction(idx) {
   document.getElementById('mo-f-product-name').value= r.ProductName || '';
   document.getElementById('mo-f-delivery').value     = r.DueDate || '';
   document.getElementById('mo-f-qty').value          = needProduce || '';
+}
+
+// ── ปุ่ม "ลงแผนผลิต" — ทางเลือกแยกจาก "สั่งผลิต" ด้านบน: เด้งไปหน้าแผนผลิต โหมด "กำหนดเอง" (ไม่ผ่าน MO) พร้อม
+// ข้อมูลจาก CO นี้ ให้เลือกไลน์/วันที่/กะได้ทันที โดยยังไม่สร้าง MO เลยจนกว่าจะกดปุ่ม "เช็ควัตถุดิบ" แล้วผ่าน
+// (จองวัตถุดิบไว้จริง) แล้วกด "สั่งผลิต" บนแถวแผนนั้นอีกที (ดู planCheckMaterial/planOrderProduction ในโซนแผนผลิต) ──
+async function coPlanProduction(idx) {
+  const r = _coLastRows[idx];
+  if (!r) return;
+  const shipped  = _coShippedMap[r.Order_ID] || 0;
+  const orderQty = parseFloat(r.OrderQty) || 0;
+  const remain   = orderQty - shipped;
+  const fgStock  = _coFGStockMap[r.ProductCode] || 0;
+  const pendingDispatch = _coPendingDispatchMap[r.Order_ID] || 0;
+  const needProduce = Math.max(0, remain - fgStock - pendingDispatch);
+
+  showPage('plan', document.getElementById('nav-plan'));
+  await planLoadData();
+  planOpenAddModal();
+  planToggleMode('custom');
+  document.getElementById('plan-f-co-ref').value = r.Order_ID || '';
+  document.getElementById('plan-f-prodcode').value = r.ProductCode || '';
+  document.getElementById('plan-f-prodname').value = r.ProductName || '';
+  document.getElementById('plan-f-prodname-display').value = r.ProductName || '';
+  document.getElementById('plan-f-prodcode-display').value = r.ProductCode || '';
+  document.getElementById('plan-f-mat-search').value = r.ProductName || '';
+  document.getElementById('plan-f-uom').value = r.UOM || '';
+  document.getElementById('plan-f-qty').value = needProduce || '';
+  _planUpdateCORefBadge();
+  planUpdateCapacityEstimate();
 }
 
 // ── ปุ่ม "เบิกจากคลัง" — เด้งไปหน้าเบิก FG พร้อมแนะนำ Lot (เรียงตามรหัส Lot จากน้อยไปมาก ~ เก่าสุดก่อน)
@@ -14481,6 +15434,10 @@ function _renderCurrentUserBadge() {
   // admin_full_access ใน create_signup_requests.sql — คนที่ไม่ใช่ admin เข้าหน้านี้ตรงๆก็เห็นรายการเปล่า)
   const navEl = document.getElementById('nav-signuprequests');
   if (navEl) navEl.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "รายงานรายสัปดาห์" (สรุปข้อมูลผลิต-จัดส่งส่งเจ้านาย) — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-08-12)
+  // เช่นเดียวกับ nav-signuprequests: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
+  const navWreport = document.getElementById('nav-weeklyreport');
+  if (navWreport) navWreport.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
