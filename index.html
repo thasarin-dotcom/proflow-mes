@@ -3118,6 +3118,10 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
                 <label class="form-label">หน่วยสินค้าสำเร็จรูป (UOF)</label>
                 <input type="text" id="bomprod-f-uof" class="form-control" placeholder="เช่น ชิ้น / ขวด">
               </div>
+              <div class="col-md-6">
+                <label class="form-label">ราคาขาย/หน่วย (บาท)</label>
+                <input type="number" id="bomprod-f-sellprice" class="form-control" min="0" step="0.01" placeholder="เช่น 120.00">
+              </div>
               <div class="col-12"><hr class="my-1"></div>
               <div class="col-12">
                 <div class="fw-bold small text-muted mb-1"><i class="fas fa-tachometer-alt me-1"></i>กำลังผลิตต่อวัน (ต่อขั้นตอน) — ไว้เทียบกับเวลาแพลนผลิต</div>
@@ -11073,6 +11077,7 @@ function _bomGroupByProduct(rows) {
         ProductCode: r.ProductCode, ProductName: r.ProductName, UOF: r.UOF,
         CapacityFillPerDay: r.CapacityFillPerDay, CapacityLotPerDay: r.CapacityLotPerDay,
         CapacityInspectPackPerDay: r.CapacityInspectPackPerDay,
+        SellingPrice: r.SellingPrice,
         lineMap: new Map(),
       });
     }
@@ -11088,6 +11093,7 @@ function _bomGroupByProduct(rows) {
     ProductCode: p.ProductCode, ProductName: p.ProductName, UOF: p.UOF,
     CapacityFillPerDay: p.CapacityFillPerDay, CapacityLotPerDay: p.CapacityLotPerDay,
     CapacityInspectPackPerDay: p.CapacityInspectPackPerDay,
+    SellingPrice: p.SellingPrice,
     lines: Array.from(p.lineMap.values()),
   }));
 }
@@ -11148,6 +11154,7 @@ function bomRenderCards() {
           <span class="badge bg-primary me-2">${g.ProductCode || '—'}</span>
           <b>${g.ProductName || '—'}</b>
           <span class="badge bg-light text-dark border ms-2">UOF: ${g.UOF || '—'}</span>
+          ${g.SellingPrice != null ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">ราคาขาย ฿${parseFloat(g.SellingPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
         </div>
         <div class="d-flex gap-1">
@@ -11542,6 +11549,7 @@ function bomOpenProductModal(groupIdx) {
   document.getElementById('bomprod-f-cap-fill').value    = group.CapacityFillPerDay ?? '';
   document.getElementById('bomprod-f-cap-lot').value     = group.CapacityLotPerDay ?? '';
   document.getElementById('bomprod-f-cap-inspect').value = group.CapacityInspectPackPerDay ?? '';
+  document.getElementById('bomprod-f-sellprice').value   = group.SellingPrice ?? '';
   _bomProductModal.show();
 }
 
@@ -11551,6 +11559,7 @@ async function bomProductSubmit(e) {
   const capFill    = document.getElementById('bomprod-f-cap-fill').value;
   const capLot     = document.getElementById('bomprod-f-cap-lot').value;
   const capInspect = document.getElementById('bomprod-f-cap-inspect').value;
+  const sellPrice  = document.getElementById('bomprod-f-sellprice').value;
   const payload = {
     ProductCode : document.getElementById('bomprod-f-code').value.trim(),
     ProductName : document.getElementById('bomprod-f-name').value.trim(),
@@ -11558,6 +11567,7 @@ async function bomProductSubmit(e) {
     CapacityFillPerDay        : capFill    !== '' ? parseFloat(capFill)    : null,
     CapacityLotPerDay         : capLot     !== '' ? parseFloat(capLot)     : null,
     CapacityInspectPackPerDay : capInspect !== '' ? parseFloat(capInspect) : null,
+    SellingPrice              : sellPrice  !== '' ? parseFloat(sellPrice)  : null,
   };
 
   const saveBtn = document.getElementById('bomprod-save-btn');
@@ -12199,15 +12209,17 @@ async function prodrecordOpenApproveModal(gi) {
   if (!_prodrecordApproveModal) _prodrecordApproveModal = new bootstrap.Modal(document.getElementById('prodrecordApproveModal'));
 
   _showLoader();
-  const [detailsRes, lastApprovedRes] = await Promise.all([
+  const [detailsRes, lastApprovedRes, bomRes] = await Promise.all([
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
     _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OverheadUtility,OverheadIndirect')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
+    _sb.from('bom').select('SellingPrice').eq('ProductCode', r.ProductCode).limit(1),
   ]);
   _hideLoader();
 
   window._prodrecordApproveDetails = detailsRes.data || [];
   window._prodrecordApproveRecord  = r;
+  window._prodrecordApproveSellingPrice = (bomRes.data || [])[0]?.SellingPrice ?? null;
   const last = (lastApprovedRes.data || [])[0] || {};
 
   document.getElementById('prodrecord-ap-ft-rate').value = r.FT_LaborRate ?? last.FT_LaborRate ?? '';
@@ -12269,7 +12281,12 @@ function _prodrecordRecalcApprove() {
   const netIssued = totalIssued - totalReturned;
   const scrapPct = netIssued > 0 ? (totalScrap / netIssued) * 100 : null;
 
-  window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct };
+  // ราคาขาย/หน่วย มาจาก bom.SellingPrice ของ ProductCode นี้ (ตั้งค่าที่หน้า BOM — "แก้ไขข้อมูลสินค้า")
+  // เทียบกับต้นทุน/หน่วยที่เพิ่งคำนวณ ให้เห็นกำไร/หน่วยตอนอนุมัติต้นทุนเลย ไม่ต้องไปเปิดหน้า BOM เทียบเอง
+  const sellingPrice = window._prodrecordApproveSellingPrice != null ? parseFloat(window._prodrecordApproveSellingPrice) : null;
+  const profitPerUnit = sellingPrice != null ? sellingPrice - costPerUnit : null;
+
+  window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, sellingPrice, profitPerUnit };
 
   document.getElementById('prodrecord-ap-preview').innerHTML = `
     <div class="row g-2 text-center">
@@ -12279,6 +12296,13 @@ function _prodrecordRecalcApprove() {
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วย</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${yieldOverall!=null?yieldOverall.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Yield รวม</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${scrapPct!=null?scrapPct.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Scrap %</div></div></div>
+    </div>
+    <div class="row g-2 text-center mt-1">
+      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${sellingPrice!=null?'฿'+sellingPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ราคาขาย/หน่วย</div></div></div>
+      <div class="col-8"><div class="p-2 rounded" style="background:${profitPerUnit==null?'#f8fafc':(profitPerUnit>=0?'#ecfdf5':'#fef2f2')}">
+        <div class="fw-bold ${profitPerUnit==null?'':(profitPerUnit>=0?'text-success':'text-danger')}">${profitPerUnit!=null?(profitPerUnit>=0?'+':'')+'฿'+profitPerUnit.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div>
+        <div class="text-muted" style="font-size:.7rem">กำไร/หน่วย (ราคาขาย − ต้นทุน/หน่วย)${sellingPrice==null?' — ยังไม่ได้ตั้งราคาขายที่หน้า BOM':''}</div>
+      </div></div>
     </div>`;
 }
 
