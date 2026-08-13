@@ -9786,11 +9786,26 @@ async function _renderPublicReport(token) {
       </tr>`).join('')}</tbody>
     </table></div>`;
 
+  // รายงานผลิต-จัดส่งรายสัปดาห์ (Lot/เลขใบส่ง/แผนผลิต vs ผลจริง) — เพิ่ม 2026-08-13 ตามคำขอผู้ใช้ให้ลิงก์
+  // เดียวกันนี้ที่ส่งให้เจ้านายเห็นรายงานนี้ด้วย ไม่ใช่แค่ตารางแผน/MO แบบเดิม ใช้ _weeklyreportBuildSummary/
+  // _weeklyreportBuildSummaryHTML ตัวเดียวกับที่หน้า "รายงานรายสัปดาห์" (สำหรับ admin) ใช้อยู่แล้วเป๊ะ ไม่แยก
+  // โค้ดคำนวณซ้ำอีกชุด — เช็ค `data.prodRows`/`data.dlvRows` ก่อนเผื่อ Edge Function ยังไม่ได้ deploy เวอร์ชัน
+  // ใหม่ (ลิงก์เก่าที่ยังไม่รี generate จะไม่มี field พวกนี้ ก็แค่ไม่แสดง section นี้ ไม่ error)
+  let weeklyReportSection = '';
+  if (Array.isArray(data.prodRows) && Array.isArray(data.dlvRows)) {
+    const wreportSummary = _weeklyreportBuildSummary({ start: data.startDate, end: data.endDate }, data.prodRows, data.planRows || [], data.dlvRows);
+    weeklyReportSection = `
+    <div class="glass-card mb-3"><h5 class="fw-bold mb-1">🏭 รายงานผลิต-จัดส่ง (${periodLabel})</h5>
+      <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
+    ${_weeklyreportBuildSummaryHTML(wreportSummary)}`;
+  }
+
   bodyEl.innerHTML = `
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ตารางแผนผลิตตามไลน์ / กะ / วันที่</h6>${planSection}</div>
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
+    ${weeklyReportSection}
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
 }
 
@@ -10038,6 +10053,13 @@ function _weeklyreportBuildSummary(range, prodRows, planRows, dlvRows) {
 }
 
 function weeklyreportRenderPreview(s) {
+  document.getElementById('wreport-summary').innerHTML = _weeklyreportBuildSummaryHTML(s);
+}
+
+// สร้าง HTML สรุปสัปดาห์เดียว (การผลิต/แผนผลิต vs ผลจริง/การจัดส่ง) แยกจากการ set DOM ตรงๆ เพื่อให้
+// เรียกซ้ำได้จากที่อื่นได้ด้วย — ใช้ตอนฝัง "รายงานรายสัปดาห์" นี้เข้าไปในลิงก์สาธารณะที่ส่งให้เจ้านาย
+// (ดู _renderPublicReport, เพิ่ม 2026-08-13) นอกเหนือจากหน้า "รายงานรายสัปดาห์" ปกติของแอป
+function _weeklyreportBuildSummaryHTML(s) {
   const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
 
   // การ์ดบนจอใช้ component เดียวกับหน้าพิมพ์ (bar + Lot chip) — ผู้ใช้ขอให้เห็น Lot/เลขใบส่งและให้ดูทันสมัยขึ้น
@@ -10064,7 +10086,7 @@ function weeklyreportRenderPreview(s) {
     <tbody>${custTop.map(([, v]) => `<tr><td>${v.name}</td><td class="text-end">${fmtQty(v.qty)}</td></tr>`).join('')}</tbody></table>
     ${custRest > 0 ? `<div class="text-muted small mt-1">และอีก ${custRest} ราย</div>` : ''}`;
 
-  document.getElementById('wreport-summary').innerHTML = `
+  return `
     <div class="glass-card mb-3">
       <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การผลิต</h6>
       <div class="mb-2">ใบบันทึกผลิตทั้งหมด <b>${s.production.total}</b> ใบ (อนุมัติแล้ว ${s.production.approvedCount} · รอเช็คต้นทุน ${s.production.pendingCount})</div>
