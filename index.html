@@ -4718,10 +4718,30 @@ let _whPage = 1; // 0 = พยากรณ์ BULK (ซ้าย), 1 = ภาพ
 const _whPageCount = 3;
 
 function _whGoPage(p) {
-  _whPage = Math.max(0, Math.min(_whPageCount - 1, p));
+  const next = Math.max(0, Math.min(_whPageCount - 1, p));
+  const changed = next !== _whPage;
+  _whPage = next;
   const track = document.getElementById('wh-track');
   if (track) track.style.transform = `translateX(${-_whPage * (100 / _whPageCount)}%)`;
   for (let i = 0; i < _whPageCount; i++) document.getElementById('wh-dot-' + i)?.classList.toggle('active', _whPage === i);
+  if (changed) _whRefreshPage(_whPage); // สลับหน้าไหนก็รีเฟรชข้อมูลของหน้านั้นสดใหม่ทุกครั้ง ไม่ใช่ข้อมูลค้างจากตอน login
+}
+
+// รีเฟรชข้อมูลเฉพาะหน้าที่เพิ่งสลับไป — หน้า 0 (พยากรณ์ BULK) และหน้า 1 (ภาพรวมการผลิต) มีข้อมูลจริงให้รีเฟรช
+// หน้า 2 (เมนู) เป็นแค่ปุ่มคงที่ ไม่มีอะไรต้องโหลดใหม่ ไม่ทำอะไร — เรียกจาก _whGoPage ตอนเปลี่ยนหน้าจริง
+// (ไม่ใช่ทุกครั้งที่เรียกฟังก์ชัน กันไม่ให้ยิง query ซ้ำตอน loadWhTabletData เรียก _whGoPage(1) ครั้งแรก
+// ซึ่ง _whPage ก็เป็น 1 อยู่แล้วตั้งแต่ต้น ไม่ถือว่า "เปลี่ยน")
+function _whRefreshPage(p) {
+  if (p === 0) {
+    _whComputeBulkForecast().then(_whRenderForecast);
+  } else if (p === 1) {
+    loadProdStatusData().then(() => {
+      _whRenderKPIs();
+      _whRenderLineCards();
+      _whRenderSchedule();
+      _whRenderUpcomingPlan();
+    });
+  }
 }
 
 // เดิมมีแค่ touchstart/touchend (ไม่มี touchmove เลย) แปลว่าตอนลากนิ้ว การ์ดไม่ขยับตามนิ้วเลยจนกว่าจะปล่อย
@@ -8881,17 +8901,18 @@ async function planLoadData() {
   _planUpdateNavBadge();
 }
 
-// นับแผนที่ "เลยกำหนดยังไม่ยืนยัน" (PlanDate ≤ วันนี้ แต่ Status ยังเป็น 'วางแผน') ขึ้นเป็นเลขแจ้งเตือนสีแดง
-// ที่ nav-plan — query ตรงเองทุกครั้ง ไม่พึ่ง _planData (ซึ่งโหลดแค่เดือนที่กำลังดูอยู่ในปฏิทิน) เพราะต้องเห็นค่า
-// ที่ถูกต้องได้ตั้งแต่หน้าแรกหลัง login แม้ยังไม่เคยเข้าหน้าแผนผลิตเลยในเซสชันนี้ — นับเฉพาะที่เลยกำหนดจริง
-// ไม่นับแผนที่วางล่วงหน้าไว้ (Status='วางแผน' ปกติของทุกแผนก่อนถึงวันจริง) กันตัวเลขไม่มีความหมาย
+// นับแผนที่ "ยังไม่ยืนยัน" ทั้งหมด (Status='วางแผน') ไม่จำกัดเดือน/วันที่ ขึ้นเป็นเลขแจ้งเตือนสีแดงที่ nav-plan —
+// ตรงกับตัวเลข "รอยืนยัน" ในหน้าแผนผลิตเอง (planUpdateKPIs) แค่ไม่จำกัดแค่เดือนที่กำลังดูอยู่ในปฏิทิน (เพราะ
+// sidebar เป็นตัวเลขรวมทั้งระบบ ไม่ควรขึ้นกับว่าผู้ใช้กำลังเปิดดูปฏิทินเดือนไหนอยู่) — query ตรงเองทุกครั้ง ไม่พึ่ง
+// _planData เพราะต้องเห็นค่าที่ถูกต้องได้ตั้งแต่หน้าแรกหลัง login แม้ยังไม่เคยเข้าหน้าแผนผลิตเลยในเซสชันนี้
+// เดิมเคยกรองเฉพาะที่ "เลยกำหนดวันที่แล้ว" (PlanDate ≤ วันนี้) แต่ทำให้ตัวเลขไม่ตรงกับ "รอยืนยัน" ในหน้าแผนผลิต
+// จนงงว่าทำไมไม่ตรงกัน (ผู้ใช้ยืนยันแล้วว่าอยากให้นับรวมทั้งหมดแบบนี้แทน)
 async function _planUpdateNavBadge() {
   const badge = document.getElementById('nav-plan-badge');
   if (!badge) return;
-  const today = new Date().toISOString().split('T')[0];
   const { count, error } = await _sb.from('production_plan')
     .select('_row_id', { count: 'exact', head: true })
-    .eq('Status', 'วางแผน').lte('PlanDate', today);
+    .eq('Status', 'วางแผน');
   if (error) return; // เงียบไว้ — เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
   if (count > 0) {
     badge.textContent = count > 99 ? '99+' : String(count);
