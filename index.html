@@ -538,21 +538,23 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root{display:none}
 @media print{
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
   #deliverybill-print-root{display:none !important}
   #pcost-print-root{display:none !important}
   #weeklyreport-print-root{display:none !important}
+  #mo-released-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
   body.print-mode-delivery #deliverybill-print-root{display:block !important}
   body.print-mode-pcost #pcost-print-root{display:block !important}
   body.print-mode-weeklyreport #weeklyreport-print-root{display:block !important}
+  body.print-mode-moreleased #mo-released-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -570,6 +572,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      .wreport-print-page ไม่ตั้ง min-height (ปล่อยให้สูงตามเนื้อหาจริง) กันบั๊กเดียวกับที่เจอใน BPR
      (min-height ทำให้วัด scrollHeight ผิด) เพราะหน้านี้ไม่มีการวัดความสูงเพื่อจัดหน้าอัตโนมัติเลย */
   #weeklyreport-print-root .wreport-print-page{box-shadow:none !important;margin:0 !important}
+  /* ใบ Released (สติกเกอร์เขียว) แนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมได้เลย (ไม่ต้อง named page) —
+     .morel-sheet เป็น grid ตายตัว 2×5 ต่อแผ่น ไม่มีการวัดความสูงอัตโนมัติเหมือน BPR เลยไม่ต้องกัน min-height */
+  #mo-released-print-root .morel-sheet{box-shadow:none !important;margin:0 !important}
   @page{size:A4;margin:0}
   /* หน้ารายงาน MR ต้องพิมพ์แนวนอน — @page ไม่รองรับการ scope ด้วย selector/body class ตรงๆ (คุมได้แค่ทั้งเอกสาร)
      ต้องใช้ named page แทน (ประกาศ @page ชื่อ mrreport แล้วผูกกับ .mrrpt-page ด้วย CSS property "page:")
@@ -698,6 +703,76 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 .wreport-week-item span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .wreport-week-item span:last-child{font-weight:700;flex-shrink:0}
 .wreport-week-empty{font-size:10px;color:#94a3b8;text-align:center;padding:4px 0}
+
+/* ── ไลน์ผลิต MO: ออกใบ Released (สติกเกอร์เขียว FM-QC-01-05, 10 ดวง/แผ่น A4 2×5) ── */
+#moReleasedModal .modal-dialog{max-width:1180px}
+#moReleasedModal .modal-body{padding:0}
+.morel-body{display:flex}
+.morel-panel{width:340px;flex:none;padding:18px;overflow-y:auto;max-height:78vh;border-right:1px solid #e2e8f0;background:#fff}
+.morel-panel h6{font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.03em;margin:16px 0 10px}
+.morel-panel h6:first-child{margin-top:0}
+.morel-field{margin-bottom:11px}
+.morel-field label{display:block;font-size:.72rem;color:#64748b;margin-bottom:3px}
+.morel-field .ro{font-size:.82rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 9px;color:#1e293b}
+.morel-field .ro.code{font-family:'Courier New',Consolas,monospace}
+.morel-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.morel-check-row{display:flex;gap:12px;flex-wrap:wrap;font-size:.82rem}
+.morel-check-row label{display:flex;align-items:center;gap:5px;margin:0}
+.morel-badge-auto{font-size:.62rem;background:#eff6ff;color:#1e3a8a;border:1px solid #1e3a8a;padding:0 5px;border-radius:5px;margin-left:5px;font-weight:600}
+.morel-signoff{display:flex;gap:8px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:9px 10px;margin-top:12px;font-size:.72rem;color:#64748b}
+.morel-signoff b{color:#1e293b}
+.morel-count-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.morel-count-row button{width:26px;height:26px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer}
+.morel-count-row input{width:52px;text-align:center;border:1px solid #e2e8f0;border-radius:6px}
+.morel-count-hint{font-size:.68rem;color:#94a3b8;margin-top:4px}
+.morel-remark-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.8rem;color:#334155}
+.morel-remark-row input[type="number"]{width:60px;flex:none}
+.morel-remark-row input[type="text"]{flex:1;min-width:0}
+.morel-remark-uom{color:#64748b;white-space:nowrap}
+.morel-remark-del{border:none;background:none;color:#dc2626;cursor:pointer;font-size:1rem;line-height:1;padding:0 2px;flex:none}
+.morel-preview{flex:1;background:#525659;padding:24px;overflow:auto;max-height:78vh}
+
+/* แผ่นพิมพ์จริง — A4 พอดี 10 ดวงต่อแผ่น (2 คอลัมน์ × 5 แถว) หลายแผ่นถ้าเลือกมากกว่า 10 ดวง
+   หมายเหตุ (2026-08-14): รอบก่อนหน้าขยายตัวอักษรสะสมหลายรอบจนเนื้อหาต่อดวงเกินงบพื้นที่จริง — พิมพ์จริงจาก
+   เครื่อง Brother ออกมาล้นเป็น 2 แผ่น (แถวที่ 5 ถูกตัดครึ่งข้ามหน้า) เพราะ .morel-sheet ใช้ min-height (ไม่ใช่
+   height ตายตัว) — ถ้าผลรวมความสูงเนื้อหาจริงเกิน 297mm กริดจะขยายเกินหน้าแทนที่จะบีบให้พอ ค่าด้านล่างนี้ถูก
+   ปรับให้พอดี 1 แผ่นจริงอีกครั้ง (คำนวณจากงบพื้นที่ต่อดวง ~53mm: (297mm − padding 2×7mm − gap 4×3mm) / 5 แถว)
+   — ถ้าจะขยายตัวอักษรอีก ต้องเผื่อพื้นที่ตรงนี้เสมอ อย่าลืมงบ 53mm/ดวงนี้ */
+.morel-sheet{
+  width:210mm;min-height:297mm;background:#fff;box-sizing:border-box;padding:7mm;
+  margin:0 auto 16px;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);gap:3mm;
+  page-break-after:always;
+}
+.morel-sheet:last-child{page-break-after:auto;margin-bottom:0}
+.morel-sticker{
+  background:#8bb245;border:1.6px solid #141a0e;border-radius:2px;padding:2mm 2.8mm;
+  display:flex;flex-direction:column;font-family:Sarabun,sans-serif;color:#12210a;overflow:hidden;
+}
+.morel-formcode{font-size:7.5px;text-align:right;color:#12210a;letter-spacing:.01em}
+.morel-title{text-align:center;font-family:'Times New Roman',Georgia,serif;font-weight:700;font-size:16px;margin:.3mm 0 .8mm;letter-spacing:.02em}
+.morel-checks{display:flex;justify-content:space-between;font-size:9px;margin:0 auto 1mm;width:80%}
+.morel-checks span{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.morel-checks .box{width:9px;height:9px;border:1.1px solid #12210a;display:inline-block;text-align:center;line-height:7.8px;font-size:7.5px}
+.morel-checks .box.on{background:#12210a;color:#8bb245;font-weight:700}
+/* หัวข้อ (label) ขนาดเท่ากันทุกฟิลด์เสมอ — .val ต่างหากที่ถูกขยายเฉพาะฟิลด์สำคัญด้านล่าง
+   align-items:flex-end (ไม่ใช่ baseline) ทุกแถว — กันไม่ให้แถวที่ .val ว่างเปล่า (ดวงส่วนเกิน/Retest Date/
+   Remark ที่ไม่มีข้อมูล) ยุบเตี้ยกว่าแถวที่มีข้อมูลจริง ความสูงแถว/ที่ว่างเหนือเส้นใต้บรรทัดต้องเท่ากันเสมอ
+   เพราะช่องพวกนี้เอาไว้ให้เขียนด้วยมือ */
+.morel-line{font-size:10px;display:flex;gap:3px;margin:.4mm 0;align-items:flex-end}
+.morel-line b{font-weight:600;white-space:nowrap}
+.morel-line .val{flex:1;border-bottom:.6px solid #12210a;min-height:9px;padding-left:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.morel-line.split{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.morel-line.split>div{display:flex;gap:3px;align-items:flex-end}
+/* Name / RC No.-Lot No. / EXP Date / Remark — ตัวข้อมูลใหญ่+หนาสุด (สิ่งที่ QC มองหาก่อน) — ต้องใหญ่กว่าหัวข้อ
+   (label) เสมอ. min-height ตั้งใจปล่อยต่ำ (1px, แทบไม่มีผล) เพราะความสูงเท่ากันระหว่างแถวมีข้อมูล/แถวว่าง
+   มาจาก _morelValOrBlank() (ใส่ &nbsp; แทนค่าว่าง) ไม่ใช่จาก min-height — วิธีนี้ทนทานกว่าเพราะไม่ต้อง tune
+   ตัวเลขตามฟอนต์ที่โหลดได้จริง (เจอบั๊กจริงจากการ tune ตามฟอนต์ fallback ผิดตัวมาก่อน 2026-08-14) */
+.morel-line.emph .val,.morel-line.split>div.emph .val{font-size:12px;font-weight:700;min-height:1px;border-bottom-width:.7px}
+/* Code No. / MFG. Date / Date — ตัวข้อมูลใหญ่กว่าหัวข้อเล็กน้อย */
+.morel-line .val.mid,.morel-line.split>div.mid .val{font-size:11px;min-height:1px}
+/* Approved by — เว้นที่ว่างใต้เส้นให้พอเซ็นชื่อจริง (ลดจาก 16px เพื่อให้พอดี 1 แผ่น — ยังกว้างกว่าช่องปกติ) */
+.morel-line.split>div.sig .val{min-height:13px;border-bottom-width:.7px}
 
 /* ── MR Receive: Print Report Modal (เลือกข้อมูล + เลข RC No) ── */
 #mrReportModal .modal-dialog{max-width:1100px}
@@ -1299,13 +1374,22 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     </div>
     <div class="sticky-toolbar py-2">
       <div class="glass-card mb-0 py-2">
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
           <span class="search-wrap">
             <input type="text" id="fgstock-search" class="form-control form-control-sm search-input" style="max-width:240px"
               placeholder="🔍 ค้นหา..." oninput="renderFGStockTable()">
             <i class="fas fa-times-circle search-clear-icon" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา"></i>
           </span>
-          <button class="btn btn-sm btn-warning ms-auto" onclick="fgStockRecalculate()" title="คำนวณยอดใหม่จาก fg_receive − fg_withdraw">
+          <select id="fgstock-filter-series" class="form-select form-select-sm" style="max-width:170px" onchange="renderFGStockTable()">
+            <option value="">ซีรี่: ทั้งหมด</option>
+          </select>
+          <select id="fgstock-filter-type" class="form-select form-select-sm" style="max-width:170px" onchange="renderFGStockTable()">
+            <option value="">ประเภท: ทั้งหมด</option>
+          </select>
+          <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="fgCheckProductNames()" title="เช็คชื่อสินค้าใน fg_receive/stock_fg ให้ตรงกับ BOM (dry-run ก่อนแก้จริง)">
+            <i class="fas fa-spell-check me-1"></i>เช็คชื่อสินค้า (BOM)
+          </button>
+          <button class="btn btn-sm btn-warning" onclick="fgStockRecalculate()" title="คำนวณยอดใหม่จาก fg_receive − fg_withdraw">
             <i class="fas fa-calculator me-1"></i>คำนวณ Stock ใหม่
           </button>
           <button class="btn btn-sm btn-primary" onclick="loadFGStockData()">
@@ -1315,6 +1399,27 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
       </div>
     </div>
     <div class="scroll-content">
+      <!-- KPI -->
+      <div class="row g-3 mb-3" id="fgstock-kpi-row">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="cursor:pointer" onclick="fgStockClearFilters()" title="กดเพื่อดูรายการทั้งหมด (ล้างฟิลเตอร์)">
+            <div class="kpi-num" id="fgkpi-total-items">—</div>
+            <div class="kpi-label">รายการทั้งหมด (SKU)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#7c3aed">
+            <div class="kpi-num" style="color:#7c3aed" id="fgkpi-total-lots">—</div>
+            <div class="kpi-label">จำนวน Lot ทั้งหมด</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="kpi-card" style="border-color:#22c55e">
+            <div class="kpi-num text-success" id="fgkpi-total-qty" style="font-size:1.05rem;line-height:1.5">—</div>
+            <div class="kpi-label">จำนวนคงเหลือรวม (แยกตามหน่วย)</div>
+          </div>
+        </div>
+      </div>
       <div id="fgstock-cards">
         <div class="text-center text-muted py-5">
           <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
@@ -1352,6 +1457,10 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <option value="กำลังผลิต">กำลังผลิต</option>
             <option value="__done__">เสร็จสิ้น</option>
           </select>
+          <button class="btn btn-sm btn-outline-success" onclick="moReleasedPrintBlankSheet()"
+            title="พิมพ์ใบ Released เปล่า 1 แผ่น (10 ดวง) ไม่ผูกกับ MO ไหน — สำหรับเผื่อไว้เขียนมือ">
+            <i class="fas fa-tag me-1"></i>พิมพ์ใบ Released เปล่า
+          </button>
           <button class="btn btn-sm btn-primary ms-auto" onclick="loadMOData()">
             <i class="fas fa-sync-alt me-1"></i>รีเฟรช
           </button>
@@ -4110,6 +4219,90 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 <!-- รายงานการผลิต และต้นทุน Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P) -->
 <div id="pcost-print-root"></div>
 
+<!-- ════════════ ไลน์ผลิต MO: ออกใบ Released (สติกเกอร์เขียว FM-QC-01-05, ดวงละ 10 ต่อแผ่น A4) ════════════ -->
+<div class="modal fade" id="moReleasedModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-tag me-2"></i>ออกใบ Released</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="morel-body">
+          <div class="morel-panel">
+            <!-- Code No./Name/RC No.-Lot No. มาจาก MO เสมอ (ไม่มีทางว่าง) — ไม่ต้องแสดงในฟอร์มนี้ ดูได้ตรงพรีวิวขวา -->
+            <div class="morel-field">
+              <label>ประเภท</label>
+              <div class="morel-check-row">
+                <label><input type="checkbox" id="morel-cRM" onchange="morelRenderPreview()"> RM</label>
+                <label><input type="checkbox" id="morel-cPM" onchange="morelRenderPreview()"> PM</label>
+                <label><input type="checkbox" id="morel-cBulk" onchange="morelRenderPreview()"> Bulk</label>
+                <label><input type="checkbox" id="morel-cFG" checked onchange="morelRenderPreview()"> FG</label>
+              </div>
+            </div>
+
+            <h6>จำนวนที่จะพิมพ์</h6>
+            <div class="morel-count-row">
+              <button type="button" onclick="morelStepCount(-1)">−</button>
+              <input type="number" id="morel-count" value="10" min="1" step="1" oninput="morelOnCountInput()">
+              <button type="button" onclick="morelStepCount(1)">+</button>
+              <span class="small text-muted">= <span id="morel-sheets">1</span> แผ่น A4</span>
+            </div>
+            <div class="morel-count-hint">1 แผ่น = 10 ดวง (2×5) — ถ้าจำนวนไม่ครบ 10 ดวงพอดี ตำแหน่งที่เหลือในแผ่นสุดท้ายจะเว้นว่าง ไม่ลงข้อมูล</div>
+
+            <!-- EXP/MFG คำนวณจาก Bulk ที่เบิกจริงเสมอ (ดูผลได้ที่พรีวิวขวา) — ส่วนนี้โผล่มาเฉพาะตอนหาไม่เจอ
+                 (ต้องกรอก EXP Date เอง) เท่านั้น ปกติซ่อนไว้ -->
+            <div id="morel-bulk-section" style="display:none;">
+              <h6>Bulk ที่เบิกจริง</h6>
+              <div class="morel-field">
+                <div id="morel-bulksource"><span class="text-muted">—</span></div>
+              </div>
+              <div class="morel-row2">
+                <div class="morel-field">
+                  <label>EXP. Date</label>
+                  <div id="morel-exp-box"><div class="ro">—</div></div>
+                </div>
+                <div class="morel-field">
+                  <label>MFG. Date <span class="text-muted" style="font-weight:400">(EXP − 2 ปี)</span></label>
+                  <div id="morel-mfg-box"><div class="ro">—</div></div>
+                </div>
+              </div>
+            </div>
+
+            <h6>จำนวน/หน่วยต่อดวง (Remark)</h6>
+            <div class="morel-count-hint">แบ่งจำนวนที่จะพิมพ์ด้านบนออกเป็นกลุ่มย่อย แต่ละกลุ่มใส่จำนวน/หน่วยต่างกันได้</div>
+            <!-- หน่วยดึงจาก MO.UOM เสมอถ้ามี — ไม่ต้องแสดง โผล่มาเป็นช่องกรอกเฉพาะตอนดึงไม่ได้เท่านั้น -->
+            <div class="morel-field" id="morel-uom-manual-wrap" style="display:none;margin-top:8px;">
+              <label class="text-danger">ไม่พบหน่วยจาก MO — กรอกหน่วยเอง</label>
+              <input type="text" class="form-control form-control-sm" id="morel-uom-input"
+                placeholder="เช่น ขวด" oninput="morelOnUomManualChange()">
+            </div>
+            <div id="morel-remark-groups" style="margin-top:8px;"></div>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="morelAddRemarkGroup()">
+              <i class="fas fa-plus me-1"></i>เพิ่มกลุ่มจำนวน
+            </button>
+            <div class="morel-count-hint" id="morel-remark-total-hint"></div>
+
+            <div class="morel-signoff">
+              <i class="fas fa-pen"></i>
+              <div><b>Retest Date</b> และ <b>Approved by</b> เว้นว่างในใบพิมพ์ให้กรอก/เซ็นชื่อจริงด้วยมือ
+                (ช่อง Approved by ขยายสูงให้พอเซ็น) ส่วน <b>Date</b> คู่กันระบบเติมวันที่พิมพ์ให้อัตโนมัติ</div>
+            </div>
+          </div>
+          <div class="morel-preview" id="morel-preview-body"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="moReleasedPrint()">
+          <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="mo-released-print-root"></div>
+
 <!-- ════════════ MR Receive: Print Report Modal (เลือกวันที่/ซัพพลายเออร์ → ยืนยันเลข RC No → พิมพ์) ════════════ -->
 <div class="modal fade" id="mrReportModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -5508,6 +5701,118 @@ let _fgStockData = [];
 // คือลูกค้าของ CO ต้นทางที่ MO นี้ผูกไว้ (ที่มาของล็อต ไม่ใช่การจองจริง ของอาจถูกเบิกไปให้ลูกค้ารายอื่นก็ได้)
 let _fgStockOriginMap = {};
 
+// "ซีรี่"/"ประเภท" ไม่มีคอลัมน์เก็บจริงในระบบ (ยืนยันกับผู้ใช้แล้ว 2026-08-14) — แยกจาก ProductName
+// ด้วย keyword ประเภทสินค้าที่รู้จัก ข้อความก่อนคำที่แมตช์ถือเป็น "ซีรี่" ทั้งหมด (รวมชื่อแบรนด์ เช่น
+// "Esc White Tea") — เป็น heuristic คร่าวๆ ไม่ใช่ข้อมูลจริงจาก DB ถ้าชื่อสินค้าไม่มีคำในลิสต์นี้เลย
+// จะตกไปกลุ่ม "ไม่ระบุ" ทั้งซีรี่และประเภท
+//
+// รอบแรก (2026-08-14) hardcode คู่ "Body Wash"/"Body Lotion" ไว้ตรงๆ เพื่อกัน "Wash"/"Lotion" เดี่ยวๆ
+// ไปแมตช์ก่อนแล้วปล่อยให้ "Body" หลุดไปติดอยู่ใน series แทน — พอเจอสินค้าจริงที่มี "Body Moisturiser"/
+// "Aroma Spray" ก็เป็นบั๊กคลาสเดียวกันซ้ำ (ผู้ใช้รายงานว่า "Moisturiser"/"Spray" ยังจัดกลุ่มไม่ได้)
+// แก้แบบ generalize แทนไล่ hardcode ทีละคู่: ประกอบทุก qualifier×base เป็นวลีก่อน แล้วเรียงจากคำ
+// ยาว(หลายคำ)ไปคำสั้น(คำเดียว) — วลีที่มี qualifier ติดจะถูกลองแมตช์ก่อนคำเดี่ยวเสมอ
+const FG_TYPE_QUALIFIERS = ['Body', 'Hand', 'Face', 'Hair', 'Aroma', 'Baby', 'Bath'];
+const FG_TYPE_BASES = [
+  'Wash', 'Lotion', 'Moisturiser', 'Moisturizer', 'Shampoo', 'Conditioner',
+  'Cream', 'Serum', 'Toner', 'Sunscreen', 'Perfume', 'Mist', 'Balm', 'Powder',
+  'Scrub', 'Mask', 'Soap', 'Oil', 'Gel', 'Spray', 'Butter', 'Salt',
+];
+const FG_TYPE_KEYWORDS = [
+  ...FG_TYPE_QUALIFIERS.flatMap(q => FG_TYPE_BASES.map(b => `${q} ${b}`)),
+  ...FG_TYPE_BASES,
+].sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length);
+function _fgParseNameParts(name) {
+  const n = (name || '').trim();
+  for (const kw of FG_TYPE_KEYWORDS) {
+    const re = new RegExp('\\b' + kw.replace(/\s+/g, '\\s+') + '\\b', 'i');
+    const m = n.match(re);
+    if (m) {
+      const series = n.slice(0, m.index).trim().replace(/[-–,]+$/, '').trim();
+      return { series: series || 'ไม่ระบุซีรี่', type: kw };
+    }
+  }
+  return { series: 'ไม่ระบุซีรี่', type: 'ไม่ระบุประเภท' };
+}
+
+// จัดกลุ่ม _fgStockData ตาม ProductCode (ซ่อน Lot ที่หมด) พร้อมแนบ series/type ที่แยกได้ —
+// ใช้ร่วมกันทั้ง render/KPI/filter-dropdown กันตรรกะ group ไปเบี้ยวกันคนละที่
+function _fgStockGroupAll() {
+  const groupMap = {};
+  for (const r of _fgStockData) {
+    const lotVal = r.LotFG || r['Lot_FG'] || r.LOT || '';
+    const qty    = parseFloat(r.FGBalance ?? r.QtyBalance ?? r.QtyOnHand ?? 0) || 0;
+    if (qty <= 0) continue; // ซ่อน lot ที่หมด
+    const key = r.ProductCode || r.ProductName || '—';
+    if (!groupMap[key]) groupMap[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] };
+    groupMap[key].lots.push({ ...r, _lot: lotVal, _qty: qty });
+  }
+  return Object.values(groupMap)
+    .filter(g => g.lots.length)
+    .map(g => ({ ...g, parts: _fgParseNameParts(g.name) }));
+}
+
+// เติม option ของฟิลเตอร์ซีรี่/ประเภท จากข้อมูลทั้งหมดที่โหลดมา (ไม่ใช่หลัง filter) — คงค่าที่เลือกไว้
+// เดิมถ้ายังมีอยู่ในลิสต์ใหม่ ไม่งั้นรีเซ็ตเป็น "ทั้งหมด"
+function _fgStockPopulateFilters() {
+  const groups = _fgStockGroupAll();
+  const seriesList = [...new Set(groups.map(g => g.parts.series))].sort((a,b) => a.localeCompare(b));
+  const typeList   = [...new Set(groups.map(g => g.parts.type))].sort((a,b) => a.localeCompare(b));
+
+  const seriesSel = document.getElementById('fgstock-filter-series');
+  const typeSel   = document.getElementById('fgstock-filter-type');
+  if (seriesSel) {
+    const prev = seriesSel.value;
+    seriesSel.innerHTML = '<option value="">ซีรี่: ทั้งหมด</option>' + seriesList.map(s => `<option value="${s}">${s}</option>`).join('');
+    seriesSel.value = seriesList.includes(prev) ? prev : '';
+  }
+  if (typeSel) {
+    const prev = typeSel.value;
+    typeSel.innerHTML = '<option value="">ประเภท: ทั้งหมด</option>' + typeList.map(t => `<option value="${t}">${t}</option>`).join('');
+    typeSel.value = typeList.includes(prev) ? prev : '';
+  }
+}
+
+// KPI รวมของทั้งหน้า (จากข้อมูลทั้งหมด ไม่ผ่าน filter/search — เหมือนหลักการ updateStockKPIs() หน้า
+// Stock วัตถุดิบ) จำนวนคงเหลือรวมแยกตามหน่วยเสมอ ไม่บวกข้าม UOM กัน (เช่น หลอด+ขวด รวมกันไม่ได้)
+function updateFGStockKPIs() {
+  const groups = _fgStockGroupAll();
+  const totalLots = groups.reduce((s, g) => s + g.lots.length, 0);
+  const uomTotals = {};
+  groups.forEach(g => g.lots.forEach(l => {
+    const u = l.UOM || '—';
+    uomTotals[u] = (uomTotals[u] || 0) + l._qty;
+  }));
+  const qtyStr = Object.entries(uomTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([uom, qty]) => `${qty.toLocaleString()} ${uom}`)
+    .join(' · ') || '—';
+
+  document.getElementById('fgkpi-total-items').textContent = groups.length.toLocaleString();
+  document.getElementById('fgkpi-total-lots').textContent  = totalLots.toLocaleString();
+  document.getElementById('fgkpi-total-qty').textContent   = qtyStr;
+}
+
+function fgStockClearFilters() {
+  const q = document.getElementById('fgstock-search');
+  const s = document.getElementById('fgstock-filter-series');
+  const t = document.getElementById('fgstock-filter-type');
+  if (q) q.value = '';
+  if (s) s.value = '';
+  if (t) t.value = '';
+  renderFGStockTable();
+}
+
+// ── ปุ่ม "ดูการ์ดสต็อก" บนการ์ด FG — ไปหน้าการ์ดสต็อกโหมด FG พร้อมเลือกสินค้าตัวนี้ให้ทันที
+// (มิเรอร์ stockOpenCardReport() ของหน้า Stock วัตถุดิบ ต่างกันแค่สลับไปโหมด "fg") ──
+function fgStockOpenCardReport(code, name) {
+  showPage('stockcard', document.getElementById('nav-stockcard'));
+  const fgRadio = document.getElementById('stockcard-mode-fg');
+  if (!fgRadio.checked) { fgRadio.checked = true; stockcardOnModeChange(); }
+  document.getElementById('stockcard-f-from').value = '';
+  document.getElementById('stockcard-f-to').value = '';
+  stockcardSelectItem(code, name);
+}
+
 async function loadFGStockData() {
   _showLoader();
   const [stockRes, receiveRes] = await Promise.all([
@@ -5543,25 +5848,19 @@ async function loadFGStockData() {
   }
 
   _hideLoader();
+  _fgStockPopulateFilters();
+  updateFGStockKPIs();
   renderFGStockTable();
 }
 
 function renderFGStockTable() {
-  const q = (document.getElementById('fgstock-search')?.value || '').toLowerCase();
+  const q       = (document.getElementById('fgstock-search')?.value || '').toLowerCase();
+  const seriesF = document.getElementById('fgstock-filter-series')?.value || '';
+  const typeF   = document.getElementById('fgstock-filter-type')?.value || '';
 
-  // Group by ProductCode
-  const groupMap = {};
-  for (const r of _fgStockData) {
-    const lotVal = r.LotFG || r['Lot_FG'] || r.LOT || '';
-    const qty    = parseFloat(r.FGBalance ?? r.QtyBalance ?? r.QtyOnHand ?? 0) || 0;
-    if (qty <= 0) continue; // ซ่อน lot ที่หมด
-    const key = r.ProductCode || r.ProductName || '—';
-    if (!groupMap[key]) groupMap[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] };
-    groupMap[key].lots.push({ ...r, _lot: lotVal, _qty: qty });
-  }
-
-  let items = Object.values(groupMap).filter(g => {
-    if (!g.lots.length) return false;
+  let items = _fgStockGroupAll().filter(g => {
+    if (seriesF && g.parts.series !== seriesF) return false;
+    if (typeF && g.parts.type !== typeF) return false;
     if (q) {
       const hay = [g.code, g.name, ...g.lots.map(r => r._lot)].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -5608,10 +5907,12 @@ function renderFGStockTable() {
 
     return `
     <div class="glass-card mb-2 p-0 overflow-hidden">
-      <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
            onclick="stockToggleLots(this)">
         <span class="badge bg-secondary">${g.code||'—'}</span>
-        <span class="fw-semibold" style="font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name||'—'}</span>
+        <span class="badge bg-light text-dark border" style="font-size:.7rem" title="ซีรี่ (แยกจากชื่อสินค้าโดยประมาณ)">${g.parts.series}</span>
+        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:.7rem" title="ประเภท (แยกจากชื่อสินค้าโดยประมาณ)">${g.parts.type}</span>
+        <span class="fw-semibold" style="font-size:.9rem;flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name||'—'}</span>
         <span style="font-size:.8rem;color:#64748b;white-space:nowrap">
           ${lotHeaderStr}
           &nbsp;·&nbsp;
@@ -5619,6 +5920,9 @@ function renderFGStockTable() {
           ${expStr ? `&nbsp;·&nbsp;<i class="fas fa-calendar-alt opacity-50 me-1"></i>${expStr}` : ''}
         </span>
         <span class="badge bg-success">มีสต็อก</span>
+        ${g.code ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem" onclick="event.stopPropagation();fgStockOpenCardReport('${g.code}','${(g.name||'').replace(/'/g,"\\'")}')" title="ดูการ์ดสต็อก">
+          <i class="fas fa-address-card"></i>
+        </button>` : '<span></span>'}
         <i class="fas fa-chevron-down text-muted" style="font-size:.75rem;transition:transform .2s"></i>
       </div>
       <div class="stock-lot-detail" style="display:none;border-top:1px solid #e5e7eb">
@@ -5708,6 +6012,114 @@ async function fgStockRecalculate() {
            อัพเดต <b>${newRows.length}</b> Lot ใน stock_fg`,
     confirmButtonText: 'OK'
   });
+}
+
+// เพจผ่านทั้งตาราง (PostgREST cap 1000 แถว/request เสมอ ไม่ว่า .limit() จะขอเกินแค่ไหน — ดู _bomFetchPaged)
+// ทำเป็น helper แยกเพราะ fg_receive/stock_fg ไม่มี dedicated paginator ของตัวเองเหมือน bom
+async function _fetchAllPaged(table, selectCols) {
+  const pageSize = 1000;
+  let from = 0, all = [];
+  while (true) {
+    const { data, error } = await _sb.from(table).select(selectCols).range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
+
+// ── ตรวจ/ซิงค์ชื่อสินค้าใน fg_receive + stock_fg ให้ตรงกับ bom ──
+// bom คือ master data ของชื่อสินค้าจริง (bomProductSubmit เขียนชื่อลงทุกแถวของ ProductCode เดียวกัน
+// เสมอ ไม่มีทางเพี้ยนเองได้ถ้าแก้ผ่านหน้า BOM) ส่วน fg_receive/stock_fg รับชื่อมาจากการพิมพ์/เลือกตอน
+// รับ FG (fgSelectBOM/fgOnMOChange) ซึ่งข้อมูลเก่าที่ migrate มาจาก GAS อาจไม่ตรงกันได้ — ทำ dry-run
+// ก่อนเสมอ (ตาม Workflow rule ของโปรเจกต์: bulk update ต้อง dry-run + ยืนยันก่อน ไม่ทำเงียบๆ)
+async function fgCheckProductNames() {
+  _showLoader();
+  const [bomRes, fgRecRes, fgStockRes] = await Promise.all([
+    _bomFetchAllRows(),
+    _fetchAllPaged('fg_receive', 'ProductCode,ProductName'),
+    _fetchAllPaged('stock_fg', 'ProductCode,ProductName'),
+  ]);
+  _hideLoader();
+  if (bomRes.error)     { _err('โหลด bom ไม่ได้', bomRes.error.message); return; }
+  if (fgRecRes.error)   { _err('โหลด fg_receive ไม่ได้', fgRecRes.error.message); return; }
+  if (fgStockRes.error) { _err('โหลด stock_fg ไม่ได้', fgStockRes.error.message); return; }
+
+  // ชื่อจริงต่อ ProductCode ตาม bom — ถ้า ProductCode เดียวกันมีชื่อไม่ตรงกันเองใน bom (ข้อมูลเก่าที่ไม่
+  // เคยผ่าน bomProductSubmit) ถือว่าไม่ชัวร์ ข้ามไปเลย ไม่กล้าเดาให้ ต้องให้ผู้ใช้ไปแก้ที่หน้า BOM ก่อน
+  const bomNamesByCode = {};
+  (bomRes.data || []).forEach(r => {
+    if (!r.ProductCode) return;
+    (bomNamesByCode[r.ProductCode] ||= new Set()).add((r.ProductName || '').trim());
+  });
+  const canonicalMap = {};
+  const bomAmbiguous = [];
+  Object.entries(bomNamesByCode).forEach(([code, names]) => {
+    if (names.size === 1) canonicalMap[code] = [...names][0];
+    else bomAmbiguous.push({ code, names: [...names] });
+  });
+
+  // หา mismatch ต่อ ProductCode (ไม่ใช่ต่อแถว — จะอัปเดตทีเดียวทั้ง ProductCode ด้วย .eq('ProductCode',...))
+  function findMismatches(rows) {
+    const seen = {};
+    rows.forEach(r => {
+      if (!r.ProductCode || !canonicalMap[r.ProductCode]) return;
+      const cur = (r.ProductName || '').trim();
+      if (cur !== canonicalMap[r.ProductCode] && !seen[r.ProductCode]) {
+        seen[r.ProductCode] = { code: r.ProductCode, from: cur };
+      }
+    });
+    return Object.values(seen);
+  }
+  const fgRecMismatch   = findMismatches(fgRecRes.data || []);
+  const fgStockMismatch = findMismatches(fgStockRes.data || []);
+  const allCodes = [...new Set([...fgRecMismatch.map(m => m.code), ...fgStockMismatch.map(m => m.code)])];
+
+  if (!allCodes.length) {
+    Swal.fire({ icon: 'success', title: 'ชื่อสินค้าตรงกับ BOM หมดแล้ว',
+      html: bomAmbiguous.length
+        ? `แต่พบ <b>${bomAmbiguous.length}</b> รหัสที่ BOM เองมีชื่อไม่ตรงกัน (ข้ามการเช็คไป เพราะไม่รู้ว่าชื่อไหนถูก) — ไปแก้ที่หน้า BOM ก่อน:<br>` +
+          bomAmbiguous.slice(0, 10).map(a => `<div class="text-start small">${a.code}: ${a.names.join(' / ')}</div>`).join('')
+        : 'ไม่พบรหัสสินค้าที่ชื่อใน fg_receive/stock_fg ต่างจาก BOM เลย' });
+    return;
+  }
+
+  const rowsHtml = allCodes.map(code => {
+    const rec = fgRecMismatch.find(m => m.code === code);
+    const st  = fgStockMismatch.find(m => m.code === code);
+    const fromNames = [...new Set([rec?.from, st?.from].filter(Boolean))].join(' / ');
+    return `<tr>
+      <td class="text-start">${code}</td>
+      <td class="text-start text-success">${canonicalMap[code]}</td>
+      <td class="text-start text-danger">${fromNames}</td>
+    </tr>`;
+  }).join('');
+
+  const conf = await Swal.fire({
+    title: `พบ ${allCodes.length} รหัสสินค้าที่ชื่อไม่ตรงกับ BOM`,
+    html: `<div style="max-height:300px;overflow:auto">
+      <table class="table table-sm"><thead><tr>
+        <th class="text-start">รหัส</th><th class="text-start">ชื่อใน BOM (จะใช้)</th><th class="text-start">ชื่อเดิมที่เจอ</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table></div>
+      ${bomAmbiguous.length ? `<div class="text-start small text-warning mt-2">หมายเหตุ: อีก ${bomAmbiguous.length} รหัสที่ BOM เองมีชื่อไม่ตรงกัน ข้ามไปก่อน ไม่แก้ให้อัตโนมัติ</div>` : ''}
+      <div class="text-start small text-muted mt-2">กด "แก้เลย" เพื่ออัปเดตชื่อใน fg_receive และ stock_fg ให้ตรงกับ BOM ทั้งหมด</div>`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonText: 'แก้เลย', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d97706',
+    width: 650,
+  });
+  if (!conf.isConfirmed) return;
+
+  _showLoader();
+  for (const code of allCodes) {
+    const name = canonicalMap[code];
+    if (fgRecMismatch.find(m => m.code === code))   await _sb.from('fg_receive').update({ ProductName: name }).eq('ProductCode', code);
+    if (fgStockMismatch.find(m => m.code === code)) await _sb.from('stock_fg').update({ ProductName: name }).eq('ProductCode', code);
+  }
+  _hideLoader();
+  _logAudit('EDIT', 'stock_fg', allCodes.join(', '), `ซิงค์ชื่อสินค้า ${allCodes.length} รหัสให้ตรงกับ BOM`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ซิงค์ชื่อสินค้าสำเร็จ ${allCodes.length} รหัส`, showConfirmButton:false, timer:2500 });
+  loadFGStockData();
 }
 
 // ══════════════════════════════════════════════
@@ -5847,6 +6259,7 @@ function renderMOTable() {
           <b>${r.ProductName||'—'}</b>
           <span class="badge bg-light text-dark border ms-2">${r.ProductCode||'—'}</span>
           <span class="badge bg-light text-dark border ms-1"><i class="fas fa-layer-group me-1 opacity-50"></i>${r.LOT||'—'}</span>
+          <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-1" title="ยอดสั่งผลิต"><i class="fas fa-boxes-stacked me-1 opacity-50"></i>${(parseFloat(r.OrderQty)||0).toLocaleString()} ${r.UOM||''}</span>
           ${matCheck && matCheck.shortfallCount > 0 ? `<span class="badge bg-danger ms-2" title="วัตถุดิบไม่พอเบิก"><i class="fas fa-exclamation-triangle me-1"></i>ขาดวัตถุดิบ ${matCheck.shortfallCount} รายการ</span>` : ''}
           ${matCheck && matCheck.shortfallCount === 0 && matCheck.lines.length > 0 ? `<span class="badge bg-success ms-2"><i class="fas fa-check me-1"></i>วัตถุดิบพอ</span>` : ''}
         </div>
@@ -5918,6 +6331,9 @@ function renderMOTable() {
           </button>` : ''}
           <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();moOpenModal(${r._row_id})" title="แก้ไข">
             <i class="fas fa-edit me-1"></i>แก้ไข
+          </button>
+          <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();moReleasedOpenModal(${r._row_id})" title="ออกใบ Released (สติกเกอร์เขียว QC)">
+            <i class="fas fa-tag me-1"></i>ใบ Released
           </button>
           ${!isDone ? `<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();moForceClose(${r._row_id})" title="ตัดจบงาน (ปิดแม้ผลิตไม่ครบ)">
             <i class="fas fa-flag-checkered me-1"></i>ตัดจบงาน
@@ -7218,12 +7634,17 @@ async function fgUpdateMOProgress(moId, deltaQty) {
 
 async function fgUpdateStock(prodCode, prodName, lotFG, qty, uom, expDate, moId, isAdd) {
   if (!lotFG || qty <= 0) return;
-  const { data: existing } = await _sb
+  const { data: existing, error: selError } = await _sb
     .from('stock_fg')
     .select('_row_id,FGBalance')
     .eq('ProductCode', prodCode)
     .eq('LotFG', lotFG)
     .maybeSingle();
+
+  if (selError) {
+    _err('อัปเดต Stock FG ไม่สำเร็จ', `${prodCode} / Lot ${lotFG}: ${selError.message} — กด "คำนวณ Stock ใหม่" ที่หน้า Stock FG เพื่อแก้ยอดให้ตรง`);
+    return;
+  }
 
   if (existing) {
     const newBal = Math.max(0, (parseFloat(existing.FGBalance)||0) + (isAdd ? qty : -qty));
@@ -7530,6 +7951,9 @@ function fgoutRenderBillGroups() {
           </div>
           <div class="d-flex align-items-center gap-2">
             ${statusSummary}
+            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvbillOpenModal(${JSON.stringify(g.rows.map(r => r._row_id))})" title="ปริ้นใบส่งสินค้าซ้ำ">
+              <i class="fas fa-print me-1"></i>ปริ้นใบส่งสินค้า
+            </button>
             ${actionHtml}
             <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
           </div>
@@ -7573,6 +7997,38 @@ async function fgoutBillAdvanceAll(billNo) {
   if (wdRefs.length) await _sb.from('fg_withdraw').update({ 'ส่งแล้ว': 1 }).in('_row_id', wdRefs);
   const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
   for (const coRef of coRefs) await _deliveryCheckCOComplete(coRef);
+
+  // แจ้งไลน์กลุ่มจัดส่ง (คนละกลุ่มกับคลัง) — ไม่ await กันการแจ้งช้า/ล้มเหลวไปหน่วงหน้าจอ
+  _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs);
+}
+
+// ส่งสรุปการจัดส่งแบบย่อเข้าไลน์กลุ่มจัดส่ง (วันที่/ลูกค้า/เลขใบส่ง/รายการชื่อ-ล็อต-จำนวน/PO ที่ตัด)
+// ผ่าน Edge Function notify-fg-delivery-success ซึ่งเป็นตัวรีเลย์ไป LINE เท่านั้น (เก็บ token ไว้ฝั่งเซิร์ฟเวอร์)
+// best-effort ล้วนๆ — ล้มเหลวแค่ log ไว้ ไม่โชว์ error ให้ user เพราะการจัดส่งจริงในระบบเสร็จไปแล้วก่อนหน้านี้
+async function _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs) {
+  try {
+    let poNos = [];
+    if (coRefs.length) {
+      const { data } = await _sb.from('customer_orders').select('PO_No').in('Order_ID', coRefs);
+      poNos = [...new Set((data || []).map(c => c.PO_No).filter(Boolean))];
+    }
+    const customer = rows[0]?.CustomerName || '—';
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    const itemLines = rows.map((r, i) =>
+      `${i + 1}. ${r.ProductName || '—'} | Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
+    ).join('\n');
+    const text =
+      `📦 แจ้งจัดส่งสำเร็จ\n` +
+      `วันที่: ${dateStr}\n` +
+      `ลูกค้า: ${customer}\n` +
+      `เลขใบส่งสินค้า: ${billNo}\n` +
+      `PO: ${poNos.length ? poNos.join(', ') : '—'}\n\n` +
+      `รายการที่ส่ง:\n${itemLines}`;
+    await _sb.functions.invoke('notify-fg-delivery-success', { body: { text } });
+  } catch (e) {
+    console.error('LINE notify (delivery success) failed', e);
+  }
 }
 
 function fgoutCheckState() {
@@ -8272,20 +8728,29 @@ let _dlvbillModal       = null;
 let _dlvbillIds         = [];    // _row_id ของแถว delivery ที่เลือกไว้ตอนเปิด modal
 let _dlvbillConfirmed   = false;
 let _dlvbillConfirmedNo = '';
-// แพ็คกิ้ง (ขั้นตอน 1.5) — สโคปเดียวกันกับ _dlvbillIds เท่านั้น ไม่ persist ข้าม modal (เริ่มใหม่ทุกครั้งที่เปิด),
-// มีแค่ "จำนวนต่อกล่อง" ที่จำไว้ข้าม session ผ่าน product_packing_defaults (โหลดเข้า _dlvbillPackDefaults ตอนเปิด)
+// แพ็คกิ้ง (ขั้นตอน 1.5) — สโคปเดียวกันกับ _dlvbillIds เท่านั้น "จำนวนต่อกล่อง" จำไว้ข้าม session
+// ผ่าน product_packing_defaults (โหลดเข้า _dlvbillPackDefaults ตอนเปิด) เหมือนเดิม ส่วนกล่องผสม
+// (mixBoxes) เดิมอยู่ใน memory ล้วนๆ ไม่ persist — พังทันทีที่เปิด modal ซ้ำเพื่อพิมพ์ใบเดิมอีกรอบ
+// (ต้องจัดกล่องผสมใหม่ทุกครั้ง) จึงเพิ่ม delivery_bill_numbers.PackingJSON ผูกทั้งก้อนนี้กับเลขที่ใบ
+// ที่ยืนยันแล้ว — _dlvbillRestorePacking() โหลดกลับตอนเปิด modal ถ้าสโคปนี้มีเลขใบเดิมอยู่แล้ว,
+// _dlvbillPersistPacking() เซฟกลับทุกจุดที่แก้ (dlvbillPackSizeChange/dlvbillSaveMix/dlvbillRemoveMix
+// และตอน dlvbillConfirmNo ยืนยันเลขใหม่)
 let _dlvbillPacking     = {};    // groupKey -> { packSize:number|null, mixBoxes:[{n, alloc:{lotKey:qty}}] }
 let _dlvbillPackDefaults = {};   // ProductCode -> PackSize ล่าสุดที่จำไว้
 let _dlvbillGroupOrder  = [];    // ลำดับ groupKey เดียวกันทั้ง renderPacking/renderPreview — ให้ index อ้างกลุ่มเดิมได้เสมอ
 let _dlvbillMixSeq      = 1;
 
-async function dlvbillOpenModal() {
-  _dlvbillIds = Array.from(document.querySelectorAll('.fgout-row-check:checked'))
-    .map(c => parseInt(c.dataset.dlvid)).filter(id => !isNaN(id));
+// explicitIds: เปิด modal ตรงจาก id ที่รู้แล้ว (เช่นปุ่ม "ปริ้นใบส่งสินค้า" บนการ์ดใน #fgout-bill-groups
+// ให้ปริ้นใบที่ออกไปแล้วซ้ำได้ตลอด) — ไม่ระบุ = อ่านจาก checkbox ที่ติ๊กในตารางเบิก FG แบบเดิม
+async function dlvbillOpenModal(explicitIds) {
+  _dlvbillIds = (explicitIds && explicitIds.length)
+    ? explicitIds.slice()
+    : Array.from(document.querySelectorAll('.fgout-row-check:checked'))
+        .map(c => parseInt(c.dataset.dlvid)).filter(id => !isNaN(id));
   if (!_dlvbillIds.length) return;
   if (!_dlvbillModal) _dlvbillModal = new bootstrap.Modal(document.getElementById('dlvbillModal'));
-  _dlvbillPacking = {};
   await dlvbillLoadPackDefaults();
+  await _dlvbillRestorePacking();
   dlvbillRenderPacking();
   dlvbillOnScopeChange();
   dlvbillRenderHistory();
@@ -8315,6 +8780,26 @@ async function dlvbillLoadPackDefaults() {
   if (!codes.length) return;
   const { data, error } = await _sb.from('product_packing_defaults').select('ProductCode,PackSize').in('ProductCode', codes);
   if (!error) (data || []).forEach(r => { _dlvbillPackDefaults[r.ProductCode] = parseFloat(r.PackSize) || null; });
+}
+
+// โหลดค่ากล่องผสม/จำนวนต่อกล่องที่เคยจัดไว้กลับมา ถ้าสโคปที่เปิดตรงกับใบที่ยืนยันเลขไปแล้ว (พิมพ์ซ้ำ)
+// สโคปใหม่ที่ยังไม่มีเลข หรือเลขไม่ตรงกันทั้งหมด (บางแถวมีบางแถวไม่มี) = ไม่มีอะไรให้โหลด เริ่มจัดใหม่ตามปกติ
+async function _dlvbillRestorePacking() {
+  _dlvbillPacking = {};
+  const rows = _dlvbillScopeRows();
+  const billNos = [...new Set(rows.map(r => r.DeliveryBillNo).filter(Boolean))];
+  if (!(rows.length && billNos.length === 1 && rows.every(r => r.DeliveryBillNo === billNos[0]))) return;
+  const { data, error } = await _sb.from('delivery_bill_numbers').select('PackingJSON').eq('BillNo', billNos[0]).maybeSingle();
+  if (!error && data?.PackingJSON) _dlvbillPacking = data.PackingJSON;
+}
+
+// เซฟ _dlvbillPacking กลับลง delivery_bill_numbers ผูกกับเลขที่ใบที่ยืนยันแล้วเท่านั้น — ถ้ายังไม่ยืนยันเลข
+// ยังไม่มีแถวให้ผูก (จะเซฟตอน dlvbillConfirmNo ยืนยันเลขใหม่แทน) best-effort ล้วนๆ ไม่โชว์ error ให้ user
+// เพราะไม่กระทบข้อมูลจัดส่งจริง กระทบแค่ต้องจัดกล่องผสมใหม่ตอนพิมพ์ซ้ำ
+async function _dlvbillPersistPacking() {
+  if (!_dlvbillConfirmed || !_dlvbillConfirmedNo) return;
+  const { error } = await _sb.from('delivery_bill_numbers').update({ PackingJSON: _dlvbillPacking }).eq('BillNo', _dlvbillConfirmedNo);
+  if (error) console.error('เซฟการจัดกล่องไม่สำเร็จ', error);
 }
 
 // คำนวณกล่องเต็ม/เศษ/เศษที่ถูกจัดเข้ากล่องผสมไปแล้ว ต่อ Lot ในกลุ่มสินค้าเดียว — ไม่แก้ state ตรงนี้ แค่คำนวณอย่างเดียว
@@ -8406,6 +8891,7 @@ async function dlvbillPackSizeChange(idx, value) {
       _dlvbillPackDefaults[g.code] = val;
     }
   }
+  await _dlvbillPersistPacking();
 }
 
 function dlvbillOpenMixForm(idx) {
@@ -8429,7 +8915,7 @@ function dlvbillOpenMixForm(idx) {
     </div>`;
 }
 
-function dlvbillSaveMix(idx) {
+async function dlvbillSaveMix(idx) {
   const key = _dlvbillGroupOrder[idx];
   const g = _dlvbillBuildGroups(_dlvbillScopeRows()).groups[key];
   const calc = _dlvbillPackCalc(key, g);
@@ -8453,14 +8939,16 @@ function dlvbillSaveMix(idx) {
   if (formEl) formEl.innerHTML = '';
   dlvbillRenderPacking();
   dlvbillRenderPreview();
+  await _dlvbillPersistPacking();
 }
 
-function dlvbillRemoveMix(idx, mixN) {
+async function dlvbillRemoveMix(idx, mixN) {
   const key = _dlvbillGroupOrder[idx];
   if (!_dlvbillPacking[key]) return;
   _dlvbillPacking[key].mixBoxes = _dlvbillPacking[key].mixBoxes.filter(m => m.n !== mixN);
   dlvbillRenderPacking();
   dlvbillRenderPreview();
+  await _dlvbillPersistPacking();
 }
 
 // เช็คว่า scope นี้ (ids ที่ติ๊กไว้) เคยออกเลขไปแล้วหรือยัง — ทุกแถวมีเลขเดียวกันครบ = เคยยืนยันแล้ว โชว์เลขเดิมล็อกไว้พิมพ์ได้ทันที
@@ -8543,6 +9031,7 @@ async function dlvbillConfirmNo() {
 
   const { error: insErr } = await _sb.from('delivery_bill_numbers').insert({
     BillNo: val, Year: year, CustomerName: customer, DeliveryRowIds: _dlvbillIds.join(','),
+    PackingJSON: _dlvbillPacking, // เก็บการจัดกล่องผสม/จำนวนต่อกล่องที่จัดไว้ตอนกดยืนยันเลข ให้พิมพ์ซ้ำทีหลังเห็นเหมือนเดิม
   });
   if (insErr) {
     _hideLoader();
@@ -11741,10 +12230,11 @@ function _prodrecordRenderExpanded(r) {
 
   const costHtml = r.Status !== 'อนุมัติแล้ว' ? '' : `
     <div class="row g-2 text-center mt-2">
-      <div class="col-3"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">วัตถุดิบ</div></div></div>
-      <div class="col-3"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.LaborCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ค่าแรง</div></div></div>
-      <div class="col-3"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.Overhead)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead</div></div></div>
-      <div class="col-3"><div class="p-2 rounded" style="background:#eff6ff"><div class="fw-bold text-primary">฿${(parseFloat(r.TotalCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">รวม (฿${(parseFloat(r.CostPerUnit)||0).toLocaleString(undefined,{maximumFractionDigits:2})}/หน่วย)</div></div></div>
+      <div class="col"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">วัตถุดิบ</div></div></div>
+      <div class="col"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.LaborCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ค่าแรง</div></div></div>
+      <div class="col"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.Overhead)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead</div></div></div>
+      <div class="col"><div class="p-2 rounded" style="background:#eff6ff"><div class="fw-bold text-primary">฿${(parseFloat(r.TotalCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">รวม (฿${(parseFloat(r.CostPerUnit)||0).toLocaleString(undefined,{maximumFractionDigits:2})}/หน่วย)</div></div></div>
+      <div class="col"><div class="p-2 rounded" style="background:#f0fdf4"><div class="fw-bold text-success">${r.YieldOverall != null ? parseFloat(r.YieldOverall).toFixed(1) + '%' : '—'}</div><div class="text-muted" style="font-size:.7rem">Yield รวม</div></div></div>
     </div>`;
 
   return `<div class="mt-2 pt-2 border-top">
@@ -13125,6 +13615,396 @@ async function moDelete(rowId) {
   _logAudit('DELETE', 'manufacturing_orders', r?.MO_ID, `${r?.ProductName||''} Lot ${r?.LOT||'—'}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
+}
+
+// ══════════════════════════════════════════════
+// ไลน์ผลิต MO — ออกใบ Released (สติกเกอร์เขียว FM-QC-01-05, ดวงละ 10 ต่อแผ่น A4 2×5)
+// อ่านอย่างเดียว ไม่เขียนตาราง — Code No./Name/RC No.-Lot No. มาจาก MO ตรงๆ, EXP/MFG Date คำนวณจาก Bulk
+// (Remark ≠ 'pac' ใน bom) ที่เบิกจริงให้ MO นี้ผ่านหน้าเบิกผลิต (issue_production, เลือก Lot ที่ SUM(IssuedQty)
+// มากสุดถ้าเบิกมากกว่า 1 Lot) แล้วเทียบ ExpDate จาก stock_balance (คีย์ MaterialCode+Lot ไม่ซ้ำ) — ถ้าไม่พบ Bulk
+// ที่เบิกเลย ให้กรอก EXP Date เองแทน (fallback). Retest Date/Approved by เว้นว่างเสมอให้กรอก/เซ็นชื่อมือ
+// ══════════════════════════════════════════════
+let _morelModal = null;
+let _morelMO = null;
+let _morelExpFormatted = '';
+let _morelMfgFormatted = '';
+let _morelCount = 10;
+// กลุ่มจำนวน/หน่วยต่อดวง (Remark) — แทนที่ช่อง Remark พิมพ์อิสระเดิม ตามคำขอผู้ใช้ 2026-08-14:
+// แต่ละกลุ่ม = {จำนวนดวงในกลุ่มนี้, ตัวเลขจำนวน} หน่วยดึงจาก MO.UOM ตัวเดียวทั้งใบ (ไม่ได้แยกต่อกลุ่ม)
+// ผลรวมจำนวนดวงของกลุ่มไม่จำเป็นต้องเท่ากับ "จำนวนที่จะพิมพ์" (_morelCount) — ตั้งใจแยกอิสระตามที่ผู้ใช้ยืนยัน
+// ดวงที่เกินจากผลรวมกลุ่ม (หรือเกินจำนวนที่จะพิมพ์) จะไม่มี Remark (ว่างเปล่า) — seq ไม่ใช้ซ้ำ กันชนกันตอนลบแถวกลาง
+// (pattern เดียวกับ _bomRowSeq ของหน้า BOM)
+let _morelRemarkGroups = [{ seq: 1, count: 10, qty: '' }];
+let _morelRemarkRowSeq = 1;
+// หน่วยสำหรับ Remark — ปกติดึงจาก MO.UOM เงียบๆ ไม่ต้องแสดง (ตามคำขอ 2026-08-14: "ข้อมูลที่ใส่ Auto ไม่ต้องแสดง")
+// ถ้า MO.UOM ว่าง ค่อยเปิดช่องกรอกเอง (#morel-uom-manual-wrap) แล้วใช้ค่านี้แทน — ดู _morelUom()
+let _morelManualUom = '';
+const _MOREL_FORM_CODE = 'FM-QC-01-05 / Rev. 00 / Eff. Date 01/03/2025';
+
+async function moReleasedOpenModal(rowId) {
+  const r = _moData.find(d => d._row_id === rowId);
+  if (!r) return;
+  _morelMO = r;
+  _morelExpFormatted = '';
+  _morelMfgFormatted = '';
+  _morelCount = 10;
+  _morelRemarkRowSeq = 1;
+  _morelRemarkGroups = [{ seq: _morelRemarkRowSeq, count: _morelCount, qty: '' }];
+  _morelManualUom = '';
+
+  // Code No./Name/RC No.-Lot No. มาจาก MO เสมอ ไม่มีทางว่าง — ไม่มี element ให้ตั้งค่าแล้ว (ซ่อนออกจากฟอร์ม
+  // ตามคำขอ ดูได้จากพรีวิวขวาแทน) — เหลือแค่ UOM ที่ต้องเช็คว่า MO มีให้หรือไม่
+  const uomWrap = document.getElementById('morel-uom-manual-wrap');
+  if (r.UOM) {
+    uomWrap.style.display = 'none';
+  } else {
+    uomWrap.style.display = '';
+    document.getElementById('morel-uom-input').value = '';
+  }
+  document.getElementById('morel-cRM').checked   = false;
+  document.getElementById('morel-cPM').checked   = false;
+  document.getElementById('morel-cBulk').checked = false;
+  document.getElementById('morel-cFG').checked   = true;
+  document.getElementById('morel-count').value   = _morelCount;
+  _morelUpdateSheetCount();
+  morelRenderRemarkGroups();
+  // ซ่อนส่วน Bulk ไว้ก่อนเสมอ — โผล่มาเฉพาะตอน _morelFallbackManual() ทำงาน (หา Bulk lot ไม่เจอ) เท่านั้น
+  document.getElementById('morel-bulk-section').style.display = 'none';
+  document.getElementById('morel-bulksource').innerHTML = '';
+  document.getElementById('morel-exp-box').innerHTML = '<div class="ro">—</div>';
+  document.getElementById('morel-mfg-box').innerHTML = '<div class="ro">—</div>';
+
+  if (!_morelModal) _morelModal = new bootstrap.Modal(document.getElementById('moReleasedModal'));
+  _morelModal.show();
+
+  morelRenderPreview();
+  await _morelLookupBulkExpiry(r);
+}
+
+function _morelUom() {
+  return (_morelMO && _morelMO.UOM) || _morelManualUom || '';
+}
+
+function morelOnUomManualChange() {
+  _morelManualUom = document.getElementById('morel-uom-input').value;
+  morelRenderRemarkGroups();
+  morelRenderPreview();
+}
+
+// หา Lot ของ Bulk (bom.Remark ≠ 'pac') ที่เบิกจริงให้ MO นี้มากที่สุด แล้วดึง ExpDate จาก stock_balance
+async function _morelLookupBulkExpiry(r) {
+  try {
+    const { data: bomRows, error: bomErr } = await _sb.from('bom')
+      .select('MaterialCode,Remark').eq('ProductCode', r.ProductCode);
+    if (bomErr) { console.error(bomErr); return _morelFallbackManual(); }
+    const bulkCodes = (bomRows || [])
+      .filter(b => (b.Remark || '').toLowerCase() !== 'pac')
+      .map(b => b.MaterialCode);
+    if (!bulkCodes.length) return _morelFallbackManual();
+
+    const { data: issRows, error: issErr } = await _sb.from('issue_production')
+      .select('MaterialCode,Lot,IssuedQty').eq('MO_ID', r.MO_ID).in('MaterialCode', bulkCodes);
+    if (issErr) { console.error(issErr); return _morelFallbackManual(); }
+    if (!issRows || !issRows.length) return _morelFallbackManual();
+
+    // รวมจำนวนเบิกต่อ (MaterialCode, Lot) แล้วเลือก Lot ที่เบิกมากที่สุด (ตามที่ผู้ใช้ยืนยัน — ไม่ใช่ Lot หมดอายุเร็วสุด)
+    const sums = {};
+    issRows.forEach(x => {
+      const key = `${x.MaterialCode}|${x.Lot}`;
+      if (!sums[key]) sums[key] = { code: x.MaterialCode, lot: x.Lot, qty: 0 };
+      sums[key].qty += Number(x.IssuedQty) || 0;
+    });
+    const best = Object.values(sums).sort((a, b) => b.qty - a.qty)[0];
+    if (!best || !best.lot) return _morelFallbackManual();
+
+    const { data: sbRows, error: sbErr } = await _sb.from('stock_balance')
+      .select('ExpDate').eq('MaterialCode', best.code).eq('Lot', best.lot).limit(1);
+    if (sbErr) { console.error(sbErr); return _morelFallbackManual(); }
+    const expDate = sbRows && sbRows[0] ? sbRows[0].ExpDate : null;
+    if (!expDate) return _morelFallbackManual();
+
+    document.getElementById('morel-bulksource').innerHTML =
+      `<span class="code">${best.code} · Lot ${best.lot}</span> <span class="text-muted">(เบิกมากสุด ${best.qty.toLocaleString()})</span>`;
+    _morelSetExpDate(expDate, true);
+  } catch (e) {
+    console.error(e);
+    _morelFallbackManual();
+  }
+}
+
+function _morelFallbackManual() {
+  // เจาะจงโผล่ส่วนนี้ให้เห็นเฉพาะตอนนี้เท่านั้น (หา Bulk lot ไม่เจอ) — ตามคำขอ 2026-08-14 ที่ไม่ต้องการ
+  // ให้ฟอร์มโชว์ข้อมูลที่ auto ดึงมาสำเร็จอยู่แล้ว โผล่มาก็ต่อเมื่อต้องกรอกเพิ่มเองจริงๆ
+  document.getElementById('morel-bulk-section').style.display = '';
+  document.getElementById('morel-bulksource').innerHTML =
+    '<span class="text-danger">ไม่พบ Bulk ที่เบิกสำหรับ MO นี้ — กรอก EXP Date เองด้านล่าง</span>';
+  document.getElementById('morel-exp-box').innerHTML =
+    '<input type="date" class="form-control form-control-sm" id="morel-exp-manual" onchange="_morelOnManualExpChange()">';
+  document.getElementById('morel-mfg-box').innerHTML = '<div class="ro">—</div>';
+  morelRenderPreview();
+}
+
+function _morelOnManualExpChange() {
+  const v = document.getElementById('morel-exp-manual').value; // yyyy-mm-dd
+  if (!v) {
+    _morelExpFormatted = ''; _morelMfgFormatted = '';
+    document.getElementById('morel-mfg-box').innerHTML = '<div class="ro">—</div>';
+    morelRenderPreview();
+    return;
+  }
+  _morelSetExpDate(v, false);
+}
+
+function _morelSetExpDate(isoDate, isAuto) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const exp = new Date(y, m - 1, d);
+  const mfg = new Date(y - 2, m - 1, d); // MFG Date = EXP Date ลบ 2 ปี ตามที่ผู้ใช้ยืนยัน
+  const fmt = dt => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+  _morelExpFormatted = fmt(exp);
+  _morelMfgFormatted = fmt(mfg);
+  if (isAuto) document.getElementById('morel-exp-box').innerHTML = `<div class="ro">${_morelExpFormatted}</div>`;
+  document.getElementById('morel-mfg-box').innerHTML = `<div class="ro">${_morelMfgFormatted}</div>`;
+  morelRenderPreview();
+}
+
+function morelStepCount(delta) {
+  _morelCount = Math.max(1, _morelCount + delta);
+  document.getElementById('morel-count').value = _morelCount;
+  _morelUpdateSheetCount();
+  morelRenderPreview();
+}
+
+function morelOnCountInput() {
+  const v = parseInt(document.getElementById('morel-count').value, 10);
+  _morelCount = (!v || v < 1) ? 1 : v;
+  _morelUpdateSheetCount();
+  morelRenderPreview();
+}
+
+function _morelUpdateSheetCount() {
+  document.getElementById('morel-sheets').textContent = Math.ceil(_morelCount / 10);
+  // ถ้าลดจำนวนที่จะพิมพ์จนต่ำกว่าผลรวมกลุ่มเดิม ต้องลดกลุ่ม (ไล่จากล่างสุด) ให้ผลรวมไม่เกินตามไปด้วย —
+  // ผลรวมกลุ่มห้ามเกิน _morelCount เสมอ (เหตุผลเดียวกับ _morelAbsorbOverflow ตอนแก้ไขกลุ่มเอง)
+  const total = _morelRemarkGroups.reduce((s, g) => s + (parseInt(g.count, 10) || 0), 0);
+  const overflow = total - _morelCount;
+  if (overflow > 0) _morelAbsorbOverflow(overflow, null);
+  if (document.getElementById('morel-remark-groups')) morelRenderRemarkGroups();
+}
+
+function _morelTodayFormatted() {
+  const t = new Date();
+  return `${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`;
+}
+
+// ดวงที่เกินจำนวนที่ขอพิมพ์ — ยังโชว์หัวข้อ/ฟอร์มโค้ด/checkbox ครบเหมือนดวงจริงทุกอย่าง แค่ไม่มีข้อมูลกรอก
+// (ตามที่ผู้ใช้ยืนยัน — ไม่ใช่กล่องเขียวเปล่าล้วนแบบที่ทำไปรอบแรก)
+function _morelBlankData() {
+  return { rm: false, pm: false, bulk: false, fg: false, code: '', name: '', lot: '', mfg: '', exp: '', remark: '', printDate: '' };
+}
+
+// ใส่ &nbsp; แทนค่าว่าง ให้ทุก .val มีตัวอักษรจริงเสมอ (มองไม่เห็นแต่มีอยู่) — บังคับให้ line box
+// ของ font ที่โหลดจริง (Sarabun) สูงเท่ากันไม่ว่าจะมีข้อมูลหรือไม่ กันไม่ให้พึ่ง min-height ที่ต้อง tune
+// ตามฟอนต์ทีละตัว (เจอบั๊กจริง 2026-08-14 — ตัวเลข min-height ที่ tune จากฟอนต์ fallback ใช้ไม่ได้กับ
+// Sarabun ตัวจริงที่โหลดในแอป ทำให้แถวว่างยังสูงไม่เท่าแถวที่มีข้อมูลอยู่ดี)
+function _morelValOrBlank(v) {
+  return (v === null || v === undefined || v === '') ? '&nbsp;' : v;
+}
+
+function _morelStickerHTML(d) {
+  const box = (on, label) => `<span><span class="box ${on ? 'on' : ''}">${on ? '✓' : ''}</span>${label}</span>`;
+  const v = _morelValOrBlank;
+  return `
+    <div class="morel-formcode">${_MOREL_FORM_CODE}</div>
+    <div class="morel-title">Released</div>
+    <div class="morel-checks">
+      ${box(d.rm, 'RM')}${box(d.pm, 'PM')}${box(d.bulk, 'Bulk')}${box(d.fg, 'FG')}
+    </div>
+    <div class="morel-line"><b>Code No.:</b><span class="val mid">${v(d.code)}</span></div>
+    <div class="morel-line emph"><b>Name:</b><span class="val">${v(d.name)}</span></div>
+    <div class="morel-line split">
+      <div class="emph"><b>RC No./Lot No.:</b><span class="val">${v(d.lot)}</span></div>
+      <div class="mid"><b>MFG. Date:</b><span class="val">${v(d.mfg)}</span></div>
+    </div>
+    <div class="morel-line split">
+      <div><b>Retest Date:</b><span class="val">${v()}</span></div>
+      <div class="emph"><b>EXP. Date:</b><span class="val">${v(d.exp)}</span></div>
+    </div>
+    <div class="morel-line split">
+      <div class="sig"><b>Approved by:</b><span class="val">${v()}</span></div>
+      <div class="mid"><b>Date:</b><span class="val">${v(d.printDate)}</span></div>
+    </div>
+    <div class="morel-line emph"><b>Remark:</b><span class="val">${v(d.remark)}</span></div>
+  `;
+}
+
+// หา Remark ("จำนวน หน่วย" เช่น "5 ขวด") ของตำแหน่งดวงที่ index (0-based, นับเฉพาะดวงที่มีข้อมูลจริง
+// ไม่รวมดวงว่างส่วนเกิน) — ไล่สะสมจำนวนดวงของแต่ละกลุ่มตามลำดับที่ผู้ใช้จัดไว้ ตำแหน่งที่เกินผลรวมกลุ่มทั้งหมด
+// ไม่มี Remark (ว่างเปล่า) — หน่วยดึงจาก _morelUom() (MO.UOM หรือกรอกเองถ้า MO ไม่มี) ตัวเดียวทั้งใบ ไม่ได้แยกต่อกลุ่ม
+function _morelRemarkForIndex(i) {
+  const uom = _morelUom();
+  let acc = 0;
+  for (const g of _morelRemarkGroups) {
+    const c = Math.max(0, parseInt(g.count, 10) || 0);
+    if (i < acc + c) {
+      const qty = (g.qty || '').toString().trim();
+      return qty ? `${qty} ${uom}`.trim() : '';
+    }
+    acc += c;
+  }
+  return '';
+}
+
+function morelRenderPreview() {
+  if (!_morelMO) return;
+  const base = {
+    code: _morelMO.ProductCode || '',
+    name: _morelMO.ProductName || '',
+    lot:  _morelMO.LOT || '',
+    rm:   document.getElementById('morel-cRM').checked,
+    pm:   document.getElementById('morel-cPM').checked,
+    bulk: document.getElementById('morel-cBulk').checked,
+    fg:   document.getElementById('morel-cFG').checked,
+    exp:  _morelExpFormatted,
+    mfg:  _morelMfgFormatted,
+    printDate: _morelTodayFormatted(),
+  };
+  // จำนวนดวงเลือกได้อิสระ (ไม่ต้องครบ 10) — ตำแหน่งที่เกินจำนวนที่ขอในแผ่นสุดท้ายยังโชว์หัวข้อ/ฟอร์มโค้ด/
+  // checkbox ครบเหมือนดวงจริง แค่ไม่มีข้อมูลกรอก (ไม่ใช่กล่องเขียวเปล่าล้วน)
+  const sheets = Math.ceil(_morelCount / 10);
+  const blank = _morelBlankData();
+  let html = '';
+  let printed = 0;
+  for (let s = 0; s < sheets; s++) {
+    let stickers = '';
+    for (let i = 0; i < 10; i++) {
+      const data = printed < _morelCount
+        ? { ...base, remark: _morelRemarkForIndex(printed) }
+        : blank;
+      stickers += `<div class="morel-sticker">${_morelStickerHTML(data)}</div>`;
+      printed++;
+    }
+    html += `<div class="morel-sheet">${stickers}</div>`;
+  }
+  document.getElementById('morel-preview-body').innerHTML = html;
+  document.getElementById('mo-released-print-root').innerHTML = html;
+}
+
+function morelRenderRemarkGroups() {
+  const uom = _morelUom();
+  const container = document.getElementById('morel-remark-groups');
+  container.innerHTML = _morelRemarkGroups.map(g => `
+    <div class="morel-remark-row" data-seq="${g.seq}">
+      <input type="number" min="1" max="${_morelCount}" step="1" value="${g.count}"
+        class="form-control form-control-sm morel-remark-count"
+        oninput="_morelRemarkGroupOnChange(${g.seq},'count',this.value)"> ดวง ×
+      <input type="text" value="${g.qty}" placeholder="เช่น 5" class="form-control form-control-sm"
+        oninput="_morelRemarkGroupOnChange(${g.seq},'qty',this.value)">
+      <span class="morel-remark-uom">${uom}</span>
+      ${_morelRemarkGroups.length > 1
+        ? `<button type="button" class="morel-remark-del" onclick="morelRemoveRemarkGroup(${g.seq})" title="ลบกลุ่มนี้">&times;</button>`
+        : ''}
+    </div>
+  `).join('');
+  _morelUpdateRemarkHint();
+}
+
+// ผลรวมกลุ่มเกิน _morelCount ไม่ได้แล้ว (บังคับผ่าน _morelAbsorbOverflow ทุกจุดที่แก้ไข) เหลือแค่ 2 กรณี:
+// พอดี หรือน้อยกว่า (= มีดวงว่าง/ฟอร์มเปล่าเหลือ ซึ่งตั้งใจให้ทำได้ ไม่ใช่ข้อผิดพลาด) — ไม่มี "เกิน" ให้เตือนอีกต่อไป
+function _morelUpdateRemarkHint() {
+  const hint = document.getElementById('morel-remark-total-hint');
+  if (!hint) return;
+  const total = _morelRemarkGroups.reduce((s, g) => s + Math.max(0, parseInt(g.count, 10) || 0), 0);
+  if (total === _morelCount) {
+    hint.innerHTML = `✓ รวมจากกลุ่ม <b>${total}</b> ดวง ตรงกับจำนวนที่จะพิมพ์ (${_morelCount} ดวง) พอดี`;
+  } else {
+    const blankLeft = _morelCount - total;
+    hint.innerHTML = `รวมจากกลุ่ม <b>${total}</b> ดวง จากทั้งหมด ${_morelCount} ดวง — เหลืออีก <b>${blankLeft}</b> ดวงเป็นฟอร์มเปล่า (ไม่มี Remark)`;
+  }
+}
+
+// ลดจำนวนดวงของกลุ่มอื่น (ไล่จากกลุ่มล่างสุดขึ้นบน) เพื่อดูดซับส่วนเกิน จนกว่าผลรวมจะไม่เกิน _morelCount
+// ผลรวมกลุ่มห้ามเกินจำนวนที่จะพิมพ์เด็ดขาด (ตามคำขอผู้ใช้ 2026-08-14) — แต่ผลรวมน้อยกว่าได้เสมอ (ส่วนที่เหลือ =
+// ฟอร์มเปล่า/ไม่มี Remark ซึ่งเป็นฟีเจอร์ที่ตั้งใจให้ทำได้ ไม่ใช่ข้อผิดพลาด ต้องไม่ทำลายความสามารถนี้)
+// excludeSeq: seq ของกลุ่มที่กำลังแก้ไขอยู่ (ห้ามไปลดตัวเอง) หรือ null ถ้าเป็นการปรับจาก _morelCount เปลี่ยน
+function _morelAbsorbOverflow(overflow, excludeSeq) {
+  const others = _morelRemarkGroups.filter(g => g.seq !== excludeSeq).slice().reverse();
+  for (const og of others) {
+    if (overflow <= 0) break;
+    const cur = Math.max(0, parseInt(og.count, 10) || 0);
+    const take = Math.min(cur, overflow);
+    og.count = cur - take;
+    overflow -= take;
+    const inp = document.querySelector(`.morel-remark-row[data-seq="${og.seq}"] .morel-remark-count`);
+    if (inp) inp.value = og.count;
+  }
+  return overflow; // ส่วนที่ยังดูดซับไม่หมด (ถ้ามี — เช่นกลุ่มอื่นเหลือ 0 ทั้งหมดแล้ว)
+}
+
+function morelAddRemarkGroup() {
+  const g = { seq: ++_morelRemarkRowSeq, count: 1, qty: '' };
+  _morelRemarkGroups.push(g);
+  const total = _morelRemarkGroups.reduce((s, x) => s + (parseInt(x.count, 10) || 0), 0);
+  const overflow = total - _morelCount;
+  if (overflow > 0) {
+    const remaining = _morelAbsorbOverflow(overflow, g.seq);
+    if (remaining > 0) g.count = Math.max(0, g.count - remaining);
+  }
+  morelRenderRemarkGroups();
+  morelRenderPreview();
+}
+
+function morelRemoveRemarkGroup(seq) {
+  if (_morelRemarkGroups.length <= 1) return;
+  _morelRemarkGroups = _morelRemarkGroups.filter(g => g.seq !== seq);
+  morelRenderRemarkGroups();
+  morelRenderPreview();
+}
+
+function _morelRemarkGroupOnChange(seq, field, value) {
+  const g = _morelRemarkGroups.find(x => x.seq === seq);
+  if (!g) return;
+  if (field === 'qty') {
+    g.qty = value;
+    morelRenderPreview();
+    return;
+  }
+  // field === 'count' — ห้ามให้ตัวเองเกิน _morelCount แล้วดูดส่วนเกินจากกลุ่มอื่น (ไม่ re-render ทั้งลิสต์
+  // ระหว่างพิมพ์ กันเคอร์เซอร์กระโดด — แก้ค่าตรงๆ ที่ DOM ของกลุ่มอื่นที่ถูกลดแทน)
+  let newCount = parseInt(value, 10);
+  if (isNaN(newCount) || newCount < 1) newCount = 1;
+  newCount = Math.min(newCount, _morelCount);
+  g.count = newCount;
+
+  const otherTotal = _morelRemarkGroups.filter(x => x.seq !== seq).reduce((s, x) => s + (parseInt(x.count, 10) || 0), 0);
+  const overflow = (newCount + otherTotal) - _morelCount;
+  if (overflow > 0) _morelAbsorbOverflow(overflow, seq);
+
+  const editedInput = document.querySelector(`.morel-remark-row[data-seq="${seq}"] .morel-remark-count`);
+  if (editedInput && Number(editedInput.value) !== newCount) editedInput.value = newCount;
+
+  _morelUpdateRemarkHint();
+  morelRenderPreview();
+}
+
+function moReleasedPrint() {
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport');
+  document.body.classList.add('print-mode-moreleased');
+  window.print();
+}
+
+// ปุ่มระดับหน้า (toolbar) — พิมพ์ใบ Released เปล่า 1 แผ่น (10 ดวง) ไม่ผูกกับ MO ไหนเลย ไม่ต้องเปิด modal/เลือก MO
+// ก่อน ใช้ template เดียวกับดวงว่างส่วนเกินใน moReleasedOpenModal (_morelBlankData/_morelStickerHTML) —
+// เผื่อไว้กรณีอยากมีสติกเกอร์เปล่าติดมือไว้เขียนเองบนไลน์โดยไม่ต้องอิงข้อมูล MO ใดๆ
+function moReleasedPrintBlankSheet() {
+  const blank = _morelBlankData();
+  let stickers = '';
+  for (let i = 0; i < 10; i++) stickers += `<div class="morel-sticker">${_morelStickerHTML(blank)}</div>`;
+  document.getElementById('mo-released-print-root').innerHTML = `<div class="morel-sheet">${stickers}</div>`;
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport');
+  document.body.classList.add('print-mode-moreleased');
+  window.print();
 }
 
 // ══════════════════════════════════════════════
