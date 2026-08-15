@@ -283,13 +283,13 @@ button, input, select { font-family: inherit; }
     <!-- __PAGE_FGSTOCK__ -->
     <div class="mpage" id="mpage-lotscan">
       <div class="lotscan-toolbar">
-        <input type="text" id="lotscan-f-code" placeholder="พิมพ์รหัส Lot แล้วกด Enter..." autocomplete="off"
+        <input type="text" id="lotscan-f-code" placeholder="พิมพ์รหัส Lot หรือเลขที่ใบส่ง แล้วกด Enter..." autocomplete="off"
           onkeydown="if(event.key==='Enter'){event.preventDefault();lotscanSearch();}">
         <button onclick="lotscanSearch()" title="ค้นหา"><i class="fas fa-search"></i></button>
         <button onclick="lotscanOpenCamera()" title="เปิดกล้องสแกน"><i class="fas fa-camera"></i></button>
       </div>
       <div id="lotscan-empty" class="lotscan-panel" style="text-align:center;padding:40px 16px;color:#94a3b8">
-        <i class="fas fa-qrcode fa-2x mb-3" style="display:block"></i>พิมพ์หรือสแกนรหัส Lot ด้านบน เพื่อดูประวัติของ Lot นั้น
+        <i class="fas fa-qrcode fa-2x mb-3" style="display:block"></i>พิมพ์หรือสแกนรหัส Lot หรือเลขที่ใบส่งด้านบน เพื่อดูประวัติของ Lot นั้น หรือรายละเอียดใบส่งนั้น
       </div>
       <div id="lotscan-notfound" class="lotscan-panel" style="display:none;text-align:center;padding:40px 16px;color:#dc2626">
         <i class="fas fa-circle-exclamation fa-2x mb-3" style="display:block"></i>
@@ -928,16 +928,24 @@ async function lotscanResolve(rawInput) {
     if (kind === 'MAT') return { type: 'material', materialCode: code, lot };
     if (kind === 'FG') return { type: 'fg', productCode: code, lotFg: lot };
   }
+  // ป้ายกล่องต่อใบส่ง+สินค้า (PFDLV|{BillNo}|{ProductCode}) — พิมพ์จากหน้าคอมพิวเตอร์ (เบิก FG/จัดส่ง)
+  // ProductCode ใช้ไฮไลต์แถวสินค้านั้นในหน้าผลลัพธ์ (กล่องนี้คือสินค้าไหนในใบที่มีหลายสินค้าปนกัน)
+  if (parts[0] === 'PFDLV' && parts.length >= 2 && parts[1]) {
+    return { type: 'delivery', billNo: parts[1], highlightProduct: parts[2] || null };
+  }
   const escaped = trimmed.replace(/[%_]/g, ch => '\\' + ch);
-  const [matRes, fgRes] = await Promise.all([
+  const [matRes, fgRes, dlvRes] = await Promise.all([
     _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,UOM').ilike('Lot', escaped),
     _sb.from('fg_receive').select('ProductCode,ProductName,Lot_FG').ilike('Lot_FG', escaped),
+    _sb.from('delivery_bill_numbers').select('BillNo,CustomerName').ilike('BillNo', escaped),
   ]);
   const matMatches = _lotscanDedupeBy(matRes.data || [], r => r.MaterialCode + '|' + r.Lot)
     .map(r => ({ type: 'material', materialCode: r.MaterialCode, materialName: r.MaterialName, lot: r.Lot, uom: r.UOM }));
   const fgMatches = _lotscanDedupeBy(fgRes.data || [], r => r.ProductCode + '|' + r.Lot_FG)
     .map(r => ({ type: 'fg', productCode: r.ProductCode, productName: r.ProductName, lotFg: r.Lot_FG }));
-  const all = [...matMatches, ...fgMatches];
+  const dlvMatches = _lotscanDedupeBy(dlvRes.data || [], r => r.BillNo)
+    .map(r => ({ type: 'delivery', billNo: r.BillNo, customerName: r.CustomerName }));
+  const all = [...matMatches, ...fgMatches, ...dlvMatches];
   if (!all.length) return { type: 'notfound' };
   if (all.length === 1) return all[0];
   return { type: 'multi', options: all };
@@ -948,7 +956,7 @@ async function lotscanSearch() {
   if (resolved.type === 'empty') return;
   _lotscanHideAllPanels();
   if (resolved.type === 'notfound') {
-    document.getElementById('lotscan-notfound-msg').textContent = `ไม่พบ Lot "${raw.trim()}" ในระบบ (ทั้งฝั่งวัตถุดิบและ FG)`;
+    document.getElementById('lotscan-notfound-msg').textContent = `ไม่พบ "${raw.trim()}" ในระบบ (Lot วัตถุดิบ, Lot FG, หรือเลขที่ใบส่ง)`;
     document.getElementById('lotscan-notfound').style.display = 'block';
     return;
   }
@@ -958,7 +966,9 @@ async function lotscanSearch() {
       <div class="lotscan-row">
         <span>${o.type === 'material'
           ? `<span class="lotscan-badge lotscan-badge-mat me-1">วัตถุดิบ</span>${o.materialCode} — ${o.materialName || ''} <span class="text-muted">Lot ${o.lot}</span>`
-          : `<span class="lotscan-badge lotscan-badge-fg me-1">FG</span>${o.productCode} — ${o.productName || ''} <span class="text-muted">Lot ${o.lotFg}</span>`}</span>
+          : o.type === 'fg'
+          ? `<span class="lotscan-badge lotscan-badge-fg me-1">FG</span>${o.productCode} — ${o.productName || ''} <span class="text-muted">Lot ${o.lotFg}</span>`
+          : `<span class="lotscan-badge lotscan-badge-fg me-1">ใบส่ง</span>${o.billNo} <span class="text-muted">${o.customerName || ''}</span>`}</span>
         <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="lotscanShowOption(${i})">ดูรายละเอียด</button>
       </div>`).join('');
     document.getElementById('lotscan-multi').style.display = 'block';
@@ -972,7 +982,12 @@ async function lotscanShow(match) {
   try {
     let html;
     if (match.type === 'material') { html = _lotscanRenderMaterialScreen(await _lotscanFetchMaterialData(match.materialCode, match.lot)); }
-    else { html = _lotscanRenderFGScreen(await _lotscanFetchFGData(match.productCode, match.lotFg)); }
+    else if (match.type === 'fg') { html = _lotscanRenderFGScreen(await _lotscanFetchFGData(match.productCode, match.lotFg)); }
+    else {
+      const d = await _lotscanFetchDeliveryData(match.billNo);
+      d.highlightProduct = match.highlightProduct || null;
+      html = _lotscanRenderDeliveryScreen(d);
+    }
     _lotscanHideAllPanels();
     document.getElementById('lotscan-result').innerHTML = html;
     document.getElementById('lotscan-result').style.display = 'block';
@@ -1074,8 +1089,8 @@ async function _lotscanFetchFGData(productCode, lotFg) {
   }
   const deliveryByWd = {};
   if (wdRows.length) {
-    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo').in('WD_Ref', wdRows.map(r => r._row_id));
-    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo }; });
+    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo,QtyDelivered,Date').in('WD_Ref', wdRows.map(r => r._row_id));
+    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo, qty: d.QtyDelivered, date: d.Date }; });
   }
   const expireDate = fgRows[0]?.ExpireDate || null;
   return { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate };
@@ -1101,12 +1116,54 @@ function _lotscanRenderFGScreen(d) {
       <span class="lotscan-row-num">${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</span></div>`).join('') : _lotscanEmptyRow('ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
   const withdrawRows = wdRows.length ? wdRows.map(r => {
     const dlv = deliveryByWd[r._row_id];
-    return `<div class="lotscan-row"><span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${dlv?.billNo ? ` · ใบส่ง ${dlv.billNo}` : ''}</span>
+    const billHtml = dlv?.billNo
+      ? ` · <span class="lotscan-row-link" onclick='lotscanShow({type:"delivery",billNo:"${dlv.billNo}"})'>ใบส่ง ${dlv.billNo}</span> (${_fmtDate(dlv.date)||'—'})`
+      : '';
+    return `<div class="lotscan-row"><span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${billHtml}</span>
       <span style="display:flex;align-items:center;gap:8px"><span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span><span class="lotscan-chip">${dlv?.status || '—'}</span></span></div>`;
   }).join('') : _lotscanEmptyRow('ยังไม่ถูกเบิกออก');
   return header + _lotscanCard('ผลิตจาก MO', 'fa-industry', originRows)
     + _lotscanCard(`วัตถุดิบที่ใช้ผลิต <span class="text-muted" style="font-weight:400;font-size:.7rem"> — ${materialSource||''}</span>`, 'fa-arrow-turn-up', materialRowsHtml)
     + _lotscanCard('เบิกส่งลูกค้า / เบ็ดเตล็ด', 'fa-truck', withdrawRows);
+}
+
+// ── สแกนป้ายกล่อง (PFDLV|{BillNo}|{ProductCode}) — เห็นเฉพาะใบส่งใบนี้ใบเดียว พร้อมไฮไลต์แถวสินค้าที่แปะกล่องนี้
+// แต่ละแถวคลิกกระโดดกลับไป FG screen เดิมของ Lot นั้นได้ต่อ (ย้อนไปถึงผลิต/วัตถุดิบ) — ไม่มีปุ่มพิมพ์รายงาน
+// ในแอปมือถือ (ตามขอบเขตที่ตกลงไว้ว่าเป็น read+scan companion เท่านั้น)
+async function _lotscanFetchDeliveryData(billNo) {
+  const [bnRes, dlvRes] = await Promise.all([
+    _sb.from('delivery_bill_numbers').select('BillNo,CustomerName').eq('BillNo', billNo).maybeSingle(),
+    _sb.from('delivery').select('*').eq('DeliveryBillNo', billNo).order('_row_id'),
+  ]);
+  const rows = dlvRes.data || [];
+  const customerName = bnRes.data?.CustomerName || rows[0]?.CustomerName || '—';
+  const totalQty = rows.reduce((s, r) => s + (parseFloat(r.QtyDelivered) || 0), 0);
+  const uom = rows[0]?.UOM || '';
+  const allArrived = rows.length > 0 && rows.every(r => r.Status === 'ส่งถึงแล้ว');
+  const dateSet = [...new Set(rows.map(r => r.Date).filter(Boolean))];
+  return { billNo, customerName, rows, totalQty, uom, allArrived, dateSet };
+}
+function _lotscanRenderDeliveryScreen(d) {
+  const { billNo, customerName, rows, totalQty, uom, allArrived, dateSet, highlightProduct } = d;
+  const dateLabel = dateSet.length ? dateSet.map(x => _fmtDate(x)).join(', ') : '—';
+  const header = `<div class="lotscan-header-row"><div>
+      <span class="lotscan-badge lotscan-badge-fg">ใบส่ง</span>
+      <div class="lotscan-title">${billNo} — ${customerName}</div>
+      <div class="lotscan-subtle">ส่งวันที่ <b>${dateLabel}</b></div>
+    </div><div class="lotscan-stats">
+      <div class="lotscan-stat"><div class="lotscan-stat-label">ยอดส่งรวม</div><div class="lotscan-stat-num accent">${totalQty.toLocaleString()} ${uom}</div></div>
+      <div class="lotscan-stat"><div class="lotscan-stat-label">สถานะ</div><div class="lotscan-stat-num">${rows.length ? (allArrived ? 'ส่งถึงแล้ว' : (rows[0].Status||'—')) : '—'}</div></div>
+    </div></div>`;
+  const itemRows = rows.length ? rows.map(r => {
+    const isHighlight = !!highlightProduct && r.ProductCode === highlightProduct;
+    return `<div class="lotscan-row"${isHighlight ? ' style="background:#fef9c3;border-radius:6px;padding:6px 8px;margin:2px 0"' : ''}>
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"fg",productCode:"${r.ProductCode||''}",lotFg:"${r.Lot_FG||''}"})'>
+        ${isHighlight ? '<i class="fas fa-box-open me-1" style="color:#b45309"></i>' : ''}${r.ProductCode||''} — ${r.ProductName||''} <span class="text-muted">Lot ${r.Lot_FG||'—'}</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px"><span class="lotscan-row-num">${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</span><span class="lotscan-chip">${r.Status||'—'}</span></span>
+    </div>`;
+  }).join('') : _lotscanEmptyRow('ไม่พบรายการในใบส่งนี้');
+  return header + _lotscanCard('รายการสินค้าในใบส่งนี้', 'fa-box', itemRows);
 }
 
 // ── กล้อง: jsQR ก่อนเสมอ (auto-scan ต่อเนื่อง + ปุ่มถ่ายเอง), ไม่เจอค่อย fallback OCR (Tesseract) หาคำว่า LOT ──
