@@ -2696,6 +2696,64 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
       </div>
     </div>
   </div>
+
+  <!-- ════════════ Issue: เพิ่มรายการให้ MO ที่เบิกไปแล้ว ════════════ -->
+  <div class="modal fade" id="issueAddLineModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>เพิ่มรายการเบิก</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="issueAddLineForm" onsubmit="issueAddLineSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="issueaddline-mo-id">
+            <div class="mb-2">
+              <label class="form-label">MO</label>
+              <input type="text" id="issueaddline-mo-display" class="form-control" disabled>
+            </div>
+            <div class="mb-2 position-relative">
+              <label class="form-label">ชื่อวัตถุดิบ <span class="text-danger">*</span></label>
+              <input type="text" id="issueaddline-mat-search" class="form-control"
+                placeholder="พิมพ์เพื่อค้นหา..." autocomplete="off" required
+                oninput="issueAddLineSearchMaterial(this.value)">
+              <div id="issueaddline-mat-dropdown" class="list-group position-absolute shadow z-3"
+                style="max-height:200px;overflow-y:auto;display:none;width:calc(100% - 1.5rem)"></div>
+              <input type="hidden" id="issueaddline-mat-code">
+              <input type="hidden" id="issueaddline-mat-name">
+              <small id="issueaddline-mat-hint" class="text-muted"></small>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label">Lot No.</label>
+                <input type="text" id="issueaddline-lot" class="form-control" placeholder="Lot">
+              </div>
+              <div class="col-6">
+                <label class="form-label">จำนวนเบิก <span class="text-danger">*</span></label>
+                <input type="number" id="issueaddline-qty" class="form-control" min="0.001" step="0.001" required>
+                <small id="issueaddline-stock-hint" class="text-muted"></small>
+              </div>
+            </div>
+            <div class="mb-2 mt-2">
+              <label class="form-label">หน่วย (UOM)</label>
+              <input type="text" id="issueaddline-uom" class="form-control">
+            </div>
+            <div class="mb-0">
+              <label class="form-label">หมายเหตุ</label>
+              <input type="text" id="issueaddline-remark" class="form-control">
+            </div>
+            <div class="alert alert-warning py-2 mt-3 mb-0" style="font-size:.8rem" id="issueaddline-alert"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="issueaddline-save-btn">
+              <i class="fas fa-save me-1"></i>บันทึก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
   <!-- ════════════════════════════════════ -->
   <!-- PAGE: รับ FG                       -->
   <!-- ════════════════════════════════════ -->
@@ -15015,16 +15073,18 @@ let _issueBOM       = [];   // bom rows
 let _issueModal     = null;
 let _issueExpandedSet = new Set();   // MO_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _issueActualUsedMap = {};        // "MO_ID|MaterialCode|Lot" → ใช้จริงจากบันทึกผลิตที่อนุมัติแล้วเท่านั้น
+let _issueEditRequests = [];         // issue_edit_requests แถวที่ยัง "รออนุมัติ" เท่านั้น (แก้ไข/เพิ่ม/ลบ รายการที่เบิกไปแล้ว)
 
 async function loadIssueData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('issue-tbody', '<tr><td colspan="10" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
-  const [issueRes, matRes, moRes, bomRes] = await Promise.all([
+  const [issueRes, matRes, moRes, bomRes, reqRes] = await Promise.all([
     _sb.from('issue_production').select('*').order('_row_id', { ascending: false }),
     _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate').order('MaterialName'),
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,OrderQty,UOM,Status').order('_row_id', { ascending: false }),
     _bomFetchPaged('ProductCode,MaterialCode,MaterialName,QtyPerBase,QtyWithScrap,UOM,Remark', [{ col: '_row_id', ascending: true }]),
+    _sb.from('issue_edit_requests').select('*').eq('Status', 'รออนุมัติ').order('_row_id', { ascending: true }),
   ]);
 
   _cancelPlaceholder();
@@ -15035,6 +15095,9 @@ async function loadIssueData() {
   _issueData      = issueRes.data || [];
   _issueMaterials = matRes.data   || [];
   _issueBOM       = bomRes.data   || [];
+  // ถ้าตาราง issue_edit_requests ยังไม่ถูกสร้าง (ยังไม่ได้รัน create_issue_edit_requests.sql) ให้ข้ามไปเงียบๆ
+  // แทนที่จะ error ทั้งหน้า — ฟีเจอร์คำขออนุมัติจะแค่ไม่ทำงาน ส่วนอื่นของหน้ายังใช้ได้ปกติ
+  _issueEditRequests = reqRes.error ? [] : (reqRes.data || []);
   _issueMOList    = (moRes.data   || []).filter(m => {
     const s = (m.Status||'').toLowerCase();
     // 'แพลนแล้ว' (จองวัตถุดิบไว้ล่วงหน้าจากปุ่ม "แพลนการผลิต") และ 'ยืนยันการผลิต' (ยืนยันแผน ออกใบบันทึกผลิตแล้ว
@@ -15107,8 +15170,16 @@ function issueRenderTable() {
   });
 
   const container = document.getElementById('issue-tbody');
+  // คำขอแก้ไข/เพิ่ม/ลบ ที่ยังรออนุมัติ — โชว์เป็นแถบสรุปด้านบนเสมอ ไม่ขึ้นกับตัวกรองค้นหา/วันที่ของตารางด้านล่าง
+  const pendingBar = _issueEditRequests.length
+    ? `<div class="alert alert-warning py-2 mb-2" style="font-size:.85rem">
+        <i class="fas fa-clock me-1"></i><b>${_issueEditRequests.length}</b> คำขอแก้ไข/เพิ่ม/ลบ รายการเบิก
+        กำลังรอ${_currentUser?.isAdmin ? 'ให้คุณอนุมัติ' : 'แอดมินอนุมัติ'} — ดูรายละเอียดในการ์ด MO ด้านล่าง (มี badge สีเหลือง)
+      </div>`
+    : '';
+
   if (!rows.length) {
-    container.innerHTML = '<div class="glass-card text-center py-4 text-muted">ไม่พบข้อมูล</div>';
+    container.innerHTML = pendingBar + '<div class="glass-card text-center py-4 text-muted">ไม่พบข้อมูล</div>';
     _issueLastGroups = [];
     return;
   }
@@ -15131,29 +15202,52 @@ function issueRenderTable() {
 
   _issueLastGroups = groups;
 
-  container.innerHTML = groups.map((g, gi) => {
+  container.innerHTML = pendingBar + groups.map((g, gi) => {
     const expanded = _issueExpandedSet.has(g.moId);
     const rowsHtml = g.lines.map(r => {
       const actualUsed = _issueActualUsedMap[`${g.moId}|${r.MaterialCode}|${r.Lot}`];
-      return `<tr>
-        <td><input type="checkbox" class="issue-row-check" value="${r._row_id}" onchange="issueCheckState()"></td>
-        <td>${r.MaterialName||'—'}</td>
-        <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
-        <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
-        <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
-        <td class="text-end">${actualUsed != null ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${actualUsed.toLocaleString()}</span>` : '<span class="text-muted">—</span>'}</td>
-        <td>${r.UOM||'—'}</td>
-        <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
-        <td class="text-center">
-          <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="issueOpenModal(${r._row_id})" title="แก้ไข">
+      const pendingReq = _issueReqForTarget(r._row_id);
+      const actionsCell = pendingReq
+        ? _issueRequestActionsHTML(pendingReq)
+        : `<button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="issueOpenModal(${r._row_id})" title="แก้ไข">
             <i class="fas fa-edit"></i>
           </button>
           <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="issueDelete(${r._row_id})" title="ลบ">
             <i class="fas fa-trash"></i>
-          </button>
-        </td>
+          </button>`;
+      return `<tr class="${pendingReq ? 'table-warning' : ''}">
+        <td><input type="checkbox" class="issue-row-check" value="${r._row_id}" onchange="issueCheckState()" ${pendingReq?'disabled':''}></td>
+        <td>${r.MaterialName||'—'}</td>
+        <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
+        <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
+        <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}${_issuePendingBadgeHTML(pendingReq)}</td>
+        <td class="text-end">${actualUsed != null ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${actualUsed.toLocaleString()}</span>` : '<span class="text-muted">—</span>'}</td>
+        <td>${r.UOM||'—'}</td>
+        <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
+        <td class="text-center">${actionsCell}</td>
       </tr>`;
     }).join('');
+
+    // แถวเสมือนของคำขอ "เพิ่มรายการ" ที่ยังรออนุมัติของ MO นี้ — ยังไม่มีแถวจริงใน issue_production
+    const addReqsHtml = _issueAddReqsForMO(g.moId).map(req => `
+      <tr class="table-warning">
+        <td></td>
+        <td>${req.Payload?.MaterialName||'—'}</td>
+        <td class="wh-hide-code"><span class="badge bg-secondary">${req.Payload?.MaterialCode||'—'}</span></td>
+        <td><span class="badge bg-light text-dark border">${req.Payload?.Lot||'—'}</span></td>
+        <td class="text-end fw-bold text-primary">${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()}
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รายการใหม่ · รออนุมัติ</span>
+        </td>
+        <td class="text-end"><span class="text-muted">—</span></td>
+        <td>${req.Payload?.UOM||'—'}</td>
+        <td class="wh-hide-remark"><small class="text-muted">${req.Payload?.Remark||''}</small></td>
+        <td class="text-center">${_issueRequestActionsHTML(req)}</td>
+      </tr>`).join('');
+
+    const pendingCount = g.lines.filter(l => _issueReqForTarget(l._row_id)).length + _issueAddReqsForMO(g.moId).length;
+    const pendingGroupBadge = pendingCount
+      ? `<span class="badge bg-warning text-dark me-2"><i class="fas fa-clock me-1"></i>${pendingCount} รออนุมัติ</span>`
+      : '';
 
     const moBadge = g.moId !== '__none__'
       ? `<span class="badge bg-primary me-2">${g.moId}</span>`
@@ -15169,7 +15263,7 @@ function issueRenderTable() {
     return `<div class="glass-card mb-2 p-0 overflow-hidden">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="issueToggleGroup(${gi})">
         <div>
-          ${moBadge}${lotBadge}${orderQtyBadge}${productName}
+          ${moBadge}${lotBadge}${orderQtyBadge}${productName}${pendingGroupBadge}
           <span class="text-muted small">${g.lines.length} รายการ</span>
           <span class="text-muted small ms-2">${_fmtDate(g.latestDate)}</span>
         </div>
@@ -15186,11 +15280,42 @@ function issueRenderTable() {
               <th class="text-center" style="width:90px">จัดการ</th>
             </tr>
           </thead>
-          <tbody>${rowsHtml}</tbody>
+          <tbody>${rowsHtml}${addReqsHtml}</tbody>
         </table>
-      </div>`}
+      </div>
+      ${g.moId !== '__none__' ? `<div class="p-2 border-top text-center">
+        <button class="btn btn-sm btn-outline-primary" onclick="issueOpenAddLineModal('${g.moId}')">
+          <i class="fas fa-plus me-1"></i>เพิ่มรายการ
+        </button>
+      </div>` : ''}`}
     </div>`;
   }).join('');
+}
+
+// ── คำขอแก้ไข/เพิ่ม/ลบ ที่รออนุมัติ — helper สำหรับ render ──
+function _issueReqForTarget(rowId) {
+  return _issueEditRequests.find(r => r.TargetRowId === rowId);
+}
+function _issueAddReqsForMO(moId) {
+  if (moId === '__none__') return [];
+  return _issueEditRequests.filter(r => r.Action === 'ADD' && r.MO_ID === moId);
+}
+function _issuePendingBadgeHTML(req) {
+  if (!req) return '';
+  if (req.Action === 'EDIT') {
+    return `<br><span class="badge bg-warning text-dark mt-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รออนุมัติ: ขอแก้เป็น ${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()}</span>`;
+  }
+  if (req.Action === 'DELETE') {
+    return `<br><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle mt-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รออนุมัติ: ขอลบรายการนี้</span>`;
+  }
+  return '';
+}
+function _issueRequestActionsHTML(req) {
+  const adminBtns = _currentUser?.isAdmin
+    ? `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="issueApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check"></i></button>
+       <button class="btn btn-outline-danger btn-sm py-0 px-2 me-1" onclick="issueRejectRequest(${req._row_id})" title="ปฏิเสธ"><i class="fas fa-times"></i></button>`
+    : '';
+  return `${adminBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="issueCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
 }
 
 function issueCheckState() {
@@ -15201,6 +15326,10 @@ function issueCheckState() {
 
 // ── Modal Open ──
 function issueOpenModal(rowId = null, presetMoId = null) {
+  if (rowId && _issueReqForTarget(rowId)) {
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอแก้ไข/ลบที่ยังรอแอดมินอนุมัติอยู่ — ยกเลิกคำขอเดิมก่อนถ้าต้องการแก้ไขใหม่', 'info');
+    return;
+  }
   if (!_issueModal) _issueModal = new bootstrap.Modal(document.getElementById('issueModal'));
   document.getElementById('issueForm').reset();
   document.getElementById('issue-add-section').style.display  = 'none';
@@ -15504,6 +15633,7 @@ async function issueSubmit(e) {
 
   let error, savedCount = 0;
   let oldRow, editPayload;
+  let isPendingRequest = false;
 
   if (isEdit) {
     const qty     = parseFloat(document.getElementById('issue-f-qty').value) || 0;
@@ -15519,12 +15649,24 @@ async function issueSubmit(e) {
       UOM      : document.getElementById('issue-f-uom').value,
       Remark   : remark,
     };
-    ({ error } = await _sb.from('issue_production').update(payload).eq('_row_id', parseInt(editId)));
-    if (!error) {
-      // คืนสต็อกของยอด/วัตถุดิบ/lot เดิมก่อน แล้วค่อยตัดสต็อกใหม่ตามค่าที่แก้ — กันสต็อกเพี้ยนถ้าแก้ไขจำนวนหรือ
-      // เปลี่ยนวัตถุดิบ/lot (ไม่ใช่แค่ตอนลบ)
-      if (oldRow?.MaterialCode && oldRow?.Lot) await _issueRestoreStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.IssuedQty) || 0);
-      await issueUpdateStock(matCode, lot, qty);
+
+    if (_currentUser?.isAdmin) {
+      ({ error } = await _sb.from('issue_production').update(payload).eq('_row_id', parseInt(editId)));
+      if (!error) {
+        // คืนสต็อกของยอด/วัตถุดิบ/lot เดิมก่อน แล้วค่อยตัดสต็อกใหม่ตามค่าที่แก้ — กันสต็อกเพี้ยนถ้าแก้ไขจำนวนหรือ
+        // เปลี่ยนวัตถุดิบ/lot (ไม่ใช่แค่ตอนลบ)
+        if (oldRow?.MaterialCode && oldRow?.Lot) await _issueRestoreStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.IssuedQty) || 0);
+        await issueUpdateStock(matCode, lot, qty);
+      }
+    } else {
+      // ผู้ใช้ทั่วไปแก้ไขรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอรออนุมัติแทน ไม่แตะ issue_production/stock_balance
+      // จนกว่าแอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql)
+      isPendingRequest = true;
+      ({ error } = await _sb.from('issue_edit_requests').insert({
+        Action: 'EDIT', TargetRowId: parseInt(editId), MO_ID: moId,
+        Payload: payload, OldPayload: oldRow, Status: 'รออนุมัติ',
+        RequestedBy: _currentUser?.email || null,
+      }));
     }
     savedCount = 1;
   } else {
@@ -15616,12 +15758,12 @@ async function issueSubmit(e) {
   saveBtn.disabled = false;
   saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึกการเบิก';
 
-  if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+  if (error) { _err(isPendingRequest ? 'ส่งคำขอไม่สำเร็จ' : 'บันทึกไม่สำเร็จ', error.message); return; }
 
-  if (isEdit) _logAudit('EDIT', 'issue_production', editPayload.MO_ID || editPayload.MaterialCode, _diffFields(oldRow, editPayload));
+  if (isEdit && !isPendingRequest) _logAudit('EDIT', 'issue_production', editPayload.MO_ID || editPayload.MaterialCode, _diffFields(oldRow, editPayload));
   _issueModal.hide();
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขสำเร็จ' : `เบิกสำเร็จ ${savedCount} รายการ`,
+  Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
+    title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ' : (isEdit ? 'แก้ไขสำเร็จ' : `เบิกสำเร็จ ${savedCount} รายการ`),
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadIssueData();
   loadStockData();
@@ -15697,6 +15839,39 @@ async function issueRevertMOIfEmpty(moIds) {
 
 async function issueDelete(rowId) {
   const r = _issueData.find(d => d._row_id === rowId);
+  if (!r) return;
+
+  if (_issueReqForTarget(rowId)) {
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอที่ยังรอแอดมินอนุมัติอยู่แล้ว', 'info');
+    return;
+  }
+
+  if (!_currentUser?.isAdmin) {
+    // ผู้ใช้ทั่วไปลบรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่คืนสต็อก
+    // จนกว่าแอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql)
+    const res = await Swal.fire({
+      title: 'ส่งคำขอลบรายการนี้?',
+      html: `<div class="text-start"><b>${r.MaterialName||''}</b><br>Lot: ${r.Lot||''} | จำนวน: ${r.IssuedQty||''}<br>
+        <small class="text-muted">คำขอจะถูกส่งให้แอดมินอนุมัติก่อน ยังไม่ลบจริงจนกว่าจะได้รับอนุมัติ</small></div>`,
+      icon: 'question', showCancelButton: true,
+      confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
+
+    _showLoader();
+    const { error } = await _sb.from('issue_edit_requests').insert({
+      Action: 'DELETE', TargetRowId: rowId, MO_ID: r.MO_ID || null,
+      Payload: null, OldPayload: r, Status: 'รออนุมัติ',
+      RequestedBy: _currentUser?.email || null,
+    });
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:'ส่งคำขอลบแล้ว รอแอดมินอนุมัติ', showConfirmButton:false, timer:2000 });
+    loadIssueData();
+    return;
+  }
+
   const res = await Swal.fire({
     title: 'ยืนยันการลบ?',
     html: `<div class="text-start"><b>${r?.MaterialName||''}</b><br>Lot: ${r?.Lot||''} | จำนวน: ${r?.IssuedQty||''}</div>`,
@@ -15725,19 +15900,52 @@ async function issueDelete(rowId) {
 async function issueBulkDelete() {
   const ids = Array.from(document.querySelectorAll('.issue-row-check:checked')).map(c => parseInt(c.value));
   if (!ids.length) return;
+
+  // แถวที่มีคำขอค้างอยู่แล้วถูกล็อกไว้ตั้งแต่ checkbox (disabled) แล้ว แต่กันซ้ำไว้อีกชั้นเผื่อ state ไม่ sync
+  const pendingIds = new Set(_issueEditRequests.map(q => q.TargetRowId));
+  const skipIds = ids.filter(id => pendingIds.has(id));
+  const goIds   = ids.filter(id => !pendingIds.has(id));
+  if (!goIds.length) { Swal.fire('ทุกรายการที่เลือกมีคำขอค้างอยู่แล้ว', '', 'info'); return; }
+
+  const rowsToDelete = _issueData.filter(d => goIds.includes(d._row_id));
+
+  if (!_currentUser?.isAdmin) {
+    // ผู้ใช้ทั่วไป — ส่งเป็นคำขอลบทีละแถว รออนุมัติ ไม่ลบจริง/ไม่คืนสต็อกจนกว่าแอดมินจะอนุมัติ
+    const res = await Swal.fire({
+      title: `ส่งคำขอลบ ${goIds.length} รายการ?`,
+      html: `<small class="text-muted">รอแอดมินอนุมัติก่อนจึงจะลบจริง${skipIds.length ? ` · ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว` : ''}</small>`,
+      icon: 'question', showCancelButton: true, confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
+
+    _showLoader();
+    const { error } = await _sb.from('issue_edit_requests').insert(
+      rowsToDelete.map(r => ({
+        Action: 'DELETE', TargetRowId: r._row_id, MO_ID: r.MO_ID || null,
+        Payload: null, OldPayload: r, Status: 'รออนุมัติ', RequestedBy: _currentUser?.email || null,
+      }))
+    );
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:`ส่งคำขอลบ ${goIds.length} รายการแล้ว`, showConfirmButton:false, timer:2000 });
+    loadIssueData();
+    return;
+  }
+
   const res = await Swal.fire({
-    title: `ลบ ${ids.length} รายการ?`, icon: 'warning',
+    title: `ลบ ${goIds.length} รายการ?`, icon: 'warning',
+    html: skipIds.length ? `<small class="text-muted">ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว</small>` : '',
     showCancelButton: true, confirmButtonColor: '#d33',
     confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
   });
   if (!res.isConfirmed) return;
 
   // เก็บ MO_ID + วัตถุดิบ/lot/จำนวนของรายการที่จะลบไว้ก่อนลบ (ต้องใช้คืนสต็อกทีหลัง)
-  const rowsToDelete  = _issueData.filter(d => ids.includes(d._row_id));
   const affectedMOIds = [...new Set(rowsToDelete.map(d => d.MO_ID).filter(Boolean))];
 
   _showLoader();
-  const { error } = await _sb.from('issue_production').delete().in('_row_id', ids);
+  const { error } = await _sb.from('issue_production').delete().in('_row_id', goIds);
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
 
@@ -15749,10 +15957,226 @@ async function issueBulkDelete() {
   // คืนสถานะ MO ที่ไม่มีรายการเบิกเหลืออยู่
   if (affectedMOIds.length) await issueRevertMOIfEmpty(affectedMOIds);
 
-  _logAudit('BULK_DELETE', 'issue_production', affectedMOIds.join(', '), `ลบ ${ids.length} รายการ`);
+  _logAudit('BULK_DELETE', 'issue_production', affectedMOIds.join(', '), `ลบ ${goIds.length} รายการ`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+    title:`ลบ ${goIds.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
   loadIssueData();
+}
+
+// ══════════════════════════════════════════════
+// Issue: อนุมัติ/ปฏิเสธ/ยกเลิก คำขอแก้ไข-เพิ่ม-ลบ รายการเบิกที่ค้างอยู่ (issue_edit_requests)
+// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _currentUser.isAdmin (ซ่อนปุ่ม) ตามธรรมเนียม manager-action
+// อื่นๆ ของแอปนี้ (moForceClose ฯลฯ) ไม่ใช่ DB-level restriction — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
+// ══════════════════════════════════════════════
+function _issueRequestSummaryHTML(req) {
+  const actLabel = req.Action === 'EDIT' ? 'แก้ไข' : req.Action === 'ADD' ? 'เพิ่มรายการ' : 'ลบ';
+  const name = req.Payload?.MaterialName || req.OldPayload?.MaterialName || '';
+  const lot  = req.Payload?.Lot ?? req.OldPayload?.Lot ?? '';
+  let body = `<div class="text-start" style="font-size:.88rem"><b>${actLabel}</b> — ${name} (Lot ${lot||'—'})<br>`;
+  if (req.Action === 'EDIT') {
+    body += `จำนวนเดิม: <b>${(parseFloat(req.OldPayload?.IssuedQty)||0).toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()}</b>`;
+  } else if (req.Action === 'ADD') {
+    body += `จำนวนที่ขอเพิ่ม: <b class="text-primary">${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()} ${req.Payload?.UOM||''}</b>`;
+  } else {
+    body += `จำนวนที่ขอลบ: <b class="text-danger">${(parseFloat(req.OldPayload?.IssuedQty)||0).toLocaleString()} ${req.OldPayload?.UOM||''}</b>`;
+  }
+  body += `<br><small class="text-muted">MO: ${req.MO_ID||'—'} · ขอโดย ${req.RequestedBy||'—'}</small></div>`;
+  return body;
+}
+
+async function issueApproveRequest(reqId) {
+  const req = _issueEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const res = await Swal.fire({
+    title: 'อนุมัติคำขอนี้?', html: _issueRequestSummaryHTML(req),
+    icon: 'question', showCancelButton: true,
+    confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  let error;
+  if (req.Action === 'EDIT') {
+    ({ error } = await _sb.from('issue_production').update(req.Payload).eq('_row_id', req.TargetRowId));
+    if (!error) {
+      const old = req.OldPayload || {};
+      if (old.MaterialCode && old.Lot) await _issueRestoreStock(old.MaterialCode, old.Lot, parseFloat(old.IssuedQty) || 0);
+      await issueUpdateStock(req.Payload.MaterialCode, req.Payload.Lot, parseFloat(req.Payload.IssuedQty) || 0);
+    }
+  } else if (req.Action === 'ADD') {
+    ({ error } = await _sb.from('issue_production').insert(req.Payload));
+    if (!error) await issueUpdateStock(req.Payload.MaterialCode, req.Payload.Lot, parseFloat(req.Payload.IssuedQty) || 0);
+  } else if (req.Action === 'DELETE') {
+    ({ error } = await _sb.from('issue_production').delete().eq('_row_id', req.TargetRowId));
+    if (!error) {
+      const old = req.OldPayload || {};
+      if (old.MaterialCode && old.Lot) await _issueRestoreStock(old.MaterialCode, old.Lot, parseFloat(old.IssuedQty) || 0);
+      if (old.MO_ID) await issueRevertMOIfEmpty(old.MO_ID);
+    }
+  }
+  if (error) { _hideLoader(); _err('อนุมัติไม่สำเร็จ', error.message); return; }
+
+  await _sb.from('issue_edit_requests').update({
+    Status: 'อนุมัติแล้ว', ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+
+  _logAudit('APPROVE', 'issue_production', req.MO_ID || req.Payload?.MaterialCode || req.OldPayload?.MaterialCode,
+    `${req.Action} — ${req.OldPayload?.MaterialName || req.Payload?.MaterialName || ''}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
+  loadIssueData();
+  loadStockData();
+}
+
+async function issueRejectRequest(reqId) {
+  const req = _issueEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอนี้?', html: _issueRequestSummaryHTML(req),
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('issue_edit_requests').update({
+    Status: 'ปฏิเสธ', ReviewNote: reason.trim(), ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+
+  _logAudit('REJECT', 'issue_production', req.MO_ID, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  loadIssueData();
+}
+
+async function issueCancelRequest(reqId) {
+  const req = _issueEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+  const res = await Swal.fire({ title: 'ยกเลิกคำขอนี้?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกคำขอ', cancelButtonText: 'ปิด' });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('issue_edit_requests').delete().eq('_row_id', reqId);
+  _hideLoader();
+  if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  loadIssueData();
+}
+
+// ══════════════════════════════════════════════
+// Issue: เพิ่มรายการวัตถุดิบให้ MO ที่เบิกไปแล้ว (แยกจากการเบิกครั้งแรก) — แอดมินตัดสต็อกทันที
+// ผู้ใช้ทั่วไปส่งเป็นคำขอ 'ADD' รออนุมัติแทน (ดู issueApproveRequest ด้านบน)
+// ══════════════════════════════════════════════
+let _issueAddLineModal = null;
+
+function issueOpenAddLineModal(moId) {
+  if (!_issueAddLineModal) _issueAddLineModal = new bootstrap.Modal(document.getElementById('issueAddLineModal'));
+  document.getElementById('issueAddLineForm').reset();
+  document.getElementById('issueaddline-mat-dropdown').style.display = 'none';
+  document.getElementById('issueaddline-mat-hint').textContent   = '';
+  document.getElementById('issueaddline-stock-hint').textContent = '';
+  document.getElementById('issueaddline-mat-code').value = '';
+  document.getElementById('issueaddline-mat-name').value = '';
+  document.getElementById('issueaddline-mo-id').value = moId;
+  const mo = _issueMOAllMap[moId];
+  document.getElementById('issueaddline-mo-display').value = `${moId} — ${mo?.ProductName||''}`;
+  document.getElementById('issueaddline-alert').innerHTML = _currentUser?.isAdmin
+    ? '<i class="fas fa-check-circle me-1"></i>สิทธิ์แอดมิน — บันทึกแล้วตัดสต็อกทันที'
+    : '<i class="fas fa-clock me-1"></i>รายการนี้จะถูกส่งเป็น "คำขอ" รอแอดมินอนุมัติก่อน ยังไม่ตัดสต็อกจนกว่าจะได้รับอนุมัติ';
+  _issueAddLineModal.show();
+}
+
+function issueAddLineSearchMaterial(q) {
+  const dd = document.getElementById('issueaddline-mat-dropdown');
+  if (!q || q.length < 1) { dd.style.display = 'none'; return; }
+  const results = _issueMaterials.filter(m =>
+    (m.MaterialName||'').toLowerCase().includes(q.toLowerCase()) ||
+    (m.MaterialCode||'').toLowerCase().includes(q.toLowerCase())
+  ).slice(0, 12);
+  if (!results.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = results.map(m => `
+    <button type="button" class="list-group-item list-group-item-action py-1 px-2" style="font-size:.82rem"
+      onclick="issueAddLineSelectMaterial('${m.MaterialCode}','${(m.MaterialName||'').replace(/'/g,"\\'")}','${m.Lot||''}','${m.UOM||''}',${parseFloat(m.QtyBalance)||0})">
+      <span class="badge bg-secondary me-1">${m.MaterialCode}</span>${m.MaterialName||''}
+      <small class="ms-2 text-muted">Lot: ${m.Lot||'—'}</small>
+      <span class="badge ${(parseFloat(m.QtyBalance)||0) <= 0 ? 'bg-danger' : 'bg-success'} ms-1">คงเหลือ: ${(parseFloat(m.QtyBalance)||0).toLocaleString()}</span>
+    </button>`).join('');
+  dd.style.display = 'block';
+}
+
+function issueAddLineSelectMaterial(code, name, lot, uom, balance) {
+  document.getElementById('issueaddline-mat-search').value = name;
+  document.getElementById('issueaddline-mat-code').value   = code;
+  document.getElementById('issueaddline-mat-name').value   = name;
+  document.getElementById('issueaddline-lot').value         = lot;
+  document.getElementById('issueaddline-uom').value         = uom;
+  document.getElementById('issueaddline-mat-hint').textContent   = `รหัส: ${code}`;
+  document.getElementById('issueaddline-stock-hint').textContent = `คงเหลือในสต็อก: ${balance.toLocaleString()} ${uom}`;
+  document.getElementById('issueaddline-mat-dropdown').style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('issueaddline-mat-dropdown');
+  if (dd && !dd.contains(e.target) && e.target.id !== 'issueaddline-mat-search') dd.style.display = 'none';
+});
+
+async function issueAddLineSubmit(e) {
+  e.preventDefault();
+  const moId    = document.getElementById('issueaddline-mo-id').value;
+  const matCode = document.getElementById('issueaddline-mat-code').value;
+  const matName = document.getElementById('issueaddline-mat-name').value || document.getElementById('issueaddline-mat-search').value;
+  const lot     = document.getElementById('issueaddline-lot').value;
+  const qty     = parseFloat(document.getElementById('issueaddline-qty').value) || 0;
+  const uom     = document.getElementById('issueaddline-uom').value;
+  const remark  = document.getElementById('issueaddline-remark').value;
+
+  if (!matCode || qty <= 0) {
+    Swal.fire({ icon:'warning', title:'ข้อมูลไม่ครบ', text:'กรุณาเลือกวัตถุดิบและระบุจำนวนที่มากกว่า 0' });
+    return;
+  }
+
+  const saveBtn = document.getElementById('issueaddline-save-btn');
+  saveBtn.disabled = true;
+  _showLoader();
+
+  const payload = {
+    Date: new Date().toISOString().split('T')[0], MO_ID: moId,
+    MaterialCode: matCode, MaterialName: matName,
+    Lot: lot || null, IssuedQty: qty, UOM: uom, Remark: remark,
+  };
+
+  if (_currentUser?.isAdmin) {
+    const { error } = await _sb.from('issue_production').insert(payload);
+    if (!error) await issueUpdateStock(matCode, lot, qty);
+    _hideLoader();
+    saveBtn.disabled = false;
+    if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+
+    _logAudit('EDIT', 'issue_production', moId, `เพิ่มรายการ ${matName} Lot ${lot||''} จำนวน ${qty}`);
+    _issueAddLineModal.hide();
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:'เพิ่มรายการสำเร็จ', showConfirmButton:false, timer:1500 });
+    loadIssueData();
+    loadStockData();
+  } else {
+    const { error } = await _sb.from('issue_edit_requests').insert({
+      Action: 'ADD', TargetRowId: null, MO_ID: moId,
+      Payload: payload, OldPayload: null, Status: 'รออนุมัติ',
+      RequestedBy: _currentUser?.email || null,
+    });
+    _hideLoader();
+    saveBtn.disabled = false;
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+
+    _issueAddLineModal.hide();
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:'ส่งคำขอเพิ่มรายการแล้ว รอแอดมินอนุมัติ', showConfirmButton:false, timer:2000 });
+    loadIssueData();
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -16893,12 +17317,26 @@ async function lotscanCaptureAndRead() {
   }
 
   statusEl.textContent = 'ไม่เจอ QR — กำลังอ่านข้อความ (LOT/EXP)...';
+  let worker;
   try {
     if (typeof Tesseract === 'undefined') throw new Error('Tesseract ไม่พร้อมใช้งาน');
-    const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
-    const m = text.match(/\bLOT\b[:\s.\-]*([A-Za-z0-9\/\-]+)/i);
+    const processed = _lotscanPreprocessForOCR(canvas);
+    // worker API (ไม่ใช่ Tesseract.recognize() เฉยๆ) เพื่อตั้งค่าที่ช่วยความแม่นยำได้ 2 อย่าง:
+    // (1) tessedit_char_whitelist จำกัดให้เดาได้แค่ตัวอักษร/ตัวเลข/เครื่องหมายที่รหัส Lot จริงมีเท่านั้น
+    // กันไม่ให้ทายเป็นสัญลักษณ์แปลกๆ ที่เป็นไปไม่ได้ (2) tessedit_pageseg_mode='11' (sparse text) เหมาะกับ
+    // ป้ายสินค้าที่มีข้อความหลายก้อนกระจายตำแหน่งกัน (ชื่อสินค้า/LOT/EXP/บาร์โค้ด) ไม่ใช่ย่อหน้าเดียวต่อเนื่อง
+    worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({
+      tessedit_pageseg_mode: '11',
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-.: ',
+    });
+    const { data: { text } } = await worker.recognize(processed);
+    await worker.terminate();
+    worker = null;
+    // ทน OCR อ่าน "LOT" ผิดเป็น "L0T" ได้ (เลข 0 กับตัว O สับสนกันบ่อยที่สุดในทุกฟอนต์)
+    const m = text.match(/\bL[O0]T\b[:\s.\-]*([A-Za-z0-9\/\-]+)/i);
     if (m && m[1]) {
-      document.getElementById('lotscan-f-code').value = m[1];
+      document.getElementById('lotscan-f-code').value = _lotscanNormalizeOcrCode(m[1]);
       lotscanCloseCamera();
       lotscanSearch();
       return;
@@ -16906,10 +17344,43 @@ async function lotscanCaptureAndRead() {
     statusEl.textContent = 'ไม่พบ QR หรือคำว่า "LOT" ในภาพ ลองถ่ายใหม่ให้ชัดขึ้น หรือพิมพ์รหัส Lot เอง';
   } catch (e) {
     console.error(e);
+    if (worker) await worker.terminate().catch(() => {});
     statusEl.textContent = 'อ่านข้อความไม่สำเร็จ ลองถ่ายใหม่ หรือพิมพ์รหัส Lot เอง';
   } finally {
     btn.disabled = false;
   }
+}
+
+// เพิ่มความคมชัดให้ OCR อ่านง่ายขึ้นก่อนส่งเข้า Tesseract — ขยาย 2 เท่า (ตัวหนังสือเล็กใน frame กล้อง
+// อ่านยาก) แล้วแปลงเป็นขาว-ดำล้วน (threshold ตายตัวที่ 150) เพราะป้าย LOT/EXP ทั่วไปคือหมึกเข้มบนพื้นอ่อน
+// คอนทราสต์สูงอยู่แล้ว ไม่จำเป็นต้องทำ adaptive threshold/Otsu ให้ซับซ้อนเกินความจำเป็นของ use case นี้
+function _lotscanPreprocessForOCR(sourceCanvas) {
+  const scale = 2;
+  const out = document.createElement('canvas');
+  out.width  = sourceCanvas.width  * scale;
+  out.height = sourceCanvas.height * scale;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingEnabled = true;
+  octx.drawImage(sourceCanvas, 0, 0, out.width, out.height);
+  const imgData = octx.getImageData(0, 0, out.width, out.height);
+  const px = imgData.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    const v = gray > 150 ? 255 : 0;
+    px[i] = px[i + 1] = px[i + 2] = v;
+  }
+  octx.putImageData(imgData, 0, 0);
+  return out;
+}
+
+// แก้ตัวอักษรที่ OCR อ่านสลับกับตัวเลขบ่อยที่สุด (O/0, I/1, S/5, B/8) เฉพาะตอนที่รหัสส่วนใหญ่เป็นตัวเลขอยู่แล้ว
+// (Lot ในระบบนี้เท่าที่เจอจริงเป็นตัวเลข+ / - ล้วน เช่น 300626/01-002, 260812) — ถ้ารหัสมีตัวอักษรเยอะกว่า
+// ตัวเลข ปล่อยผ่านไม่แตะ เพราะอาจเป็นของจริงที่ตั้งใจให้เป็นตัวอักษร ไม่ใช่ OCR อ่านผิด
+function _lotscanNormalizeOcrCode(raw) {
+  const digitCount  = (raw.match(/\d/g) || []).length;
+  const letterCount = (raw.match(/[A-Za-z]/g) || []).length;
+  if (letterCount === 0 || digitCount < letterCount) return raw;
+  return raw.replace(/O/g, '0').replace(/I/g, '1').replace(/S/g, '5').replace(/B/g, '8');
 }
 
 // ── พิมพ์ป้าย Lot (QR) — เรียกจากปุ่มใน MR Receive/FG Receive แต่ละแถว (kind: 'MAT' หรือ 'FG') ──
