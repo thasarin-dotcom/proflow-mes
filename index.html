@@ -943,6 +943,19 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 .lotlabel-item .lotlabel-name{font-size:9px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lotlabel-item .lotlabel-lot{font-size:10px;font-weight:700;margin-top:1mm}
 
+/* ── ป้ายกล่องต่อใบส่ง (dlvlabel) — ใช้ .lotlabel-sheet ร่วมกับป้าย Lot (แค่กรอบ A4 + wrap) แต่ตัว item เป็น
+   คลาสแยกของตัวเอง ไม่ปนกับ .lotlabel-item เดิม กันกระทบป้าย Lot ที่ใช้งานอยู่แล้ว — ลำดับความเด่นตามที่ผู้ใช้
+   ขอ: ชื่อสินค้าเด่นสุด (ยอมให้ 2 บรรทัด) > เลขที่ใบส่ง (ขยายใหญ่) > รหัสสินค้า (ไม่ต้องเด่น) */
+.dlvlabel-item{
+  width:62mm;min-height:30mm;border:1px solid #94a3b8;border-radius:2px;padding:2mm;box-sizing:border-box;
+  display:flex;align-items:center;gap:2mm;font-family:Sarabun,sans-serif;color:#000;background:#fff;
+}
+.dlvlabel-item .dlvlabel-qr svg{width:20mm;height:20mm;display:block;flex-shrink:0}
+.dlvlabel-item .dlvlabel-text{flex:1;min-width:0;overflow:hidden}
+.dlvlabel-item .dlvlabel-name{font-weight:700;font-size:11.5px;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dlvlabel-item .dlvlabel-billno{font-size:13px;font-weight:700;color:#1e3a8a;margin-top:2px;white-space:nowrap}
+.dlvlabel-item .dlvlabel-code{font-size:9.5px;color:#94a3b8;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* ── MR Receive: Print Report Modal (เลือกข้อมูล + เลข RC No) ── */
 #mrReportModal .modal-dialog{max-width:1100px}
 .mrrpt-step{padding:14px 20px;border-bottom:1px solid #e7ecf5;background:#f8fafc}
@@ -4127,6 +4140,11 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </div>
     <div class="sticky-toolbar py-2">
       <div class="lotscan-panel mb-0 py-3">
+        <div id="lotscan-back-row" style="display:none" class="mb-2">
+          <button class="btn btn-outline-secondary btn-sm" onclick="lotscanGoBack()">
+            <i class="fas fa-arrow-left me-1"></i>กลับไปหน้าก่อนหน้า
+          </button>
+        </div>
         <div class="row g-2 align-items-end">
           <div class="col-md-6">
             <label class="form-label mb-1 small">รหัส Lot หรือเลขที่ใบส่ง (พิมพ์เอง หรือสแกน QR/บาร์โค้ด)</label>
@@ -4727,14 +4745,10 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="row g-2 align-items-end mb-2 px-1">
-          <div class="col-auto">
-            <label class="form-label mb-1 small">จำนวนป้าย (ใส่ตามจำนวนกล่องจริงของใบนี้)</label>
-            <input type="number" id="dlvlabel-qty" class="form-control form-control-sm" style="width:90px" min="1" value="1" oninput="_dlvlabelRenderPreview()">
-          </div>
-          <div class="col-auto text-muted small">
-            QR เข้ารหัสเลขที่ใบส่งตรงๆ — สแกนที่หน้า "Lot Scan" เพื่อดูว่าใบนี้ส่งสินค้าอะไรบ้าง ยอดส่งเท่าไหร่ ส่งวันไหน
-          </div>
+        <div class="fw-semibold small mb-1">1. จำนวนป้ายต่อสินค้า <span class="text-muted fw-normal">(ดึงจำนวนกล่องที่เคยจัดไว้ให้อัตโนมัติถ้ามี — แก้เองได้)</span></div>
+        <div id="dlvlabel-config-body" class="mb-3"></div>
+        <div class="text-muted small mb-2">
+          QR เข้ารหัสเลขที่ใบส่ง + รหัสสินค้า — สแกนที่หน้า "Lot Scan" จะเห็นภาพรวมทั้งใบ พร้อมไฮไลต์แถวของสินค้าที่แปะกล่องนี้ให้ด้วย
         </div>
         <div id="dlvlabel-preview-body"></div>
       </div>
@@ -8452,7 +8466,7 @@ function fgoutRenderBillGroups() {
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvbillOpenModal(${JSON.stringify(g.rows.map(r => r._row_id))})" title="ปริ้นใบส่งสินค้าซ้ำ">
               <i class="fas fa-print me-1"></i>ปริ้นใบส่งสินค้า
             </button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}','${(customer||'').replace(/'/g,"\\'")}')" title="พิมพ์ป้ายกล่อง (QR) แปะกล่องสินค้าของใบส่งนี้">
+            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}')" title="พิมพ์ป้ายกล่อง (QR) แยกตามสินค้า สำหรับแปะกล่องของใบส่งนี้">
               <i class="fas fa-qrcode me-1"></i>ป้ายกล่อง
             </button>
             ${actionHtml}
@@ -17025,13 +17039,54 @@ function _stockcardBuildPrintHTML(rep) {
 // พิมพ์มือที่ไม่มี prefix นี้ จะค้นหาแบบ raw lot text ข้าม stock_balance.Lot และ fg_receive.Lot_FG พร้อมกัน
 // ══════════════════════════════════════════════
 let _lotscanMultiOptions = [];
+// สแตกหน้าก่อนหน้า (สำหรับปุ่ม "กลับ") — คลิกลิงก์ในหน้าผลลัพธ์ (ไปดู Lot/ใบส่งอื่น) จะ push หน้าปัจจุบันไว้ก่อน
+// ส่วนการค้นหาใหม่จากช่องค้นหา/สแกน/เลือกจากรายการซ้ำ (multi) ถือเป็นจุดเริ่มต้นใหม่ ล้างสแตกทิ้งเสมอ
+let _lotscanHistory = [];
+let _lotscanCurrentMatch = null;
 
 function lotscanInit() {
   document.getElementById('lotscan-f-code').value = '';
   _lotscanHideAllPanels();
   document.getElementById('lotscan-empty').classList.remove('d-none');
   document.getElementById('lotscan-f-code').focus();
+  _lotscanHistory = [];
+  _lotscanCurrentMatch = null;
+  _lotscanUpdateBackButton();
 }
+
+function _lotscanUpdateBackButton() {
+  const row = document.getElementById('lotscan-back-row');
+  if (row) row.style.display = _lotscanHistory.length ? '' : 'none';
+}
+
+function lotscanGoBack() {
+  if (!_lotscanHistory.length) return;
+  const prev = _lotscanHistory.pop();
+  lotscanShow(prev, 'back');
+}
+
+// ── สไวป์กลับ (แท็บเล็ต/มือถือจอสัมผัส) — สไวป์นิ้วไปทางขวาบนพื้นที่หน้า Lot Scan เพื่อกลับหน้าก่อนหน้า
+// เทียบเท่าปุ่ม "กลับ" ด้านบนทุกประการ (ใช้ history stack เดียวกัน) — ผูก touch event ครั้งเดียวตอนโหลดสคริปต์
+// (ไม่รอ lotscanInit เพราะ showPage ไม่เคยเรียกฟังก์ชันนั้นจริง) เดสก์ท็อปที่ไม่มีจอสัมผัสจะไม่มี touch event
+// ให้ยิงอยู่แล้วตามธรรมชาติ ไม่ต้องกันเงื่อนไขแยกเป็นพิเศษ — เช็คระยะแนวนอนต้องเด่นกว่าแนวตั้งชัดเจน กันชนกับ
+// การเลื่อนสกอลล์ปกติในเนื้อหา
+(function () {
+  const container = document.getElementById('page-lotscan');
+  if (!container) return;
+  let startX = 0, startY = 0, tracking = false;
+  container.addEventListener('touchstart', (e) => {
+    if (!_lotscanHistory.length) { tracking = false; return; }
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; tracking = true;
+  }, { passive: true });
+  container.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX, dy = t.clientY - startY;
+    if (dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) lotscanGoBack();
+  }, { passive: true });
+})();
 
 function _lotscanHideAllPanels() {
   document.getElementById('lotscan-empty').classList.add('d-none');
@@ -17064,9 +17119,10 @@ async function lotscanResolve(rawInput) {
     if (kind === 'MAT') return { type: 'material', materialCode: code, lot };
     if (kind === 'FG')  return { type: 'fg', productCode: code, lotFg: lot };
   }
-  // ป้ายกล่องต่อใบส่ง (PFDLV|{BillNo}) — ดู dlvlabelOpenPrint/_dlvlabelBuildItemHTML ที่พิมพ์ป้ายนี้
-  if (parts[0] === 'PFDLV' && parts.length === 2 && parts[1]) {
-    return { type: 'delivery', billNo: parts[1] };
+  // ป้ายกล่องต่อใบส่ง+สินค้า (PFDLV|{BillNo}|{ProductCode}) — ดู dlvlabelOpenPrint/_dlvlabelBuildItemHTML ที่พิมพ์
+  // ป้ายนี้ — ProductCode ใช้ไฮไลต์แถวสินค้านั้นในหน้าผลลัพธ์ (กล่องนี้คือสินค้าไหนในใบที่มีหลายสินค้าปนกัน)
+  if (parts[0] === 'PFDLV' && parts.length >= 2 && parts[1]) {
+    return { type: 'delivery', billNo: parts[1], highlightProduct: parts[2] || null };
   }
 
   // escape % และ _ ก่อนส่งเข้า ilike เสมอ — ทั้งสองตัวเป็น wildcard ของ SQL LIKE ถ้ารหัส Lot จริงมีตัวนี้อยู่ในชื่อ
@@ -17127,7 +17183,17 @@ function lotscanShowOption(i) {
 // สำหรับพิมพ์ต่อได้ทันที โดยไม่ต้อง query ซ้ำ (คนละเลย์เอาต์กับที่โชว์บนจอ แต่ข้อมูลชุดเดียวกัน)
 let _lotscanLastReport = null;
 
-async function lotscanShow(match) {
+// mode: undefined = ค้นหาใหม่จากช่องค้นหา/สแกน/เลือกจากรายการซ้ำ (ล้างสแตกกลับ เริ่มต้นใหม่)
+//       'push'  = คลิกลิงก์ในหน้าผลลัพธ์ปัจจุบันเพื่อไปดู Lot/ใบส่งอื่น (push หน้าปัจจุบันลงสแตกก่อนสลับ)
+//       'back'  = กดปุ่ม "กลับ" (lotscanGoBack ป๊อปสแตกให้แล้ว แค่ render เฉยๆ ไม่ต้องแก้สแตกซ้ำ)
+async function lotscanShow(match, mode) {
+  if (mode === 'push') {
+    if (_lotscanCurrentMatch) _lotscanHistory.push(_lotscanCurrentMatch);
+  } else if (mode !== 'back') {
+    _lotscanHistory = [];
+  }
+  _lotscanCurrentMatch = match;
+  _lotscanUpdateBackButton();
   _showLoader();
   try {
     let html;
@@ -17141,6 +17207,7 @@ async function lotscanShow(match) {
       html = _lotscanRenderFGScreen(d);
     } else {
       const d = await _lotscanFetchDeliveryData(match.billNo);
+      d.highlightProduct = match.highlightProduct || null;
       _lotscanLastReport = { type: 'delivery', data: d };
       html = _lotscanRenderDeliveryScreen(d);
     }
@@ -17230,7 +17297,7 @@ function _lotscanRenderMaterialScreen(d) {
 
   const usageRows = issRows.length ? issRows.map(r => {
     const fgList = (fgByMo[r.MO_ID] || []).map(f =>
-      `<span class="lotscan-chip" onclick='lotscanShow({type:"fg",productCode:"${f.ProductCode}",lotFg:"${f.Lot_FG}"})'>${f.ProductCode} Lot ${f.Lot_FG}</span>`
+      `<span class="lotscan-chip" onclick='lotscanShow({type:"fg",productCode:"${f.ProductCode}",lotFg:"${f.Lot_FG}"},"push")'>${f.ProductCode} Lot ${f.Lot_FG}</span>`
     ).join('') || '<span class="lotscan-flat-muted">—</span>';
     return `<div class="lotscan-row">
       <span>${_fmtDate(r.Date)||''} — ${r.MO_ID||''}</span>
@@ -17381,7 +17448,7 @@ function _lotscanRenderFGScreen(d) {
 
   const materialRowsHtml = materialRows.length ? materialRows.map(m => `
     <div class="lotscan-row">
-      <span class="lotscan-row-link" onclick='lotscanShow({type:"material",materialCode:"${m.MaterialCode}",lot:"${m.Lot}"})'>${m.MaterialCode} — ${m.MaterialName||''} <span class="lotscan-flat-muted">Lot ${m.Lot||'—'}${m.mfgLotNo?` (ผู้ผลิต ${m.mfgLotNo})`:''} · หมดอายุ ${_fmtDate(m.expDate)}</span></span>
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"material",materialCode:"${m.MaterialCode}",lot:"${m.Lot}"},"push")'>${m.MaterialCode} — ${m.MaterialName||''} <span class="lotscan-flat-muted">Lot ${m.Lot||'—'}${m.mfgLotNo?` (ผู้ผลิต ${m.mfgLotNo})`:''} · หมดอายุ ${_fmtDate(m.expDate)}</span></span>
       <span class="lotscan-row-num">${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</span>
     </div>`).join('')
     : _lotscanEmptyRow('ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
@@ -17389,7 +17456,7 @@ function _lotscanRenderFGScreen(d) {
   const withdrawRows = wdRows.length ? wdRows.map(r => {
     const dlv = deliveryByWd[r._row_id];
     const billHtml = dlv?.billNo
-      ? ` · <span class="lotscan-row-link" onclick='lotscanShow({type:"delivery",billNo:"${dlv.billNo}"})'>ใบส่ง ${dlv.billNo}</span> (${_fmtDate(dlv.date)||'—'})`
+      ? ` · <span class="lotscan-row-link" onclick='lotscanShow({type:"delivery",billNo:"${dlv.billNo}"},"push")'>ใบส่ง ${dlv.billNo}</span> (${_fmtDate(dlv.date)||'—'})`
       : '';
     return `<div class="lotscan-row">
       <span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${billHtml}</span>
@@ -17427,8 +17494,13 @@ async function _lotscanFetchDeliveryData(billNo) {
 }
 
 function _lotscanRenderDeliveryScreen(d) {
-  const { billNo, customerName, rows, totalQty, uom, allArrived, dateSet } = d;
+  const { billNo, customerName, rows, totalQty, uom, allArrived, dateSet, highlightProduct } = d;
   const dateLabel = dateSet.length ? dateSet.map(x => _fmtDate(x)).join(', ') : '—';
+  // ยอดของสินค้าที่ตรงกับกล่องที่สแกน (highlightProduct) แยกต่างหากจากยอดรวมทั้งใบ — ผู้ใช้ขอให้เด่นเป็นก้อนแรก
+  // เพราะยอดรวมทั้งใบไม่ได้บอกว่ากล่องที่ถืออยู่มีของกี่ชิ้น ถ้าใบนั้นมีหลายสินค้าปนกัน
+  const highlightRows = highlightProduct ? rows.filter(r => r.ProductCode === highlightProduct) : [];
+  const highlightQty = highlightRows.reduce((s, r) => s + (parseFloat(r.QtyDelivered) || 0), 0);
+  const highlightUom = highlightRows[0]?.UOM || uom;
   const header = `
     <div class="lotscan-header-row">
       <div>
@@ -17437,8 +17509,13 @@ function _lotscanRenderDeliveryScreen(d) {
         <div class="lotscan-subtle">ส่งวันที่ <span class="fw-semibold" style="color:#0f172a">${dateLabel}</span></div>
       </div>
       <div class="lotscan-stats">
+        ${highlightRows.length ? `
+        <div class="lotscan-stat" style="background:#fef9c3;border-radius:10px;padding:4px 12px">
+          <div class="lotscan-stat-label"><i class="fas fa-box-open me-1" style="color:#b45309"></i>ยอดกล่องนี้ (${highlightProduct})</div>
+          <div class="lotscan-stat-num" style="color:#b45309">${highlightQty.toLocaleString()} ${highlightUom}</div>
+        </div>` : ''}
         <div class="lotscan-stat">
-          <div class="lotscan-stat-label">ยอดส่งรวม</div>
+          <div class="lotscan-stat-label">ยอดส่งรวมทั้งใบ</div>
           <div class="lotscan-stat-num accent">${totalQty.toLocaleString()} ${uom}</div>
         </div>
         <div class="lotscan-stat">
@@ -17448,16 +17525,18 @@ function _lotscanRenderDeliveryScreen(d) {
       </div>
     </div>`;
 
-  const itemRows = rows.length ? rows.map(r => `
-    <div class="lotscan-row">
-      <span class="lotscan-row-link" onclick='lotscanShow({type:"fg",productCode:"${r.ProductCode||''}",lotFg:"${r.Lot_FG||''}"})'>
-        ${r.ProductCode||''} — ${r.ProductName||''} <span class="lotscan-flat-muted">Lot ${r.Lot_FG||'—'}</span>
+  const itemRows = rows.length ? rows.map(r => {
+    const isHighlight = !!highlightProduct && r.ProductCode === highlightProduct;
+    return `<div class="lotscan-row"${isHighlight ? ' style="background:#fef9c3;border-radius:6px;padding:6px 8px;margin:2px 0"' : ''}>
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"fg",productCode:"${r.ProductCode||''}",lotFg:"${r.Lot_FG||''}"},"push")'>
+        ${isHighlight ? '<i class="fas fa-box-open me-1" style="color:#b45309" title="สินค้าในกล่องนี้"></i>' : ''}${r.ProductCode||''} — ${r.ProductName||''} <span class="lotscan-flat-muted">Lot ${r.Lot_FG||'—'}</span>
       </span>
       <span style="display:flex;align-items:center;gap:8px">
         <span class="lotscan-row-num">${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</span>
         <span class="lotscan-chip">${r.Status||'—'}</span>
       </span>
-    </div>`).join('')
+    </div>`;
+  }).join('')
     : _lotscanEmptyRow('ไม่พบรายการในใบส่งนี้');
 
   return header + _lotscanCard('รายการสินค้าในใบส่งนี้ — คลิกเพื่อดูย้อนไปถึงผลิต/วัตถุดิบ', 'fa-box', itemRows);
@@ -17578,12 +17657,15 @@ function _lotscanRenderFGPrint(d) {
 }
 
 function _lotscanRenderDeliveryPrint(d) {
-  const { billNo, customerName, rows, totalQty, uom, dateSet } = d;
+  const { billNo, customerName, rows, totalQty, uom, dateSet, highlightProduct } = d;
   const dateLabel = dateSet.length ? dateSet.map(x => _fmtDate(x)).join(', ') : '—';
 
-  const itemRows = rows.length ? rows.map(r => `
-    <tr><td>${r.ProductCode||''} — ${r.ProductName||''}</td><td>${r.Lot_FG||'—'}</td>
-        <td>${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</td><td>${r.Status||'—'}</td></tr>`).join('')
+  const itemRows = rows.length ? rows.map(r => {
+    const isHighlight = !!highlightProduct && r.ProductCode === highlightProduct;
+    return `<tr${isHighlight ? ' style="background:#fef9c3;font-weight:700"' : ''}>
+        <td>${isHighlight ? '★ ' : ''}${r.ProductCode||''} — ${r.ProductName||''}</td><td>${r.Lot_FG||'—'}</td>
+        <td>${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</td><td>${r.Status||'—'}</td></tr>`;
+  }).join('')
     : _lotscanReportEmptyRow(4, 'ไม่พบรายการในใบส่งนี้');
 
   return `<div class="lotreport-page">
@@ -17840,41 +17922,98 @@ function lotlabelPrint() {
 
 // ── พิมพ์ป้ายกล่อง (QR) ต่อ "ใบส่ง" (DeliveryBillNo) — เรียกจากการ์ดใบส่งในหน้าเบิก FG (fgoutRenderBillGroups) ──
 // ผูกกับใบส่งแทนที่จะผูกกับ Lot (ต่างจากป้าย Lot เดิม PFLOT) เพราะยืนยันแล้วว่า 1 Lot มักถูกแบ่งส่งหลายรอบ/
-// หลายลูกค้า — สแกนป้าย Lot เดิมจะเห็นประวัติส่งทั้งหมดของ Lot นั้นปนกัน ไม่ตรงกับกล่องที่ถืออยู่ตรงๆ ส่วนป้ายนี้
-// สแกนแล้วเห็นเฉพาะใบส่งใบนั้นใบเดียว (ตรงตามที่ต้องการ: จากใบไหน ยอดส่งเท่าไหร่ ส่งวันไหน) — ใช้รหัส "PFDLV|{BillNo}"
-// คู่ขนานกับ "PFLOT|..." เดิม, ให้ lotscanResolve() ที่หน้า Lot Scan parse ต่อ (ดูด้านล่าง) ไม่ต้องสร้างหน้าสแกนใหม่
-let _dlvlabelModal   = null;
-let _dlvlabelCurrent = null;
+// หลายลูกค้า — สแกนป้าย Lot เดิมจะเห็นประวัติส่งทั้งหมดของ Lot นั้นปนกัน ไม่ตรงกับกล่องที่ถืออยู่ตรงๆ
+// **1 ใบส่งมักมีหลายสินค้า/หลายกล่อง** (ตามที่ผู้ใช้ยืนยัน) จึงต้องแยกป้ายเป็นชุดต่อ "สินค้า" ในใบเดียวกัน ไม่ใช่
+// ป้ายเดียวทั้งใบ — ใช้กลุ่มสินค้าเดียวกับที่ระบบจัดกล่องไว้แล้วตอน "ปริ้นใบส่งสินค้า" (_dlvbillBuildGroups +
+// PackingJSON ใน delivery_bill_numbers) เพื่อ prefill จำนวนป้ายต่อสินค้าให้ตรงกับจำนวนกล่องจริงที่เคยจัดไว้ —
+// ถ้ายังไม่เคยจัดกล่อง (ยังไม่กดปริ้นใบส่งสินค้า) จะ prefill เป็น 1 ต่อสินค้าแทน ให้ผู้ใช้กรอกเองตามจริง
+// QR เข้ารหัส "PFDLV|{BillNo}|{ProductCode}" (คู่ขนานกับ "PFLOT|..." เดิม) ให้ lotscanResolve() parse ต่อ
+// (ดูด้านล่าง) — ProductCode ในป้ายทำให้สแกนแล้วรู้ทันทีว่ากล่องนี้คือสินค้าไหนในใบส่งที่มีหลายสินค้าปนกัน
+let _dlvlabelModal      = null;
+let _dlvlabelBillNo     = null;
+let _dlvlabelGroups     = {};
+let _dlvlabelGroupOrder = [];
+let _dlvlabelQtyByGroup = {};
 
-function dlvlabelOpenPrint(billNo, customerName) {
+async function dlvlabelOpenPrint(billNo) {
   if (!billNo) { _err('ไม่มีเลขที่ใบส่ง', 'ใบนี้ยังไม่ได้ยืนยันเลขที่ใบส่งสินค้า'); return; }
-  _dlvlabelCurrent = { billNo, customerName };
-  document.getElementById('dlvlabel-qty').value = 1;
+  _showLoader();
+  _dlvlabelBillNo = billNo;
+  const rows = _deliveryData.filter(r => r.DeliveryBillNo === billNo);
+  const { groups, order } = _dlvbillBuildGroups(rows);
+  _dlvlabelGroups = groups;
+  _dlvlabelGroupOrder = order;
+
+  // ดึง PackingJSON เดียวกับที่ dlvbillOpenModal ใช้ (ผูกกับ BillNo เดียวกัน) มาคำนวณจำนวนกล่องจริงต่อสินค้า
+  const { data } = await _sb.from('delivery_bill_numbers').select('PackingJSON').eq('BillNo', billNo).maybeSingle();
+  const packing = data?.PackingJSON || {};
+  _dlvlabelQtyByGroup = {};
+  order.forEach(key => {
+    const state = packing[key];
+    if (state) {
+      const fullBoxes = groups[key].lots.reduce((s, l) => s + (state.packSize ? Math.floor(l.qty / state.packSize) : 0), 0);
+      _dlvlabelQtyByGroup[key] = Math.max(1, fullBoxes + (state.mixBoxes || []).length);
+    } else {
+      _dlvlabelQtyByGroup[key] = 1;
+    }
+  });
+
+  _hideLoader();
+  _dlvlabelRenderConfig();
   _dlvlabelRenderPreview();
   if (!_dlvlabelModal) _dlvlabelModal = new bootstrap.Modal(document.getElementById('dlvlabelPrintModal'));
   _dlvlabelModal.show();
 }
 
-function _dlvlabelBuildItemHTML(d) {
-  const content = `PFDLV|${d.billNo}`;
+function _dlvlabelRenderConfig() {
+  const wrap = document.getElementById('dlvlabel-config-body');
+  if (!wrap) return;
+  if (!_dlvlabelGroupOrder.length) { wrap.innerHTML = '<div class="text-muted small">ไม่พบสินค้าในใบส่งนี้</div>'; return; }
+  wrap.innerHTML = _dlvlabelGroupOrder.map(key => {
+    const g = _dlvlabelGroups[key];
+    const totalQty = g.lots.reduce((s, l) => s + l.qty, 0);
+    const lotSummary = g.lots.map(l => `Lot.${l.lotLabel} (${l.qty.toLocaleString()})`).join(', ');
+    return `<div class="d-flex justify-content-between align-items-center border-bottom py-2 flex-wrap gap-2">
+      <div>
+        <div class="fw-semibold small">${g.code} — ${g.name || ''}</div>
+        <div class="text-muted" style="font-size:11px">${lotSummary} · รวม ${totalQty.toLocaleString()} ${g.uom||''}</div>
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <label class="small text-muted mb-0">จำนวนป้าย</label>
+        <input type="number" class="form-control form-control-sm" style="width:70px" min="1"
+          value="${_dlvlabelQtyByGroup[key]}" onchange="_dlvlabelSetQty('${key}', this.value)">
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _dlvlabelSetQty(groupKey, val) {
+  _dlvlabelQtyByGroup[groupKey] = Math.max(1, parseInt(val, 10) || 1);
+  _dlvlabelRenderPreview();
+}
+
+function _dlvlabelBuildItemHTML(billNo, g) {
+  const content = `PFDLV|${billNo}|${g.code}`;
   const qr = qrcode(0, 'L');
   qr.addData(content);
   qr.make();
   const svg = qr.createSvgTag({ cellSize: 3, margin: 2 });
-  return `<div class="lotlabel-item">
-    <div class="lotlabel-qr">${svg}</div>
-    <div class="lotlabel-text">
-      <div class="lotlabel-code">${d.billNo}</div>
-      <div class="lotlabel-name">${d.customerName || ''}</div>
-      <div class="lotlabel-lot">ใบส่งสินค้า</div>
+  return `<div class="dlvlabel-item">
+    <div class="dlvlabel-qr">${svg}</div>
+    <div class="dlvlabel-text">
+      <div class="dlvlabel-name">${g.name || ''}</div>
+      <div class="dlvlabel-billno">ใบส่ง ${billNo}</div>
+      <div class="dlvlabel-code">${g.code}</div>
     </div>
   </div>`;
 }
 
 function _dlvlabelRenderPreview() {
-  if (!_dlvlabelCurrent) return;
-  const qty = Math.max(1, parseInt(document.getElementById('dlvlabel-qty').value, 10) || 1);
-  const items = Array.from({ length: qty }, () => _dlvlabelBuildItemHTML(_dlvlabelCurrent)).join('');
+  const items = _dlvlabelGroupOrder.flatMap(key => {
+    const qty = _dlvlabelQtyByGroup[key] || 1;
+    const g = _dlvlabelGroups[key];
+    return Array.from({ length: qty }, () => _dlvlabelBuildItemHTML(_dlvlabelBillNo, g));
+  }).join('');
   const html = `<div class="lotlabel-sheet">${items}</div>`;
   document.getElementById('dlvlabel-preview-body').innerHTML = html;
   document.getElementById('dlvlabel-print-root').innerHTML   = html;
