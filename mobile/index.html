@@ -44,8 +44,10 @@ button, input, select { font-family: inherit; }
   background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 340px;
   box-shadow: 0 12px 40px rgba(0,0,0,.3);
 }
-.login-card h4 { margin: 0 0 4px; font-weight: 700; color: var(--blue); }
-.login-card .sub { color: #94a3b8; font-size: .82rem; margin-bottom: 18px; }
+.login-card .logo-wrap { text-align: center; margin-bottom: 14px; }
+.login-card .logo-wrap img { height: 32px; width: auto; }
+.login-card h4 { margin: 0 0 4px; font-weight: 700; color: var(--blue); text-align: center; }
+.login-card .sub { color: #94a3b8; font-size: .82rem; margin-bottom: 18px; text-align: center; }
 .login-card label { font-size: .8rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block; }
 .login-card input {
   width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
@@ -65,6 +67,9 @@ button, input, select { font-family: inherit; }
   flex-shrink: 0; background: var(--blue); color: #fff; padding: 14px 16px calc(14px + env(safe-area-inset-top));
   padding-top: max(14px, env(safe-area-inset-top)); display: flex; justify-content: space-between; align-items: center;
 }
+#topbar .title-row { display: flex; align-items: center; gap: 10px; }
+#topbar .logo-chip { background: #fff; border-radius: 8px; padding: 4px 8px; display: flex; align-items: center; flex-shrink: 0; }
+#topbar .logo-chip img { height: 20px; width: auto; display: block; }
 #topbar .title { font-weight: 700; font-size: 1.05rem; }
 #topbar .title small { display: block; font-weight: 400; font-size: .7rem; color: #bfdbfe; }
 #topbar .user { font-size: .78rem; color: #dbeafe; display: flex; align-items: center; gap: 10px; }
@@ -188,6 +193,7 @@ button, input, select { font-family: inherit; }
 
 <div id="loginGate">
   <div class="login-card">
+    <div class="logo-wrap"><img src="../wisenovation_LOGO%20-Cut.png" alt="WISE Novation"></div>
     <h4><i class="fas fa-industry me-2"></i>ProFlow Mobile</h4>
     <div class="sub">เข้าสู่ระบบด้วยบัญชีเดียวกับหน้าคอมพิวเตอร์</div>
     <form onsubmit="event.preventDefault(); mLoginSubmit();">
@@ -203,7 +209,10 @@ button, input, select { font-family: inherit; }
 
 <div id="app">
   <div id="topbar">
-    <div class="title" id="mPageTitle">ภาพรวมการผลิต<small>ProFlow Mobile</small></div>
+    <div class="title-row">
+      <div class="logo-chip"><img src="../wisenovation_LOGO%20-Cut.png" alt="WISE Novation"></div>
+      <div class="title" id="mPageTitle">ภาพรวมการผลิต<small>ProFlow Mobile</small></div>
+    </div>
     <div class="user">
       <span id="mUserName"></span>
       <a href="#" onclick="event.preventDefault(); mLogout();" title="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></a>
