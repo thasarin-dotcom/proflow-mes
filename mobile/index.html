@@ -112,7 +112,10 @@ button, input, select { font-family: inherit; }
 .mkpi b { display: block; font-size: 1.35rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
 .mkpi small { font-size: .68rem; color: #94a3b8; font-weight: 600; }
 
-.mtoolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.mtoolbar {
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;
+  position: sticky; top: -14px; z-index: 20; background: var(--bg); padding-top: 14px; margin-top: -14px;
+}
 .mtoolbar input[type=text], .mtoolbar select {
   width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; background: #fff;
 }
