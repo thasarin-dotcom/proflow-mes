@@ -832,6 +832,67 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 }
 .lotscan-empty-row { padding: 16px 2px; text-align: center; color: #94a3b8; font-size: .83rem; }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ── มือถือ (มินิมอล): ภาพรวมการผลิต / Stock วัตถุดิบ / Stock FG (2026-08-15) ──
+   คำขอ "ออกแบบสำหรับใช้จากมือถือ เน้นมินิมอล ใช้งานง่าย" — ทุกกฎ scope ด้วย
+   @media (max-width:768px) ร่วมกับ #page-prodstatus/#page-stock/#page-fgstock เท่านั้น ไม่แก้
+   .glass-card/.table/.kpi-card ที่ใช้ร่วมกับหน้าอื่นทั้งแอปเด็ดขาด (หลักการเดียวกับ Lot Scan ด้านบน) —
+   บนจอ desktop (>768px) ทุกอย่างเหมือนเดิม 100% ══════════════════════════════════════════════ */
+
+/* กริดแถว Lot ของ Stock วัตถุดิบ/Stock FG — แทนที่ inline style เดิม ค่า desktop เท่าเดิมทุกประการ
+   (เก็บเฉพาะ grid-template-columns ไว้เป็น inline เพราะจำนวนคอลัมน์ต่างกันคนละหน้า) */
+.stocklot-grid { display:grid; gap:0; align-items:center; font-size:.8rem; padding:.35rem .75rem; border-bottom:1px solid #f1f5f9; }
+.stocklot-grid-header { background:#f1f5f9; font-weight:600; font-size:.75rem; color:#475569; }
+
+@media (max-width: 768px) {
+  /* ── แปลงแถว Lot จากกริดหลายคอลัมน์ → การ์ด label:value ซ้อนกัน อ่านง่ายบนจอแคบ ── */
+  #page-stock .stocklot-grid, #page-fgstock .stocklot-grid { display: flex; flex-wrap: wrap; padding: .6rem .75rem; gap: 6px 10px; }
+  #page-stock .stocklot-grid-header, #page-fgstock .stocklot-grid-header { display: none; }
+  #page-stock .stocklot-grid > span, #page-fgstock .stocklot-grid > span { flex: 0 0 46%; font-size: .8rem; }
+  #page-stock .stocklot-grid > span[data-label]::before, #page-fgstock .stocklot-grid > span[data-label]::before {
+    content: attr(data-label); display: block; font-size: .64rem; color: #94a3b8; font-weight: 600; margin-bottom: 1px;
+  }
+
+  /* ── KPI แถวบนของทั้ง 3 หน้า: จากบังคับ 2-6 คอลัมน์ต่อแถว → เลื่อนแนวนอนทีละใบ ตัวเลขใหญ่อ่านง่าย ── */
+  #prodstatus-kpi-row, #stock-kpi-row, #fgstock-kpi-row {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-bottom: 1rem !important;
+  }
+  #prodstatus-kpi-row > div, #stock-kpi-row > div, #fgstock-kpi-row > div { flex: 0 0 auto !important; max-width: none !important; width: 132px; }
+  #fgstock-kpi-row > div:last-child { width: 200px; }
+  #prodstatus-kpi-row .planweek-kpi { padding: .7rem .8rem; }
+  #prodstatus-kpi-row .planweek-kpi-icon { width: 34px; height: 34px; font-size: .85rem; }
+  #stock-kpi-row .kpi-card, #fgstock-kpi-row .kpi-card { padding: 10px 12px; }
+  #stock-kpi-row .kpi-card .kpi-num, #fgstock-kpi-row .kpi-card .kpi-num { font-size: 1.3rem; }
+
+  /* ปุ่มสลับ สัปดาห์/Gantt เต็มความกว้าง กดง่ายขึ้นด้วยนิ้ว */
+  #page-prodstatus .planweek-header .btn-group { flex: 1 1 auto; }
+  #page-prodstatus .planweek-header .btn-group .btn { flex: 1; }
+
+  /* ── ตาราง "สถานะ MO ที่กำลังดำเนินการทั้งหมด" → การ์ดต่อแถว แทนตารางเลื่อนแนวนอน ── */
+  #page-prodstatus .prodstatus-mo-table thead { display: none; }
+  #page-prodstatus .prodstatus-mo-table, #page-prodstatus .prodstatus-mo-table tbody,
+  #page-prodstatus .prodstatus-mo-table tr, #page-prodstatus .prodstatus-mo-table td { display: block; width: 100%; }
+  #page-prodstatus .prodstatus-mo-table tr {
+    border: 1px solid #eef2f7; border-radius: 12px; padding: .6rem .8rem; margin-bottom: 10px; box-shadow: 0 2px 10px rgba(15,23,42,.05);
+  }
+  #page-prodstatus .prodstatus-mo-table td {
+    border: none !important; padding: .3rem 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .83rem; text-align: right;
+  }
+  #page-prodstatus .prodstatus-mo-table td[data-label]::before {
+    content: attr(data-label); color: #94a3b8; font-size: .7rem; font-weight: 600; text-align: left; flex-shrink: 0;
+  }
+  #page-prodstatus .prodstatus-mo-table td.prodstatus-td-title {
+    font-size: .92rem; padding-bottom: .5rem; margin-bottom: .3rem; border-bottom: 1px solid #f1f5f9 !important; justify-content: flex-start;
+  }
+  #page-prodstatus .prodstatus-mo-table td.prodstatus-td-progress { display: block; text-align: left; }
+  #page-prodstatus .prodstatus-mo-table td.prodstatus-td-progress::before { display: block; margin-bottom: 4px; }
+
+  /* ── Toolbar ค้นหา/ฟิลเตอร์ Stock/FG Stock: เต็มความกว้างต่อแถว กดง่ายกว่าบีบหลายช่องแถวเดียว ── */
+  #page-stock .sticky-toolbar .search-wrap, #page-fgstock .sticky-toolbar .search-wrap { flex: 1 1 100%; }
+  #page-stock .sticky-toolbar .search-input, #page-fgstock .sticky-toolbar .search-input { max-width: 100% !important; }
+  #page-stock .sticky-toolbar select, #page-fgstock .sticky-toolbar select { flex: 1 1 auto; max-width: none !important; }
+}
+
 /* ── Lot Scan: รายงานตรวจสอบย้อนกลับ (พิมพ์/PDF ให้ผู้บริหารดู) — A4 ตั้ง ใช้ pattern เดียวกับ .bpr-page/.pcost-page ── */
 #lotscanReportModal .modal-dialog{max-width:900px}
 #lotscanReportModal .modal-body{background:#525659;padding:24px;max-height:82vh;overflow:auto}
@@ -2051,7 +2112,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
       </div>
     </div>
     <div class="scroll-content">
-      <div class="row g-3 mb-4">
+      <div class="row g-3 mb-4" id="prodstatus-kpi-row">
         <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="planweek-kpi">
             <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6)"><i class="fas fa-industry"></i></div>
@@ -2105,7 +2166,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
         <div class="planweek-today-head mb-2"><i class="fas fa-list-check me-2"></i>สถานะ MO ที่กำลังดำเนินการทั้งหมด</div>
         <div class="glass-card p-0 overflow-hidden">
           <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0 prodstatus-mo-table">
               <thead>
                 <tr>
                   <th class="wh-col-sm">MO ID</th><th class="wh-col-lg">สินค้า</th><th class="wh-col-sm">Lot</th><th class="wh-col-sm">กำหนดส่ง</th>
@@ -2262,6 +2323,14 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
               <div class="col-md-4">
                 <label class="form-label">Lot No. <span class="text-danger">*</span></label>
                 <input type="text" id="mr-f-lot" class="form-control" required placeholder="เช่น L2401001">
+                <small class="text-muted">เลข Lot ภายในของคลัง (ใช้ตัดสต็อก/ตรวจสอบย้อนกลับในระบบ)</small>
+              </div>
+
+              <!-- เลขล็อตจากผู้ผลิต -->
+              <div class="col-md-4">
+                <label class="form-label">เลขล็อตจากผู้ผลิต <span class="text-muted small">(Mfg. Lot No.)</span></label>
+                <input type="text" id="mr-f-mfglot" class="form-control" placeholder="เลขล็อตตามฉลาก/CoA ของผู้ผลิต">
+                <small class="text-muted">ถ้ามีระบุบนฉลากหรือใบวิเคราะห์ (CoA) ของผู้ผลิต</small>
               </div>
 
               <!-- วันหมดอายุ -->
@@ -4078,9 +4147,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             <video id="lotscan-camera-video" style="width:100%;display:block" playsinline muted></video>
           </div>
           <canvas id="lotscan-camera-canvas" style="display:none"></canvas>
-          <div id="lotscan-camera-status" class="text-muted small mt-2 text-center">เล็งกล้องไปที่ QR/บาร์โค้ด หรือข้อความ "LOT" บนป้าย แล้วกดถ่าย</div>
+          <div id="lotscan-camera-status" class="text-muted small mt-2 text-center">กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR/บาร์โค้ด</div>
           <button type="button" class="btn btn-primary w-100 mt-2" id="lotscan-camera-capture-btn" onclick="lotscanCaptureAndRead()">
-            <i class="fas fa-camera me-1"></i>ถ่ายภาพ / อ่านโค้ด
+            <i class="fas fa-camera me-1"></i>ถ้าสแกนไม่ติด กดถ่ายภาพเอง (อ่าน QR/ข้อความ LOT)
           </button>
         </div>
       </div>
@@ -5909,11 +5978,11 @@ function renderStockCards() {
       ? `<span class="badge" style="background:#fff1e6;color:#c2410c;border:1px solid #fdba74" title="ล็อตที่ใกล้หมดอายุที่สุดเหลืออีก ${earliestRemainingMonths} เดือน">ใกล้หมดอายุ (${earliestRemainingMonths} ด.)</span>`
       : '';
 
-    // Grid row ใช้ CSS grid fixed 8 columns — ไม่ขยับตาม content
-    const lotGridStyle = 'display:grid;grid-template-columns:2fr 1fr 1.2fr 1.2fr 1fr 1fr .8fr .8fr;gap:0;align-items:center;font-size:.8rem;padding:.35rem .75rem;border-bottom:1px solid #f1f5f9';
-    const lotHeaderStyle = lotGridStyle + ';background:#f1f5f9;font-weight:600;font-size:.75rem;color:#475569';
+    // Grid row: desktop = grid 8 คอลัมน์คงที่ (.stocklot-grid), มือถือ (≤768px) เปลี่ยนเป็นการ์ด label:value
+    // ซ้อนกันแทนผ่าน @media ที่ scope ด้วย #page-stock (ดู CSS ใกล้ .lotscan-* — เก็บเฉพาะจำนวนคอลัมน์ไว้ inline)
+    const lotColStyle = 'grid-template-columns:2fr 1fr 1.2fr 1.2fr 1fr 1fr .8fr .8fr';
     const lotRows = `
-      <div style="${lotHeaderStyle}">
+      <div class="stocklot-grid stocklot-grid-header" style="${lotColStyle}">
         <span>Lot</span>
         <span style="text-align:right">คงเหลือ</span>
         <span>UOM</span>
@@ -5924,15 +5993,15 @@ function renderStockCards() {
         <span style="text-align:right;color:#dc2626">จ่ายออก</span>
       </div>` +
       activeLots.map(r => `
-      <div style="${lotGridStyle}">
-        <span><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></span>
-        <span style="text-align:right;font-weight:700;color:#1e3a8a">${r.QtyBalance.toLocaleString()}</span>
-        <span style="color:#64748b">${r.UOM||''}</span>
-        <span style="color:#64748b">${_fmtDate(r.ExpDate)||'—'}</span>
-        <span style="text-align:right">฿${r.UnitCost.toLocaleString()}</span>
-        <span style="text-align:right;font-weight:600;color:#16a34a">฿${r.StockValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
-        <span style="text-align:right;color:#16a34a">${r.QtyIn.toLocaleString()}</span>
-        <span style="text-align:right;color:#dc2626">${r.QtyOut.toLocaleString()}</span>
+      <div class="stocklot-grid" style="${lotColStyle}">
+        <span data-label="Lot"><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></span>
+        <span data-label="คงเหลือ" style="text-align:right;font-weight:700;color:#1e3a8a">${r.QtyBalance.toLocaleString()}</span>
+        <span data-label="UOM" style="color:#64748b">${r.UOM||''}</span>
+        <span data-label="หมดอายุ" style="color:#64748b">${_fmtDate(r.ExpDate)||'—'}</span>
+        <span data-label="ราคา/หน่วย" style="text-align:right">฿${r.UnitCost.toLocaleString()}</span>
+        <span data-label="มูลค่า" style="text-align:right;font-weight:600;color:#16a34a">฿${r.StockValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
+        <span data-label="รับเข้า" style="text-align:right;color:#16a34a">${r.QtyIn.toLocaleString()}</span>
+        <span data-label="จ่ายออก" style="text-align:right;color:#dc2626">${r.QtyOut.toLocaleString()}</span>
       </div>`).join('');
 
     return `
@@ -6187,8 +6256,7 @@ function renderFGStockTable() {
   if (!container) return;
   if (!items.length) { container.innerHTML = '<div class="glass-card text-center text-muted py-5">ไม่พบข้อมูล</div>'; return; }
 
-  const gridStyle = 'display:grid;grid-template-columns:1.1fr 1fr 1fr 1fr 1fr 1.3fr;gap:0;align-items:center;font-size:.8rem;padding:.35rem .75rem;border-bottom:1px solid #f1f5f9';
-  const headStyle = gridStyle + ';background:#f1f5f9;font-weight:600;font-size:.75rem;color:#475569';
+  const lotColStyle = 'grid-template-columns:1.1fr 1fr 1fr 1fr 1fr 1.3fr';
 
   container.innerHTML = items.map(g => {
     const total = g.lots.reduce((s, r) => s + r._qty, 0);
@@ -6199,7 +6267,7 @@ function renderFGStockTable() {
     const lotHeaderStr = `<i class="fas fa-layer-group me-1 opacity-50"></i>${g.lots.length} Lot`;
 
     const lotRows = `
-      <div style="${headStyle}">
+      <div class="stocklot-grid stocklot-grid-header" style="${lotColStyle}">
         <span>Lot FG</span>
         <span style="text-align:right">คงเหลือ</span>
         <span>UOM</span>
@@ -6210,13 +6278,13 @@ function renderFGStockTable() {
       withOrigin.map(r => {
         const moRef = r._origin.moId || '—';
         const customer = r._origin.customer || '—';
-        return `<div style="${gridStyle}">
-          <span><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-bold" style="font-size:.85rem">${r._lot||'—'}</span></span>
-          <span style="text-align:right;font-weight:700">${r._qty.toLocaleString()}</span>
-          <span style="color:#64748b">${r.UOM||''}</span>
-          <span style="color:#64748b">${_fmtDate(r._origin.exp)||'—'}</span>
-          <span style="color:#64748b">${moRef}</span>
-          <span style="color:#64748b" title="ที่มาของล็อต ไม่ใช่การจองจริง — ของอาจถูกเบิกไปให้ลูกค้ารายอื่นได้">${customer}</span>
+        return `<div class="stocklot-grid" style="${lotColStyle}">
+          <span data-label="Lot FG"><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-bold" style="font-size:.85rem">${r._lot||'—'}</span></span>
+          <span data-label="คงเหลือ" style="text-align:right;font-weight:700">${r._qty.toLocaleString()}</span>
+          <span data-label="UOM" style="color:#64748b">${r.UOM||''}</span>
+          <span data-label="หมดอายุ" style="color:#64748b">${_fmtDate(r._origin.exp)||'—'}</span>
+          <span data-label="MO Ref" style="color:#64748b">${moRef}</span>
+          <span data-label="ลูกค้า (ที่มา)" style="color:#64748b" title="ที่มาของล็อต ไม่ใช่การจองจริง — ของอาจถูกเบิกไปให้ลูกค้ารายอื่นได้">${customer}</span>
         </div>`;
       }).join('');
 
@@ -6890,7 +6958,7 @@ function mrRenderTable() {
     if (from && d < from) return false;
     if (to   && d > to)   return false;
     if (q) {
-      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Supplier, r.Remark].join(' ').toLowerCase();
+      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.MfgLotNo, r.Supplier, r.Remark].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -6928,7 +6996,10 @@ function mrRenderTable() {
         <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
         <td class="mr-col-name">${r.MaterialName||'—'}</td>
         <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
-        <td class="mr-col-lot"><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
+        <td class="mr-col-lot">
+          <span class="badge bg-light text-dark border">${r.Lot||'—'}</span>
+          ${r.MfgLotNo ? `<div class="text-muted mt-1" style="font-size:.72rem;line-height:1.2"><i class="fas fa-industry me-1"></i>ผู้ผลิต: ${r.MfgLotNo}</div>` : ''}
+        </td>
         <td class="mr-col-exp">${_fmtDate(r.ExpDate)}</td>
         <td class="text-end fw-bold text-primary mr-col-qty">${qty.toLocaleString()}</td>
         <td class="mr-col-uom">${r.UOM||'—'}</td>
@@ -7011,6 +7082,7 @@ function mrOpenModal(rowId = null) {
     document.getElementById('mr-f-mat-code').value  = r.MaterialCode||'';
     document.getElementById('mr-f-mat-name').value  = r.MaterialName||'';
     document.getElementById('mr-f-lot').value        = r.Lot||'';
+    document.getElementById('mr-f-mfglot').value     = r.MfgLotNo||'';
     document.getElementById('mr-f-exp').value        = r.ExpDate||'';
     document.getElementById('mr-f-qty').value        = r.Qty||r.QtyIn||'';
     document.getElementById('mr-f-uom').value        = r.UOM||'';
@@ -7083,6 +7155,7 @@ async function mrSubmit(e) {
     MaterialCode: document.getElementById('mr-f-mat-code').value,
     MaterialName: document.getElementById('mr-f-mat-name').value || document.getElementById('mr-f-mat-search').value,
     Lot         : document.getElementById('mr-f-lot').value,
+    MfgLotNo    : document.getElementById('mr-f-mfglot').value || null,
     ExpDate     : document.getElementById('mr-f-exp').value || null,
     Qty         : qty,
     UOM         : document.getElementById('mr-f-uom').value,
@@ -11367,21 +11440,21 @@ function prodStatusRenderMOTable() {
     }
 
     return `<tr>
-      <td><span class="badge bg-secondary">${r.MO_ID||'—'}</span></td>
-      <td>${r.ProductName||''} <small class="text-muted">${r.ProductCode||''}</small></td>
-      <td><span class="badge bg-light text-dark border">${r.LOT||'—'}</span></td>
-      <td class="${isOverdue?'text-danger fw-bold':''}">${_fmtDate(r.DeliveryDate)||'—'}</td>
-      <td class="text-end">${orderQty.toLocaleString()}</td>
-      <td class="text-end text-success">${received.toLocaleString()}</td>
-      <td class="text-end text-danger">${pending.toLocaleString()}</td>
-      <td>
+      <td class="prodstatus-td-title"><span class="badge bg-secondary">${r.MO_ID||'—'}</span></td>
+      <td data-label="สินค้า">${r.ProductName||''} <small class="text-muted">${r.ProductCode||''}</small></td>
+      <td data-label="Lot"><span class="badge bg-light text-dark border">${r.LOT||'—'}</span></td>
+      <td data-label="กำหนดส่ง" class="${isOverdue?'text-danger fw-bold':''}">${_fmtDate(r.DeliveryDate)||'—'}</td>
+      <td data-label="สั่ง" class="text-end">${orderQty.toLocaleString()}</td>
+      <td data-label="ผลิตแล้ว" class="text-end text-success">${received.toLocaleString()}</td>
+      <td data-label="คงค้าง" class="text-end text-danger">${pending.toLocaleString()}</td>
+      <td data-label="ความคืบหน้า" class="prodstatus-td-progress">
         <div class="progress" style="height:8px">
           <div class="progress-bar ${pct>=100?'bg-success':'bg-primary'}" style="width:${pct}%"></div>
         </div>
         <small class="text-muted">${pct}%</small>
       </td>
-      <td><span class="badge bg-${sc}">${r.Status||'—'}</span></td>
-      <td>${planCell}</td>
+      <td data-label="สถานะ"><span class="badge bg-${sc}">${r.Status||'—'}</span></td>
+      <td data-label="แผนผลิต">${planCell}</td>
     </tr>`;
   }).join('');
 }
@@ -16984,6 +17057,9 @@ async function _lotscanFetchMaterialData(materialCode, lot) {
   const issRows = issRes.data || [];
   const materialName = mrRows[0]?.MaterialName || sb?.MaterialName || materialCode;
   const uom = mrRows[0]?.UOM || sb?.UOM || '';
+  // stock_balance คือของปัจจุบันจริง ให้ความสำคัญก่อน mr_receive (เผื่อ Lot นี้เคยรับเข้าหลายครั้ง/แก้ไข
+  // ExpDate ทีหลัง) — fallback ไป mr_receive เฉพาะกรณี Lot ถูกใช้หมดจน stock_balance ไม่มีแถวเหลือแล้ว
+  const expDate = sb?.ExpDate || mrRows[0]?.ExpDate || null;
 
   // สืบไปข้างหน้า — MO ที่เบิก Lot นี้ไปผลิต ในที่สุดกลายเป็น FG Lot ไหนบ้าง (join ผ่าน fg_receive.MO_ID)
   const moIds = [...new Set(issRows.map(r => r.MO_ID).filter(Boolean))];
@@ -16993,17 +17069,31 @@ async function _lotscanFetchMaterialData(materialCode, lot) {
     (fgRows || []).forEach(r => { (fgByMo[r.MO_ID] ||= []).push(r); });
   }
 
-  return { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo };
+  return { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo, expDate };
+}
+
+// วันที่ผลิต (MFG) ของวัตถุดิบไม่ถูกเก็บเป็นคอลัมน์จริงในระบบนี้ (mr_receive/stock_balance มีแค่ ExpDate) —
+// คำนวณจาก EXP Date ลบ 2 ปี ตามกติกาเดียวกับที่ใช้ในใบ Released (ดู _morelSetExpDate) เพื่อให้ตรงกันทั้งแอป
+// ไม่ใช่กติกาใหม่ที่คิดขึ้นเอง — คืนค่าเป็น dd/mm/yyyy พร้อมโชว์เลย ไม่ผ่าน _fmtDate (รับแค่ ISO string)
+function _lotscanMfgFormatted(expDateStr) {
+  if (!expDateStr) return null;
+  const parts = String(expDateStr).split('T')[0].split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [y, m, dNum] = parts;
+  const mfg = new Date(y - 2, m - 1, dNum);
+  return `${String(mfg.getDate()).padStart(2,'0')}/${String(mfg.getMonth()+1).padStart(2,'0')}/${mfg.getFullYear()}`;
 }
 
 function _lotscanRenderMaterialScreen(d) {
-  const { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo } = d;
+  const { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo, expDate } = d;
+  const mfgFormatted = _lotscanMfgFormatted(expDate);
   const header = `
     <div class="lotscan-header-row">
       <div>
         <span class="lotscan-badge lotscan-badge-mat">วัตถุดิบ</span>
         <div class="lotscan-title">${materialCode} — ${materialName}</div>
-        <div class="lotscan-subtle">Lot <span class="fw-semibold" style="color:#0f172a">${lot}</span></div>
+        <div class="lotscan-subtle">Lot <span class="fw-semibold" style="color:#0f172a">${lot}</span>
+          · ผลิต ${mfgFormatted || '—'} · หมดอายุ ${_fmtDate(expDate)}</div>
       </div>
       <div class="lotscan-stats">
         <div class="lotscan-stat">
@@ -17015,7 +17105,7 @@ function _lotscanRenderMaterialScreen(d) {
 
   const originRows = mrRows.length ? mrRows.map(r => `
     <div class="lotscan-row">
-      <span>${_fmtDate(r.Date)||''} — ${r.Supplier||'—'}${r.Remark?` · ${r.Remark}`:''}</span>
+      <span>${_fmtDate(r.Date)||''} — ${r.Supplier||'—'}${r.MfgLotNo?` · Lot ผู้ผลิต ${r.MfgLotNo}`:''}${r.Remark?` · ${r.Remark}`:''}</span>
       <span class="lotscan-row-num">${(parseFloat(r.Qty)||0).toLocaleString()} ${r.UOM||''}</span>
     </div>`).join('')
     : _lotscanEmptyRow('ไม่พบข้อมูลรับเข้า (mr_receive) ของ Lot นี้');
@@ -17051,6 +17141,18 @@ async function _lotscanFetchFGData(productCode, lotFg) {
   const productName = fgRows[0]?.ProductName || wdRows[0]?.ProductName || productCode;
   const moIds = [...new Set(fgRows.map(r => r.MO_ID).filter(Boolean))];
 
+  // แผนผลิต (ห้อง/ไลน์, กะ, ผู้ปฏิบัติงาน) ของ MO ที่ผลิต Lot นี้ — ดึงมาโชว์ประกอบ "ผลิตจาก MO" ตามที่ผู้ใช้
+  // ขอ. หมายเหตุ: 1 MO อาจมีแผนหลายวัน (multi-day plan) และ fg_receive ไม่มีคอลัมน์อ้างอิงกลับไปที่แถวแผน
+  // แถวไหนเจาะจง จึงโชว์ "ทุกแผนที่ผูกกับ MO นี้" รวมกัน ไม่ได้ map ทีละแถวรับเข้าว่าตรงกับแผนวันไหนเป๊ะๆ
+  // (schema ไม่มีข้อมูลพอจะทำแบบนั้นได้จริง) — ไม่มีคอลัมน์ "ผู้ดูแล/หัวหน้างาน" แยกต่างหากในระบบนี้ ใช้ Workers
+  // (ผู้ปฏิบัติงาน) ซึ่งเป็นฟิลด์ที่ใกล้เคียงที่สุดที่มีอยู่จริงแทน
+  const planByMo = {};
+  if (moIds.length) {
+    const { data: planRows } = await _sb.from('production_plan')
+      .select('MO_Ref,PlanDate,Line,Shift,TimeStart,TimeEnd,Workers').in('MO_Ref', moIds).order('PlanDate');
+    (planRows || []).forEach(r => { (planByMo[r.MO_Ref] ||= []).push(r); });
+  }
+
   // ย้อนกลับหาวัตถุดิบที่ใช้ผลิต — ลองหา production_record_details ของ ProdRecord ที่ตรงกับ Lot นี้เป๊ะๆ ก่อน
   // (แม่นกว่า กรณี MO เดียวมีหลาย Lot — ดู "multi-lot-per-MO" ในหัวข้อบันทึกผลิต) production_records.Lot_FG
   // เก็บเป็นเลข (ตัดตัวอักษรออกตอนสร้าง — ดู prodrecordCreateSubmit) จึงต้อง parseInt ก่อนเทียบ ถ้าไม่เจอ
@@ -17072,24 +17174,63 @@ async function _lotscanFetchFGData(productCode, lotFg) {
     }
   }
 
-  // สถานะจัดส่งของแต่ละรายการเบิก (join ผ่าน delivery.WD_Ref = fg_withdraw._row_id)
-  const deliveryByWd = {};
-  if (wdRows.length) {
-    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status').in('WD_Ref', wdRows.map(r => r._row_id));
-    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = d.Status; });
+  // วันหมดอายุของวัตถุดิบแต่ละ Lot ที่ใช้ผลิต — ยิง query ตรงต่อ (MaterialCode, Lot) แต่ละคู่ที่ต้องการเป๊ะๆ
+  // (ตามที่ผู้ใช้ขอ "ดึงตาม Lot เลย จากฐานข้อมูล" — ไม่ใช่ดึงทุก Lot ของ MaterialCode นั้นมาก่อนแล้วกรองฝั่ง
+  // client แบบเดิม ซึ่งเสี่ยงโดน limit 1000 แถวของ PostgREST ถ้าวัตถุดิบตัวนั้นมีประวัติรับเข้าเยอะมาก) หาจาก
+  // stock_balance ก่อนเสมอ (ของปัจจุบันจริง) แล้ว fallback ไป mr_receive ถ้า Lot นั้นถูกใช้หมดจน stock_balance
+  // ไม่มีแถวเหลือแล้ว (กติกาเดียวกับ _lotscanFetchMaterialData) — ตัดช่องว่างหัวท้ายของ Lot ที่ใช้ค้นหาก่อนเสมอ
+  // เพราะ Lot จาก production_record_details.LotMaterial (พิมพ์เองตอนกรอกบันทึกผลิต) เจอจริงว่ามีช่องว่างเกิน
+  // มาปนบางครั้ง (บั๊กที่เจอจากภาพจริงที่ผู้ใช้ส่งมา 2026-08-14 — Lot แรกเจอ ที่เหลือไม่เจอเลย) ใช้ ilike (ไม่มี
+  // % ครอบ จึงเทียบเท่ากับ eq แต่ไม่สนตัวพิมพ์เล็ก-ใหญ่) กันเผื่อกรณีตัวพิมพ์ไม่ตรงกันด้วย
+  // MfgLotNo (เลขล็อตจากผู้ผลิต — คนละอันกับ Lot ภายในของเรา) มีอยู่แค่ใน mr_receive เท่านั้น (ไม่มีใน
+  // stock_balance เพราะเป็นแอตทริบิวต์ต่อ "ครั้งที่รับเข้า" ไม่ใช่ยอดคงเหลือสะสม) ดึงพร้อมกับ ExpDate ในคิวรี
+  // mr_receive เดียวกันเลย ไม่ต้องยิงซ้ำ
+  if (materialRows.length) {
+    const distinctPairs = [...new Map(
+      materialRows.map(m => [m.MaterialCode + '|' + String(m.Lot || '').trim(), { code: m.MaterialCode, lot: String(m.Lot || '').trim() }])
+    ).values()];
+    const expByKey = {};
+    const mfgLotByKey = {};
+    await Promise.all(distinctPairs.map(async ({ code, lot }) => {
+      if (!code || !lot) return;
+      const [sbRes, mrRes] = await Promise.all([
+        _sb.from('stock_balance').select('ExpDate').eq('MaterialCode', code).ilike('Lot', lot),
+        _sb.from('mr_receive').select('ExpDate,MfgLotNo').eq('MaterialCode', code).ilike('Lot', lot).order('Date', { ascending: false }),
+      ]);
+      const key = code + '|' + lot;
+      expByKey[key] = sbRes.data?.[0]?.ExpDate || mrRes.data?.[0]?.ExpDate || null;
+      mfgLotByKey[key] = mrRes.data?.[0]?.MfgLotNo || null;
+    }));
+    materialRows = materialRows.map(m => {
+      const key = m.MaterialCode + '|' + String(m.Lot || '').trim();
+      return { ...m, expDate: expByKey[key] || null, mfgLotNo: mfgLotByKey[key] || null };
+    });
   }
 
-  return { productCode, lotFg, productName, fgRows, wdRows, fgStock, materialRows, materialSource, deliveryByWd };
+  // สถานะ + เลขที่ใบส่ง (DeliveryBillNo — เลขบิลจริงที่ยืนยันแล้ว ต่างจาก Delivery_ID ภายใน) ของแต่ละรายการเบิก
+  // (join ผ่าน delivery.WD_Ref = fg_withdraw._row_id) — DeliveryBillNo เป็น null ได้ถ้ายังไม่ยืนยันออกใบส่งจริง
+  const deliveryByWd = {};
+  if (wdRows.length) {
+    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo').in('WD_Ref', wdRows.map(r => r._row_id));
+    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo }; });
+  }
+
+  // ExpireDate มาจาก fg_receive ตรงๆ (คอลัมน์นี้ยืนยันแล้วมีจริงตอน _fgDetectCols — ไม่ต้อง query แยก
+  // เพราะ fgRes.select('*') ดึงมาให้อยู่แล้ว) ใช้ของแถวแรก เพราะปกติ Lot เดียวรับเข้าครั้งเดียว วันหมดอายุเดียวกันทุกแถว
+  const expireDate = fgRows[0]?.ExpireDate || null;
+
+  return { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate };
 }
 
 function _lotscanRenderFGScreen(d) {
-  const { productCode, lotFg, productName, fgRows, wdRows, fgStock, materialRows, materialSource, deliveryByWd } = d;
+  const { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate } = d;
   const header = `
     <div class="lotscan-header-row">
       <div>
         <span class="lotscan-badge lotscan-badge-fg">FG</span>
         <div class="lotscan-title">${productCode} — ${productName}</div>
-        <div class="lotscan-subtle">Lot <span class="fw-semibold" style="color:#0f172a">${lotFg}</span></div>
+        <div class="lotscan-subtle">Lot <span class="fw-semibold" style="color:#0f172a">${lotFg}</span>
+          · หมดอายุ ${_fmtDate(expireDate)}</div>
       </div>
       <div class="lotscan-stats">
         <div class="lotscan-stat">
@@ -17103,28 +17244,39 @@ function _lotscanRenderFGScreen(d) {
       </div>
     </div>`;
 
-  const originRows = fgRows.length ? fgRows.map(r => `
-    <div class="lotscan-row">
-      <span>${_fmtDate(r.Date)||''} — ${r.MO_ID||'—'}</span>
-      <span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span>
-    </div>`).join('')
+  const originRows = fgRows.length ? fgRows.map(r => {
+    const plans = planByMo[r.MO_ID] || [];
+    const planHtml = plans.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:5px">${
+      plans.map(p => `<span class="lotscan-chip" style="background:#eff6ff;color:#1e40af;cursor:default">
+        ${p.Line||'—'} · ${p.Shift||'—'}${p.Workers?` · ${p.Workers}`:''}</span>`).join('')
+    }</div>` : '';
+    return `<div class="lotscan-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;justify-content:space-between">
+        <span>${_fmtDate(r.Date)||''} — ${r.MO_ID||'—'}</span>
+        <span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span>
+      </div>
+      ${planHtml}
+    </div>`;
+  }).join('')
     : _lotscanEmptyRow('ไม่พบข้อมูลรับเข้า (fg_receive) ของ Lot นี้');
 
   const materialRowsHtml = materialRows.length ? materialRows.map(m => `
     <div class="lotscan-row">
-      <span class="lotscan-row-link" onclick='lotscanShow({type:"material",materialCode:"${m.MaterialCode}",lot:"${m.Lot}"})'>${m.MaterialCode} — ${m.MaterialName||''} <span class="lotscan-flat-muted">Lot ${m.Lot||'—'}</span></span>
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"material",materialCode:"${m.MaterialCode}",lot:"${m.Lot}"})'>${m.MaterialCode} — ${m.MaterialName||''} <span class="lotscan-flat-muted">Lot ${m.Lot||'—'}${m.mfgLotNo?` (ผู้ผลิต ${m.mfgLotNo})`:''} · หมดอายุ ${_fmtDate(m.expDate)}</span></span>
       <span class="lotscan-row-num">${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</span>
     </div>`).join('')
     : _lotscanEmptyRow('ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
 
-  const withdrawRows = wdRows.length ? wdRows.map(r => `
-    <div class="lotscan-row">
-      <span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}</span>
+  const withdrawRows = wdRows.length ? wdRows.map(r => {
+    const dlv = deliveryByWd[r._row_id];
+    return `<div class="lotscan-row">
+      <span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${dlv?.billNo ? ` · ใบส่ง ${dlv.billNo}` : ''}</span>
       <span style="display:flex;align-items:center;gap:8px">
         <span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span>
-        <span class="lotscan-chip">${deliveryByWd[r._row_id] || '—'}</span>
+        <span class="lotscan-chip">${dlv?.status || '—'}</span>
       </span>
-    </div>`).join('')
+    </div>`;
+  }).join('')
     : _lotscanEmptyRow('ยังไม่ถูกเบิกออก');
 
   return header +
@@ -17158,12 +17310,13 @@ function _lotscanReportEmptyRow(colspan, text) {
 }
 
 function _lotscanRenderMaterialPrint(d) {
-  const { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo } = d;
+  const { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo, expDate } = d;
+  const mfgFormatted = _lotscanMfgFormatted(expDate);
 
   const originRows = mrRows.length ? mrRows.map(r => `
     <tr><td>${_fmtDate(r.Date)||''}</td><td>${(parseFloat(r.Qty)||0).toLocaleString()} ${r.UOM||''}</td>
-        <td>${r.Supplier||'—'}</td><td>${r.Remark||''}</td></tr>`).join('')
-    : _lotscanReportEmptyRow(4, 'ไม่พบข้อมูลรับเข้า (mr_receive) ของ Lot นี้');
+        <td>${r.Supplier||'—'}</td><td>${r.MfgLotNo||'—'}</td><td>${r.Remark||''}</td></tr>`).join('')
+    : _lotscanReportEmptyRow(5, 'ไม่พบข้อมูลรับเข้า (mr_receive) ของ Lot นี้');
 
   const usageRows = issRows.length ? issRows.map(r => {
     const fgList = (fgByMo[r.MO_ID] || []).map(f => `${f.ProductCode} Lot ${f.Lot_FG}`).join(', ') || '—';
@@ -17179,11 +17332,12 @@ function _lotscanRenderMaterialPrint(d) {
         <div class="code">${materialCode}</div>
         <div class="name">${materialName}</div>
       </div>
-      <div><div class="lot">Lot ${lot}</div></div>
+      <div><div class="lot">Lot ${lot}</div>
+        <div style="font-size:10.5px;color:#64748b;margin-top:2px">ผลิต ${mfgFormatted || '—'}<br>หมดอายุ ${_fmtDate(expDate)}</div></div>
       <div class="kpi"><div class="num">${sb ? (parseFloat(sb.QtyBalance)||0).toLocaleString() : '—'} ${uom}</div><div class="lbl">คงเหลือปัจจุบัน</div></div>
     </div>
     <div class="lotreport-section-title">รับเข้าคลัง (MR Receive)</div>
-    <table class="lotreport-table"><thead><tr><th>วันที่</th><th>จำนวน</th><th>Supplier</th><th>หมายเหตุ</th></tr></thead>
+    <table class="lotreport-table"><thead><tr><th>วันที่</th><th>จำนวน</th><th>Supplier</th><th>Lot ผู้ผลิต</th><th>หมายเหตุ</th></tr></thead>
       <tbody>${originRows}</tbody></table>
     <div class="lotreport-section-title">ถูกเบิกไปผลิต</div>
     <table class="lotreport-table"><thead><tr><th>วันที่เบิก</th><th>MO</th><th>จำนวนเบิก</th><th>กลายเป็น FG Lot</th></tr></thead>
@@ -17193,23 +17347,31 @@ function _lotscanRenderMaterialPrint(d) {
 }
 
 function _lotscanRenderFGPrint(d) {
-  const { productCode, lotFg, productName, fgRows, wdRows, fgStock, materialRows, materialSource, deliveryByWd } = d;
+  const { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate } = d;
 
-  const originRows = fgRows.length ? fgRows.map(r => `
-    <tr><td>${_fmtDate(r.Date)||''}</td><td>${r.MO_ID||'—'}</td>
-        <td>${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</td></tr>`).join('')
-    : _lotscanReportEmptyRow(3, 'ไม่พบข้อมูลรับเข้า (fg_receive) ของ Lot นี้');
+  const originRows = fgRows.length ? fgRows.map(r => {
+    const plans = planByMo[r.MO_ID] || [];
+    const planText = plans.length
+      ? plans.map(p => `${p.Line||'—'}/${p.Shift||'—'}${p.Workers?` (${p.Workers})`:''}`).join(', ')
+      : '—';
+    return `<tr><td>${_fmtDate(r.Date)||''}</td><td>${r.MO_ID||'—'}</td>
+        <td>${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</td><td>${planText}</td></tr>`;
+  }).join('')
+    : _lotscanReportEmptyRow(4, 'ไม่พบข้อมูลรับเข้า (fg_receive) ของ Lot นี้');
 
   const materialRowsHtml = materialRows.length ? materialRows.map(m => `
     <tr><td>${m.MaterialCode} — ${m.MaterialName||''}</td>
-      <td>${m.Lot||'—'}</td><td>${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</td></tr>`).join('')
-    : _lotscanReportEmptyRow(3, 'ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
+      <td>${m.Lot||'—'}</td><td>${m.mfgLotNo||'—'}</td><td>${_fmtDate(m.expDate)}</td><td>${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</td></tr>`).join('')
+    : _lotscanReportEmptyRow(5, 'ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
 
-  const withdrawRows = wdRows.length ? wdRows.map(r => `
-    <tr><td>${_fmtDate(r.Date)||''}</td><td>${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</td>
+  const withdrawRows = wdRows.length ? wdRows.map(r => {
+    const dlv = deliveryByWd[r._row_id];
+    return `<tr><td>${_fmtDate(r.Date)||''}</td><td>${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</td>
         <td>${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}</td>
-        <td>${deliveryByWd[r._row_id] || '—'}</td></tr>`).join('')
-    : _lotscanReportEmptyRow(4, 'ยังไม่ถูกเบิกออก');
+        <td>${dlv?.billNo || '—'}</td>
+        <td>${dlv?.status || '—'}</td></tr>`;
+  }).join('')
+    : _lotscanReportEmptyRow(5, 'ยังไม่ถูกเบิกออก');
 
   return `<div class="lotreport-page">
     ${_lotscanReportHeader()}
@@ -17219,18 +17381,19 @@ function _lotscanRenderFGPrint(d) {
         <div class="code">${productCode}</div>
         <div class="name">${productName}</div>
       </div>
-      <div><div class="lot">Lot ${lotFg}</div></div>
+      <div><div class="lot">Lot ${lotFg}</div>
+        <div style="font-size:10.5px;color:#64748b;margin-top:2px">หมดอายุ ${_fmtDate(expireDate)}</div></div>
       <div class="kpi"><div class="num">${fgRows.reduce((s,r)=>s+(parseFloat(r.QtyFG)||0),0).toLocaleString()} ${fgRows[0]?.UOM||''}</div><div class="lbl">รับเข้ารวม</div></div>
       <div class="kpi"><div class="num">${fgStock ? (parseFloat(fgStock.FGBalance)||0).toLocaleString() : '—'} ${fgStock?.UOM || fgRows[0]?.UOM || ''}</div><div class="lbl">คงเหลือปัจจุบัน</div></div>
     </div>
     <div class="lotreport-section-title">ผลิตจาก MO</div>
-    <table class="lotreport-table"><thead><tr><th>วันที่รับเข้า</th><th>MO</th><th>จำนวน</th></tr></thead>
+    <table class="lotreport-table"><thead><tr><th>วันที่รับเข้า</th><th>MO</th><th>จำนวน</th><th>ห้อง/กะ/ผู้ปฏิบัติงาน</th></tr></thead>
       <tbody>${originRows}</tbody></table>
     <div class="lotreport-section-title">วัตถุดิบที่ใช้ผลิต — ${materialSource||''}</div>
-    <table class="lotreport-table"><thead><tr><th>วัตถุดิบ</th><th>Lot</th><th>จำนวนที่ใช้</th></tr></thead>
+    <table class="lotreport-table"><thead><tr><th>วัตถุดิบ</th><th>Lot</th><th>Lot ผู้ผลิต</th><th>วันหมดอายุ</th><th>จำนวนที่ใช้</th></tr></thead>
       <tbody>${materialRowsHtml}</tbody></table>
     <div class="lotreport-section-title">เบิกส่งลูกค้า / เบ็ดเตล็ด</div>
-    <table class="lotreport-table"><thead><tr><th>วันที่เบิก</th><th>จำนวน</th><th>ลูกค้า/CO</th><th>สถานะจัดส่ง</th></tr></thead>
+    <table class="lotreport-table"><thead><tr><th>วันที่เบิก</th><th>จำนวน</th><th>ลูกค้า/CO</th><th>เลขที่ใบส่ง</th><th>สถานะจัดส่ง</th></tr></thead>
       <tbody>${withdrawRows}</tbody></table>
     ${_lotscanReportFooter()}
   </div>`;
@@ -17255,39 +17418,76 @@ function lotscanPrintReport() {
   window.print();
 }
 
-// ── กล้อง Lot Scan — จับภาพนิ่งแล้วอ่าน (ไม่ใช่สแกนต่อเนื่องแบบเดิม) ──
-// เปิดกล้องเองผ่าน getUserMedia ตรงๆ (ไม่พึ่ง html5-qrcode อีกต่อไป) แค่โชว์ preview สด ผู้ใช้เล็งแล้วกด
-// "ถ่ายภาพ/อ่านโค้ด" เอง — ทำแบบนี้ตามที่ผู้ใช้ยืนยัน 2026-08-14 (capture-then-read ไม่ใช่ real-time)
-// เพราะ OCR ต่อเฟรมสด (สำหรับอ่านข้อความ "LOT ..." บนป้ายที่ไม่มี QR) หนักและแม่นยำต่ำกว่าภาพนิ่งที่โฟกัสชัดมาก
-let _lotscanCameraModal  = null;
-let _lotscanCameraStream = null;
+// ── กล้อง Lot Scan — สแกน QR ต่อเนื่องอัตโนมัติตั้งแต่เปิดกล้อง (jsQR วิ่งเป็นลูปบนเฟรมสด) เป็นหลัก
+// ถ้าสแกนอัตโนมัติไม่ติด (เช่นภาพสั่น/แสงไม่พอ/เป็นข้อความ LOT ธรรมดาไม่มี QR) ผู้ใช้กดปุ่ม "ถ่ายภาพเอง" เพื่อ
+// จับภาพนิ่งที่ชัดกว่าแทน แล้วลอง QR อีกรอบ + fallback ไป OCR อ่านข้อความ (ตามที่ผู้ใช้ขอ 2026-08-14 — ย้อนจาก
+// แบบ capture-then-read ล้วนที่เคยเปลี่ยนไปก่อนหน้านี้ กลับมาเป็น auto-scan-first + manual-capture-fallback)
+// เปิดกล้องเองผ่าน getUserMedia ตรงๆ ไม่พึ่ง html5-qrcode
+let _lotscanCameraModal     = null;
+let _lotscanCameraStream    = null;
+let _lotscanAutoScanRAF     = null;  // requestAnimationFrame handle ของลูป auto-scan — null = ไม่ได้ทำงานอยู่
+let _lotscanScanCanvas      = null;  // canvas ลอย (ไม่ผูกกับ DOM) ใช้เฉพาะ auto-scan ย่อขนาดเพื่อความเร็ว
+                                       // แยกจาก #lotscan-camera-canvas ที่ manual capture ใช้ความละเอียดเต็ม (จำเป็นสำหรับ OCR)
+let _lotscanManualCapturing = false; // true ระหว่างกดปุ่มถ่ายเอง — auto-scan loop จะหยุดพักไม่ให้ชนกัน
 
 async function lotscanOpenCamera() {
   if (!_lotscanCameraModal) _lotscanCameraModal = new bootstrap.Modal(document.getElementById('lotscanCameraModal'));
   _lotscanCameraModal.show();
-  document.getElementById('lotscan-camera-status').textContent = 'เล็งกล้องไปที่ QR/บาร์โค้ด หรือข้อความ "LOT" บนป้าย แล้วกดถ่าย';
+  document.getElementById('lotscan-camera-status').textContent = 'กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR/บาร์โค้ด';
   document.getElementById('lotscan-camera-capture-btn').disabled = false;
+  _lotscanManualCapturing = false;
   try {
     _lotscanCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     const video = document.getElementById('lotscan-camera-video');
     video.srcObject = _lotscanCameraStream;
     await video.play();
+    _lotscanStartAutoScan();
   } catch (e) {
     _err('เปิดกล้องไม่สำเร็จ', 'กรุณาอนุญาตสิทธิ์กล้องให้เว็บนี้ หรือพิมพ์รหัส Lot เองด้านบนแทน');
     lotscanCloseCamera();
   }
 }
 
+// วนอ่าน jsQR จากเฟรมสดของวิดีโอต่อเนื่อง — ย่อภาพเหลือกว้างสุด 640px ก่อนถอด (เร็วกว่าความละเอียดเต็มมาก
+// จำเป็นเพราะรันทุกเฟรม ต่างจาก manual capture ที่รันแค่ครั้งเดียวตอนกดปุ่มจึงใช้ความละเอียดเต็มได้)
+function _lotscanStartAutoScan() {
+  const video = document.getElementById('lotscan-camera-video');
+  if (!_lotscanScanCanvas) _lotscanScanCanvas = document.createElement('canvas');
+  const canvas = _lotscanScanCanvas;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const tick = () => {
+    if (!_lotscanCameraStream) return; // ปิดกล้องไปแล้ว (เช่นกด X) หยุดลูปเงียบๆ ไม่ต้อง schedule ต่อ
+    if (!_lotscanManualCapturing && video.videoWidth && typeof jsQR === 'function') {
+      const scale = Math.min(1, 640 / video.videoWidth);
+      canvas.width  = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (qr && qr.data) {
+        document.getElementById('lotscan-f-code').value = qr.data;
+        lotscanCloseCamera();
+        lotscanSearch();
+        return;
+      }
+    }
+    _lotscanAutoScanRAF = requestAnimationFrame(tick);
+  };
+  _lotscanAutoScanRAF = requestAnimationFrame(tick);
+}
+
 function lotscanCloseCamera() {
   if (_lotscanCameraModal) _lotscanCameraModal.hide();
+  if (_lotscanAutoScanRAF) { cancelAnimationFrame(_lotscanAutoScanRAF); _lotscanAutoScanRAF = null; }
   if (_lotscanCameraStream) {
     _lotscanCameraStream.getTracks().forEach(t => t.stop());
     _lotscanCameraStream = null;
   }
 }
 
-// ถ่าย 1 เฟรมจากวิดีโอสด → ลองถอด QR/บาร์โค้ดจากภาพนิ่งก่อนเสมอด้วย jsQR (เร็ว แม่นยำสูง ทำงานตรงกับ
-// ImageData ไม่ต้องมี worker) — ถ้าไม่เจอค่อย fallback ไป OCR (Tesseract.js) หาคำว่า "LOT" แล้วดึงเฉพาะ
+// ปุ่ม "ถ่ายภาพเอง" (fallback ตอน auto-scan ไม่ติด) — พักลูป auto-scan ไว้ก่อน (_lotscanManualCapturing)
+// กันชนกัน แล้วถ่าย 1 เฟรมความละเอียดเต็มจากวิดีโอสด → ลองถอด QR/บาร์โค้ดอีกรอบด้วย jsQR (เผื่อภาพนิ่งชัด
+// กว่าตอน auto-scan กำลังสั่น/เบลอ) — ถ้าไม่เจอค่อย fallback ไป OCR (Tesseract.js) หาคำว่า "LOT" แล้วดึงเฉพาะ
 // รหัสถัดจากมัน (ไม่สนใจ EXP เลย ตามที่ผู้ใช้ขอ — regex หยุดที่ช่องว่าง/บรรทัดใหม่ก่อนถึง EXP เองอยู่แล้ว)
 async function lotscanCaptureAndRead() {
   const video    = document.getElementById('lotscan-camera-video');
@@ -17296,6 +17496,7 @@ async function lotscanCaptureAndRead() {
   const btn      = document.getElementById('lotscan-camera-capture-btn');
   if (!video.videoWidth) return;
 
+  _lotscanManualCapturing = true;
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
@@ -17309,6 +17510,7 @@ async function lotscanCaptureAndRead() {
     const qr = jsQR(imageData.data, imageData.width, imageData.height);
     if (qr && qr.data) {
       btn.disabled = false;
+      _lotscanManualCapturing = false;
       document.getElementById('lotscan-f-code').value = qr.data;
       lotscanCloseCamera();
       lotscanSearch();
@@ -17348,6 +17550,7 @@ async function lotscanCaptureAndRead() {
     statusEl.textContent = 'อ่านข้อความไม่สำเร็จ ลองถ่ายใหม่ หรือพิมพ์รหัส Lot เอง';
   } finally {
     btn.disabled = false;
+    _lotscanManualCapturing = false; // ไม่เจอทั้ง QR/ข้อความ กล้องยังเปิดอยู่ ให้ auto-scan กลับมาทำงานต่อ
   }
 }
 
