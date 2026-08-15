@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ProFlow Mobile</title>
+<meta name="theme-color" content="#1e3a8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ProFlow">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="icon" href="./icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!--
+  ProFlow Mobile — companion PWA แยกต่างหากจาก index.html หลัก (2026-08-15, ตามคำขอผู้ใช้
+  "อีกเว็บ คนละหน้าตากับคอมเลย กดติดตั้งที่โทรศัพได้") ขอบเขต 4 หน้าเท่านั้น: ภาพรวมการผลิต,
+  สต็อกวัตถุดิบ, สต็อก FG, Lot Scan (รวมกล้องสแกน QR/OCR) — ไม่มีหน้าแก้ไขข้อมูล/ทำรายการใดๆ
+  เป็น read+scan companion เท่านั้น ใช้บัญชี Supabase Auth เดียวกับแอปหลักทุกประการ
+-->
+<style>
+:root {
+  --blue: #1e3a8a; --blue-l: #3b82f6; --bg: #f8fafc; --border: #e5e7eb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: 'Sarabun', sans-serif; background: var(--bg); color: #0f172a;
+  overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent;
+}
+button, input, select { font-family: inherit; }
+
+/* ── Login gate ── */
+#loginGate {
+  position: fixed; inset: 0; background: linear-gradient(160deg,#1e3a8a,#1e293b);
+  display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px;
+}
+.login-card {
+  background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 340px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+}
+.login-card h4 { margin: 0 0 4px; font-weight: 700; color: var(--blue); }
+.login-card .sub { color: #94a3b8; font-size: .82rem; margin-bottom: 18px; }
+.login-card label { font-size: .8rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block; }
+.login-card input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  font-size: .95rem; margin-bottom: 14px;
+}
+.login-card input:focus { outline: none; border-color: var(--blue-l); }
+.login-card button {
+  width: 100%; padding: 11px; border: none; border-radius: 10px; background: var(--blue);
+  color: #fff; font-weight: 600; font-size: .95rem;
+}
+.login-card button:disabled { opacity: .6; }
+.login-error { color: #dc2626; font-size: .8rem; margin: -6px 0 12px; display: none; }
+
+/* ── App shell ── */
+#app { display: none; height: 100vh; flex-direction: column; }
+#topbar {
+  flex-shrink: 0; background: var(--blue); color: #fff; padding: 14px 16px calc(14px + env(safe-area-inset-top));
+  padding-top: max(14px, env(safe-area-inset-top)); display: flex; justify-content: space-between; align-items: center;
+}
+#topbar .title { font-weight: 700; font-size: 1.05rem; }
+#topbar .title small { display: block; font-weight: 400; font-size: .7rem; color: #bfdbfe; }
+#topbar .user { font-size: .78rem; color: #dbeafe; display: flex; align-items: center; gap: 10px; }
+#topbar .user a { color: #dbeafe; }
+#content { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px calc(14px + 66px); }
+.mpage { display: none; }
+.mpage.active { display: block; }
+
+#bottomnav {
+  flex-shrink: 0; position: fixed; left: 0; right: 0; bottom: 0; background: #fff;
+  border-top: 1px solid var(--border); display: flex; padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 16px rgba(0,0,0,.06); z-index: 100;
+}
+#bottomnav button {
+  flex: 1; border: none; background: none; padding: 9px 2px 8px; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; color: #94a3b8; font-size: .66rem; font-weight: 600;
+}
+#bottomnav button i { font-size: 1.15rem; }
+#bottomnav button.active { color: var(--blue); }
+
+.mcard {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
+}
+.mcard-flat { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 0; margin-bottom: 10px; overflow: hidden; }
+.mbadge { display: inline-block; font-size: .68rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.mb-blue { background: #eff6ff; color: #1e40af; }
+.mb-green { background: #ecfdf5; color: #15803d; }
+.mb-amber { background: #fffbeb; color: #92400e; }
+.mb-red { background: #fef2f2; color: #b91c1c; }
+.mb-gray { background: #f1f5f9; color: #475569; }
+
+/* KPI stat strip — เลื่อนแนวนอน ตัวเลขใหญ่ */
+.mkpi-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+.mkpi-strip::-webkit-scrollbar { display: none; }
+.mkpi { flex: 0 0 auto; min-width: 110px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.mkpi b { display: block; font-size: 1.35rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
+.mkpi small { font-size: .68rem; color: #94a3b8; font-weight: 600; }
+
+.mtoolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.mtoolbar input[type=text], .mtoolbar select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; background: #fff;
+}
+.mchips { display: flex; gap: 6px; overflow-x: auto; }
+.mchip { flex: 0 0 auto; font-size: .74rem; padding: 5px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--border); color: #475569; }
+.mchip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* แผนสัปดาห์ — วันที่แถบเลื่อน + การ์ดรายวัน (ยกมาจาก .planweek-* ของแอปหลัก) */
+.mweek-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
+.mweek-day { flex: 0 0 auto; width: 92px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 9px 8px; font-size: .72rem; }
+.mweek-day.today { border: 1.5px solid var(--blue-l); background: linear-gradient(160deg,#eff6ff,#dbeafe); }
+.mweek-day .date { font-weight: 700; font-size: .88rem; }
+.mweek-day .dow { color: #94a3b8; font-size: .64rem; font-weight: 600; }
+.mline-row { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: .64rem; }
+.mline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.mday-empty { color: #cbd5e1; font-size: .66rem; font-style: italic; margin-top: 5px; }
+
+.mitem-card { background: #fff; border-radius: 12px; border-left: 4px solid #94a3b8; padding: 11px 14px; margin-bottom: 8px; }
+.mitem-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.mitem-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font-size: .74rem; color: #64748b; }
+.mprogress-bg { height: 7px; border-radius: 20px; background: #eef1f6; overflow: hidden; margin-top: 7px; }
+.mprogress-fill { height: 100%; border-radius: 20px; }
+
+/* MO cards (สถานะ MO ทั้งหมด) */
+.mmo-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+.mmo-title { font-size: .92rem; font-weight: 700; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; }
+.mmo-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; font-size: .82rem; }
+.mmo-row .l { color: #94a3b8; font-size: .7rem; font-weight: 600; }
+
+/* Stock lot rows — label:value */
+.mlot-row { display: flex; flex-wrap: wrap; padding: 10px 14px; gap: 5px 10px; border-bottom: 1px solid #f1f5f9; font-size: .82rem; }
+.mlot-row:last-child { border-bottom: none; }
+.mlot-row > span { flex: 0 0 46%; }
+.mlot-row > span[data-label]::before { content: attr(data-label); display: block; font-size: .62rem; color: #94a3b8; font-weight: 600; }
+
+.mgroup-header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 11px 14px; cursor: pointer; }
+.mgroup-name { font-weight: 600; font-size: .88rem; flex: 1 1 140px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mgroup-sub { font-size: .74rem; color: #64748b; width: 100%; }
+.mgroup-num { font-weight: 700; color: var(--blue); }
+
+/* Lot Scan — พาเนล/แถวแบน (มินิมอล เหมือนแอปหลัก) */
+.lotscan-panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.lotscan-header-row { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.lotscan-badge { display: inline-block; font-size: .68rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; margin-bottom: 6px; }
+.lotscan-badge-mat { background: #eff6ff; color: #1e40af; }
+.lotscan-badge-fg { background: #ecfdf5; color: #15803d; }
+.lotscan-title { font-size: 1rem; font-weight: 600; }
+.lotscan-subtle { color: #64748b; font-size: .82rem; }
+.lotscan-stats { display: flex; gap: 20px; }
+.lotscan-stat { text-align: right; }
+.lotscan-stat-label { font-size: .68rem; color: #94a3b8; }
+.lotscan-stat-num { font-size: 1.1rem; font-weight: 600; }
+.lotscan-stat-num.accent { color: var(--blue); }
+.lotscan-section-title { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .82rem; font-weight: 600; }
+.lotscan-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: .8rem; }
+.lotscan-row:last-child { border-bottom: none; }
+.lotscan-row-link { color: var(--blue); }
+.lotscan-row-num { font-weight: 600; white-space: nowrap; }
+.lotscan-chip { display: inline-flex; align-items: center; font-size: .68rem; padding: 1px 8px; border-radius: 999px; background: #ecfdf5; color: #15803d; margin-right: 4px; }
+.lotscan-empty-row { padding: 14px 0; text-align: center; color: #94a3b8; font-size: .8rem; }
+.lotscan-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.lotscan-toolbar input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; }
+.lotscan-toolbar button { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 0 14px; font-size: 1rem; color: var(--blue); }
+
+/* Camera modal — ไม่ใช้ Bootstrap modal ในแอปนี้ ทำเอง */
+#cameraModal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 500; display: none; align-items: center; justify-content: center; padding: 16px; }
+#cameraModal .box { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 380px; }
+#cameraModal .box h6 { margin: 0 0 10px; font-weight: 700; display: flex; justify-content: space-between; }
+#cameraModal video { width: 100%; border-radius: 8px; background: #000; display: block; }
+#cameraModal .status { font-size: .8rem; color: #64748b; text-align: center; margin: 8px 0; }
+#cameraModal button.capture { width: 100%; padding: 11px; border: none; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 600; }
+
+.mspinner { text-align: center; color: #94a3b8; padding: 40px 0; }
+#toploader {
+  position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg,#3b82f6,#06b6d4);
+  width: 0; transition: width .3s; z-index: 9998;
+}
+</style>
+</head>
+<body>
+<div id="toploader"></div>
+
+<div id="loginGate">
+  <div class="login-card">
+    <h4><i class="fas fa-industry me-2"></i>ProFlow Mobile</h4>
+    <div class="sub">เข้าสู่ระบบด้วยบัญชีเดียวกับหน้าคอมพิวเตอร์</div>
+    <form onsubmit="event.preventDefault(); mLoginSubmit();">
+      <label>Username หรืออีเมล</label>
+      <input type="text" id="mLoginUser" autocomplete="username">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="mLoginPass" autocomplete="current-password">
+      <div class="login-error" id="mLoginError">Username/อีเมล หรือรหัสผ่านไม่ถูกต้อง</div>
+      <button type="submit" id="mLoginBtn">เข้าสู่ระบบ</button>
+    </form>
+  </div>
+</div>
+
+<div id="app">
+  <div id="topbar">
+    <div class="title" id="mPageTitle">ภาพรวมการผลิต<small>ProFlow Mobile</small></div>
+    <div class="user">
+      <span id="mUserName"></span>
+      <a href="#" onclick="event.preventDefault(); mLogout();" title="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></a>
+    </div>
+  </div>
+
+  <div id="content">
+    <div class="mpage active" id="mpage-prodstatus">
+      <div class="mkpi-strip" id="prodstatus-kpi-row">
+        <div class="mkpi"><b id="prodstatus-kpi-mo">—</b><small>MO กำลังดำเนินการ</small></div>
+        <div class="mkpi"><b id="prodstatus-kpi-total">—</b><small>แผนสัปดาห์นี้ (7 วัน)</small></div>
+        <div class="mkpi"><b id="prodstatus-kpi-today">—</b><small>วันนี้</small></div>
+        <div class="mkpi"><b id="prodstatus-kpi-noplan">—</b><small>MO ยังไม่มีแผน</small></div>
+        <div class="mkpi"><b id="prodstatus-kpi-overdue" style="color:#dc2626">—</b><small>เลยกำหนดส่ง</small></div>
+      </div>
+      <div class="mweek-strip" id="prodstatus-strip"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div style="font-weight:700;margin-bottom:8px;padding-left:8px;border-left:4px solid #3b82f6"><i class="fas fa-star me-2" style="color:#f59e0b"></i>รายละเอียดวันนี้</div>
+      <div id="prodstatus-today-cards" style="margin-bottom:16px"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div style="font-weight:700;margin-bottom:8px;padding-left:8px;border-left:4px solid #3b82f6"><i class="fas fa-list-check me-2"></i>สถานะ MO ที่กำลังดำเนินการทั้งหมด</div>
+      <div id="prodstatus-mo-cards"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+    <!-- __PAGE_PRODSTATUS__ -->
+    <div class="mpage" id="mpage-stock">
+      <div class="mtoolbar">
+        <input type="text" id="stock-search" placeholder="ค้นหา รหัส / ชื่อ / Lot..." oninput="renderStockCards()">
+        <div class="mchips" id="stock-type-chips">
+          <div class="mchip on" data-v="" onclick="stockFilterByType('')">ทั้งหมด</div>
+          <div class="mchip" data-v="BULK" onclick="stockFilterByType('BULK')">BULK</div>
+          <div class="mchip" data-v="PAC" onclick="stockFilterByType('PAC')">PAC</div>
+        </div>
+      </div>
+      <div class="mkpi-strip" id="stock-kpi-row">
+        <div class="mkpi" onclick="stockClearFilters()"><b id="kpi-total-items">—</b><small>รายการทั้งหมด</small></div>
+        <div class="mkpi"><b id="kpi-type-bulk" style="color:#7c3aed">—</b><small>BULK</small></div>
+        <div class="mkpi"><b id="kpi-type-pac" style="color:#0891b2">—</b><small>PAC</small></div>
+        <div class="mkpi" onclick="stockFilterByStatus('out')"><b id="kpi-out-stock" style="color:#dc2626">—</b><small>หมดแล้ว</small></div>
+        <div class="mkpi" onclick="stockFilterByStatus('expiring')"><b id="kpi-expiring" style="color:#d97706">—</b><small>ใกล้หมดอายุ</small></div>
+        <div class="mkpi"><b id="kpi-stock-value" style="color:#16a34a">—</b><small>มูลค่าสต็อก (฿)</small></div>
+      </div>
+      <div id="stock-cards"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+    <!-- __PAGE_STOCK__ -->
+    <div class="mpage" id="mpage-fgstock">
+      <div class="mtoolbar">
+        <input type="text" id="fgstock-search" placeholder="ค้นหา รหัส / ชื่อสินค้า..." oninput="renderFGStockTable()">
+        <select id="fgstock-filter-series" onchange="renderFGStockTable()"><option value="">ซีรี่: ทั้งหมด</option></select>
+        <select id="fgstock-filter-type" onchange="renderFGStockTable()"><option value="">ประเภท: ทั้งหมด</option></select>
+      </div>
+      <div class="mkpi-strip" id="fgstock-kpi-row">
+        <div class="mkpi" onclick="fgStockClearFilters()"><b id="fgkpi-total-items">—</b><small>SKU ทั้งหมด</small></div>
+        <div class="mkpi"><b id="fgkpi-total-lots" style="color:#7c3aed">—</b><small>Lot ทั้งหมด</small></div>
+        <div class="mkpi" style="min-width:180px"><b id="fgkpi-total-qty" style="color:#16a34a;font-size:1.05rem">—</b><small>คงเหลือรวม (แยกตามหน่วย)</small></div>
+      </div>
+      <div id="fgstock-cards"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
+    <!-- __PAGE_FGSTOCK__ -->
+    <div class="mpage" id="mpage-lotscan">
+      <div class="lotscan-toolbar">
+        <input type="text" id="lotscan-f-code" placeholder="พิมพ์รหัส Lot แล้วกด Enter..." autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();lotscanSearch();}">
+        <button onclick="lotscanSearch()" title="ค้นหา"><i class="fas fa-search"></i></button>
+        <button onclick="lotscanOpenCamera()" title="เปิดกล้องสแกน"><i class="fas fa-camera"></i></button>
+      </div>
+      <div id="lotscan-empty" class="lotscan-panel" style="text-align:center;padding:40px 16px;color:#94a3b8">
+        <i class="fas fa-qrcode fa-2x mb-3" style="display:block"></i>พิมพ์หรือสแกนรหัส Lot ด้านบน เพื่อดูประวัติของ Lot นั้น
+      </div>
+      <div id="lotscan-notfound" class="lotscan-panel" style="display:none;text-align:center;padding:40px 16px;color:#dc2626">
+        <i class="fas fa-circle-exclamation fa-2x mb-3" style="display:block"></i>
+        <div id="lotscan-notfound-msg">ไม่พบ Lot นี้ในระบบ</div>
+      </div>
+      <div id="lotscan-multi" class="lotscan-panel" style="display:none">
+        <div style="font-weight:600;margin-bottom:8px">พบ Lot ที่ตรงกันหลายรายการ เลือกรายการที่ต้องการ</div>
+        <div id="lotscan-multi-list"></div>
+      </div>
+      <div id="lotscan-result" style="display:none"></div>
+    </div>
+    <!-- __PAGE_LOTSCAN__ -->
+  </div>
+
+  <div id="bottomnav">
+    <button class="active" data-page="prodstatus" onclick="mShowPage('prodstatus')"><i class="fas fa-industry"></i>ผลิต</button>
+    <button data-page="stock" onclick="mShowPage('stock')"><i class="fas fa-boxes-stacked"></i>วัตถุดิบ</button>
+    <button data-page="fgstock" onclick="mShowPage('fgstock')"><i class="fas fa-box"></i>FG</button>
+    <button data-page="lotscan" onclick="mShowPage('lotscan')"><i class="fas fa-qrcode"></i>Lot Scan</button>
+  </div>
+</div>
+
+<div id="cameraModal">
+  <div class="box">
+    <h6><span>สแกน QR / อ่านข้อความ Lot</span><a href="#" onclick="event.preventDefault();lotscanCloseCamera()" style="color:#94a3b8"><i class="fas fa-times"></i></a></h6>
+    <video id="lotscan-camera-video" playsinline muted></video>
+    <canvas id="lotscan-camera-canvas" style="display:none"></canvas>
+    <div class="status" id="lotscan-camera-status">กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR/บาร์โค้ด</div>
+    <button class="capture" id="lotscan-camera-capture-btn" onclick="lotscanCaptureAndRead()">
+      <i class="fas fa-camera me-1"></i>ถ้าสแกนไม่ติด กดถ่ายภาพเอง
+    </button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// Supabase client — บัญชีเดียวกับแอปหลัก (index.html) ทุกประการ
+// ══════════════════════════════════════════════
+const SUPABASE_URL  = 'https://lowepayorsnjtcnahrfk.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxvd2VwYXlvcnNuanRjbmFocmZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDgxMTksImV4cCI6MjA5NTEyNDExOX0.Rcn2TewpGxDRlVMo6v9-l_jjV90A9jomeOiMpP26o2U';
+const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+const _loader = document.getElementById('toploader');
+let _loaderTimer;
+function _showLoader() {
+  _loader.style.width = '0%'; _loader.style.display = 'block';
+  clearTimeout(_loaderTimer);
+  let w = 0;
+  _loaderTimer = setInterval(() => { w = Math.min(w + Math.random()*15, 85); _loader.style.width = w + '%'; }, 200);
+}
+function _hideLoader() {
+  clearInterval(_loaderTimer);
+  _loader.style.width = '100%';
+  setTimeout(() => { _loader.style.width = '0%'; }, 400);
+}
+function _err(msg, detail) {
+  console.error(msg, detail);
+  Swal.fire({ icon: 'error', title: msg, html: detail ? `<small class="text-muted">${detail}</small>` : '' });
+}
+function _fmtDate(d) {
+  if (!d) return '—';
+  const parts = String(d).split('T')[0].split('-');
+  if (parts.length !== 3) return d;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+// ══════════════════════════════════════════════
+// Auth — รองรับทั้งบัญชีอีเมลจริง (มี "@") และ Username สังเคราะห์ (@proflow.internal)
+// เหมือนกับ loginSubmit()/_usernameToSyntheticEmail() ของแอปหลักทุกประการ
+// ══════════════════════════════════════════════
+let _currentUser = null;
+function _usernameToSyntheticEmail(username) {
+  return username.trim().toLowerCase() + '@proflow.internal';
+}
+async function mLoginSubmit() {
+  const typed = document.getElementById('mLoginUser').value.trim();
+  const email = typed.includes('@') ? typed : _usernameToSyntheticEmail(typed);
+  const password = document.getElementById('mLoginPass').value;
+  const errEl = document.getElementById('mLoginError');
+  const btn = document.getElementById('mLoginBtn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  const { error } = await _sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  if (error) { errEl.style.display = 'block'; return; }
+}
+async function mLogout() {
+  await _sb.auth.signOut();
+  location.reload();
+}
+
+// ══════════════════════════════════════════════
+// Bottom-tab navigation — 4 หน้าเท่านั้น, โหลดข้อมูลครั้งแรกตอนสลับเข้าหน้านั้นครั้งแรก (lazy)
+// ══════════════════════════════════════════════
+const _mPageTitles = {
+  prodstatus: 'ภาพรวมการผลิต', stock: 'สต็อกวัตถุดิบ', fgstock: 'สต็อก FG', lotscan: 'Lot Scan',
+};
+const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false };
+function mShowPage(name) {
+  document.querySelectorAll('.mpage').forEach(el => el.classList.remove('active'));
+  document.getElementById('mpage-' + name).classList.add('active');
+  document.querySelectorAll('#bottomnav button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.getElementById('mPageTitle').innerHTML = _mPageTitles[name] + '<small>ProFlow Mobile</small>';
+  document.getElementById('content').scrollTop = 0;
+  if (!_mPageLoaded[name]) {
+    _mPageLoaded[name] = true;
+    if (name === 'prodstatus') loadProdStatusData();
+    if (name === 'stock') loadStockData();
+    if (name === 'fgstock') loadFGStockData();
+    if (name === 'lotscan') lotscanInit();
+  }
+}
+
+// ══════════════════════════════════════════════
+// PAGE: Stock วัตถุดิบ — ยกมาจาก index.html หลัก (renderStockCards ฯลฯ) ปรับ toolbar เป็น chip/KPI
+// แนวนอนสำหรับมือถือ, ตัด "ดูการ์ดสต็อก" ออก (หน้า Stock Card ไม่ได้อยู่ในขอบเขตแอปนี้)
+// ══════════════════════════════════════════════
+let _stockData = [];
+let _matMasterMap = {};
+let _stockReservedByMaterial = {};
+let _stockFilterType = '';
+let _stockFilterStatus = '';
+const STOCK_EXPIRING_MONTHS_THRESHOLD = 20;
+function _stockRemainingMonths(expDate) {
+  if (!expDate) return null;
+  const exp = new Date(String(expDate).split('T')[0]);
+  const now = new Date();
+  return (exp.getFullYear() - now.getFullYear()) * 12 + (exp.getMonth() - now.getMonth());
+}
+
+async function loadStockData() {
+  _showLoader();
+  const [stockRes, matRes, resvRes] = await Promise.all([
+    _sb.from('stock_balance').select('*').order('MaterialCode'),
+    _sb.from('materials').select('MaterialCode,TYPE,MinStock'),
+    _sb.from('mo_material_reservations').select('MO_Ref,MaterialCode,ReservedQty,UOM'),
+  ]);
+  _hideLoader();
+  if (stockRes.error) { _err('โหลด Stock ไม่ได้', stockRes.error.message); return; }
+  _matMasterMap = {};
+  (matRes.data || []).forEach(m => { _matMasterMap[m.MaterialCode] = { type: m.TYPE || '', minStock: parseFloat(m.MinStock) || 0 }; });
+  _stockReservedByMaterial = {};
+  (resvRes.data || []).forEach(rv => {
+    const g = (_stockReservedByMaterial[rv.MaterialCode] ||= { total: 0, items: [] });
+    g.total += parseFloat(rv.ReservedQty) || 0;
+    g.items.push({ MO_Ref: rv.MO_Ref, ReservedQty: parseFloat(rv.ReservedQty) || 0, UOM: rv.UOM || '' });
+  });
+  _stockData = (stockRes.data || []).map(r => ({
+    ...r,
+    QtyBalance: parseFloat(r.QtyBalance) || 0, QtyIn: parseFloat(r.QtyIn) || 0,
+    QtyOut: parseFloat(r.QtyOut) || 0, UnitCost: parseFloat(r.UnitCost) || 0, StockValue: parseFloat(r.StockValue) || 0,
+  }));
+  updateStockKPIs();
+  renderStockCards();
+}
+
+function updateStockKPIs() {
+  const matMap = {};
+  for (const r of _stockData) {
+    const key = r.MaterialCode || r.MaterialName || '—';
+    if (!matMap[key]) matMap[key] = { total: 0, minStock: (_matMasterMap[r.MaterialCode]?.minStock) || r.MinStock || 100, type: _matMasterMap[r.MaterialCode]?.type || '' };
+    matMap[key].total += r.QtyBalance;
+  }
+  const mats = Object.values(matMap);
+  const totalVal = _stockData.reduce((s, r) => s + r.StockValue, 0);
+  const outCount = mats.filter(m => m.total <= 0).length;
+  const activeMats = mats.filter(m => m.total > 0);
+  const bulkCount = activeMats.filter(m => m.type === 'BULK').length;
+  const pacCount = activeMats.filter(m => m.type === 'PAC').length;
+  const expiringLotCount = _stockData.filter(r => {
+    if ((r.QtyBalance || 0) <= 0 || !r.ExpDate) return false;
+    const m = _stockRemainingMonths(r.ExpDate);
+    return m !== null && m <= STOCK_EXPIRING_MONTHS_THRESHOLD;
+  }).length;
+  document.getElementById('kpi-total-items').textContent = activeMats.length.toLocaleString();
+  document.getElementById('kpi-out-stock').textContent = outCount.toLocaleString();
+  document.getElementById('kpi-stock-value').textContent = '฿' + totalVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
+  document.getElementById('kpi-type-bulk').textContent = bulkCount.toLocaleString();
+  document.getElementById('kpi-type-pac').textContent = pacCount.toLocaleString();
+  document.getElementById('kpi-expiring').textContent = expiringLotCount.toLocaleString();
+}
+
+function _mUpdateChips(containerId, value) {
+  document.querySelectorAll('#' + containerId + ' .mchip').forEach(c => c.classList.toggle('on', c.dataset.v === value));
+}
+function stockClearFilters() { _stockFilterType = ''; _stockFilterStatus = ''; _mUpdateChips('stock-type-chips', ''); renderStockCards(); }
+function stockFilterByType(type) { _stockFilterType = _stockFilterType === type ? '' : type; _mUpdateChips('stock-type-chips', _stockFilterType); renderStockCards(); }
+function stockFilterByStatus(status) { _stockFilterStatus = _stockFilterStatus === status ? '' : status; renderStockCards(); }
+
+function stockShowReservations(code, name) {
+  const g = _stockReservedByMaterial[code];
+  const items = g?.items || [];
+  const uom = items[0]?.UOM || '';
+  const rowsHtml = items.length
+    ? items.map(it => `<tr><td class="text-start">${it.MO_Ref}</td><td class="text-end">${it.ReservedQty.toLocaleString()} ${it.UOM||''}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="text-muted">ไม่มียอดจอง</td></tr>';
+  Swal.fire({
+    title: `ยอดจอง (WIP) — ${name}`,
+    html: `<table class="table table-sm mb-0"><thead><tr><th class="text-start">MO</th><th class="text-end">จองไว้</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr class="fw-bold border-top"><td class="text-start">รวม</td><td class="text-end">${(g?.total||0).toLocaleString()} ${uom}</td></tr></tfoot></table>`,
+    icon: 'info', confirmButtonText: 'ปิด',
+  });
+}
+
+function stockToggleLots(header) {
+  const card = header.closest('.mcard-flat');
+  const detail = card.querySelector('.stock-lot-detail');
+  const icon = header.querySelector('.fa-chevron-down, .fa-chevron-up');
+  const isOpen = detail.style.display === 'block';
+  detail.style.display = isOpen ? 'none' : 'block';
+  if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+function renderStockCards() {
+  const q = (document.getElementById('stock-search')?.value || '').toLowerCase();
+  const container = document.getElementById('stock-cards');
+  const groupMap = {};
+  for (const r of _stockData) {
+    const key = r.MaterialCode || r.MaterialName || '—';
+    if (!groupMap[key]) groupMap[key] = { code: r.MaterialCode, name: r.MaterialName, uom: r.UOM, lots: [], totalVal: 0 };
+    groupMap[key].lots.push(r);
+    groupMap[key].totalVal += r.StockValue || 0;
+  }
+  let items = Object.values(groupMap).filter(g => {
+    const total = g.lots.reduce((s, r) => s + r.QtyBalance, 0);
+    if (_stockFilterStatus !== 'out' && total <= 0) return false;
+    if (q) {
+      const hay = [g.code, g.name, ...g.lots.map(r => r.Lot)].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    const master = _matMasterMap[g.code] || {};
+    const minStock = master.minStock || g.lots[0]?.MinStock || 100;
+    const matType = master.type || '';
+    if (_stockFilterType === 'BULK' && matType !== 'BULK') return false;
+    if (_stockFilterType === 'PAC' && matType !== 'PAC') return false;
+    if (_stockFilterStatus === 'low' && !(total > 0 && total < minStock)) return false;
+    if (_stockFilterStatus === 'out' && !(total <= 0)) return false;
+    if (_stockFilterStatus === 'expiring') {
+      const hasExpiring = g.lots.some(r => (r.QtyBalance||0) > 0 && r.ExpDate
+        && _stockRemainingMonths(r.ExpDate) !== null && _stockRemainingMonths(r.ExpDate) <= STOCK_EXPIRING_MONTHS_THRESHOLD);
+      if (!hasExpiring) return false;
+    }
+    return true;
+  });
+  if (!items.length) { container.innerHTML = '<div class="mcard text-center text-muted">ไม่พบข้อมูล</div>'; return; }
+  container.innerHTML = items.map((g) => {
+    const master = _matMasterMap[g.code] || {};
+    const matType = master.type || '';
+    const minStock = master.minStock || g.lots[0]?.MinStock || 100;
+    const activeLots = _stockFilterStatus === 'out' ? g.lots : g.lots.filter(r => r.QtyBalance > 0);
+    const total = activeLots.reduce((s, r) => s + r.QtyBalance, 0);
+    const totalVal = activeLots.reduce((s, r) => s + r.StockValue, 0);
+    const isLow = total > 0 && total < minStock;
+    const typeBadge = matType === 'PAC' ? '<span class="mbadge mb-blue">PAC</span>'
+      : matType === 'BULK' ? '<span class="mbadge" style="background:#f5f3ff;color:#6d28d9">BULK</span>' : '';
+    const statusBadge = total <= 0 ? '<span class="mbadge mb-red">หมดแล้ว</span>'
+      : isLow ? '<span class="mbadge mb-amber">ใกล้หมด</span>' : '<span class="mbadge mb-green">ปกติ</span>';
+    const sortedExp = activeLots.filter(r => r.ExpDate).sort((a,b) => a.ExpDate > b.ExpDate ? 1 : -1);
+    const earliestExp = sortedExp[0]?.ExpDate;
+    const earliestRemainingMonths = earliestExp ? _stockRemainingMonths(earliestExp) : null;
+    const expiringBadge = (earliestRemainingMonths !== null && earliestRemainingMonths <= STOCK_EXPIRING_MONTHS_THRESHOLD)
+      ? `<span class="mbadge" style="background:#fff1e6;color:#c2410c">ใกล้หมดอายุ (${earliestRemainingMonths} ด.)</span>` : '';
+    const lotRows = activeLots.map(r => `
+      <div class="mlot-row">
+        <span data-label="Lot"><span class="mbadge mb-gray">${r.Lot||'—'}</span></span>
+        <span data-label="คงเหลือ" style="font-weight:700;color:#1e3a8a">${r.QtyBalance.toLocaleString()} ${r.UOM||''}</span>
+        <span data-label="หมดอายุ">${_fmtDate(r.ExpDate)||'—'}</span>
+        <span data-label="ราคา/หน่วย">฿${r.UnitCost.toLocaleString()}</span>
+        <span data-label="มูลค่า" style="color:#16a34a">฿${r.StockValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
+        <span data-label="รับเข้า/จ่ายออก"><span style="color:#16a34a">${r.QtyIn.toLocaleString()}</span> / <span style="color:#dc2626">${r.QtyOut.toLocaleString()}</span></span>
+      </div>`).join('');
+    return `
+    <div class="mcard-flat">
+      <div class="mgroup-header" onclick="stockToggleLots(this)">
+        <span class="mbadge mb-gray">${g.code||'—'}</span>${typeBadge}
+        <span class="mgroup-name">${g.name||'—'}</span>
+        <span class="mgroup-sub">
+          <i class="fas fa-layer-group me-1 opacity-50"></i>${activeLots.length} Lot &nbsp;·&nbsp; <b class="mgroup-num">${total.toLocaleString()}</b> ${g.uom||''}
+          &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">฿${totalVal.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
+        </span>
+        ${(_stockReservedByMaterial[g.code]?.total > 0) ? `<span class="mbadge mb-amber" onclick="event.stopPropagation();stockShowReservations('${g.code}','${(g.name||'').replace(/'/g,"\\'")}')"><i class="fas fa-lock me-1"></i>จอง ${_stockReservedByMaterial[g.code].total.toLocaleString()}</span>` : ''}
+        ${statusBadge}${expiringBadge}
+        <i class="fas fa-chevron-down text-muted" style="font-size:.75rem;transition:transform .2s"></i>
+      </div>
+      <div class="stock-lot-detail" style="display:none;border-top:1px solid #e5e7eb">${lotRows}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PAGE: Stock FG — ยกมาจาก index.html หลัก เหมือน Stock วัตถุดิบ
+// ══════════════════════════════════════════════
+let _fgStockData = [];
+let _fgStockOriginMap = {};
+const FG_TYPE_QUALIFIERS = ['Body', 'Hand', 'Face', 'Hair', 'Aroma', 'Baby', 'Bath'];
+const FG_TYPE_BASES = ['Wash','Lotion','Moisturiser','Moisturizer','Shampoo','Conditioner','Cream','Serum','Toner','Sunscreen','Perfume','Mist','Balm','Powder','Scrub','Mask','Soap','Oil','Gel','Spray','Butter','Salt'];
+const FG_TYPE_KEYWORDS = [...FG_TYPE_QUALIFIERS.flatMap(q => FG_TYPE_BASES.map(b => `${q} ${b}`)), ...FG_TYPE_BASES]
+  .sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length);
+function _fgParseNameParts(name) {
+  const n = (name || '').trim();
+  for (const kw of FG_TYPE_KEYWORDS) {
+    const re = new RegExp('\\b' + kw.replace(/\s+/g, '\\s+') + '\\b', 'i');
+    const m = n.match(re);
+    if (m) {
+      const series = n.slice(0, m.index).trim().replace(/[-–,]+$/, '').trim();
+      return { series: series || 'ไม่ระบุซีรี่', type: kw };
+    }
+  }
+  return { series: 'ไม่ระบุซีรี่', type: 'ไม่ระบุประเภท' };
+}
+function _fgStockGroupAll() {
+  const groupMap = {};
+  for (const r of _fgStockData) {
+    const lotVal = r.LotFG || r['Lot_FG'] || r.LOT || '';
+    const qty = parseFloat(r.FGBalance ?? r.QtyBalance ?? r.QtyOnHand ?? 0) || 0;
+    if (qty <= 0) continue;
+    const key = r.ProductCode || r.ProductName || '—';
+    if (!groupMap[key]) groupMap[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] };
+    groupMap[key].lots.push({ ...r, _lot: lotVal, _qty: qty });
+  }
+  return Object.values(groupMap).filter(g => g.lots.length).map(g => ({ ...g, parts: _fgParseNameParts(g.name) }));
+}
+function _fgStockPopulateFilters() {
+  const groups = _fgStockGroupAll();
+  const seriesList = [...new Set(groups.map(g => g.parts.series))].sort((a,b) => a.localeCompare(b));
+  const typeList = [...new Set(groups.map(g => g.parts.type))].sort((a,b) => a.localeCompare(b));
+  const seriesSel = document.getElementById('fgstock-filter-series');
+  const typeSel = document.getElementById('fgstock-filter-type');
+  if (seriesSel) {
+    const prev = seriesSel.value;
+    seriesSel.innerHTML = '<option value="">ซีรี่: ทั้งหมด</option>' + seriesList.map(s => `<option value="${s}">${s}</option>`).join('');
+    seriesSel.value = seriesList.includes(prev) ? prev : '';
+  }
+  if (typeSel) {
+    const prev = typeSel.value;
+    typeSel.innerHTML = '<option value="">ประเภท: ทั้งหมด</option>' + typeList.map(t => `<option value="${t}">${t}</option>`).join('');
+    typeSel.value = typeList.includes(prev) ? prev : '';
+  }
+}
+function updateFGStockKPIs() {
+  const groups = _fgStockGroupAll();
+  const totalLots = groups.reduce((s, g) => s + g.lots.length, 0);
+  const uomTotals = {};
+  groups.forEach(g => g.lots.forEach(l => { const u = l.UOM || '—'; uomTotals[u] = (uomTotals[u] || 0) + l._qty; }));
+  const qtyStr = Object.entries(uomTotals).sort((a, b) => b[1] - a[1]).map(([uom, qty]) => `${qty.toLocaleString()} ${uom}`).join(' · ') || '—';
+  document.getElementById('fgkpi-total-items').textContent = groups.length.toLocaleString();
+  document.getElementById('fgkpi-total-lots').textContent = totalLots.toLocaleString();
+  document.getElementById('fgkpi-total-qty').textContent = qtyStr;
+}
+function fgStockClearFilters() {
+  const q = document.getElementById('fgstock-search'), s = document.getElementById('fgstock-filter-series'), t = document.getElementById('fgstock-filter-type');
+  if (q) q.value = ''; if (s) s.value = ''; if (t) t.value = '';
+  renderFGStockTable();
+}
+async function loadFGStockData() {
+  _showLoader();
+  const [stockRes, receiveRes] = await Promise.all([
+    _sb.from('stock_fg').select('*').order('ProductCode'),
+    _sb.from('fg_receive').select('ProductCode,Lot_FG,ExpireDate,MO_ID'),
+  ]);
+  if (stockRes.error) { _hideLoader(); _err('โหลด Stock FG ไม่ได้', stockRes.error.message); return; }
+  _fgStockData = stockRes.data || [];
+  _fgStockOriginMap = {};
+  (receiveRes.data || []).forEach(r => {
+    if (!r.ProductCode || !r.Lot_FG) return;
+    const key = r.ProductCode + '|' + r.Lot_FG;
+    if (!_fgStockOriginMap[key]) _fgStockOriginMap[key] = { exp: r.ExpireDate, moId: r.MO_ID, customer: null };
+  });
+  const moIds = [...new Set(Object.values(_fgStockOriginMap).map(v => v.moId).filter(Boolean))];
+  if (moIds.length) {
+    const { data: mos } = await _sb.from('manufacturing_orders').select('MO_ID,CO_Ref').in('MO_ID', moIds);
+    const moToCoRef = {};
+    (mos || []).forEach(m => { if (m.CO_Ref) moToCoRef[m.MO_ID] = m.CO_Ref; });
+    const coRefs = [...new Set(Object.values(moToCoRef))];
+    let coToCustomer = {};
+    if (coRefs.length) {
+      const { data: cos } = await _sb.from('customer_orders').select('Order_ID,CustomerName').in('Order_ID', coRefs);
+      (cos || []).forEach(c => { coToCustomer[c.Order_ID] = c.CustomerName; });
+    }
+    Object.values(_fgStockOriginMap).forEach(v => { const coRef = v.moId ? moToCoRef[v.moId] : null; v.customer = coRef ? coToCustomer[coRef] : null; });
+  }
+  _hideLoader();
+  _fgStockPopulateFilters();
+  updateFGStockKPIs();
+  renderFGStockTable();
+}
+function renderFGStockTable() {
+  const q = (document.getElementById('fgstock-search')?.value || '').toLowerCase();
+  const seriesF = document.getElementById('fgstock-filter-series')?.value || '';
+  const typeF = document.getElementById('fgstock-filter-type')?.value || '';
+  let items = _fgStockGroupAll().filter(g => {
+    if (seriesF && g.parts.series !== seriesF) return false;
+    if (typeF && g.parts.type !== typeF) return false;
+    if (q) {
+      const hay = [g.code, g.name, ...g.lots.map(r => r._lot)].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const container = document.getElementById('fgstock-cards');
+  if (!items.length) { container.innerHTML = '<div class="mcard text-center text-muted">ไม่พบข้อมูล</div>'; return; }
+  container.innerHTML = items.map(g => {
+    const total = g.lots.reduce((s, r) => s + r._qty, 0);
+    const withOrigin = g.lots.map(r => ({ ...r, _origin: _fgStockOriginMap[(g.code||'') + '|' + r._lot] || {} }));
+    const sortedExp = withOrigin.filter(r => r._origin.exp).sort((a,b) => a._origin.exp > b._origin.exp ? 1 : -1);
+    const expStr = sortedExp[0]?._origin.exp ? _fmtDate(sortedExp[0]._origin.exp) : null;
+    const lotRows = withOrigin.map(r => {
+      const moRef = r._origin.moId || '—', customer = r._origin.customer || '—';
+      return `<div class="mlot-row">
+        <span data-label="Lot FG"><span class="mbadge" style="background:#eff6ff;color:#1e40af">${r._lot||'—'}</span></span>
+        <span data-label="คงเหลือ" style="font-weight:700">${r._qty.toLocaleString()} ${r.UOM||''}</span>
+        <span data-label="หมดอายุ">${_fmtDate(r._origin.exp)||'—'}</span>
+        <span data-label="MO Ref">${moRef}</span>
+        <span data-label="ลูกค้า (ที่มา)">${customer}</span>
+      </div>`;
+    }).join('');
+    return `
+    <div class="mcard-flat">
+      <div class="mgroup-header" onclick="stockToggleLots(this)">
+        <span class="mbadge mb-gray">${g.code||'—'}</span>
+        <span class="mbadge" style="background:#f1f5f9;color:#334155">${g.parts.series}</span>
+        <span class="mbadge mb-blue">${g.parts.type}</span>
+        <span class="mgroup-name">${g.name||'—'}</span>
+        <span class="mgroup-sub">
+          <i class="fas fa-layer-group me-1 opacity-50"></i>${g.lots.length} Lot &nbsp;·&nbsp; <b class="mgroup-num">${total.toLocaleString()}</b> ${g.uom||''}
+          ${expStr ? `&nbsp;·&nbsp;<i class="fas fa-calendar-alt opacity-50 me-1"></i>${expStr}` : ''}
+        </span>
+        <span class="mbadge mb-green">มีสต็อก</span>
+        <i class="fas fa-chevron-down text-muted" style="font-size:.75rem;transition:transform .2s"></i>
+      </div>
+      <div class="stock-lot-detail" style="display:none;border-top:1px solid #e5e7eb">${lotRows}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PAGE: ภาพรวมการผลิต — เฉพาะมุมมองสัปดาห์ (ตามคำขอผู้ใช้เน้นมุมมองนี้บนมือถือ) ไม่มี Gantt/ลิงก์ไปหน้า
+// แผนผลิตเต็ม (หน้านั้นไม่ได้อยู่ในขอบเขตแอปนี้) — read-only ทั้งหมด
+// ══════════════════════════════════════════════
+const PLAN_LINES = ['ห้องผสมใหญ่', 'ห้องบรรจุครีมโลชั่น', 'ห้องบรรจุแชมพูครีมอาบน้ำ', 'ห้องบรรจุน้ำมัน Aroma'];
+const PLAN_LINE_COLORS = ['#3b82f6', '#f59e0b', '#a855f7', '#14b8a6'];
+function _planLineColor(line) { const idx = PLAN_LINES.indexOf(line); return idx >= 0 ? PLAN_LINE_COLORS[idx] : '#94a3b8'; }
+function _planShiftTimeLabel(r) {
+  const start = (r.TimeStart||'').slice(0,5), end = (r.TimeEnd||'').slice(0,5);
+  if ((r.Shift||'').includes('โอที')) return `${start}–เป็นต้นไป`;
+  return `${start}–${end}`;
+}
+const _planDowThaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const _planWeekDowThai = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+const _planWeekTodayIdx = 1;
+function _planWeekLocalDateStr(d) {
+  const yyyy = d.getFullYear(), mm = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function _planWeekRange() {
+  const today = new Date(); const days = [];
+  for (let i = -1; i <= 5; i++) { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i); days.push(_planWeekLocalDateStr(d)); }
+  return days;
+}
+const _prodStatusActiveMOStatuses = ['แพลนแล้ว', 'ยืนยันการผลิต', 'เบิกแล้ว', 'กำลังผลิต'];
+let _prodStatusMOData = [], _prodStatusPlanWeekData = [], _prodStatusPlanAllData = [], _prodStatusRecords = {};
+
+async function loadProdStatusData() {
+  _showLoader();
+  const days = _planWeekRange();
+  const todayStr = days[_planWeekTodayIdx];
+  const moRes = await _sb.from('manufacturing_orders').select('*').order('DeliveryDate', { ascending: true });
+  if (moRes.error) { _hideLoader(); _err('โหลดข้อมูล MO ไม่ได้', moRes.error.message); return; }
+  _prodStatusMOData = (moRes.data || []).filter(r => _prodStatusActiveMOStatuses.includes(r.Status));
+  const moIds = _prodStatusMOData.map(r => r.MO_ID).filter(Boolean);
+  const [planWeekRes, planAllRes] = await Promise.all([
+    _sb.from('production_plan').select('*').gte('PlanDate', days[0]).lte('PlanDate', days[6]).order('PlanDate'),
+    moIds.length ? _sb.from('production_plan').select('MO_Ref,PlanDate,Line').in('MO_Ref', moIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (planWeekRes.error) { _hideLoader(); _err('โหลดแผนผลิตไม่ได้', planWeekRes.error.message); return; }
+  _prodStatusPlanWeekData = planWeekRes.data || [];
+  _prodStatusPlanAllData = planAllRes.data || [];
+  const todayRefs = [...new Set(_prodStatusPlanWeekData.filter(r => r.PlanDate === todayStr && r.ProdRecord_Ref).map(r => r.ProdRecord_Ref))];
+  _prodStatusRecords = {};
+  if (todayRefs.length) {
+    const { data: recData, error: recErr } = await _sb.from('production_records').select('ProdRecord_ID,FG_Planned,FG_Actual,UOM').in('ProdRecord_ID', todayRefs);
+    if (!recErr) (recData || []).forEach(rec => { _prodStatusRecords[rec.ProdRecord_ID] = rec; });
+  }
+  _hideLoader();
+  prodStatusUpdateKPIs();
+  prodStatusRenderStrip();
+  prodStatusRenderTodayCards();
+  prodStatusRenderMOCards();
+}
+
+function prodStatusUpdateKPIs() {
+  const el = id => document.getElementById(id);
+  const days = _planWeekRange(); const todayStr = days[_planWeekTodayIdx];
+  const moIdsWithPlan = new Set(_prodStatusPlanAllData.map(r => r.MO_Ref));
+  const noPlanCount = _prodStatusMOData.filter(mo => !moIdsWithPlan.has(mo.MO_ID)).length;
+  const overdueCount = _prodStatusMOData.filter(mo => mo.DeliveryDate && mo.DeliveryDate < todayStr).length;
+  if (el('prodstatus-kpi-mo')) el('prodstatus-kpi-mo').textContent = _prodStatusMOData.length.toLocaleString();
+  if (el('prodstatus-kpi-total')) el('prodstatus-kpi-total').textContent = _prodStatusPlanWeekData.length.toLocaleString();
+  if (el('prodstatus-kpi-today')) el('prodstatus-kpi-today').textContent = _prodStatusPlanWeekData.filter(r => r.PlanDate === todayStr).length;
+  if (el('prodstatus-kpi-noplan')) el('prodstatus-kpi-noplan').textContent = noPlanCount.toLocaleString();
+  if (el('prodstatus-kpi-overdue')) el('prodstatus-kpi-overdue').textContent = overdueCount.toLocaleString();
+}
+
+function prodStatusRenderStrip() {
+  const days = _planWeekRange(); const todayStr = days[_planWeekTodayIdx];
+  const byDate = {};
+  _prodStatusPlanWeekData.forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
+  const strip = document.getElementById('prodstatus-strip');
+  strip.innerHTML = days.map(dateStr => {
+    const isToday = dateStr === todayStr;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dow = _planWeekDowThai[new Date(dateStr).getDay()];
+    const items = byDate[dateStr] || [];
+    const lineRows = PLAN_LINES.map(line => {
+      const lineItems = items.filter(r => r.Line === line);
+      if (!lineItems.length) return '';
+      const qty = lineItems.reduce((s, r) => s + (parseFloat(r.PlanQty) || 0), 0);
+      return `<div class="mline-row"><span class="mline-dot" style="background:${_planLineColor(line)}"></span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${line}</span>
+        <span style="margin-left:auto;font-weight:700">${lineItems.length}·${qty.toLocaleString()}</span></div>`;
+    }).join('');
+    return `<div class="mweek-day${isToday ? ' today' : ''}">
+      <div class="date">${d}/${m}</div><div class="dow">${dow}${isToday?' · วันนี้':''}</div>
+      ${items.length ? lineRows : '<div class="mday-empty">ไม่มีแผน</div>'}
+    </div>`;
+  }).join('');
+}
+
+function prodStatusRenderTodayCards() {
+  const days = _planWeekRange(); const todayStr = days[_planWeekTodayIdx];
+  const byDate = {};
+  _prodStatusPlanWeekData.forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
+  const todayItems = (byDate[todayStr] || []).slice().sort((a, b) => (a.Line||'').localeCompare(b.Line||'') || (a.TimeStart||'').localeCompare(b.TimeStart||''));
+  const container = document.getElementById('prodstatus-today-cards');
+  if (!todayItems.length) { container.innerHTML = '<div class="mcard text-center text-muted">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
+  const moByID = {};
+  _prodStatusMOData.forEach(mo => { moByID[mo.MO_ID] = mo; });
+  const statusColor = { 'วางแผน': '#94a3b8', 'ยืนยันแล้ว': '#22c55e' };
+  container.innerHTML = todayItems.map(r => {
+    const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
+    const planQty = parseFloat(r.PlanQty) || 0;
+    let progressHtml;
+    if (r.Status !== 'ยืนยันแล้ว') {
+      progressHtml = `<div class="text-muted small mt-1"><i class="fas fa-clock me-1"></i>ยังไม่ยืนยัน — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
+    } else if (!rec || rec.FG_Actual == null) {
+      progressHtml = `<div class="mprogress-bg"><div class="mprogress-fill" style="width:0%;background:#fbbf24"></div></div>
+        <div class="small text-warning mt-1"><i class="fas fa-hourglass-half me-1"></i>รอกรอกผลจริง — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
+    } else {
+      const planned = parseFloat(rec.FG_Planned) || planQty, actual = parseFloat(rec.FG_Actual) || 0;
+      const pct = planned > 0 ? Math.round(actual/planned*1000)/10 : 0;
+      const ok = actual >= planned;
+      const barColor = ok ? '#22c55e' : (pct >= 70 ? '#f59e0b' : '#ef4444');
+      progressHtml = `<div class="mprogress-bg"><div class="mprogress-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div></div>
+        <div class="small mt-1" style="color:${ok?'#16a34a':'#dc2626'};font-weight:700">ผลจริง ${actual.toLocaleString()} ${rec.UOM||r.UOM||''} (${pct}%) <span class="text-muted fw-normal">/ เป้าหมาย ${planned.toLocaleString()}</span></div>`;
+    }
+    const mo = r.MO_Ref ? moByID[r.MO_Ref] : null;
+    let moContextHtml = '';
+    if (mo) {
+      const orderQty = parseFloat(mo.OrderQty) || 0, received = parseFloat(mo.MO_Received) || 0, pending = parseFloat(mo.Pending) || 0;
+      const isOverdue = mo.DeliveryDate && mo.DeliveryDate < todayStr;
+      moContextHtml = `<div class="mitem-meta" style="border-top:1px solid #f1f5f9;padding-top:6px;margin-top:6px">
+        <span>MO: <b>${mo.MO_ID}</b></span>${mo.LOT ? `<span>Lot: <b>${mo.LOT}</b></span>` : ''}
+        <span>สั่ง ${orderQty.toLocaleString()} · ผลิตแล้ว ${received.toLocaleString()} · คงค้าง ${pending.toLocaleString()}</span>
+        <span style="${isOverdue?'color:#dc2626;font-weight:700':''}">กำหนดส่ง ${_fmtDate(mo.DeliveryDate)||'—'}${isOverdue?' (เลยกำหนด)':''}</span>
+      </div>`;
+    }
+    return `<div class="mitem-card" style="border-left-color:${_planLineColor(r.Line)}">
+      <div class="mitem-top">
+        <div><span class="mbadge" style="background:${_planLineColor(r.Line)};color:#fff">${r.Line||'—'}</span> <b class="ms-1">${r.ProductName||'—'}</b></div>
+        <span class="mbadge" style="background:${statusColor[r.Status]||'#94a3b8'};color:#fff">${r.Status||'—'}</span>
+      </div>
+      <div class="mitem-meta"><span><i class="fas fa-business-time me-1"></i>${r.Shift||'—'} (${_planShiftTimeLabel(r)})</span><span><i class="fas fa-users me-1"></i>${r.Workers||'ไม่ระบุ'}</span></div>
+      ${progressHtml}${moContextHtml}
+    </div>`;
+  }).join('');
+}
+
+function prodStatusRenderMOCards() {
+  const days = _planWeekRange(); const todayStr = days[_planWeekTodayIdx];
+  const container = document.getElementById('prodstatus-mo-cards');
+  if (!_prodStatusMOData.length) { container.innerHTML = '<div class="mcard text-center text-muted">ไม่มี MO ที่กำลังดำเนินการอยู่</div>'; return; }
+  const planDatesByMO = {};
+  _prodStatusPlanAllData.forEach(r => { if (r.MO_Ref) (planDatesByMO[r.MO_Ref] ||= []).push(r.PlanDate); });
+  const statusColor = { 'แพลนแล้ว':'#f59e0b', 'ยืนยันการผลิต':'#334155', 'เบิกแล้ว':'#94a3b8', 'กำลังผลิต':'#3b82f6' };
+  container.innerHTML = _prodStatusMOData.map(r => {
+    const orderQty = parseFloat(r.OrderQty) || 0, received = parseFloat(r.MO_Received) || 0, pending = parseFloat(r.Pending) || 0;
+    const pct = orderQty > 0 ? Math.min(100, Math.round(received/orderQty*100)) : 0;
+    const isOverdue = r.DeliveryDate && r.DeliveryDate < todayStr;
+    const sc = statusColor[r.Status] || '#94a3b8';
+    const planDates = (planDatesByMO[r.MO_ID] || []).slice().sort();
+    const planCell = !planDates.length ? '<span class="mbadge mb-amber"><i class="fas fa-exclamation-triangle me-1"></i>ยังไม่มีแผน</span>'
+      : (() => { const upcoming = planDates.find(d => d >= todayStr); const targetDate = upcoming || planDates[planDates.length-1];
+          return `${planDates.length} แผน · ${upcoming?'ถัดไป':'ล่าสุด'} ${_fmtDate(targetDate)}`; })();
+    return `<div class="mmo-card">
+      <div class="mmo-title"><span class="mbadge mb-gray">${r.MO_ID||'—'}</span> ${r.ProductName||''} <small class="text-muted">${r.ProductCode||''}</small></div>
+      <div class="mmo-row"><span class="l">Lot</span><span>${r.LOT||'—'}</span></div>
+      <div class="mmo-row"><span class="l">กำหนดส่ง</span><span style="${isOverdue?'color:#dc2626;font-weight:700':''}">${_fmtDate(r.DeliveryDate)||'—'}</span></div>
+      <div class="mmo-row"><span class="l">สั่ง / ผลิตแล้ว / คงค้าง</span><span>${orderQty.toLocaleString()} / <span style="color:#16a34a">${received.toLocaleString()}</span> / <span style="color:#dc2626">${pending.toLocaleString()}</span></span></div>
+      <div class="mprogress-bg" style="margin:6px 0 2px"><div class="mprogress-fill" style="width:${pct}%;background:${pct>=100?'#22c55e':'#3b82f6'}"></div></div>
+      <div class="mmo-row"><span class="l">${pct}%</span><span class="mbadge" style="background:${sc};color:#fff">${r.Status||'—'}</span></div>
+      <div class="mmo-row"><span class="l">แผนผลิต</span><span>${planCell}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PAGE: Lot Scan — ยกมาจาก index.html หลัก (resolve/search/show/camera+OCR) ตัดเฉพาะ "พิมพ์รายงาน" ออก
+// (การพิมพ์ A4 ไม่เหมาะกับมือถือ — อยู่นอกขอบเขต 4 หน้าที่ตกลงกันไว้)
+// ══════════════════════════════════════════════
+let _lotscanMultiOptions = [];
+function lotscanInit() {
+  document.getElementById('lotscan-f-code').value = '';
+  _lotscanHideAllPanels();
+  document.getElementById('lotscan-empty').style.display = 'block';
+}
+function _lotscanHideAllPanels() {
+  document.getElementById('lotscan-empty').style.display = 'none';
+  document.getElementById('lotscan-notfound').style.display = 'none';
+  document.getElementById('lotscan-multi').style.display = 'none';
+  document.getElementById('lotscan-result').style.display = 'none';
+}
+function _lotscanDedupeBy(rows, keyFn) {
+  const seen = new Set();
+  return rows.filter(r => { const k = keyFn(r); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+async function lotscanResolve(rawInput) {
+  const trimmed = (rawInput || '').trim();
+  if (!trimmed) return { type: 'empty' };
+  const parts = trimmed.split('|');
+  if (parts[0] === 'PFLOT' && parts.length === 4 && parts[2] && parts[3]) {
+    const [, kind, code, lot] = parts;
+    if (kind === 'MAT') return { type: 'material', materialCode: code, lot };
+    if (kind === 'FG') return { type: 'fg', productCode: code, lotFg: lot };
+  }
+  const escaped = trimmed.replace(/[%_]/g, ch => '\\' + ch);
+  const [matRes, fgRes] = await Promise.all([
+    _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,UOM').ilike('Lot', escaped),
+    _sb.from('fg_receive').select('ProductCode,ProductName,Lot_FG').ilike('Lot_FG', escaped),
+  ]);
+  const matMatches = _lotscanDedupeBy(matRes.data || [], r => r.MaterialCode + '|' + r.Lot)
+    .map(r => ({ type: 'material', materialCode: r.MaterialCode, materialName: r.MaterialName, lot: r.Lot, uom: r.UOM }));
+  const fgMatches = _lotscanDedupeBy(fgRes.data || [], r => r.ProductCode + '|' + r.Lot_FG)
+    .map(r => ({ type: 'fg', productCode: r.ProductCode, productName: r.ProductName, lotFg: r.Lot_FG }));
+  const all = [...matMatches, ...fgMatches];
+  if (!all.length) return { type: 'notfound' };
+  if (all.length === 1) return all[0];
+  return { type: 'multi', options: all };
+}
+async function lotscanSearch() {
+  const raw = document.getElementById('lotscan-f-code').value;
+  const resolved = await lotscanResolve(raw);
+  if (resolved.type === 'empty') return;
+  _lotscanHideAllPanels();
+  if (resolved.type === 'notfound') {
+    document.getElementById('lotscan-notfound-msg').textContent = `ไม่พบ Lot "${raw.trim()}" ในระบบ (ทั้งฝั่งวัตถุดิบและ FG)`;
+    document.getElementById('lotscan-notfound').style.display = 'block';
+    return;
+  }
+  if (resolved.type === 'multi') {
+    _lotscanMultiOptions = resolved.options;
+    document.getElementById('lotscan-multi-list').innerHTML = resolved.options.map((o, i) => `
+      <div class="lotscan-row">
+        <span>${o.type === 'material'
+          ? `<span class="lotscan-badge lotscan-badge-mat me-1">วัตถุดิบ</span>${o.materialCode} — ${o.materialName || ''} <span class="text-muted">Lot ${o.lot}</span>`
+          : `<span class="lotscan-badge lotscan-badge-fg me-1">FG</span>${o.productCode} — ${o.productName || ''} <span class="text-muted">Lot ${o.lotFg}</span>`}</span>
+        <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="lotscanShowOption(${i})">ดูรายละเอียด</button>
+      </div>`).join('');
+    document.getElementById('lotscan-multi').style.display = 'block';
+    return;
+  }
+  await lotscanShow(resolved);
+}
+function lotscanShowOption(i) { const o = _lotscanMultiOptions[i]; if (o) lotscanShow(o); }
+async function lotscanShow(match) {
+  _showLoader();
+  try {
+    let html;
+    if (match.type === 'material') { html = _lotscanRenderMaterialScreen(await _lotscanFetchMaterialData(match.materialCode, match.lot)); }
+    else { html = _lotscanRenderFGScreen(await _lotscanFetchFGData(match.productCode, match.lotFg)); }
+    _lotscanHideAllPanels();
+    document.getElementById('lotscan-result').innerHTML = html;
+    document.getElementById('lotscan-result').style.display = 'block';
+  } finally { _hideLoader(); }
+}
+function _lotscanCard(title, icon, bodyHtml) {
+  return `<div class="lotscan-panel"><div class="lotscan-section-title"><i class="fas ${icon}"></i>${title}</div>${bodyHtml}</div>`;
+}
+function _lotscanEmptyRow(text) { return `<div class="lotscan-empty-row">${text}</div>`; }
+async function _lotscanFetchMaterialData(materialCode, lot) {
+  const [mrRes, sbRes, issRes] = await Promise.all([
+    _sb.from('mr_receive').select('*').eq('MaterialCode', materialCode).eq('Lot', lot).order('Date'),
+    _sb.from('stock_balance').select('*').eq('MaterialCode', materialCode).eq('Lot', lot).maybeSingle(),
+    _sb.from('issue_production').select('MO_ID,IssuedQty,UOM,Date').eq('MaterialCode', materialCode).eq('Lot', lot).order('Date'),
+  ]);
+  const mrRows = mrRes.data || [], sb = sbRes.data, issRows = issRes.data || [];
+  const materialName = mrRows[0]?.MaterialName || sb?.MaterialName || materialCode;
+  const uom = mrRows[0]?.UOM || sb?.UOM || '';
+  const expDate = sb?.ExpDate || mrRows[0]?.ExpDate || null;
+  const moIds = [...new Set(issRows.map(r => r.MO_ID).filter(Boolean))];
+  const fgByMo = {};
+  if (moIds.length) {
+    const { data: fgRows } = await _sb.from('fg_receive').select('MO_ID,ProductCode,Lot_FG').in('MO_ID', moIds);
+    (fgRows || []).forEach(r => { (fgByMo[r.MO_ID] ||= []).push(r); });
+  }
+  return { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo, expDate };
+}
+function _lotscanMfgFormatted(expDateStr) {
+  if (!expDateStr) return null;
+  const parts = String(expDateStr).split('T')[0].split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [y, m, dNum] = parts;
+  const mfg = new Date(y - 2, m - 1, dNum);
+  return `${String(mfg.getDate()).padStart(2,'0')}/${String(mfg.getMonth()+1).padStart(2,'0')}/${mfg.getFullYear()}`;
+}
+function _lotscanRenderMaterialScreen(d) {
+  const { materialCode, lot, materialName, uom, sb, mrRows, issRows, fgByMo, expDate } = d;
+  const mfgFormatted = _lotscanMfgFormatted(expDate);
+  const header = `<div class="lotscan-header-row"><div>
+      <span class="lotscan-badge lotscan-badge-mat">วัตถุดิบ</span>
+      <div class="lotscan-title">${materialCode} — ${materialName}</div>
+      <div class="lotscan-subtle">Lot <b>${lot}</b> · ผลิต ${mfgFormatted || '—'} · หมดอายุ ${_fmtDate(expDate)}</div>
+    </div><div class="lotscan-stats"><div class="lotscan-stat"><div class="lotscan-stat-label">คงเหลือปัจจุบัน</div>
+      <div class="lotscan-stat-num accent">${sb ? (parseFloat(sb.QtyBalance)||0).toLocaleString() : '—'} ${uom}</div></div></div></div>`;
+  const originRows = mrRows.length ? mrRows.map(r => `<div class="lotscan-row">
+      <span>${_fmtDate(r.Date)||''} — ${r.Supplier||'—'}${r.MfgLotNo?` · Lot ผู้ผลิต ${r.MfgLotNo}`:''}</span>
+      <span class="lotscan-row-num">${(parseFloat(r.Qty)||0).toLocaleString()} ${r.UOM||''}</span></div>`).join('')
+    : _lotscanEmptyRow('ไม่พบข้อมูลรับเข้า (mr_receive) ของ Lot นี้');
+  const usageRows = issRows.length ? issRows.map(r => {
+    const fgList = (fgByMo[r.MO_ID] || []).map(f => `<span class="lotscan-chip" onclick='lotscanShow({type:"fg",productCode:"${f.ProductCode}",lotFg:"${f.Lot_FG}"})'>${f.ProductCode} Lot ${f.Lot_FG}</span>`).join('') || '<span class="text-muted">—</span>';
+    return `<div class="lotscan-row"><span>${_fmtDate(r.Date)||''} — ${r.MO_ID||''}</span>
+      <span style="display:flex;align-items:center;gap:8px"><span class="lotscan-row-num">${(parseFloat(r.IssuedQty)||0).toLocaleString()} ${r.UOM||''}</span>${fgList}</span></div>`;
+  }).join('') : _lotscanEmptyRow('ยังไม่ถูกเบิกไปใช้ผลิต');
+  return header + _lotscanCard('รับเข้าคลัง (MR Receive)', 'fa-truck-ramp-box', originRows) + _lotscanCard('ถูกเบิกไปผลิต', 'fa-arrow-right-to-bracket', usageRows);
+}
+async function _lotscanFetchFGData(productCode, lotFg) {
+  const [fgRes, wdRes, stockRes] = await Promise.all([
+    _sb.from('fg_receive').select('*').eq('ProductCode', productCode).eq('Lot_FG', lotFg).order('Date'),
+    _sb.from('fg_withdraw').select('*').eq('ProductCode', productCode).eq('Lot_FG', lotFg).order('Date'),
+    _sb.from('stock_fg').select('FGBalance,UOM').eq('ProductCode', productCode).eq('LotFG', lotFg).maybeSingle(),
+  ]);
+  const fgRows = fgRes.data || [], wdRows = wdRes.data || [], fgStock = stockRes.data;
+  const productName = fgRows[0]?.ProductName || wdRows[0]?.ProductName || productCode;
+  const moIds = [...new Set(fgRows.map(r => r.MO_ID).filter(Boolean))];
+  const planByMo = {};
+  if (moIds.length) {
+    const { data: planRows } = await _sb.from('production_plan').select('MO_Ref,PlanDate,Line,Shift,TimeStart,TimeEnd,Workers').in('MO_Ref', moIds).order('PlanDate');
+    (planRows || []).forEach(r => { (planByMo[r.MO_Ref] ||= []).push(r); });
+  }
+  let materialRows = [], materialSource = '';
+  if (moIds.length) {
+    const numericLot = parseInt(String(lotFg).replace(/\D/g, ''), 10);
+    const { data: prRows } = await _sb.from('production_records').select('ProdRecord_ID,MO_Ref,Lot_FG').in('MO_Ref', moIds);
+    const prMatch = !isNaN(numericLot) ? (prRows || []).find(pr => Number(pr.Lot_FG) === numericLot) : null;
+    if (prMatch) {
+      const { data: detRows } = await _sb.from('production_record_details').select('*').eq('ProdRecord_ID', prMatch.ProdRecord_ID);
+      materialRows = (detRows || []).map(d => ({ MaterialCode: d.MaterialCode, MaterialName: d.MaterialName, Lot: d.LotMaterial, Qty: d.ActualUsedQty, UOM: d.UOM }));
+      materialSource = 'ใช้จริงตามบันทึกผลิต';
+    } else {
+      const { data: issRows } = await _sb.from('issue_production').select('MaterialCode,MaterialName,Lot,IssuedQty,UOM').in('MO_ID', moIds);
+      materialRows = (issRows || []).map(d => ({ MaterialCode: d.MaterialCode, MaterialName: d.MaterialName, Lot: d.Lot, Qty: d.IssuedQty, UOM: d.UOM }));
+      materialSource = 'เบิกทั้งหมดของ MO นี้ — ยังไม่กรอกบันทึกผลิตแยกต่อ Lot';
+    }
+  }
+  if (materialRows.length) {
+    const distinctPairs = [...new Map(materialRows.map(m => [m.MaterialCode + '|' + String(m.Lot || '').trim(), { code: m.MaterialCode, lot: String(m.Lot || '').trim() }])).values()];
+    const expByKey = {}, mfgLotByKey = {};
+    await Promise.all(distinctPairs.map(async ({ code, lot }) => {
+      if (!code || !lot) return;
+      const [sbRes, mrRes] = await Promise.all([
+        _sb.from('stock_balance').select('ExpDate').eq('MaterialCode', code).ilike('Lot', lot),
+        _sb.from('mr_receive').select('ExpDate,MfgLotNo').eq('MaterialCode', code).ilike('Lot', lot).order('Date', { ascending: false }),
+      ]);
+      const key = code + '|' + lot;
+      expByKey[key] = sbRes.data?.[0]?.ExpDate || mrRes.data?.[0]?.ExpDate || null;
+      mfgLotByKey[key] = mrRes.data?.[0]?.MfgLotNo || null;
+    }));
+    materialRows = materialRows.map(m => { const key = m.MaterialCode + '|' + String(m.Lot || '').trim(); return { ...m, expDate: expByKey[key] || null, mfgLotNo: mfgLotByKey[key] || null }; });
+  }
+  const deliveryByWd = {};
+  if (wdRows.length) {
+    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo').in('WD_Ref', wdRows.map(r => r._row_id));
+    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo }; });
+  }
+  const expireDate = fgRows[0]?.ExpireDate || null;
+  return { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate };
+}
+function _lotscanRenderFGScreen(d) {
+  const { productCode, lotFg, productName, fgRows, wdRows, fgStock, planByMo, materialRows, materialSource, deliveryByWd, expireDate } = d;
+  const header = `<div class="lotscan-header-row"><div>
+      <span class="lotscan-badge lotscan-badge-fg">FG</span>
+      <div class="lotscan-title">${productCode} — ${productName}</div>
+      <div class="lotscan-subtle">Lot <b>${lotFg}</b> · หมดอายุ ${_fmtDate(expireDate)}</div>
+    </div><div class="lotscan-stats">
+      <div class="lotscan-stat"><div class="lotscan-stat-label">รับเข้ารวม</div><div class="lotscan-stat-num">${fgRows.reduce((s,r)=>s+(parseFloat(r.QtyFG)||0),0).toLocaleString()} ${fgRows[0]?.UOM||''}</div></div>
+      <div class="lotscan-stat"><div class="lotscan-stat-label">คงเหลือปัจจุบัน</div><div class="lotscan-stat-num accent">${fgStock ? (parseFloat(fgStock.FGBalance)||0).toLocaleString() : '—'} ${fgStock?.UOM || fgRows[0]?.UOM || ''}</div></div>
+    </div></div>`;
+  const originRows = fgRows.length ? fgRows.map(r => {
+    const plans = planByMo[r.MO_ID] || [];
+    const planHtml = plans.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:5px">${plans.map(p => `<span class="lotscan-chip" style="background:#eff6ff;color:#1e40af">${p.Line||'—'} · ${p.Shift||'—'}${p.Workers?` · ${p.Workers}`:''}</span>`).join('')}</div>` : '';
+    return `<div class="lotscan-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;justify-content:space-between"><span>${_fmtDate(r.Date)||''} — ${r.MO_ID||'—'}</span><span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span></div>${planHtml}</div>`;
+  }).join('') : _lotscanEmptyRow('ไม่พบข้อมูลรับเข้า (fg_receive) ของ Lot นี้');
+  const materialRowsHtml = materialRows.length ? materialRows.map(m => `<div class="lotscan-row">
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"material",materialCode:"${m.MaterialCode}",lot:"${m.Lot}"})'>${m.MaterialCode} — ${m.MaterialName||''} <span class="text-muted">Lot ${m.Lot||'—'}${m.mfgLotNo?` (ผู้ผลิต ${m.mfgLotNo})`:''} · หมดอายุ ${_fmtDate(m.expDate)}</span></span>
+      <span class="lotscan-row-num">${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</span></div>`).join('') : _lotscanEmptyRow('ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
+  const withdrawRows = wdRows.length ? wdRows.map(r => {
+    const dlv = deliveryByWd[r._row_id];
+    return `<div class="lotscan-row"><span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${dlv?.billNo ? ` · ใบส่ง ${dlv.billNo}` : ''}</span>
+      <span style="display:flex;align-items:center;gap:8px"><span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span><span class="lotscan-chip">${dlv?.status || '—'}</span></span></div>`;
+  }).join('') : _lotscanEmptyRow('ยังไม่ถูกเบิกออก');
+  return header + _lotscanCard('ผลิตจาก MO', 'fa-industry', originRows)
+    + _lotscanCard(`วัตถุดิบที่ใช้ผลิต <span class="text-muted" style="font-weight:400;font-size:.7rem"> — ${materialSource||''}</span>`, 'fa-arrow-turn-up', materialRowsHtml)
+    + _lotscanCard('เบิกส่งลูกค้า / เบ็ดเตล็ด', 'fa-truck', withdrawRows);
+}
+
+// ── กล้อง: jsQR ก่อนเสมอ (auto-scan ต่อเนื่อง + ปุ่มถ่ายเอง), ไม่เจอค่อย fallback OCR (Tesseract) หาคำว่า LOT ──
+let _lotscanCameraStream = null, _lotscanAutoScanRAF = null, _lotscanScanCanvas = null, _lotscanManualCapturing = false;
+async function lotscanOpenCamera() {
+  document.getElementById('cameraModal').style.display = 'flex';
+  document.getElementById('lotscan-camera-status').textContent = 'กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR/บาร์โค้ด';
+  document.getElementById('lotscan-camera-capture-btn').disabled = false;
+  _lotscanManualCapturing = false;
+  try {
+    _lotscanCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('lotscan-camera-video');
+    video.srcObject = _lotscanCameraStream;
+    await video.play();
+    _lotscanStartAutoScan();
+  } catch (e) {
+    _err('เปิดกล้องไม่สำเร็จ', 'กรุณาอนุญาตสิทธิ์กล้องให้เว็บนี้ หรือพิมพ์รหัส Lot เองด้านบนแทน');
+    lotscanCloseCamera();
+  }
+}
+function _lotscanStartAutoScan() {
+  const video = document.getElementById('lotscan-camera-video');
+  if (!_lotscanScanCanvas) _lotscanScanCanvas = document.createElement('canvas');
+  const canvas = _lotscanScanCanvas;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const tick = () => {
+    if (!_lotscanCameraStream) return;
+    if (!_lotscanManualCapturing && video.videoWidth && typeof jsQR === 'function') {
+      const scale = Math.min(1, 640 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (qr && qr.data) { document.getElementById('lotscan-f-code').value = qr.data; lotscanCloseCamera(); lotscanSearch(); return; }
+    }
+    _lotscanAutoScanRAF = requestAnimationFrame(tick);
+  };
+  _lotscanAutoScanRAF = requestAnimationFrame(tick);
+}
+function lotscanCloseCamera() {
+  document.getElementById('cameraModal').style.display = 'none';
+  if (_lotscanAutoScanRAF) { cancelAnimationFrame(_lotscanAutoScanRAF); _lotscanAutoScanRAF = null; }
+  if (_lotscanCameraStream) { _lotscanCameraStream.getTracks().forEach(t => t.stop()); _lotscanCameraStream = null; }
+}
+async function lotscanCaptureAndRead() {
+  const video = document.getElementById('lotscan-camera-video'), canvas = document.getElementById('lotscan-camera-canvas');
+  const statusEl = document.getElementById('lotscan-camera-status'), btn = document.getElementById('lotscan-camera-capture-btn');
+  if (!video.videoWidth) return;
+  _lotscanManualCapturing = true;
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  btn.disabled = true; statusEl.textContent = 'กำลังอ่าน QR/บาร์โค้ด...';
+  if (typeof jsQR === 'function') {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const qr = jsQR(imageData.data, imageData.width, imageData.height);
+    if (qr && qr.data) { btn.disabled = false; _lotscanManualCapturing = false; document.getElementById('lotscan-f-code').value = qr.data; lotscanCloseCamera(); lotscanSearch(); return; }
+  }
+  statusEl.textContent = 'ไม่เจอ QR — กำลังอ่านข้อความ (LOT/EXP)...';
+  let worker;
+  try {
+    if (typeof Tesseract === 'undefined') throw new Error('Tesseract ไม่พร้อมใช้งาน');
+    const processed = _lotscanPreprocessForOCR(canvas);
+    worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-.: ' });
+    const { data: { text } } = await worker.recognize(processed);
+    await worker.terminate(); worker = null;
+    const m = text.match(/\bL[O0]T\b[:\s.\-]*([A-Za-z0-9\/\-]+)/i);
+    if (m && m[1]) { document.getElementById('lotscan-f-code').value = _lotscanNormalizeOcrCode(m[1]); lotscanCloseCamera(); lotscanSearch(); return; }
+    statusEl.textContent = 'ไม่พบ QR หรือคำว่า "LOT" ในภาพ ลองถ่ายใหม่ให้ชัดขึ้น หรือพิมพ์รหัส Lot เอง';
+  } catch (e) {
+    console.error(e);
+    if (worker) await worker.terminate().catch(() => {});
+    statusEl.textContent = 'อ่านข้อความไม่สำเร็จ ลองถ่ายใหม่ หรือพิมพ์รหัส Lot เอง';
+  } finally { btn.disabled = false; _lotscanManualCapturing = false; }
+}
+function _lotscanPreprocessForOCR(sourceCanvas) {
+  const scale = 2;
+  const out = document.createElement('canvas');
+  out.width = sourceCanvas.width * scale; out.height = sourceCanvas.height * scale;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingEnabled = true;
+  octx.drawImage(sourceCanvas, 0, 0, out.width, out.height);
+  const imgData = octx.getImageData(0, 0, out.width, out.height);
+  const px = imgData.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    const v = gray > 150 ? 255 : 0;
+    px[i] = px[i + 1] = px[i + 2] = v;
+  }
+  octx.putImageData(imgData, 0, 0);
+  return out;
+}
+function _lotscanNormalizeOcrCode(raw) {
+  const digitCount = (raw.match(/\d/g) || []).length, letterCount = (raw.match(/[A-Za-z]/g) || []).length;
+  if (letterCount === 0 || digitCount < letterCount) return raw;
+  return raw.replace(/O/g, '0').replace(/I/g, '1').replace(/S/g, '5').replace(/B/g, '8');
+}
+
+// ══════════════════════════════════════════════
+// Init — เช็ค session ก่อนปล่อยเข้าแอป (เหมือนแอปหลัก)
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  let _bootstrapped = false;
+  _sb.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      _currentUser = { email: session.user.email, name: session.user.user_metadata?.full_name || session.user.email };
+      document.getElementById('loginGate').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('mUserName').textContent = _currentUser.name;
+      if (!_bootstrapped) { _bootstrapped = true; mShowPage('prodstatus'); }
+    } else {
+      _currentUser = null;
+      document.getElementById('loginGate').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+});
+</script>
+</body>
+</html>
