@@ -543,9 +543,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root{display:none}
 @media print{
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -555,6 +555,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   #mo-released-print-root{display:none !important}
   #lotlabel-print-root{display:none !important}
   #lotscan-print-root{display:none !important}
+  #dlvlabel-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -564,6 +565,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   body.print-mode-moreleased #mo-released-print-root{display:block !important}
   body.print-mode-lotlabel #lotlabel-print-root{display:block !important}
   body.print-mode-lotscan #lotscan-print-root{display:block !important}
+  body.print-mode-dlvlabel #dlvlabel-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -587,6 +589,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   /* ป้าย Lot QR — ตารางป้ายเล็กๆ ต่อแผ่น A4 ไม่ต้อง page-break-after เพราะปกติพิมพ์แค่ 1 แผ่น (เผื่อล้นก็ปล่อยให้ไหลต่อแผ่น 2 ได้เอง) */
   #lotlabel-print-root .lotlabel-sheet{box-shadow:none !important;margin:0 !important}
   #lotscan-print-root .lotreport-page{box-shadow:none !important;margin:0 !important}
+  /* ป้ายกล่องต่อใบส่ง (DeliveryBillNo) — ใช้เลย์เอาต์ .lotlabel-sheet/.lotlabel-item ชุดเดียวกับป้าย Lot
+     (หน้าตาเหมือนกัน ต่างแค่ข้อมูลในป้าย) แค่คนละ print-root กันชนกับป้าย Lot ตาม pattern ที่ตั้งไว้ */
+  #dlvlabel-print-root .lotlabel-sheet{box-shadow:none !important;margin:0 !important}
   @page{size:A4;margin:0}
   /* หน้ารายงาน MR ต้องพิมพ์แนวนอน — @page ไม่รองรับการ scope ด้วย selector/body class ตรงๆ (คุมได้แค่ทั้งเอกสาร)
      ต้องใช้ named page แทน (ประกาศ @page ชื่อ mrreport แล้วผูกกับ .mrrpt-page ด้วย CSS property "page:")
@@ -1120,6 +1125,23 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
 .dlvbill-mixitem{display:flex;justify-content:space-between;align-items:center;background:#eff6ff;border:1px solid #93c5fd;border-radius:7px;padding:6px 10px;font-size:.76rem;margin-bottom:5px}
 .dlvbill-mixdel{color:#64748b;cursor:pointer;font-size:.7rem}
 .dlvbill-mixdel:hover{color:#dc2626}
+
+/* ── RBAC: ซ่อนปุ่ม "ลบ"/อนุมัติ/ปิดงาน/ยกเลิก จากบัญชีระดับ operator (พนักงาน) — ดู _applyRolePermissions()
+   ที่ toggle class นี้ตอน login, create_user_roles.sql/restrict_delete_to_supervisor.sql สำหรับ RLS จริง
+   ฝั่ง DB (ตัวบังคับสิทธิ์จริงคือ RLS ไม่ใช่ CSS นี้ — CSS แค่ซ่อนปุ่มที่กดไปแล้วจะโดน DB ปฏิเสธอยู่ดี)
+   ── เลือก match ด้วยชื่อฟังก์ชันใน onclick แทน title attribute เพราะปุ่ม "ลบแถวนี้"/"ลบกลุ่มนี้" (ที่เป็น
+   แค่การลบแถวในฟอร์มที่ยังไม่บันทึก ไม่ใช่ลบข้อมูลจริงในฐานข้อมูล) ก็ขึ้นต้นด้วยคำว่า "ลบ" เหมือนกัน แต่ใช้
+   ฟังก์ชันชื่อ Remove ไม่ใช่ Delete จึงไม่ชนกัน — ยืนยันครบทุกจุดที่มีจริงในไฟล์นี้แล้ว (2026-08-14):
+   moDelete/mrDelete/fgDelete/fgoutDelete/planDelete/bomDeleteLine/bomDeleteProduct/coDelete/
+   issueDelete/miscDelete (ลบทีละแถว) + mrBulkDelete/coBulkDelete/issueBulkDelete/fgBulkDelete/
+   fgoutBulkDelete/miscBulkDelete (ลบหลายแถว) — ถ้าเพิ่มปุ่มลบใหม่ในอนาคต ตั้งชื่อฟังก์ชันให้มีคำว่า
+   "Delete" จะถูกซ่อนอัตโนมัติทันทีโดยไม่ต้องแก้ selector นี้เพิ่ม */
+body.role-operator [onclick*="Delete("] { display: none !important; }
+/* ปุ่มอนุมัติ/ปิดงาน/ยกเลิก — ระดับ UI เท่านั้น (ไม่มี RLS บังคับจริงสำหรับกลุ่มนี้ เป็นข้อจำกัดที่ตั้งใจ
+   ไว้ในเวอร์ชันนี้ — ดู SKILL.md หัวข้อ RBAC) ชื่อฟังก์ชันเฉพาะเจาะจงพอจะไม่ชนกับปุ่มอื่นโดยไม่ตั้งใจ */
+body.role-operator [onclick*="moForceClose("],
+body.role-operator [onclick*="moCancelPlan("],
+body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 </style>
 </head>
 <body>
@@ -1234,6 +1256,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     </a>
     <a href="#" class="nav-link mb-1" id="nav-signuprequests" onclick="showPage('signuprequests',this)" title="คำขอสมัครใช้งาน" style="display:none">
       <i class="fas fa-user-plus me-2"></i><span>คำขอสมัครใช้งาน</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-userroles" onclick="showPage('userroles',this)" title="จัดการผู้ใช้ (สิทธิ์)" style="display:none">
+      <i class="fas fa-user-gear me-2"></i><span>จัดการผู้ใช้</span>
     </a>
     </div>
   </div>
@@ -4104,9 +4129,9 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
       <div class="lotscan-panel mb-0 py-3">
         <div class="row g-2 align-items-end">
           <div class="col-md-6">
-            <label class="form-label mb-1 small">รหัส Lot (พิมพ์เอง หรือสแกน QR/บาร์โค้ด)</label>
+            <label class="form-label mb-1 small">รหัส Lot หรือเลขที่ใบส่ง (พิมพ์เอง หรือสแกน QR/บาร์โค้ด)</label>
             <div class="input-group input-group-sm">
-              <input type="text" id="lotscan-f-code" class="form-control" placeholder="พิมพ์รหัส Lot แล้วกด Enter..."
+              <input type="text" id="lotscan-f-code" class="form-control" placeholder="พิมพ์รหัส Lot หรือเลขที่ใบส่ง แล้วกด Enter..."
                 autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();lotscanSearch();}">
               <button class="btn btn-outline-secondary" onclick="lotscanSearch()" title="ค้นหา"><i class="fas fa-search"></i></button>
               <button class="btn btn-outline-secondary" onclick="lotscanOpenCamera()" title="เปิดกล้องสแกน"><i class="fas fa-camera"></i> สแกน</button>
@@ -4118,7 +4143,7 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
     </div>
     <div class="scroll-content">
       <div id="lotscan-empty" class="lotscan-panel text-center py-5 lotscan-flat-muted">
-        <i class="fas fa-qrcode fa-2x mb-3 d-block"></i>พิมพ์หรือสแกนรหัส Lot ด้านบน เพื่อดูประวัติย้อนกลับ/ไปข้างหน้าของ Lot นั้น
+        <i class="fas fa-qrcode fa-2x mb-3 d-block"></i>พิมพ์หรือสแกนรหัส Lot หรือเลขที่ใบส่งด้านบน เพื่อดูประวัติย้อนกลับ/ไปข้างหน้าของ Lot นั้น หรือรายละเอียดใบส่งนั้น
       </div>
       <div id="lotscan-notfound" class="lotscan-panel text-center py-5 text-danger d-none">
         <i class="fas fa-circle-exclamation fa-2x mb-3 d-block"></i>
@@ -4268,6 +4293,51 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
             </thead>
             <tbody id="signuprequests-tbody">
               <tr><td colspan="8" class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       PAGE: จัดการผู้ใช้ — กำหนดระดับสิทธิ์ operator/supervisor/admin ให้แต่ละบัญชี (admin เท่านั้น)
+       ══════════════════════════════════════════════ -->
+  <div class="page-view" id="page-userroles">
+    <div class="page-header">
+      <h4 class="fw-bold mb-0" style="color:white">
+        <i class="fas fa-user-gear me-2"></i>จัดการผู้ใช้
+      </h4>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-8">
+            <small class="text-muted">
+              <i class="fas fa-circle-info me-1"></i>
+              พนักงาน (operator) แก้ไขข้อมูลได้แต่ลบไม่ได้ — หัวหน้างาน (supervisor) เพิ่มสิทธิ์ลบ/อนุมัติ/
+              ปิดงาน/ยกเลิก — แอดมิน (admin) ทำได้ทุกอย่าง+จัดการหน้านี้เอง
+            </small>
+          </div>
+          <div class="col-md-4 d-flex justify-content-end">
+            <button class="btn btn-sm btn-primary" onclick="userrolesLoadData()" title="รีเฟรช">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr><th>Username</th><th>อีเมลเข้าสู่ระบบ (Email)</th><th>ชื่อแสดงผล</th><th style="width:200px">ระดับสิทธิ์</th></tr>
+            </thead>
+            <tbody id="userroles-tbody">
+              <tr><td colspan="4" class="text-center text-muted py-4">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -4647,6 +4717,37 @@ table.dlvbill-calctable td{padding:4px 6px;border-bottom:1px solid #f1f5f9}
   </div>
 </div>
 <div id="lotlabel-print-root"></div>
+
+<!-- ════════════ เบิก FG / ใบส่งสินค้า: พิมพ์ป้ายกล่อง (QR) ต่อใบส่ง — แปะกล่องเพื่อตรวจสอบย้อนกลับว่าจากใบส่งไหน ยอดส่งเท่าไหร่ ส่งวันไหน ════════════ -->
+<div class="modal fade" id="dlvlabelPrintModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold"><i class="fas fa-qrcode me-2"></i>พิมพ์ป้ายกล่อง (QR ต่อใบส่ง)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end mb-2 px-1">
+          <div class="col-auto">
+            <label class="form-label mb-1 small">จำนวนป้าย (ใส่ตามจำนวนกล่องจริงของใบนี้)</label>
+            <input type="number" id="dlvlabel-qty" class="form-control form-control-sm" style="width:90px" min="1" value="1" oninput="_dlvlabelRenderPreview()">
+          </div>
+          <div class="col-auto text-muted small">
+            QR เข้ารหัสเลขที่ใบส่งตรงๆ — สแกนที่หน้า "Lot Scan" เพื่อดูว่าใบนี้ส่งสินค้าอะไรบ้าง ยอดส่งเท่าไหร่ ส่งวันไหน
+          </div>
+        </div>
+        <div id="dlvlabel-preview-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="dlvlabelPrint()">
+          <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="dlvlabel-print-root"></div>
 
 <!-- ════════════ Lot Scan: รายงานตรวจสอบย้อนกลับ (พิมพ์/PDF ให้ผู้บริหารดู) ════════════ -->
 <div class="modal fade" id="lotscanReportModal" tabindex="-1">
@@ -5779,6 +5880,7 @@ function showPage(page, navEl) {
     'auditlog'  : auditlogLoadData,
     'signuprequests': signupreqLoadData,
     'lotscan'   : lotscanInit,
+    'userroles' : userrolesLoadData,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -8349,6 +8451,9 @@ function fgoutRenderBillGroups() {
             ${statusSummary}
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvbillOpenModal(${JSON.stringify(g.rows.map(r => r._row_id))})" title="ปริ้นใบส่งสินค้าซ้ำ">
               <i class="fas fa-print me-1"></i>ปริ้นใบส่งสินค้า
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}','${(customer||'').replace(/'/g,"\\'")}')" title="พิมพ์ป้ายกล่อง (QR) แปะกล่องสินค้าของใบส่งนี้">
+              <i class="fas fa-qrcode me-1"></i>ป้ายกล่อง
             </button>
             ${actionHtml}
             <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
@@ -12704,9 +12809,9 @@ function prodrecordRenderTable() {
           <span class="text-muted small me-2">แผน ${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}${hasActual ? ` · จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()}` : ''}</span>
           ${!hasActual ? `<button class="btn btn-sm btn-primary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-pen me-1"></i>กรอกผลผลิต</button>` : ''}
           ${hasActual && !approved ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
-            ${_currentUser?.isAdmin ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
+            ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})"><i class="fas fa-print me-1"></i>พิมพ์รายงานต้นทุน</button>
-            <button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}
+            ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}` : ''}
           <button class="btn btn-sm btn-outline-secondary" title="${expanded?'ย่อ':'ดูรายละเอียด'}">
             <i class="fas fa-chevron-${expanded?'up':'down'}"></i>
           </button>
@@ -16959,19 +17064,26 @@ async function lotscanResolve(rawInput) {
     if (kind === 'MAT') return { type: 'material', materialCode: code, lot };
     if (kind === 'FG')  return { type: 'fg', productCode: code, lotFg: lot };
   }
+  // ป้ายกล่องต่อใบส่ง (PFDLV|{BillNo}) — ดู dlvlabelOpenPrint/_dlvlabelBuildItemHTML ที่พิมพ์ป้ายนี้
+  if (parts[0] === 'PFDLV' && parts.length === 2 && parts[1]) {
+    return { type: 'delivery', billNo: parts[1] };
+  }
 
   // escape % และ _ ก่อนส่งเข้า ilike เสมอ — ทั้งสองตัวเป็น wildcard ของ SQL LIKE ถ้ารหัส Lot จริงมีตัวนี้อยู่ในชื่อ
   // (ไม่ใช่เรื่องแปลกสำหรับรหัสที่มีเครื่องหมายพวกนี้) ilike แบบไม่ escape จะจับคู่กว้างเกินจริงโดยไม่ตั้งใจ
   const escaped = trimmed.replace(/[%_]/g, ch => '\\' + ch);
-  const [matRes, fgRes] = await Promise.all([
+  const [matRes, fgRes, dlvRes] = await Promise.all([
     _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,UOM').ilike('Lot', escaped),
     _sb.from('fg_receive').select('ProductCode,ProductName,Lot_FG').ilike('Lot_FG', escaped),
+    _sb.from('delivery_bill_numbers').select('BillNo,CustomerName').ilike('BillNo', escaped),
   ]);
   const matMatches = _lotscanDedupeBy(matRes.data || [], r => r.MaterialCode + '|' + r.Lot)
     .map(r => ({ type: 'material', materialCode: r.MaterialCode, materialName: r.MaterialName, lot: r.Lot, uom: r.UOM }));
   const fgMatches = _lotscanDedupeBy(fgRes.data || [], r => r.ProductCode + '|' + r.Lot_FG)
     .map(r => ({ type: 'fg', productCode: r.ProductCode, productName: r.ProductName, lotFg: r.Lot_FG }));
-  const all = [...matMatches, ...fgMatches];
+  const dlvMatches = _lotscanDedupeBy(dlvRes.data || [], r => r.BillNo)
+    .map(r => ({ type: 'delivery', billNo: r.BillNo, customerName: r.CustomerName }));
+  const all = [...matMatches, ...fgMatches, ...dlvMatches];
   if (!all.length) return { type: 'notfound' };
   if (all.length === 1) return all[0];
   return { type: 'multi', options: all };
@@ -16983,7 +17095,7 @@ async function lotscanSearch() {
   if (resolved.type === 'empty') return;
   _lotscanHideAllPanels();
   if (resolved.type === 'notfound') {
-    document.getElementById('lotscan-notfound-msg').textContent = `ไม่พบ Lot "${raw.trim()}" ในระบบ (ทั้งฝั่งวัตถุดิบและ FG)`;
+    document.getElementById('lotscan-notfound-msg').textContent = `ไม่พบ "${raw.trim()}" ในระบบ (Lot วัตถุดิบ, Lot FG, หรือเลขที่ใบส่ง)`;
     document.getElementById('lotscan-notfound').classList.remove('d-none');
     return;
   }
@@ -16994,7 +17106,9 @@ async function lotscanSearch() {
         <span>
           ${o.type === 'material'
             ? `<span class="lotscan-badge lotscan-badge-mat me-1">วัตถุดิบ</span>${o.materialCode} — ${o.materialName || ''} <span class="lotscan-flat-muted">Lot ${o.lot}</span>`
-            : `<span class="lotscan-badge lotscan-badge-fg me-1">FG</span>${o.productCode} — ${o.productName || ''} <span class="lotscan-flat-muted">Lot ${o.lotFg}</span>`}
+            : o.type === 'fg'
+            ? `<span class="lotscan-badge lotscan-badge-fg me-1">FG</span>${o.productCode} — ${o.productName || ''} <span class="lotscan-flat-muted">Lot ${o.lotFg}</span>`
+            : `<span class="lotscan-badge lotscan-badge-fg me-1">ใบส่ง</span>${o.billNo} <span class="lotscan-flat-muted">${o.customerName || ''}</span>`}
         </span>
         <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="lotscanShowOption(${i})">ดูรายละเอียด</button>
       </div>`).join('');
@@ -17021,10 +17135,14 @@ async function lotscanShow(match) {
       const d = await _lotscanFetchMaterialData(match.materialCode, match.lot);
       _lotscanLastReport = { type: 'material', data: d };
       html = _lotscanRenderMaterialScreen(d);
-    } else {
+    } else if (match.type === 'fg') {
       const d = await _lotscanFetchFGData(match.productCode, match.lotFg);
       _lotscanLastReport = { type: 'fg', data: d };
       html = _lotscanRenderFGScreen(d);
+    } else {
+      const d = await _lotscanFetchDeliveryData(match.billNo);
+      _lotscanLastReport = { type: 'delivery', data: d };
+      html = _lotscanRenderDeliveryScreen(d);
     }
     _lotscanHideAllPanels();
     document.getElementById('lotscan-result').innerHTML = html;
@@ -17209,10 +17327,11 @@ async function _lotscanFetchFGData(productCode, lotFg) {
 
   // สถานะ + เลขที่ใบส่ง (DeliveryBillNo — เลขบิลจริงที่ยืนยันแล้ว ต่างจาก Delivery_ID ภายใน) ของแต่ละรายการเบิก
   // (join ผ่าน delivery.WD_Ref = fg_withdraw._row_id) — DeliveryBillNo เป็น null ได้ถ้ายังไม่ยืนยันออกใบส่งจริง
+  // ดึง QtyDelivered/Date มาด้วย (ตามที่ผู้ใช้ขอ "ยอดส่งเท่าไหร่ ส่งวันไหน") — เดิม select แค่ 3 คอลัมน์แรกเท่านั้น
   const deliveryByWd = {};
   if (wdRows.length) {
-    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo').in('WD_Ref', wdRows.map(r => r._row_id));
-    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo }; });
+    const { data: dlvRows } = await _sb.from('delivery').select('WD_Ref,Status,DeliveryBillNo,QtyDelivered,Date').in('WD_Ref', wdRows.map(r => r._row_id));
+    (dlvRows || []).forEach(d => { deliveryByWd[d.WD_Ref] = { status: d.Status, billNo: d.DeliveryBillNo, qty: d.QtyDelivered, date: d.Date }; });
   }
 
   // ExpireDate มาจาก fg_receive ตรงๆ (คอลัมน์นี้ยืนยันแล้วมีจริงตอน _fgDetectCols — ไม่ต้อง query แยก
@@ -17269,8 +17388,11 @@ function _lotscanRenderFGScreen(d) {
 
   const withdrawRows = wdRows.length ? wdRows.map(r => {
     const dlv = deliveryByWd[r._row_id];
+    const billHtml = dlv?.billNo
+      ? ` · <span class="lotscan-row-link" onclick='lotscanShow({type:"delivery",billNo:"${dlv.billNo}"})'>ใบส่ง ${dlv.billNo}</span> (${_fmtDate(dlv.date)||'—'})`
+      : '';
     return `<div class="lotscan-row">
-      <span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${dlv?.billNo ? ` · ใบส่ง ${dlv.billNo}` : ''}</span>
+      <span>${_fmtDate(r.Date)||''} — ${r.WithdrawType==='customer' ? (r.CustomerName||r.CO_Ref||'—') : 'เบิกเบ็ดเตล็ด'}${billHtml}</span>
       <span style="display:flex;align-items:center;gap:8px">
         <span class="lotscan-row-num">${(parseFloat(r.QtyFG)||0).toLocaleString()} ${r.UOM||''}</span>
         <span class="lotscan-chip">${dlv?.status || '—'}</span>
@@ -17283,6 +17405,62 @@ function _lotscanRenderFGScreen(d) {
     _lotscanCard('ผลิตจาก MO', 'fa-industry', originRows) +
     _lotscanCard(`วัตถุดิบที่ใช้ผลิต <span class="lotscan-section-hint">— ${materialSource||''}</span>`, 'fa-arrow-turn-up', materialRowsHtml) +
     _lotscanCard('เบิกส่งลูกค้า / เบ็ดเตล็ด', 'fa-truck', withdrawRows);
+}
+
+// ── สแกนป้ายกล่อง (PFDLV|{BillNo}) — ตรงข้ามมุมมองกับ FG screen ข้างบน: แทนที่จะไล่ดูทุกใบส่งของ Lot เดียว
+// จะเห็นเฉพาะ "ใบส่งใบนี้ใบเดียว" กับรายการสินค้า/Lot ทั้งหมดที่อยู่ในใบเดียวกัน (บิลเดียวส่งได้หลายสินค้า/หลาย Lot
+// ตาม _dlvbillBuildGroups) แต่ละแถวคลิกกระโดดกลับไปดู FG screen เดิมของ Lot นั้นได้ต่อ (ดูย้อนไปถึงผลิต/วัตถุดิบ)
+async function _lotscanFetchDeliveryData(billNo) {
+  const [bnRes, dlvRes] = await Promise.all([
+    _sb.from('delivery_bill_numbers').select('BillNo,CustomerName').eq('BillNo', billNo).maybeSingle(),
+    _sb.from('delivery').select('*').eq('DeliveryBillNo', billNo).order('_row_id'),
+  ]);
+  const rows = dlvRes.data || [];
+  const customerName = bnRes.data?.CustomerName || rows[0]?.CustomerName || '—';
+  const totalQty = rows.reduce((s, r) => s + (parseFloat(r.QtyDelivered) || 0), 0);
+  const uom = rows[0]?.UOM || '';
+  const allArrived = rows.length > 0 && rows.every(r => r.Status === 'ส่งถึงแล้ว');
+  // วันที่ส่ง: ปกติทุกแถวในใบเดียวกันบันทึกวันเดียวกัน (ยืนยันออกใบส่งครั้งเดียวพร้อมกันทั้งบิล) แต่ยังไม่เคยเช็ค
+  // เป็นข้อยืนยัน 100% จึงเก็บเป็น set ไว้ — ถ้าพบว่าต่างกันจริงจะโชว์ครบทุกวันที่แทนที่จะสรุปเหลือวันเดียวเฉยๆ
+  const dateSet = [...new Set(rows.map(r => r.Date).filter(Boolean))];
+  return { billNo, customerName, rows, totalQty, uom, allArrived, dateSet };
+}
+
+function _lotscanRenderDeliveryScreen(d) {
+  const { billNo, customerName, rows, totalQty, uom, allArrived, dateSet } = d;
+  const dateLabel = dateSet.length ? dateSet.map(x => _fmtDate(x)).join(', ') : '—';
+  const header = `
+    <div class="lotscan-header-row">
+      <div>
+        <span class="lotscan-badge lotscan-badge-fg">ใบส่ง</span>
+        <div class="lotscan-title">${billNo} — ${customerName}</div>
+        <div class="lotscan-subtle">ส่งวันที่ <span class="fw-semibold" style="color:#0f172a">${dateLabel}</span></div>
+      </div>
+      <div class="lotscan-stats">
+        <div class="lotscan-stat">
+          <div class="lotscan-stat-label">ยอดส่งรวม</div>
+          <div class="lotscan-stat-num accent">${totalQty.toLocaleString()} ${uom}</div>
+        </div>
+        <div class="lotscan-stat">
+          <div class="lotscan-stat-label">สถานะ</div>
+          <div class="lotscan-stat-num">${rows.length ? (allArrived ? 'ส่งถึงแล้ว' : (rows[0].Status||'—')) : '—'}</div>
+        </div>
+      </div>
+    </div>`;
+
+  const itemRows = rows.length ? rows.map(r => `
+    <div class="lotscan-row">
+      <span class="lotscan-row-link" onclick='lotscanShow({type:"fg",productCode:"${r.ProductCode||''}",lotFg:"${r.Lot_FG||''}"})'>
+        ${r.ProductCode||''} — ${r.ProductName||''} <span class="lotscan-flat-muted">Lot ${r.Lot_FG||'—'}</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span class="lotscan-row-num">${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</span>
+        <span class="lotscan-chip">${r.Status||'—'}</span>
+      </span>
+    </div>`).join('')
+    : _lotscanEmptyRow('ไม่พบรายการในใบส่งนี้');
+
+  return header + _lotscanCard('รายการสินค้าในใบส่งนี้ — คลิกเพื่อดูย้อนไปถึงผลิต/วัตถุดิบ', 'fa-box', itemRows);
 }
 
 // ── รายงานตรวจสอบย้อนกลับ (พิมพ์/PDF ให้ผู้บริหารดู) — ใช้ข้อมูลชุดเดียวกับที่โชว์บนจอ (_lotscanLastReport)
@@ -17399,12 +17577,39 @@ function _lotscanRenderFGPrint(d) {
   </div>`;
 }
 
+function _lotscanRenderDeliveryPrint(d) {
+  const { billNo, customerName, rows, totalQty, uom, dateSet } = d;
+  const dateLabel = dateSet.length ? dateSet.map(x => _fmtDate(x)).join(', ') : '—';
+
+  const itemRows = rows.length ? rows.map(r => `
+    <tr><td>${r.ProductCode||''} — ${r.ProductName||''}</td><td>${r.Lot_FG||'—'}</td>
+        <td>${(parseFloat(r.QtyDelivered)||0).toLocaleString()} ${r.UOM||''}</td><td>${r.Status||'—'}</td></tr>`).join('')
+    : _lotscanReportEmptyRow(4, 'ไม่พบรายการในใบส่งนี้');
+
+  return `<div class="lotreport-page">
+    ${_lotscanReportHeader()}
+    <div class="lotreport-infobox">
+      <div>
+        <span class="badge bg-primary mb-1">ใบส่งสินค้า</span>
+        <div class="code">${billNo}</div>
+        <div class="name">${customerName}</div>
+      </div>
+      <div><div class="lot">ส่งวันที่ ${dateLabel}</div></div>
+      <div class="kpi"><div class="num">${totalQty.toLocaleString()} ${uom}</div><div class="lbl">ยอดส่งรวม</div></div>
+    </div>
+    <div class="lotreport-section-title">รายการสินค้าในใบส่งนี้</div>
+    <table class="lotreport-table"><thead><tr><th>สินค้า</th><th>Lot</th><th>ยอดส่ง</th><th>สถานะ</th></tr></thead>
+      <tbody>${itemRows}</tbody></table>
+    ${_lotscanReportFooter()}
+  </div>`;
+}
+
 let _lotscanReportModal = null;
 function lotscanOpenReport() {
   if (!_lotscanLastReport) return;
-  const html = _lotscanLastReport.type === 'material'
-    ? _lotscanRenderMaterialPrint(_lotscanLastReport.data)
-    : _lotscanRenderFGPrint(_lotscanLastReport.data);
+  const html = _lotscanLastReport.type === 'material' ? _lotscanRenderMaterialPrint(_lotscanLastReport.data)
+    : _lotscanLastReport.type === 'fg' ? _lotscanRenderFGPrint(_lotscanLastReport.data)
+    : _lotscanRenderDeliveryPrint(_lotscanLastReport.data);
   document.getElementById('lotscan-report-preview-body').innerHTML = html;
   document.getElementById('lotscan-print-root').innerHTML = html;
   if (!_lotscanReportModal) _lotscanReportModal = new bootstrap.Modal(document.getElementById('lotscanReportModal'));
@@ -17413,7 +17618,7 @@ function lotscanOpenReport() {
 
 function lotscanPrintReport() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-dlvlabel');
   document.body.classList.add('print-mode-lotscan');
   window.print();
 }
@@ -17628,8 +17833,57 @@ function _lotlabelRenderPreview() {
 
 function lotlabelPrint() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-dlvlabel');
   document.body.classList.add('print-mode-lotlabel');
+  window.print();
+}
+
+// ── พิมพ์ป้ายกล่อง (QR) ต่อ "ใบส่ง" (DeliveryBillNo) — เรียกจากการ์ดใบส่งในหน้าเบิก FG (fgoutRenderBillGroups) ──
+// ผูกกับใบส่งแทนที่จะผูกกับ Lot (ต่างจากป้าย Lot เดิม PFLOT) เพราะยืนยันแล้วว่า 1 Lot มักถูกแบ่งส่งหลายรอบ/
+// หลายลูกค้า — สแกนป้าย Lot เดิมจะเห็นประวัติส่งทั้งหมดของ Lot นั้นปนกัน ไม่ตรงกับกล่องที่ถืออยู่ตรงๆ ส่วนป้ายนี้
+// สแกนแล้วเห็นเฉพาะใบส่งใบนั้นใบเดียว (ตรงตามที่ต้องการ: จากใบไหน ยอดส่งเท่าไหร่ ส่งวันไหน) — ใช้รหัส "PFDLV|{BillNo}"
+// คู่ขนานกับ "PFLOT|..." เดิม, ให้ lotscanResolve() ที่หน้า Lot Scan parse ต่อ (ดูด้านล่าง) ไม่ต้องสร้างหน้าสแกนใหม่
+let _dlvlabelModal   = null;
+let _dlvlabelCurrent = null;
+
+function dlvlabelOpenPrint(billNo, customerName) {
+  if (!billNo) { _err('ไม่มีเลขที่ใบส่ง', 'ใบนี้ยังไม่ได้ยืนยันเลขที่ใบส่งสินค้า'); return; }
+  _dlvlabelCurrent = { billNo, customerName };
+  document.getElementById('dlvlabel-qty').value = 1;
+  _dlvlabelRenderPreview();
+  if (!_dlvlabelModal) _dlvlabelModal = new bootstrap.Modal(document.getElementById('dlvlabelPrintModal'));
+  _dlvlabelModal.show();
+}
+
+function _dlvlabelBuildItemHTML(d) {
+  const content = `PFDLV|${d.billNo}`;
+  const qr = qrcode(0, 'L');
+  qr.addData(content);
+  qr.make();
+  const svg = qr.createSvgTag({ cellSize: 3, margin: 2 });
+  return `<div class="lotlabel-item">
+    <div class="lotlabel-qr">${svg}</div>
+    <div class="lotlabel-text">
+      <div class="lotlabel-code">${d.billNo}</div>
+      <div class="lotlabel-name">${d.customerName || ''}</div>
+      <div class="lotlabel-lot">ใบส่งสินค้า</div>
+    </div>
+  </div>`;
+}
+
+function _dlvlabelRenderPreview() {
+  if (!_dlvlabelCurrent) return;
+  const qty = Math.max(1, parseInt(document.getElementById('dlvlabel-qty').value, 10) || 1);
+  const items = Array.from({ length: qty }, () => _dlvlabelBuildItemHTML(_dlvlabelCurrent)).join('');
+  const html = `<div class="lotlabel-sheet">${items}</div>`;
+  document.getElementById('dlvlabel-preview-body').innerHTML = html;
+  document.getElementById('dlvlabel-print-root').innerHTML   = html;
+}
+
+function dlvlabelPrint() {
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel');
+  document.body.classList.add('print-mode-dlvlabel');
   window.print();
 }
 
@@ -17789,6 +18043,66 @@ async function signupreqReject(rowId) {
 }
 
 // ══════════════════════════════════════════════
+// PAGE: จัดการผู้ใช้ — กำหนด role (operator/supervisor/admin) ต่อบัญชี — ดู create_user_roles.sql
+// การแก้ไขจริงถูกบังคับที่ RLS (admin_can_update) อยู่แล้ว หน้านี้แค่เป็น UI ให้แอดมินกดเปลี่ยนสะดวก
+// ไม่ต้องเขียน SQL เองทุกครั้ง — ไม่มีการใช้ service_role key ใดๆ ในหน้านี้เลย (ดูเหตุผลเต็มใน
+// create_user_roles.sql — ตั้งใจออกแบบให้ทำงานได้ด้วย anon key + RLS ปกติ)
+// ══════════════════════════════════════════════
+let _userrolesData = [];
+
+async function userrolesLoadData() {
+  _showLoader();
+  const { data, error } = await _sb.from('user_roles').select('*').order('Email');
+  _hideLoader();
+  if (error) { _err('โหลดรายชื่อผู้ใช้ไม่สำเร็จ', error.message); return; }
+  _userrolesData = data || [];
+  userrolesRenderTable();
+}
+
+function userrolesRenderTable() {
+  const tbody = document.getElementById('userroles-tbody');
+  if (!_userrolesData.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">ไม่พบผู้ใช้ (ต้องรัน create_user_roles.sql ก่อน)</td></tr>`;
+    return;
+  }
+  const roleLabel = { operator: 'พนักงาน', supervisor: 'หัวหน้างาน', admin: 'แอดมิน' };
+  tbody.innerHTML = _userrolesData.map(r => {
+    // Username = ส่วนหน้า "@" ของอีเมลเข้าสู่ระบบ (เป็นค่าเดียวกัน ไม่ใช่คอลัมน์แยกในฐานข้อมูล — อีเมลในระบบ
+    // นี้คือ Username + "@proflow.internal" เสมอ ดู create_signup_requests.sql) แสดงแยกให้อ่านง่ายกว่าเดายาว
+    // ๆ เอง — อ่านอย่างเดียว แก้ไม่ได้ในหน้านี้ (ต้องผ่าน Supabase Dashboard เท่านั้น ดูเหตุผลเต็มใน SKILL.md)
+    const username = (r.Email || '').split('@')[0] || '—';
+    return `
+    <tr>
+      <td>${username}</td>
+      <td class="text-muted small">${r.Email || '—'}</td>
+      <td>${r.DisplayName || '—'}</td>
+      <td>
+        <select class="form-select form-select-sm" onchange="userrolesUpdateRole('${r.id}', this.value)">
+          ${['operator','supervisor','admin'].map(v => `<option value="${v}" ${r.Role===v?'selected':''}>${roleLabel[v]}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function userrolesUpdateRole(userId, newRole) {
+  const r = _userrolesData.find(d => d.id === userId);
+  const res = await Swal.fire({
+    title: 'ยืนยันเปลี่ยนสิทธิ์?',
+    html: `<div class="text-start"><b>${r?.Email||userId}</b><br>เปลี่ยนเป็น <b>${{operator:'พนักงาน',supervisor:'หัวหน้างาน',admin:'แอดมิน'}[newRole]}</b></div>`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) { userrolesRenderTable(); return; } // รีเซ็ต <select> กลับค่าเดิมถ้ายกเลิก
+  _showLoader();
+  const { error } = await _sb.from('user_roles').update({ "Role": newRole, "UpdatedAt": new Date().toISOString() }).eq('id', userId);
+  _hideLoader();
+  if (error) { _err('เปลี่ยนสิทธิ์ไม่สำเร็จ', error.message); userrolesLoadData(); return; }
+  _logAudit('EDIT', 'user_roles', r?.Email || userId, `เปลี่ยนสิทธิ์เป็น ${newRole}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'เปลี่ยนสิทธิ์แล้ว', showConfirmButton:false, timer:1500 });
+  userrolesLoadData();
+}
+
+// ══════════════════════════════════════════════
 // Login / Logout
 // ══════════════════════════════════════════════
 // สร้าง Username จากชื่อ-นามสกุลภาษาอังกฤษตามกฎที่แอดมินใช้จริง: 5 ตัวหน้าของชื่อ + "." + ตัวแรกของนามสกุล
@@ -17871,6 +18185,24 @@ async function logoutUser() {
   location.reload(); // reset per-page cache ทั้งหมด (_moData, _mrData, ...) ก่อนกลับไปหน้า login
 }
 
+// ── สิทธิ์ตามบทบาท 3 ระดับ (operator/supervisor/admin) — ดู create_user_roles.sql สำหรับ RLS ฝั่ง DB ──
+// ใช้ rank ตัวเลขเทียบเดียวกับฟังก์ชัน current_role_rank() ใน SQL เป๊ะๆ (operator=1, supervisor=2, admin=3)
+// ต้องแก้ทั้งสองที่พร้อมกันเสมอถ้าจะเพิ่ม/เปลี่ยนระดับ ไม่งั้นฝั่งจอกับฝั่ง DB จะไม่ตรงกัน
+const _ROLE_RANK = { operator: 1, supervisor: 2, admin: 3 };
+function _hasRole(minRole) {
+  const myRank  = _ROLE_RANK[_currentUser?.role] || 1;
+  const minRank = _ROLE_RANK[minRole] || 1;
+  return myRank >= minRank;
+}
+// toggle body class เดียวจุดเดียวตอน login แทนการเช็คสิทธิ์กระจายอยู่ทุกหน้า — ปุ่มลบ/อนุมัติ/ปิดงาน/
+// เปิดกลับ/ยกเลิก ถูกซ่อนด้วย CSS selector ที่ผูกกับ body.role-operator (ดูส่วน CSS ด้านบนไฟล์นี้) แค่
+// ระดับ UI/UX เท่านั้น — ตัวบังคับจริงคือ RLS policy "supervisor_can_delete" (ดู
+// restrict_delete_to_supervisor.sql) ส่วนปุ่มอนุมัติ/ปิดงาน/เปิดกลับ/ยกเลิกยังไม่มีการบังคับที่ RLS
+// (เป็นข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้ — ดู SKILL.md หัวข้อ RBAC สำหรับเหตุผลเต็ม)
+function _applyRolePermissions() {
+  document.body.classList.toggle('role-operator', !_hasRole('supervisor'));
+}
+
 function _renderCurrentUserBadge() {
   const el = document.getElementById('currentUserBadge');
   if (!el || !_currentUser) return;
@@ -17895,6 +18227,10 @@ function _renderCurrentUserBadge() {
   // ทุกคน ไม่ใช่แค่ admin — ถ้าปิด INSERT ไปด้วยจะทำให้ log ทั้งระบบเงียบหายไปเลย)
   const navAudit = document.getElementById('nav-auditlog');
   if (navAudit) navAudit.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "จัดการผู้ใช้" (กำหนด role operator/supervisor/admin ให้แต่ละคน) — admin เท่านั้น เหตุผลเดียวกับ
+  // audit log: มีการบังคับจริงที่ RLS ด้วย (create_user_roles.sql — INSERT/UPDATE/DELETE เฉพาะ admin)
+  const navUserroles = document.getElementById('nav-userroles');
+  if (navUserroles) navUserroles.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -17906,7 +18242,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (_reportToken) { _renderPublicReport(_reportToken); return; }
 
   let _bootstrapped = false;
-  _sb.auth.onAuthStateChange((event, session) => {
+  _sb.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       _currentUser = {
         email: session.user.email,
@@ -17915,7 +18251,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // (ต่างจาก user_metadata ด้านบนที่แก้เองได้) จึงใช้เป็นตัวเช็คสิทธิ์ admin/warehouse ได้อย่างปลอดภัย
         isAdmin: session.user.app_metadata?.role === 'admin',
         isWarehouse: session.user.app_metadata?.role === 'warehouse',
+        role: 'operator', // ค่าเริ่มต้นปลอดภัยไว้ก่อนเสมอ เผื่อ query ด้านล่าง query ไม่สำเร็จ/ยังไม่มีแถว
       };
+      // ระดับสิทธิ์ 3 ระดับ (operator/supervisor/admin) จาก user_roles — คนละกลไกกับ isAdmin/isWarehouse
+      // ข้างบน (นั่นมาจาก JWT app_metadata แก้ได้แค่ผ่าน Admin API เท่านั้น) ดูเหตุผลที่แยกกันเต็มๆ ใน
+      // create_user_roles.sql — พังหรือไม่มีแถวก็ปล่อยเป็น 'operator' (สิทธิ์ต่ำสุด) ไว้ก่อนเสมอ ไม่ fail open
+      try {
+        const { data } = await _sb.from('user_roles').select('Role').eq('id', session.user.id).maybeSingle();
+        if (data?.Role) _currentUser.role = data.Role;
+      } catch (e) { console.error('โหลด user_roles ไม่สำเร็จ', e); }
+      _applyRolePermissions();
       document.getElementById('loginGate').style.display = 'none';
       if (_currentUser.isWarehouse) {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
