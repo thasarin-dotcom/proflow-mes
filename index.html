@@ -543,9 +543,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root{display:none}
 @media print{
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -556,6 +556,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   #lotlabel-print-root{display:none !important}
   #lotscan-print-root{display:none !important}
   #dlvlabel-print-root{display:none !important}
+  #miscslip-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -566,12 +567,16 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   body.print-mode-lotlabel #lotlabel-print-root{display:block !important}
   body.print-mode-lotscan #lotscan-print-root{display:block !important}
   body.print-mode-dlvlabel #dlvlabel-print-root{display:block !important}
+  body.print-mode-miscslip #miscslip-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
      ตอนพิมพ์ flex container จะไม่มีพื้นที่เหลือให้ auto margin ผลัก ช่องเซ็นชื่อจะไปติดท้ายตารางทันทีตอนพิมพ์จริง
      ทั้งที่ตัวอย่างก่อนพิมพ์ (ซึ่งไม่ผ่าน override นี้) ยังแสดงจมด้านล่างถูกต้อง — นี่คือสาเหตุที่พรีวิวกับพิมพ์จริงต่างกัน */
   #mr-print-root .mrrpt-page{box-shadow:none !important;margin:0 !important}
+  /* ใบส่งเบิกเบ็ดเตล็ด reuse .mrrpt-page เดียวกับ MR Report ตรงๆ (ตารางเรียบๆ + ช่องเซ็นชื่อ ไม่มีแพ็คกิ้ง/PO
+     เหมือนใบส่งสินค้า) เหตุผลเดียวกับ #mr-print-root ข้างบน */
+  #miscslip-print-root .mrrpt-page{box-shadow:none !important;margin:0 !important}
   /* ใบส่งสินค้าเป็นแนวตั้ง A4 ตรงกับ @page{size:A4;margin:0} ด้านล่างอยู่แล้ว (ไม่ต้องประกาศ named @page แบบ mrreport) —
      ห้ามใส่ min-height:0 เหมือนกัน เพราะ .dlvbill-footer ใช้ display:flex column + margin-top:auto แบบเดียวกับ .mrrpt-page */
   #deliverybill-print-root .dlvbill-page{box-shadow:none !important;margin:0 !important}
@@ -1220,6 +1225,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-issue" onclick="showPage('issue',this)" title="เบิกผลิต (Issue)">
       <i class="fas fa-dolly me-2"></i><span>เบิกผลิต (Issue)</span>
+      <span id="nav-issue-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-fg" onclick="showPage('fg',this)" title="รับ FG">
       <i class="fas fa-cubes me-2"></i><span>รับ FG</span>
@@ -2544,7 +2550,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             <input type="hidden" id="co-edit-id">
             <div class="row g-3">
 
-              <div class="col-md-4">
+              <div class="col-md-4" id="co-header-orderid-wrap">
                 <label class="form-label">Order ID <span class="text-danger">*</span></label>
                 <input type="text" id="co-f-id" class="form-control" required placeholder="เช่น CO-2605-001">
               </div>
@@ -2584,27 +2590,36 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                 <input type="text" id="co-f-tel" class="form-control" placeholder="เบอร์โทรลูกค้า">
               </div>
 
-              <div class="col-md-6">
+              <!-- โหมดแก้ไข: 1 CO = 1 รายการสินค้าเดิม (เหมือนเดิมทุกประการ) — โหมดเพิ่มใหม่ซ่อนกลุ่มนี้ทั้งหมดด้วย
+                   class เดียวกัน (co-singleline-field) แล้วใช้ #co-multiline-wrap แทน ดู coOpenModal -->
+              <div class="col-md-6 co-singleline-field">
                 <label class="form-label">รหัสสินค้า</label>
                 <input type="text" id="co-f-product-code" class="form-control" readonly placeholder="อัตโนมัติจากBOM">
               </div>
 
-              <div class="col-md-6">
+              <div class="col-md-6 co-singleline-field">
                 <label class="form-label">ชื่อสินค้า <span class="text-danger">*</span></label>
-                <input type="text" id="co-f-product-name" class="form-control" required
+                <input type="text" id="co-f-product-name" class="form-control"
                        list="co-bom-datalist" autocomplete="off"
-                       oninput="coProductSelect(this)" placeholder="พิมพ์หรือเลือกสินค้า...">
+                       oninput="coProductSelect(this)" placeholder="พิมพ์หรือเลือกสินค้า... (มีตัวเลือก Bulk ให้เลือกด้วย)">
                 <datalist id="co-bom-datalist"></datalist>
+                <input type="hidden" id="co-f-item-type" value="FG">
+                <div id="co-f-item-type-hint" class="small mt-1"></div>
               </div>
 
-              <div class="col-md-3">
+              <div class="col-md-3 co-singleline-field">
                 <label class="form-label">จำนวนสั่ง <span class="text-danger">*</span></label>
-                <input type="number" id="co-f-qty" class="form-control" min="0" step="0.001" required>
+                <input type="number" id="co-f-qty" class="form-control" min="0" step="0.001">
               </div>
 
-              <div class="col-md-3">
+              <div class="col-md-3 co-singleline-field">
                 <label class="form-label">UOM</label>
                 <input type="text" id="co-f-uom" class="form-control" readonly placeholder="อัตโนมัติจากBOM">
+              </div>
+
+              <div class="col-md-8 co-singleline-field">
+                <label class="form-label">หมายเหตุ</label>
+                <input type="text" id="co-f-remark" class="form-control" placeholder="หมายเหตุ">
               </div>
 
               <div class="col-md-4">
@@ -2612,9 +2627,14 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                 <input type="text" id="co-f-status" class="form-control" readonly>
               </div>
 
-              <div class="col-md-8">
-                <label class="form-label">หมายเหตุ</label>
-                <input type="text" id="co-f-remark" class="form-control" placeholder="หมายเหตุ">
+              <!-- โหมดเพิ่มใหม่: 1 PO เดียวกัน เลือกได้หลายรายการสินค้าในครั้งเดียว แต่ละรายการจะได้ Order ID
+                   แยกของตัวเอง (auto ตอนบันทึก) — ใช้ header ข้างบนร่วมกันทั้งชุด (ลูกค้า/PO/วันที่/ที่อยู่) -->
+              <div class="col-12" id="co-multiline-wrap">
+                <label class="form-label mb-1">รายการสินค้า <span class="text-danger">*</span></label>
+                <div id="co-lines-container"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-1" onclick="coAddLineRow()">
+                  <i class="fas fa-plus me-1"></i>เพิ่มรายการสินค้า
+                </button>
               </div>
 
             </div>
@@ -3314,6 +3334,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             </div>
           </div>
           <div class="col-md-4 d-flex gap-2 justify-content-end">
+            <button id="misc-slip-btn" class="btn btn-sm btn-outline-primary d-none" onclick="miscSlipOpenModal()">
+              <i class="fas fa-file-invoice me-1"></i>ออกใบส่ง
+            </button>
             <button id="misc-bulk-del-btn" class="btn btn-sm btn-danger d-none" onclick="miscBulkDelete()">
               <i class="fas fa-trash-alt me-1"></i>ลบที่เลือก
             </button>
@@ -3353,12 +3376,12 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                 <th style="width:36px"><input type="checkbox" id="misc-check-all" onchange="miscToggleAll(this)"></th>
                 <th class="wh-col-sm">วันที่</th><th class="wh-col-lg">ชื่อวัตถุดิบ</th><th class="wh-hide-code">รหัส</th>
                 <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">จำนวน</th><th class="wh-col-xs">UOM</th>
-                <th class="wh-col-xs">ประเภท</th><th class="wh-hide-remark">หมายเหตุ</th>
+                <th class="wh-col-xs">ประเภท</th><th class="wh-hide-remark">หมายเหตุ</th><th class="wh-col-sm">เลขที่ใบส่ง</th>
                 <th class="text-center" style="width:90px">จัดการ</th>
               </tr>
             </thead>
             <tbody id="misc-tbody">
-              <tr><td colspan="10" class="text-center py-4 text-muted">
+              <tr><td colspan="11" class="text-center py-4 text-muted">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -3381,7 +3404,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
         <form id="miscForm" onsubmit="miscSubmit(event)">
           <div class="modal-body">
             <input type="hidden" id="misc-edit-id">
+            <input type="hidden" id="misc-f-co-ref">
             <div class="row g-3">
+              <div class="col-12" id="misc-f-co-hint"></div>
               <div class="col-md-4">
                 <label class="form-label">วันที่เบิก <span class="text-danger">*</span></label>
                 <input type="date" id="misc-f-date" class="form-control" required>
@@ -3420,6 +3445,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                   <option value="ทดสอบ">ทดสอบ</option>
                   <option value="สูญเสีย">สูญเสีย</option>
                   <option value="ใช้ภายใน">ใช้ภายใน</option>
+                  <option value="ขายลูกค้า (Bulk)">ขายลูกค้า (Bulk)</option>
                   <option value="อื่นๆ">อื่นๆ</option>
                 </select>
               </div>
@@ -4909,6 +4935,61 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 
 <!-- Delivery Bill Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P — มีเนื้อหาเฉพาะตอนยืนยันเลขที่แล้วเท่านั้น) -->
 <div id="deliverybill-print-root"></div>
+
+<!-- ════════════ เบิกเบ็ดเตล็ด: ออกใบส่ง Modal (เลือกแถวจากตาราง Misc Issue ไว้แล้ว → ยืนยันเลขที่ใบ → พิมพ์)
+     mirror ของ dlvbillModal แต่ไม่มีขั้นแพ็คกิ้ง/CO/PO (เบิกเบ็ดเตล็ดไม่มีลูกค้า/CO ผูกอยู่) ════════════ -->
+<div class="modal fade" id="miscSlipModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-file-invoice me-2"></i>ออกใบส่ง (เบิกเบ็ดเตล็ด)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="mrrpt-step">
+        <div class="mrrpt-step-title"><span class="n">1</span>รายการที่เลือก</div>
+        <div id="miscslip-selected-summary" class="small text-muted"></div>
+      </div>
+
+      <div class="mrrpt-step">
+        <div class="mrrpt-step-title"><span class="n">2</span>เลขที่ใบส่ง</div>
+        <div class="mrrpt-step-row">
+          <div class="mrrpt-field">
+            <label>เลขที่ (แก้ไขได้ก่อนยืนยัน)</label>
+            <input type="text" id="miscslip-no-input" class="form-control form-control-sm mrrpt-rcno-input">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="miscslip-confirm-btn" onclick="miscSlipConfirmNo()">
+            <i class="fas fa-check me-1"></i>ยืนยันเลขที่
+          </button>
+          <span class="mrrpt-pill mrrpt-pill-unconfirmed" id="miscslip-status">● ยังไม่ยืนยัน</span>
+        </div>
+        <div class="mrrpt-error" id="miscslip-error"></div>
+        <details class="mrrpt-history">
+          <summary>ประวัติเลขที่ใบส่งล่าสุด (แก้ไขได้)</summary>
+          <table>
+            <thead><tr><th>เลขที่</th><th>วันที่ออก</th><th>จำนวนรายการ</th><th></th></tr></thead>
+            <tbody id="miscslip-history-body"></tbody>
+          </table>
+        </details>
+      </div>
+
+      <div class="modal-body" id="miscslip-preview-body" style="background:#525659;padding:24px;max-height:55vh;overflow:auto;position:relative"></div>
+
+      <div class="modal-footer justify-content-between">
+        <span class="text-danger small fw-bold" id="miscslip-print-hint">ต้องยืนยันเลขที่ใบก่อนพิมพ์</span>
+        <div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="miscslip-print-btn" onclick="window.print()" disabled>
+            <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Misc Issue Slip Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P — มีเนื้อหาเฉพาะตอนยืนยันเลขที่แล้วเท่านั้น) -->
+<div id="miscslip-print-root"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -8469,6 +8550,9 @@ function fgoutRenderBillGroups() {
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}')" title="พิมพ์ป้ายกล่อง (QR) แยกตามสินค้า สำหรับแปะกล่องของใบส่งนี้">
               <i class="fas fa-qrcode me-1"></i>ป้ายกล่อง
             </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();fgoutCancelBill('${g.billNo}')" title="ยกเลิกเลขที่ใบส่งนี้ — รายการจะกลับไปออกเลขใหม่ได้อีกครั้ง">
+              <i class="fas fa-ban me-1"></i>ยกเลิกใบส่ง
+            </button>
             ${actionHtml}
             <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
           </div>
@@ -8515,6 +8599,38 @@ async function fgoutBillAdvanceAll(billNo) {
 
   // แจ้งไลน์กลุ่มจัดส่ง (คนละกลุ่มกับคลัง) — ไม่ await กันการแจ้งช้า/ล้มเหลวไปหน่วงหน้าจอ
   _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs);
+}
+
+// ยกเลิกเลขที่ใบส่งสินค้า (กรณีออกเลขไปแล้วแต่มีเหตุให้ต้องยกเลิก/ออกใหม่ เช่นพิมพ์ผิด/ข้อมูลผิด) — แค่ล้าง
+// DeliveryBillNo ของทุกแถวในใบนี้กลับเป็น null (กลับไปเป็น "ยังไม่ออกใบส่ง" ในตารางเบิก FG ปกติ ออกเลขใหม่
+// ได้อีกครั้ง) ไม่แตะสถานะจัดส่ง (Status) เลย เพราะการยกเลิก "เลขที่ใบ/เอกสาร" คนละเรื่องกับการยกเลิก
+// "การจัดส่งจริง" (ดู deliveryCancel) — ต่อให้ของถึงลูกค้าไปแล้วก็ยกเลิกแค่เอกสารแล้วออกใบใหม่ได้
+// ไม่ลบทะเบียนเลขที่ (delivery_bill_numbers) ทิ้ง แค่ stamp CancelledAt ไว้ — เลขที่ถูกยกเลิกจะยังกันไม่ให้
+// เอาไปออกซ้ำได้อีกจาก unique constraint เดิม (ต้องรัน alter_delivery_bill_numbers_add_cancelled.sql ก่อน)
+async function fgoutCancelBill(billNo) {
+  const rows = _deliveryData.filter(d => d.DeliveryBillNo === billNo);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันยกเลิกใบส่งสินค้าเลขที่ ${billNo}?`,
+    html: `${rows.length} รายการในใบนี้จะกลับไปเป็น "ยังไม่ออกใบส่ง" สามารถออกเลขใหม่ได้อีกครั้ง<br>` +
+          `<b class="text-danger">เลขที่ ${billNo} จะถูกยกเลิก ไม่สามารถนำมาออกซ้ำได้อีก</b>`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิกใบส่ง', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#dc3545'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error: clearErr } = await _sb.from('delivery').update({ DeliveryBillNo: null }).in('_row_id', ids);
+  if (clearErr) { _hideLoader(); _err('ยกเลิกใบส่งไม่สำเร็จ', clearErr.message); return; }
+
+  const { error: cancelErr } = await _sb.from('delivery_bill_numbers').update({ CancelledAt: new Date().toISOString() }).eq('BillNo', billNo);
+  _hideLoader();
+  if (cancelErr) console.error('stamp CancelledAt ไม่สำเร็จ (ล้าง DeliveryBillNo ไปแล้ว)', cancelErr);
+
+  _logAudit('CANCEL', 'delivery_bill_numbers', billNo, `ยกเลิกใบส่งสินค้า ${rows.length} รายการ`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ยกเลิกใบส่ง ${billNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  await loadDeliveryData();
 }
 
 // ส่งสรุปการจัดส่งแบบย่อเข้าไลน์กลุ่มจัดส่ง (วันที่/ลูกค้า/เลขใบส่ง/รายการชื่อ-ล็อต-จำนวน/PO ที่ตัด)
@@ -9535,24 +9651,34 @@ async function dlvbillConfirmNo() {
   const year = new Date().getFullYear();
 
   _showLoader();
-  const { data: existing, error: checkErr } = await _sb.from('delivery_bill_numbers').select('_row_id,CustomerName').eq('BillNo', val);
+  const { data: existing, error: checkErr } = await _sb.from('delivery_bill_numbers').select('_row_id,CustomerName,CancelledAt').eq('BillNo', val);
   if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งสินค้าไม่ได้', checkErr.message); return; }
-  if (existing && existing.length) {
+  const activeClash = (existing || []).find(r => !r.CancelledAt);
+  if (activeClash) {
     _hideLoader();
-    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว (ลูกค้า ${existing[0].CustomerName||'—'}) — กรุณาแก้เลขใหม่`;
+    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว (ลูกค้า ${activeClash.CustomerName||'—'}) — กรุณาแก้เลขใหม่`;
     errEl.style.display = 'block';
     return;
   }
 
-  const { error: insErr } = await _sb.from('delivery_bill_numbers').insert({
-    BillNo: val, Year: year, CustomerName: customer, DeliveryRowIds: _dlvbillIds.join(','),
-    PackingJSON: _dlvbillPacking, // เก็บการจัดกล่องผสม/จำนวนต่อกล่องที่จัดไว้ตอนกดยืนยันเลข ให้พิมพ์ซ้ำทีหลังเห็นเหมือนเดิม
-  });
-  if (insErr) {
+  // เลขนี้เคย "ยกเลิก" ไปแล้ว (ไม่มีแถวที่ยัง active ชนอยู่) — ผู้ใช้ยืนยันต้องการนำเลขเดิมมาออกใบใหม่แทนได้
+  // (เช่นแก้ไบล์เดิมที่พิมพ์ผิดแล้วออกใหม่แทนที่ ไม่อยากขยับไปเลขถัดไป) → UPDATE แถวเดิมทับ ไม่ INSERT ซ้ำ
+  // (unique constraint บน BillNo จะกัน insert ซ้ำอยู่แล้วต่อให้แถวเดิมถูกยกเลิกไปก็ตาม)
+  const cancelledRow = (existing || []).find(r => r.CancelledAt);
+  const writeErr = cancelledRow
+    ? (await _sb.from('delivery_bill_numbers').update({
+        Year: year, CustomerName: customer, DeliveryRowIds: _dlvbillIds.join(','),
+        PackingJSON: _dlvbillPacking, CancelledAt: null, CreatedAt: new Date().toISOString(),
+      }).eq('_row_id', cancelledRow._row_id)).error
+    : (await _sb.from('delivery_bill_numbers').insert({
+        BillNo: val, Year: year, CustomerName: customer, DeliveryRowIds: _dlvbillIds.join(','),
+        PackingJSON: _dlvbillPacking, // เก็บการจัดกล่องผสม/จำนวนต่อกล่องที่จัดไว้ตอนกดยืนยันเลข ให้พิมพ์ซ้ำทีหลังเห็นเหมือนเดิม
+      })).error;
+  if (writeErr) {
     _hideLoader();
     // 23505 = unique_violation ระดับ DB (กันชนกันตอนกดยืนยันพร้อมกันจากหลายเบราว์เซอร์ ซึ่งเช็คฝั่ง client ข้างบนอาจตามไม่ทัน)
-    if (insErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
-    _err('บันทึกเลขที่ใบส่งสินค้าไม่สำเร็จ', insErr.message);
+    if (writeErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
+    _err('บันทึกเลขที่ใบส่งสินค้าไม่สำเร็จ', writeErr.message);
     return;
   }
 
@@ -9584,9 +9710,9 @@ async function dlvbillRenderHistory() {
   if (error) { body.innerHTML = `<tr><td colspan="4" class="text-danger">โหลดประวัติไม่ได้ (${error.message})</td></tr>`; return; }
   if (!data.length) { body.innerHTML = `<tr><td colspan="4" class="text-muted">ยังไม่มีเลขที่ใบส่งสินค้า</td></tr>`; return; }
   body.innerHTML = data.map(r => `
-    <tr>
-      <td>${r.BillNo}</td><td>${r.CustomerName || '—'}</td><td>${_fmtDate((r.CreatedAt||'').slice(0,10))}</td>
-      <td><button onclick="dlvbillEditNo(${r._row_id},'${r.BillNo}')">แก้ไข</button></td>
+    <tr${r.CancelledAt ? ' class="text-decoration-line-through text-muted"' : ''}>
+      <td>${r.BillNo}${r.CancelledAt ? ' <span class="badge bg-danger">ยกเลิกแล้ว</span>' : ''}</td><td>${r.CustomerName || '—'}</td><td>${_fmtDate((r.CreatedAt||'').slice(0,10))}</td>
+      <td>${r.CancelledAt ? '' : `<button onclick="dlvbillEditNo(${r._row_id},'${r.BillNo}')">แก้ไข</button>`}</td>
     </tr>`).join('');
 }
 
@@ -14542,11 +14668,15 @@ let _coPendingDispatchMap = {};
 // (nav-fgout CO-ref dropdown) เพราะคำถามนั้นคือ "คลังเบิกครบหรือยัง" ไม่ใช่ "จัดส่งครบหรือยัง"
 let _coTotalWithdrawnMap = {};
 let _coFGStockMap   = {};   // { ProductCode → FG คงเหลือรวมทุก Lot จาก stock_fg }
+let _coBulkWithdrawnMap = {};   // { Order_ID → ยอดเบิกวัตถุดิบ Bulk สะสมจาก issue_misc (CO_Ref) — เฉพาะ CO ที่ ItemType='BULK'
+let _coBulkStockMap     = {};   // { MaterialCode → วัตถุดิบ Bulk คงเหลือรวมทุก Lot จาก stock_balance }
 let _coOpenMOSet    = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) และ MO นั้นยังไม่ปิดงาน — กันปุ่ม "สั่งผลิต" กดซ้ำ
 let _coAnyMOSet      = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) อย่างน้อย 1 ใบ ไม่ว่าจะปิดงานแล้วหรือยัง — ใช้แยก "ยังไม่มี MO เลย" ออกจาก "มี MO ครบทุกใบแล้ว" ใน _coComputeDisplayStatus
 let _coExpandedSet  = new Set();   // Order_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _coModal        = null;
 let _coBomProducts  = [];
+let _coBulkProducts = [];   // ตัวเลือก "สินค้า (Bulk)" ในฟอร์ม CO — ProductCode คือ MaterialCode ของ Bulk จริง ผูกกับ stock_balance
+let _coLineRowSeq   = 0;   // ตัวนับแถวรายการสินค้าตอนเพิ่ม CO ใหม่ (โหมดหลายรายการต่อ 1 PO) ไม่ใช้ซ้ำเหมือน _bomRowSeq
 
 const _coStatusColor = {
   'รอสั่งผลิต'   : 'secondary',
@@ -14580,6 +14710,15 @@ function _coRecentlyCompleted(r) {
 // ฟิลเตอร์ co-filter-status ในหน้านี้ก็ยังกรองด้วย r.Status จริงเหมือนเดิม ไม่ใช่ label ที่คำนวณนี้ (ตั้งใจ แยกกัน)
 function _coComputeDisplayStatus(r) {
   if (_coDoneStatuses.includes(r.Status)) return r.Status;   // ปิดงานแล้ว โชว์ตามจริงเสมอ ไม่ให้ตรรกะข้างล่างมาแทนที่
+  // CO แบบ Bulk ไม่มี MO/แผนผลิต/stock_fg ผูกอยู่เลย (ดูหมายเหตุที่ _coBulkWithdrawnMap) จึงคำนวณแยกจากตรรกะ
+  // MO/FG ด้านล่างทั้งหมด — เบิกจาก issue_misc ตรงๆ ถือเป็น "ส่งแล้ว" ทันที ไม่ต้องรอสถานะจัดส่งแบบฝั่ง FG
+  if (r.ItemType === 'BULK') {
+    const withdrawn = _coBulkWithdrawnMap[r.Order_ID] || 0;
+    const orderQty  = parseFloat(r.OrderQty) || 0;
+    if (withdrawn <= 0) return r.Status;
+    if (withdrawn < orderQty) return 'ส่งบางส่วน';
+    return 'ส่งสำเร็จ';
+  }
   if (!_coAnyMOSet.has(r.Order_ID)) return r.Status;         // ยังไม่มี MO ผูกเลย (ยังไม่เริ่มผลิต) ไม่แตะ
   if (_coOpenMOSet.has(r.Order_ID)) return 'กำลังผลิต';       // มี MO ที่ยังไม่ปิดงานอยู่ (ไม่ว่าจะเบิกไปแล้วเท่าไหร่)
 
@@ -14595,11 +14734,23 @@ function _coComputeDisplayStatus(r) {
 // เพื่อให้หน้าอื่น (เช่น loadFGOutData ตอนกรองดรอปดาวน์ CO Reference) เรียกใช้ _coComputeDisplayStatus ได้ถูกต้อง
 // แม้ผู้ใช้ยังไม่เคยเปิดหน้า CO มาก่อนในเซสชันนี้เลย (ตัวแปรเหล่านี้จะยังว่างเปล่าถ้าไม่เรียกก่อนใช้)
 async function _coRefreshMOAndShippedMaps() {
-  const [wdRes, moRes, dlvRes] = await Promise.all([
+  const [wdRes, moRes, dlvRes, miscRes, stockRes] = await Promise.all([
     _sb.from('fg_withdraw').select('_row_id,CO_Ref,QtyFG').not('CO_Ref', 'is', null),
     _sb.from('manufacturing_orders').select('CO_Ref,Status').not('CO_Ref', 'is', null),
     _sb.from('delivery').select('WD_Ref,Status').not('WD_Ref', 'is', null),
+    _sb.from('issue_misc').select('CO_Ref,IssuedQty').not('CO_Ref', 'is', null),
+    _sb.from('stock_balance').select('MaterialCode,QtyBalance'),
   ]);
+
+  _coBulkWithdrawnMap = {};
+  (miscRes.data || []).forEach(m => {
+    if (!m.CO_Ref) return;
+    _coBulkWithdrawnMap[m.CO_Ref] = (_coBulkWithdrawnMap[m.CO_Ref] || 0) + (parseFloat(m.IssuedQty) || 0);
+  });
+  _coBulkStockMap = {};
+  (stockRes.data || []).forEach(s => {
+    _coBulkStockMap[s.MaterialCode] = (_coBulkStockMap[s.MaterialCode] || 0) + (parseFloat(s.QtyBalance) || 0);
+  });
 
   // สถานะจัดส่งของแต่ละรายการเบิก (WD_Ref → delivery.Status)
   const dlvStatusByWD = {};
@@ -14636,15 +14787,43 @@ async function coLoadBomProducts() {
     seen.add(r.ProductCode);
     return true;
   });
+
+  // เผื่อลูกค้าซื้อแค่ Bulk (สูตร/วัตถุดิบตั้งต้นของสินค้านั้น ยังไม่บรรจุ) แยกต่างหากจากสินค้าสำเร็จรูป —
+  // ดึงบรรทัด Bulk ของแต่ละ ProductCode จาก bom (Remark ตัวพิมพ์เล็ก ≠ 'pac' = Bulk ตาม convention เดียวกับ
+  // _moComputeMaterialCheck/prodrecordOpenEntryModal/moReleasedOpenModal) แล้วสร้างเป็นตัวเลือก "{ชื่อสินค้า} (Bulk)"
+  // โดย ProductCode ของตัวเลือกนี้คือ MaterialCode ของ Bulk จริง (ผูกกับ stock_balance ตอนเบิกส่ง ไม่ใช่ stock_fg)
+  const { data: bulkLines } = await _bomFetchPaged('ProductCode,MaterialCode,MaterialName,UOM,Remark', []);
+  const nameByCode = {};
+  _coBomProducts.forEach(p => { nameByCode[p.ProductCode] = p.ProductName; });
+  const seenBulk = new Set();
+  _coBulkProducts = (bulkLines || []).filter(l => (l.Remark || '').toLowerCase() !== 'pac').reduce((acc, l) => {
+    const fgName = nameByCode[l.ProductCode];
+    if (!fgName || !l.MaterialCode) return acc;
+    const key = l.ProductCode + '|' + l.MaterialCode;
+    if (seenBulk.has(key)) return acc;
+    seenBulk.add(key);
+    acc.push({
+      ProductCode: l.MaterialCode,
+      ProductName: `${fgName} (Bulk)`,
+      UOF: l.UOM || '',
+      isBulk: true,
+    });
+    return acc;
+  }, []);
 }
 
 function coProductSelect(input) {
-  const found = _coBomProducts.find(p => p.ProductName === input.value);
+  const found = _coBomProducts.find(p => p.ProductName === input.value)
+             || _coBulkProducts.find(p => p.ProductName === input.value);
   document.getElementById('co-f-product-code').value = found ? (found.ProductCode || '') : '';
   document.getElementById('co-f-uom').value          = found ? (found.UOF || '') : '';
+  document.getElementById('co-f-item-type').value    = (found && found.isBulk) ? 'BULK' : 'FG';
+  document.getElementById('co-f-item-type-hint').innerHTML = (found && found.isBulk)
+    ? '<span class="badge bg-warning text-dark"><i class="fas fa-flask me-1"></i>สินค้า Bulk (ยังไม่บรรจุ)</span>'
+    : '';
 }
 
-function coPopulateProductDropdown(currentName) {
+function coPopulateProductDropdown(currentName, itemType) {
   const dl = document.getElementById('co-bom-datalist');
   dl.innerHTML = '';
   _coBomProducts.forEach(p => {
@@ -14653,8 +14832,79 @@ function coPopulateProductDropdown(currentName) {
     opt.label = p.ProductCode || '';
     dl.appendChild(opt);
   });
+  _coBulkProducts.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.ProductName;
+    opt.label = p.ProductCode || '';
+    dl.appendChild(opt);
+  });
   document.getElementById('co-f-product-name').value = currentName || '';
+  document.getElementById('co-f-item-type').value     = itemType || 'FG';
+  document.getElementById('co-f-item-type-hint').innerHTML = '';
   if (currentName) coProductSelect(document.getElementById('co-f-product-name'));
+}
+
+// ══════════════════════════════════════════════
+// CO: เพิ่มหลายรายการสินค้าในครั้งเดียว ต่อ 1 PO (โหมดเพิ่มใหม่เท่านั้น — โหมดแก้ไขยังคง 1 CO = 1 รายการเหมือนเดิม
+// เหตุผลเดียวกับที่ BOM ทำไว้ก่อนหน้า: ลูกค้ามักสั่งหลายสินค้าใน PO เดียวกัน แต่ทุกรายการยังต้องเป็นคนละแถว/Order_ID
+// เหมือนเดิม เพราะทุกฟีเจอร์ปลายทาง (แผนผลิต/MO/Bulk/Dashboard) ผูกกับ 1 CO = 1 สินค้าอยู่แล้ว — ฟอร์มนี้แค่ลดการ
+// กรอกข้อมูล header (ลูกค้า/PO/วันที่/ที่อยู่) ซ้ำทุกครั้ง ไม่ได้เปลี่ยนโครงสร้างข้อมูลจริงเลย
+// ══════════════════════════════════════════════
+function _coLineRowHTML(seq) {
+  return `
+    <div class="co-line-row border rounded p-2 mb-2 position-relative" data-seq="${seq}">
+      <button type="button" class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-1 co-line-remove-btn"
+        onclick="coRemoveLineRow(${seq})" title="ลบรายการนี้"><i class="fas fa-times"></i></button>
+      <div class="row g-2">
+        <div class="col-md-7">
+          <label class="form-label small mb-0">ชื่อสินค้า <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="co-line-product-name-${seq}"
+                 list="co-bom-datalist" autocomplete="off"
+                 oninput="coLineProductSelect(${seq}, this)" placeholder="พิมพ์หรือเลือกสินค้า..." required>
+          <input type="hidden" id="co-line-product-code-${seq}">
+          <input type="hidden" id="co-line-item-type-${seq}" value="FG">
+          <div id="co-line-item-type-hint-${seq}" class="small mt-1"></div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-0">จำนวนสั่ง <span class="text-danger">*</span></label>
+          <input type="number" class="form-control form-control-sm" id="co-line-qty-${seq}" min="0" step="0.001" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-0">UOM</label>
+          <input type="text" class="form-control form-control-sm" id="co-line-uom-${seq}" readonly placeholder="อัตโนมัติ">
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-0">หมายเหตุ (เฉพาะรายการนี้)</label>
+          <input type="text" class="form-control form-control-sm" id="co-line-remark-${seq}" placeholder="หมายเหตุ">
+        </div>
+      </div>
+    </div>`;
+}
+
+function coAddLineRow() {
+  const seq = ++_coLineRowSeq;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = _coLineRowHTML(seq).trim();
+  document.getElementById('co-lines-container').appendChild(wrap.firstElementChild);
+  return seq;
+}
+
+function coRemoveLineRow(seq) {
+  const rows = document.querySelectorAll('#co-lines-container .co-line-row');
+  if (rows.length <= 1) return;   // เก็บอย่างน้อย 1 แถวไว้เสมอ เหมือน BOM
+  const row = document.querySelector(`#co-lines-container .co-line-row[data-seq="${seq}"]`);
+  if (row) row.remove();
+}
+
+function coLineProductSelect(seq, input) {
+  const found = _coBomProducts.find(p => p.ProductName === input.value)
+             || _coBulkProducts.find(p => p.ProductName === input.value);
+  document.getElementById(`co-line-product-code-${seq}`).value = found ? (found.ProductCode || '') : '';
+  document.getElementById(`co-line-uom-${seq}`).value          = found ? (found.UOF || '') : '';
+  document.getElementById(`co-line-item-type-${seq}`).value    = (found && found.isBulk) ? 'BULK' : 'FG';
+  document.getElementById(`co-line-item-type-hint-${seq}`).innerHTML = (found && found.isBulk)
+    ? '<span class="badge bg-warning text-dark"><i class="fas fa-flask me-1"></i>Bulk</span>'
+    : '';
 }
 
 async function loadCOData() {
@@ -14736,12 +14986,16 @@ function coRenderTable() {
   container.innerHTML = rows.map((r, idx) => {
     const displayStatus = _coComputeDisplayStatus(r);
     const sc       = _coStatusColor[displayStatus] || 'secondary';
-    const shipped  = _coShippedMap[r.Order_ID] || 0;   // ยอดส่งจริงให้ลูกค้าสะสม (จัดส่งแล้ว/ส่งถึงแล้วเท่านั้น)
+    // CO แบบ Bulk (ItemType='BULK') สั่งขายวัตถุดิบ/สูตรตรงๆ ไม่ผ่านแผนผลิต/MO/stock_fg เลย — "ส่งแล้ว"/"ในสต็อก"
+    // ของแถวนี้จึงอ่านจาก _coBulkWithdrawnMap/_coBulkStockMap (ตัดสต็อกจาก stock_balance ตรงตอนเบิก, ดู
+    // coWithdrawBulkFromStock/coUpdateStatusFromBulkWithdraw) ไม่ใช่ _coShippedMap/_coFGStockMap ฝั่ง FG
+    const isBulk = r.ItemType === 'BULK';
+    const shipped  = isBulk ? (_coBulkWithdrawnMap[r.Order_ID] || 0) : (_coShippedMap[r.Order_ID] || 0);
     const orderQty = parseFloat(r.OrderQty) || 0;
     const remain   = orderQty - shipped;
-    const fgStock  = _coFGStockMap[r.ProductCode] || 0;
-    const pendingDispatch = _coPendingDispatchMap[r.Order_ID] || 0;   // เบิกจากคลังไปแล้วแต่ยังรอจัดส่งอยู่ — ไม่อยู่ใน fgStock แล้ว แต่ยังนับเป็นของที่มีให้ CO นี้ได้
-    const needProduce = Math.max(0, remain - fgStock - pendingDispatch);
+    const fgStock  = isBulk ? (_coBulkStockMap[r.ProductCode] || 0) : (_coFGStockMap[r.ProductCode] || 0);
+    const pendingDispatch = isBulk ? 0 : (_coPendingDispatchMap[r.Order_ID] || 0);   // เบิกจากคลังไปแล้วแต่ยังรอจัดส่งอยู่ — ไม่อยู่ใน fgStock แล้ว แต่ยังนับเป็นของที่มีให้ CO นี้ได้
+    const needProduce = isBulk ? 0 : Math.max(0, remain - fgStock - pendingDispatch);   // Bulk ไม่ผ่านแผนผลิตเลย ไม่มีแนวคิด "ต้องผลิตเพิ่ม"
     const expanded = _coExpandedSet.has(r.Order_ID);
     const justCompleted = _coRecentlyCompleted(r);
 
@@ -14757,7 +15011,8 @@ function coRenderTable() {
           <span class="text-muted mx-1">·</span>
           <span>${r.ProductName||'—'}</span>
           <span class="badge bg-light text-dark border ms-2">${r.ProductCode||'—'}</span>
-          ${needProduce > 0 ? `<span class="badge bg-danger ms-2" title="ต้องผลิตเพิ่ม"><i class="fas fa-industry me-1"></i>ต้องผลิต ${needProduce.toLocaleString()}</span>` : ''}
+          ${isBulk ? `<span class="badge bg-warning text-dark ms-2" title="สินค้า Bulk (ยังไม่บรรจุ)"><i class="fas fa-flask me-1"></i>Bulk</span>` : ''}
+          ${(!isBulk && needProduce > 0) ? `<span class="badge bg-danger ms-2" title="ต้องผลิตเพิ่ม"><i class="fas fa-industry me-1"></i>ต้องผลิต ${needProduce.toLocaleString()}</span>` : ''}
         </div>
         <div class="d-flex align-items-center gap-2">
           <small class="text-muted">${_fmtDate(r.DueDate)||''}</small>
@@ -14789,7 +15044,7 @@ function coRenderTable() {
           <div class="col-6 col-md-3">
             <div class="p-2 rounded" style="background:#eff6ff">
               <div class="fw-bold text-primary" style="font-size:1.1rem">${fgStock.toLocaleString()}</div>
-              <div class="text-muted" style="font-size:.72rem">FG ในสต็อก</div>
+              <div class="text-muted" style="font-size:.72rem">${isBulk ? 'วัตถุดิบ Bulk ในสต็อก' : 'FG ในสต็อก'}</div>
             </div>
           </div>
         </div>
@@ -14804,6 +15059,12 @@ function coRenderTable() {
             <input type="checkbox" class="form-check-input co-row-check" id="co-check-${r._row_id}" value="${r._row_id}" onchange="coCheckState()">
             <label class="form-check-label small text-muted" for="co-check-${r._row_id}">เลือก</label>
           </div>
+          ${isBulk ? `
+          ${remain>0 ? `
+          <button class="btn btn-sm btn-success" onclick="event.stopPropagation();coWithdrawBulkFromStock(${idx})" title="เด้งไปเปิดหน้าเบิกเบ็ดเตล็ด พร้อมแนะนำ Lot (FEFO) และจำนวน ผูก CO นี้ไว้อัตโนมัติ">
+            <i class="fas fa-dolly me-1"></i>เบิกส่ง Bulk${remain>0 ? ` (${remain.toLocaleString()})` : ''}
+          </button>` : `
+          <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>เบิกครบยอดแล้ว</span>`}` : `
           <button class="btn btn-sm ${_coOpenMOSet.has(r.Order_ID) ? 'btn-outline-secondary' : (needProduce>0?'btn-danger':'btn-outline-secondary')}"
             ${_coOpenMOSet.has(r.Order_ID) ? 'disabled' : ''}
             onclick="event.stopPropagation();coOrderProduction(${idx})"
@@ -14818,7 +15079,7 @@ function coRenderTable() {
           ${(remain>0 && fgStock>0) ? `
           <button class="btn btn-sm btn-success" onclick="event.stopPropagation();coWithdrawFromStock(${idx})" title="เด้งไปเปิดหน้าเบิก FG พร้อมแนะนำ Lot และจำนวน">
             <i class="fas fa-dolly me-1"></i>เบิกจากคลัง
-          </button>` : ''}
+          </button>` : ''}`}
           <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();coOpenModal(${r._row_id})" title="แก้ไข">
             <i class="fas fa-edit me-1"></i>แก้ไข
           </button>
@@ -14927,18 +15188,97 @@ async function coWithdrawFromStock(idx) {
   document.getElementById('fgout-f-qty').value = Math.min(remain, fgStock);
 }
 
+// ── ปุ่ม "เบิกส่ง Bulk" — เฉพาะ CO ที่ ItemType='BULK' เด้งไปหน้าเบิกเบ็ดเตล็ด (nav-misc) พร้อมแนะนำ Lot ตาม
+// วันหมดอายุใกล้สุดก่อน (FEFO จริง เพราะ stock_balance มี ExpDate ต่างจากฝั่ง stock_fg ที่ไม่มี) — ไม่ผ่านแผนผลิต/
+// MO/stock_fg เลย ตัดสต็อกวัตถุดิบตรงๆ เหมือนเบิกเบ็ดเตล็ดปกติ แค่ผูก CO_Ref ไว้เพื่ออัปเดตสถานะ CO กลับ
+// (ดู coUpdateStatusFromBulkWithdraw, เรียกจาก miscSubmit/miscDelete/miscBulkDelete เมื่อ CO_Ref ถูกตั้งไว้)
+async function coWithdrawBulkFromStock(idx) {
+  const r = _coLastRows[idx];
+  if (!r) return;
+  const withdrawn = _coBulkWithdrawnMap[r.Order_ID] || 0;
+  const orderQty  = parseFloat(r.OrderQty) || 0;
+  const remain    = orderQty - withdrawn;
+  if (remain <= 0) return;
+
+  showPage('misc', document.getElementById('nav-misc'));
+  await loadMiscData();
+
+  miscOpenModal();
+  // ProductName ของ CO แบบ Bulk คือ "{ชื่อสินค้า} (Bulk)" (ดู coLoadBomProducts) — ตัดคำต่อท้ายออกก่อนใส่ช่องค้นหา
+  // ให้ตรงกับชื่อวัตถุดิบจริงใน stock_balance/materials ไม่งั้นจะโชว์ค้างเป็นชื่อที่ค้นหาไม่เจอ
+  const matName = (r.ProductName || '').replace(/\s*\(Bulk\)\s*$/, '');
+  miscSelectMaterial(r.ProductCode, matName);
+  document.getElementById('misc-f-co-ref').value = r.Order_ID || '';
+  document.getElementById('misc-f-co-hint').innerHTML =
+    `<span class="badge bg-warning text-dark"><i class="fas fa-link me-1"></i>อ้างอิง CO: ${r.Order_ID || ''} (คงค้าง ${remain.toLocaleString()} ${r.UOM||''})</span>`;
+  document.getElementById('misc-f-category').value = 'ขายลูกค้า (Bulk)';
+
+  const candidateLots = _miscMatList
+    .filter(m => m.MaterialCode === r.ProductCode && (parseFloat(m.QtyBalance)||0) > 0)
+    .sort((a,b) => (a.ExpDate||'9999-99-99').localeCompare(b.ExpDate||'9999-99-99'));
+  const bestLot = candidateLots.find(m => (parseFloat(m.QtyBalance)||0) >= remain) ||
+    candidateLots.slice().sort((a,b) => (parseFloat(b.QtyBalance)||0) - (parseFloat(a.QtyBalance)||0))[0];
+
+  const lotSel = document.getElementById('misc-f-lot');
+  if (bestLot) {
+    lotSel.value = bestLot.Lot;
+    if (lotSel.onchange) lotSel.onchange();
+  }
+
+  document.getElementById('misc-f-qty').value = bestLot ? Math.min(remain, parseFloat(bestLot.QtyBalance)||0) : remain;
+}
+
+// เรียกหลังบันทึก/แก้ไข/ลบรายการเบิกเบ็ดเตล็ดที่ผูก CO_Ref ไว้ (มาจาก coWithdrawBulkFromStock เท่านั้น — เบิก
+// เบ็ดเตล็ดปกติไม่มี CO_Ref) — คำนวณสถานะ CO ใหม่จากยอดเบิกจริงทั้งหมด ณ ตอนนี้เสมอ (idempotent เหมือน
+// fgoutUpdateCOStatus) ต่างจากฝั่ง FG ตรงที่ Bulk ไม่มี delivery pipeline คั่นกลาง ("เบิก" = "ส่งจริง" ตามที่ตกลง
+// กับผู้ใช้ไว้) จึงปิดงานเป็น 'ส่งสำเร็จ' ทันทีที่เบิกครบยอด ไม่ต้องรอยืนยัน "ส่งถึงแล้ว" แบบฝั่งจัดส่ง FG
+async function coUpdateStatusFromBulkWithdraw(coRef) {
+  if (!coRef) return;
+  const { data: coRows, error: coErr } = await _sb.from('customer_orders')
+    .select('_row_id,OrderQty,Status').eq('Order_ID', coRef);
+  if (coErr) { console.error('coUpdateStatusFromBulkWithdraw: query CO failed', coErr); return; }
+  if (!coRows || !coRows.length) return;
+  if (coRows.length > 1) {
+    console.error(`coUpdateStatusFromBulkWithdraw: พบ CO ซ้ำ Order_ID="${coRef}" จำนวน ${coRows.length} แถว — ข้ามการอัปเดตสถานะ (ต้องแก้ข้อมูลซ้ำก่อน)`, coRows);
+    return;
+  }
+  const co = coRows[0];
+  if (_coDoneStatuses.includes(co.Status)) return;   // ปิดงานไปแล้ว ไม่ต้องย้อนสถานะกลับ
+
+  const { data: prev, error: prevErr } = await _sb.from('issue_misc')
+    .select('IssuedQty').eq('CO_Ref', coRef);
+  if (prevErr) { console.error('coUpdateStatusFromBulkWithdraw: query failed', prevErr); return; }
+  const totalSent = (prev||[]).reduce((s, r) => s + (parseFloat(r.IssuedQty)||0), 0);
+  const orderQty  = parseFloat(co.OrderQty) || 0;
+
+  const payload = {};
+  if (totalSent <= 0) { payload.Status = co.Status; }
+  else if (totalSent >= orderQty) { payload.Status = 'ส่งสำเร็จ'; payload.CompletedAt = new Date().toISOString(); }
+  else { payload.Status = 'ส่งบางส่วน'; }
+
+  if (payload.Status !== co.Status) {
+    await _sb.from('customer_orders').update(payload).eq('_row_id', co._row_id);
+  }
+}
+
 function coCheckState() {
   const n = document.querySelectorAll('.co-row-check:checked').length;
   const btn = document.getElementById('co-bulk-del-btn');
   if (btn) { btn.classList.toggle('d-none', n === 0); btn.textContent = `ลบที่เลือก (${n})`; }
 }
 
-function coGenerateID() {
+function _coOrderIdPrefix() {
   const now = new Date();
   const yy  = String(now.getFullYear()).slice(-2);
   const mm  = String(now.getMonth() + 1).padStart(2, '0');
-  const prefix = `CO-${yy}${mm}-`;
+  return `CO-${yy}${mm}-`;
+}
 
+// แยกออกจาก coGenerateID() เพื่อให้ coSubmit โหมดเพิ่มหลายรายการ (ดู "CO: เพิ่มหลายรายการสินค้า" ด้านบน) เรียกขอ
+// เลขรันถัดไปแบบต่อเนื่องหลายเลขในคราวเดียวได้ (nextSeqNum, nextSeqNum+1, nextSeqNum+2, ...) โดยไม่ต้อง generate
+// ทีละตัวแล้วเช็คซ้ำกับ _coData เอง (ซึ่งยังไม่มีแถวที่เพิ่ง insert ไปในตัวมันเองอยู่ดีในการ submit เดียวกัน)
+function _coNextOrderSeqNum() {
+  const prefix = _coOrderIdPrefix();
   let maxSeq = 0;
   const scanId = (id) => {
     id = String(id || '');
@@ -14951,8 +15291,11 @@ function coGenerateID() {
   // กัน Order_ID ชนกับ CO ที่เคยถูกลบไปแล้วแต่ยังมีรายการเบิก FG (fg_withdraw.CO_Ref) ค้างอ้างอิงอยู่ —
   // ไม่งั้น CO ใหม่จะ "สืบทอด" ยอดส่งของ CO เก่าที่ไม่มีอยู่แล้วไปโดยไม่ตั้งใจ (เจอบั๊กจริงจาก ID ชนกัน)
   Object.keys(_coShippedMap).forEach(scanId);
+  return maxSeq + 1;
+}
 
-  return `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+function coGenerateID() {
+  return `${_coOrderIdPrefix()}${String(_coNextOrderSeqNum()).padStart(2, '0')}`;
 }
 
 async function coOpenModal(rowId = null) {
@@ -14963,6 +15306,18 @@ async function coOpenModal(rowId = null) {
 
   const title  = document.getElementById('coModalTitle');
   const editId = document.getElementById('co-edit-id');
+
+  // สลับ UI ระหว่างโหมดแก้ไข (1 CO = 1 รายการเดิม) กับโหมดเพิ่มใหม่ (เลือกได้หลายรายการต่อ 1 PO) — ดู "CO: เพิ่ม
+  // หลายรายการสินค้า" ด้านบน สำหรับที่มา ต้องสลับทั้ง display และ required เพราะฟิลด์โหมดแก้ไขซ่อนอยู่ยังมี
+  // required ค้างได้ถ้าไม่ปิดเอง (แม้เบราว์เซอร์ส่วนใหญ่จะยกเว้น field ที่ซ่อนด้วย display:none ของ ancestor
+  // ให้อยู่แล้ว แต่ตั้งใจปิดชัดเจนกันพลาดข้ามเบราว์เซอร์)
+  const isAddMode = !rowId;
+  document.getElementById('co-header-orderid-wrap').style.display = isAddMode ? 'none' : '';
+  document.querySelectorAll('.co-singleline-field').forEach(el => el.style.display = isAddMode ? 'none' : '');
+  document.getElementById('co-multiline-wrap').style.display = isAddMode ? '' : 'none';
+  document.getElementById('co-f-id').required           = !isAddMode;
+  document.getElementById('co-f-product-name').required  = !isAddMode;
+  document.getElementById('co-f-qty').required           = !isAddMode;
 
   if (rowId) {
     const r = _coData.find(d => d._row_id === rowId);
@@ -14980,6 +15335,12 @@ async function coOpenModal(rowId = null) {
     document.getElementById('co-f-tel').value          = r.ContactTel||'';
     document.getElementById('co-f-product-code').value = r.ProductCode||'';
     document.getElementById('co-f-uom').value          = r.UOM||'';
+    // เขียนทับ ItemType หลัง coPopulateProductDropdown เสมอ (เหมือน ProductCode/UOM ด้านบน) เผื่อชื่อสินค้าที่บันทึกไว้
+    // ไม่ตรงกับตัวเลือกปัจจุบันใน BOM แล้ว (เช่นสินค้าถูกลบ/แก้ชื่อ) — ค่าที่บันทึกจริงต้องเป็นตัวที่ถูกต้องเสมอ
+    document.getElementById('co-f-item-type').value = r.ItemType||'FG';
+    document.getElementById('co-f-item-type-hint').innerHTML = (r.ItemType === 'BULK')
+      ? '<span class="badge bg-warning text-dark"><i class="fas fa-flask me-1"></i>สินค้า Bulk (ยังไม่บรรจุ)</span>'
+      : '';
     document.getElementById('co-f-qty').value          = r.OrderQty||'';
     document.getElementById('co-f-status').value       = r.Status||'รอสั่งผลิต';
     document.getElementById('co-f-remark').value       = r.Remark||'';
@@ -14987,9 +15348,12 @@ async function coOpenModal(rowId = null) {
     editId.value = '';
     title.innerHTML = '<i class="fas fa-file-invoice me-2"></i>เพิ่มคำสั่งซื้อลูกค้า';
     coPopulateProductDropdown('');
-    document.getElementById('co-f-id').value     = coGenerateID();
     document.getElementById('co-f-date').value   = new Date().toISOString().split('T')[0];
     document.getElementById('co-f-status').value = 'รอสั่งผลิต';
+    // รีเซ็ตรายการสินค้าเหลือ 1 แถวว่างเสมอทุกครั้งที่เปิดฟอร์มเพิ่มใหม่ (เหมือน bomOpenLineModal เก็บอย่างน้อย 1 แถว)
+    document.getElementById('co-lines-container').innerHTML = '';
+    _coLineRowSeq = 0;
+    coAddLineRow();
   }
   _coModal.show();
 }
@@ -14999,8 +15363,8 @@ async function coSubmit(e) {
   const editId = document.getElementById('co-edit-id').value;
   const isEdit = !!editId;
 
-  const payload = {
-    Order_ID    : document.getElementById('co-f-id').value,
+  // header ที่ใช้ร่วมกันทั้งโหมดแก้ไข (1 รายการ) และโหมดเพิ่มใหม่ (หลายรายการต่อ 1 PO เดียวกัน)
+  const header = {
     Date        : document.getElementById('co-f-date').value,
     DueDate     : document.getElementById('co-f-duedate').value || null,
     CustomerName: document.getElementById('co-f-customer').value,
@@ -15008,12 +15372,51 @@ async function coSubmit(e) {
     CustomerAddress: document.getElementById('co-f-address').value || null,
     ContactPerson  : document.getElementById('co-f-contact').value || null,
     ContactTel     : document.getElementById('co-f-tel').value || null,
-    ProductCode : document.getElementById('co-f-product-code').value,
-    ProductName : document.getElementById('co-f-product-name').value,
-    OrderQty    : parseFloat(document.getElementById('co-f-qty').value) || 0,
-    UOM         : document.getElementById('co-f-uom').value,
     Status      : document.getElementById('co-f-status').value,
   };
+
+  let payloads;
+  if (!isEdit) {
+    // โหมดเพิ่มใหม่: 1 แถวฟอร์ม = 1 รายการสินค้า = 1 แถว customer_orders (Order_ID สร้างต่อเนื่องกันตอนนี้เลย
+    // ไม่ใช่ตอนกด "เพิ่มรายการสินค้า" — กันปัญหาถ้าผู้ใช้ลบ/เพิ่มแถวสลับไปมาก่อนกดบันทึกจริง)
+    const rows = Array.from(document.querySelectorAll('#co-lines-container .co-line-row'));
+    if (!rows.length) { _err('กรุณาเพิ่มอย่างน้อย 1 รายการสินค้า'); return; }
+    for (const row of rows) {
+      const seq  = row.dataset.seq;
+      const name = document.getElementById(`co-line-product-name-${seq}`).value.trim();
+      const qty  = parseFloat(document.getElementById(`co-line-qty-${seq}`).value) || 0;
+      if (!name || qty <= 0) {
+        _err('ข้อมูลไม่ครบ', 'กรุณาเลือกสินค้าและใส่จำนวนสั่งให้ครบทุกรายการก่อนบันทึก');
+        return;
+      }
+    }
+    let nextSeqNum = _coNextOrderSeqNum();
+    const prefix = _coOrderIdPrefix();
+    payloads = rows.map(row => {
+      const seq = row.dataset.seq;
+      return {
+        ...header,
+        Order_ID   : `${prefix}${String(nextSeqNum++).padStart(2, '0')}`,
+        ProductCode: document.getElementById(`co-line-product-code-${seq}`).value,
+        ProductName: document.getElementById(`co-line-product-name-${seq}`).value,
+        OrderQty   : parseFloat(document.getElementById(`co-line-qty-${seq}`).value) || 0,
+        UOM        : document.getElementById(`co-line-uom-${seq}`).value,
+        ItemType   : document.getElementById(`co-line-item-type-${seq}`).value || 'FG',
+        Remark     : document.getElementById(`co-line-remark-${seq}`).value,
+      };
+    });
+  } else {
+    payloads = [{
+      ...header,
+      Order_ID    : document.getElementById('co-f-id').value,
+      ProductCode : document.getElementById('co-f-product-code').value,
+      ProductName : document.getElementById('co-f-product-name').value,
+      OrderQty    : parseFloat(document.getElementById('co-f-qty').value) || 0,
+      UOM         : document.getElementById('co-f-uom').value,
+      ItemType    : document.getElementById('co-f-item-type').value || 'FG',
+      Remark      : document.getElementById('co-f-remark').value,
+    }];
+  }
 
   const saveBtn = document.getElementById('co-save-btn');
   saveBtn.disabled = true;
@@ -15023,9 +15426,11 @@ async function coSubmit(e) {
   let error;
   const oldRow = isEdit ? _coData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
-    ({ error } = await _sb.from('customer_orders').update(payload).eq('_row_id', parseInt(editId)));
+    ({ error } = await _sb.from('customer_orders').update(payloads[0]).eq('_row_id', parseInt(editId)));
   } else {
-    ({ error } = await _sb.from('customer_orders').insert(payload));
+    // insert เป็นชุดเดียว (all-or-nothing) — ถ้าเลข Order_ID ชนกับที่มีอยู่แล้วจริง (23505) ทั้งชุดจะไม่ถูกบันทึก
+    // เลยสักแถว ไม่ใช่บันทึกแค่บางแถว เหมือน convention เดียวกับ bomLineSubmit ตอนเพิ่มหลายบรรทัด BOM
+    ({ error } = await _sb.from('customer_orders').insert(payloads));
   }
 
   _hideLoader();
@@ -15034,10 +15439,10 @@ async function coSubmit(e) {
 
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
 
-  if (isEdit) _logAudit('EDIT', 'customer_orders', payload.Order_ID, _diffFields(oldRow, payload));
+  if (isEdit) _logAudit('EDIT', 'customer_orders', payloads[0].Order_ID, _diffFields(oldRow, payloads[0]));
   _coModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่ม CO สำเร็จ',
+    title: isEdit ? 'แก้ไขสำเร็จ' : `เพิ่ม CO สำเร็จ${payloads.length > 1 ? ` (${payloads.length} รายการ)` : ''}`,
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadCOData();
 }
@@ -15318,6 +15723,36 @@ async function loadIssueData() {
 
   issueUpdateKPIs();
   issueRenderTable();
+  _issueUpdateNavBadge();
+}
+
+// นับคำขอแก้ไข/เพิ่ม/ลบ ที่ยังรออนุมัติ ขึ้นเป็นเลขแจ้งเตือนสีแดงที่ nav-issue — เหมือน _planUpdateNavBadge
+// เป๊ะๆ (query ตรงเองทุกครั้ง ไม่พึ่ง _issueEditRequests เพื่อให้เห็นค่าที่ถูกต้องได้ตั้งแต่หน้าแรกหลัง login
+// แม้ยังไม่เคยเข้าหน้าเบิกผลิตเลยในเซสชันนี้) เห็นเฉพาะหัวหน้างานขึ้นไป (_hasRole('supervisor')) เพราะมีแค่
+// ระดับนี้ที่กดอนุมัติได้ — operator เห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
+// notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามีคำขอค้างด้วย ไม่ใช่แค่
+// ขึ้นเลขเงียบๆ ที่ sidebar — ตามที่ user ขอให้ "แจ้งเตือน Admin เลย" ไม่ใช่ต้องเปิดหน้าเบิกผลิตเองถึงจะเห็น
+async function _issueUpdateNavBadge(notifyIfPending = false) {
+  const badge = document.getElementById('nav-issue-badge');
+  if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  const { count, error } = await _sb.from('issue_edit_requests')
+    .select('_row_id', { count: 'exact', head: true })
+    .eq('Status', 'รออนุมัติ');
+  if (error) return; // ตารางอาจยังไม่ถูกสร้าง (ยังไม่ได้รัน create_issue_edit_requests.sql) หรือ error อื่น —
+                      // เงียบไว้ เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `มี ${count} คำขอรออนุมัติ`,
+      html: `มีคำขอแก้ไข/เพิ่ม/ลบ รายการที่หน้า <b>เบิกผลิต (Issue)</b> รอคุณอนุมัติอยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้าเบิกผลิต', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('issue', document.getElementById('nav-issue'));
+  }
 }
 
 function issueUpdateKPIs() {
@@ -15366,7 +15801,7 @@ function issueRenderTable() {
   const pendingBar = _issueEditRequests.length
     ? `<div class="alert alert-warning py-2 mb-2" style="font-size:.85rem">
         <i class="fas fa-clock me-1"></i><b>${_issueEditRequests.length}</b> คำขอแก้ไข/เพิ่ม/ลบ รายการเบิก
-        กำลังรอ${_currentUser?.isAdmin ? 'ให้คุณอนุมัติ' : 'แอดมินอนุมัติ'} — ดูรายละเอียดในการ์ด MO ด้านล่าง (มี badge สีเหลือง)
+        กำลังรอ${_hasRole('supervisor') ? 'ให้คุณอนุมัติ' : 'หัวหน้างาน/แอดมินอนุมัติ'} — ดูรายละเอียดในการ์ด MO ด้านล่าง (มี badge สีเหลือง)
       </div>`
     : '';
 
@@ -15503,11 +15938,14 @@ function _issuePendingBadgeHTML(req) {
   return '';
 }
 function _issueRequestActionsHTML(req) {
-  const adminBtns = _currentUser?.isAdmin
+  // สิทธิ์อนุมัติ/ปฏิเสธ = หัวหน้างานขึ้นไป (_hasRole('supervisor')) เหมือน prodrecordOpenApproveModal/
+  // prodrecordReopen — ไม่ใช่ _currentUser.isAdmin ซึ่งเป็นคนละ tier กัน (isAdmin สงวนไว้แค่หน้าที่มีข้อมูล
+  // อ่อนไหว/จัดการผู้ใช้ เช่น audit log, คำขอสมัครใช้งาน, จัดการผู้ใช้)
+  const supervisorBtns = _hasRole('supervisor')
     ? `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="issueApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check"></i></button>
        <button class="btn btn-outline-danger btn-sm py-0 px-2 me-1" onclick="issueRejectRequest(${req._row_id})" title="ปฏิเสธ"><i class="fas fa-times"></i></button>`
     : '';
-  return `${adminBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="issueCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
+  return `${supervisorBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="issueCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
 }
 
 function issueCheckState() {
@@ -15842,7 +16280,7 @@ async function issueSubmit(e) {
       Remark   : remark,
     };
 
-    if (_currentUser?.isAdmin) {
+    if (_hasRole('supervisor')) {
       ({ error } = await _sb.from('issue_production').update(payload).eq('_row_id', parseInt(editId)));
       if (!error) {
         // คืนสต็อกของยอด/วัตถุดิบ/lot เดิมก่อน แล้วค่อยตัดสต็อกใหม่ตามค่าที่แก้ — กันสต็อกเพี้ยนถ้าแก้ไขจำนวนหรือ
@@ -16034,13 +16472,13 @@ async function issueDelete(rowId) {
   if (!r) return;
 
   if (_issueReqForTarget(rowId)) {
-    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอที่ยังรอแอดมินอนุมัติอยู่แล้ว', 'info');
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอที่ยังรอหัวหน้างาน/แอดมินอนุมัติอยู่แล้ว', 'info');
     return;
   }
 
-  if (!_currentUser?.isAdmin) {
-    // ผู้ใช้ทั่วไปลบรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่คืนสต็อก
-    // จนกว่าแอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql)
+  if (!_hasRole('supervisor')) {
+    // operator ลบรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่คืนสต็อก
+    // จนกว่าหัวหน้างาน/แอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql)
     const res = await Swal.fire({
       title: 'ส่งคำขอลบรายการนี้?',
       html: `<div class="text-start"><b>${r.MaterialName||''}</b><br>Lot: ${r.Lot||''} | จำนวน: ${r.IssuedQty||''}<br>
@@ -16101,8 +16539,8 @@ async function issueBulkDelete() {
 
   const rowsToDelete = _issueData.filter(d => goIds.includes(d._row_id));
 
-  if (!_currentUser?.isAdmin) {
-    // ผู้ใช้ทั่วไป — ส่งเป็นคำขอลบทีละแถว รออนุมัติ ไม่ลบจริง/ไม่คืนสต็อกจนกว่าแอดมินจะอนุมัติ
+  if (!_hasRole('supervisor')) {
+    // operator — ส่งเป็นคำขอลบทีละแถว รออนุมัติ ไม่ลบจริง/ไม่คืนสต็อกจนกว่าหัวหน้างาน/แอดมินจะอนุมัติ
     const res = await Swal.fire({
       title: `ส่งคำขอลบ ${goIds.length} รายการ?`,
       html: `<small class="text-muted">รอแอดมินอนุมัติก่อนจึงจะลบจริง${skipIds.length ? ` · ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว` : ''}</small>`,
@@ -16157,8 +16595,9 @@ async function issueBulkDelete() {
 
 // ══════════════════════════════════════════════
 // Issue: อนุมัติ/ปฏิเสธ/ยกเลิก คำขอแก้ไข-เพิ่ม-ลบ รายการเบิกที่ค้างอยู่ (issue_edit_requests)
-// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _currentUser.isAdmin (ซ่อนปุ่ม) ตามธรรมเนียม manager-action
-// อื่นๆ ของแอปนี้ (moForceClose ฯลฯ) ไม่ใช่ DB-level restriction — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
+// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _hasRole('supervisor') (ซ่อนปุ่ม) เหมือน prodrecordOpenApproveModal/
+// prodrecordReopen ทุกประการ — ไม่มี DB-level restriction สำหรับกลุ่มนี้ (ข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้
+// เหมือน moForceClose/moCancelPlan/deliveryCancel) — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
 // ══════════════════════════════════════════════
 function _issueRequestSummaryHTML(req) {
   const actLabel = req.Action === 'EDIT' ? 'แก้ไข' : req.Action === 'ADD' ? 'เพิ่มรายการ' : 'ลบ';
@@ -16189,12 +16628,14 @@ async function issueApproveRequest(reqId) {
 
   _showLoader();
   let error;
+  let prodSync = null; // ผลการ sync ยอดไปที่ production_record_details (เฉพาะ Action='EDIT') — ดู _issueSyncProdRecordDetail
   if (req.Action === 'EDIT') {
     ({ error } = await _sb.from('issue_production').update(req.Payload).eq('_row_id', req.TargetRowId));
     if (!error) {
       const old = req.OldPayload || {};
       if (old.MaterialCode && old.Lot) await _issueRestoreStock(old.MaterialCode, old.Lot, parseFloat(old.IssuedQty) || 0);
       await issueUpdateStock(req.Payload.MaterialCode, req.Payload.Lot, parseFloat(req.Payload.IssuedQty) || 0);
+      prodSync = await _issueSyncProdRecordDetail(req.MO_ID, req.Payload.MaterialCode, req.Payload.Lot, parseFloat(req.Payload.IssuedQty) || 0);
     }
   } else if (req.Action === 'ADD') {
     ({ error } = await _sb.from('issue_production').insert(req.Payload));
@@ -16216,9 +16657,63 @@ async function issueApproveRequest(reqId) {
 
   _logAudit('APPROVE', 'issue_production', req.MO_ID || req.Payload?.MaterialCode || req.OldPayload?.MaterialCode,
     `${req.Action} — ${req.OldPayload?.MaterialName || req.Payload?.MaterialName || ''}`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
+
+  if (prodSync?.blockedApproved?.length) {
+    // ใบบันทึกผลิตที่ผูกอยู่อนุมัติต้นทุนไปแล้ว — ไม่แก้ยอดให้เงียบๆ (เหมือนทุกจุดอื่นในแอปนี้ที่ไม่แก้ข้อมูล
+    // ที่อนุมัติแล้วโดยไม่ผ่าน "เปิดกลับ" ก่อน) แค่แจ้งผู้อนุมัติให้รู้ตัวว่ายอดสองหน้าจะไม่ตรงกันแล้ว
+    Swal.fire({
+      icon: 'info', title: 'อนุมัติคำขอแล้ว',
+      html: `แก้ยอดเบิกเรียบร้อย แต่ใบบันทึกผลิต <b>${prodSync.blockedApproved.join(', ')}</b> อนุมัติต้นทุนไปแล้ว
+        ยอด "เบิกไป" ที่หน้าบันทึกผลิตจึง<b>ยังไม่ถูกแก้ให้อัตโนมัติ</b> — ถ้าต้องการให้ตรงกัน กด "เปิดกลับ" ที่
+        หน้าบันทึกผลิตก่อน แล้วแก้ไขผลผลิต/อนุมัติต้นทุนใหม่`,
+    });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success',
+      title: prodSync?.touched ? 'อนุมัติแล้ว — อัปเดตยอดที่หน้าบันทึกผลิตด้วยแล้ว' : 'อนุมัติแล้ว',
+      showConfirmButton:false, timer: prodSync?.touched ? 2500 : 1500 });
+  }
   loadIssueData();
   loadStockData();
+}
+
+// เมื่อคำขอแก้ยอดเบิก (Action='EDIT') ได้รับอนุมัติ ให้ยอด "เบิกไป" ที่ผูกกับ MO+วัตถุดิบ+Lot เดียวกันในหน้า
+// "บันทึกผลิต" (production_record_details, กรอกไว้ผ่าน prodrecordEntrySubmit) อัปเดตตามไปด้วย ไม่งั้นสอง
+// หน้านี้จะเห็นยอดเบิกไม่ตรงกันหลังแก้ไข (ผู้ใช้ขอ 2026-08-15) — sync แค่ระดับบรรทัดวัตถุดิบ (IssuedQty/
+// ActualUsedQty/TotalCost ของบรรทัดนั้น, สูตรเดียวกับ _prodrecordMatRowRecalc/prodrecordEntrySubmit ทุก
+// ประการ) ไม่แตะ production_records ระดับหัว (MaterialCost/CostPerUnit/YieldOverall ฯลฯ) เพราะตัวเลขนั้น
+// ผสมกับค่าแรง/OT/overhead ที่กรอกแยกในโมดัล Stage A/B — ให้ผู้ใช้กดคำนวณใหม่ผ่าน UI เอง ไม่ recompute ให้
+// เงียบๆ ตรงนี้ (เสี่ยงเบี้ยงจากสูตรจริงในโมดัลถ้าสูตรเปลี่ยนในอนาคตแล้วที่นี่ไม่ได้แก้ตาม)
+// ถ้าใบบันทึกผลิตที่ผูกอยู่มี Status='อนุมัติแล้ว' (ต้นทุนถูกอนุมัติปิดไปแล้ว) จะไม่แก้ให้อัตโนมัติเด็ดขาด —
+// ตามหลักเดียวกับทุกจุดในแอปนี้ที่ต้อง "เปิดกลับ" (prodrecordReopen) ก่อนเสมอถึงจะแก้ข้อมูลที่อนุมัติแล้วได้
+async function _issueSyncProdRecordDetail(moId, matCode, lot, newIssuedQty) {
+  if (!moId || !matCode || !lot) return { touched: false, blockedApproved: [] };
+
+  const { data: prodRows } = await _sb.from('production_records').select('ProdRecord_ID,Status').eq('MO_Ref', moId);
+  if (!prodRows || !prodRows.length) return { touched: false, blockedApproved: [] };
+
+  const prodIds = prodRows.map(p => p.ProdRecord_ID);
+  const { data: detailRows } = await _sb.from('production_record_details')
+    .select('_row_id,ProdRecord_ID,ScrapQty,ReturnedQty,UnitCost_MR')
+    .in('ProdRecord_ID', prodIds).eq('MaterialCode', matCode).eq('LotMaterial', lot);
+  if (!detailRows || !detailRows.length) return { touched: false, blockedApproved: [] };
+
+  const statusByProd = {};
+  prodRows.forEach(p => { statusByProd[p.ProdRecord_ID] = p.Status; });
+
+  let touched = false;
+  const blockedApproved = [];
+  for (const d of detailRows) {
+    if (statusByProd[d.ProdRecord_ID] === 'อนุมัติแล้ว') { blockedApproved.push(d.ProdRecord_ID); continue; }
+    const scrap    = parseFloat(d.ScrapQty)    || 0;
+    const returned = parseFloat(d.ReturnedQty) || 0;
+    const unitCost = parseFloat(d.UnitCost_MR) || 0;
+    const newUsed  = Math.max(0, newIssuedQty - scrap - returned);
+    await _sb.from('production_record_details').update({
+      IssuedQty: newIssuedQty, ActualUsedQty: newUsed, TotalCost: newUsed * unitCost,
+    }).eq('_row_id', d._row_id);
+    touched = true;
+  }
+  return { touched, blockedApproved };
 }
 
 async function issueRejectRequest(reqId) {
@@ -16278,9 +16773,9 @@ function issueOpenAddLineModal(moId) {
   document.getElementById('issueaddline-mo-id').value = moId;
   const mo = _issueMOAllMap[moId];
   document.getElementById('issueaddline-mo-display').value = `${moId} — ${mo?.ProductName||''}`;
-  document.getElementById('issueaddline-alert').innerHTML = _currentUser?.isAdmin
-    ? '<i class="fas fa-check-circle me-1"></i>สิทธิ์แอดมิน — บันทึกแล้วตัดสต็อกทันที'
-    : '<i class="fas fa-clock me-1"></i>รายการนี้จะถูกส่งเป็น "คำขอ" รอแอดมินอนุมัติก่อน ยังไม่ตัดสต็อกจนกว่าจะได้รับอนุมัติ';
+  document.getElementById('issueaddline-alert').innerHTML = _hasRole('supervisor')
+    ? '<i class="fas fa-check-circle me-1"></i>สิทธิ์หัวหน้างาน/แอดมิน — บันทึกแล้วตัดสต็อกทันที'
+    : '<i class="fas fa-clock me-1"></i>รายการนี้จะถูกส่งเป็น "คำขอ" รอหัวหน้างาน/แอดมินอนุมัติก่อน ยังไม่ตัดสต็อกจนกว่าจะได้รับอนุมัติ';
   _issueAddLineModal.show();
 }
 
@@ -16343,7 +16838,7 @@ async function issueAddLineSubmit(e) {
     Lot: lot || null, IssuedQty: qty, UOM: uom, Remark: remark,
   };
 
-  if (_currentUser?.isAdmin) {
+  if (_hasRole('supervisor')) {
     const { error } = await _sb.from('issue_production').insert(payload);
     if (!error) await issueUpdateStock(matCode, lot, qty);
     _hideLoader();
@@ -16380,11 +16875,11 @@ let _miscModal   = null;
 
 async function loadMiscData() {
   _showLoader();
-  const _cancelPlaceholder = _deferLoadingPlaceholder('misc-tbody', '<tr><td colspan="10" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
+  const _cancelPlaceholder = _deferLoadingPlaceholder('misc-tbody', '<tr><td colspan="11" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   const [miscRes, matRes] = await Promise.all([
     _sb.from('issue_misc').select('*').order('_row_id', { ascending: false }),
-    _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM').order('MaterialName'),
+    _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate').order('MaterialName'),
   ]);
 
   _cancelPlaceholder();
@@ -16419,25 +16914,26 @@ function miscRenderTable() {
     if (from && d < from) return false;
     if (to   && d > to)   return false;
     if (q) {
-      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Category, r.Remark].join(' ').toLowerCase();
+      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Category, r.Remark, r.CO_Ref].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   });
 
   const tbody = document.getElementById('misc-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(r => `<tr>
     <td><input type="checkbox" class="misc-row-check" value="${r._row_id}" onchange="miscCheckState()"></td>
     <td>${_fmtDate(r.Date)}</td>
-    <td>${r.MaterialName||'—'}</td>
+    <td>${r.MaterialName||'—'}${r.CO_Ref ? `<br><span class="badge bg-warning text-dark" title="เบิกส่ง Bulk ผูกกับ CO นี้"><i class="fas fa-link me-1"></i>${r.CO_Ref}</span>` : ''}</td>
     <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
     <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
     <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
     <td>${r.UOM||'—'}</td>
     <td><span class="badge bg-info text-dark">${r.Category||'—'}</span></td>
     <td class="wh-hide-remark"><small class="text-muted">${r.Remark||''}</small></td>
+    <td>${r.SlipNo ? `<span class="badge bg-primary"><i class="fas fa-file-invoice me-1"></i>${r.SlipNo}</span>` : '—'}</td>
     <td class="text-center">
       <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="miscOpenModal(${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>
       <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="miscDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
@@ -16448,7 +16944,9 @@ function miscRenderTable() {
 function miscCheckState() {
   const n = document.querySelectorAll('.misc-row-check:checked').length;
   const btn = document.getElementById('misc-bulk-del-btn');
-  if (btn) { btn.classList.toggle('d-none', n === 0); btn.textContent = `ลบที่เลือก (${n})`; }
+  if (btn) { btn.classList.toggle('d-none', n === 0); btn.innerHTML = `<i class="fas fa-trash-alt me-1"></i>ลบที่เลือก (${n})`; }
+  const slipBtn = document.getElementById('misc-slip-btn');
+  if (slipBtn) { slipBtn.classList.toggle('d-none', n === 0); slipBtn.innerHTML = `<i class="fas fa-file-invoice me-1"></i>ออกใบส่ง${n ? ` (${n})` : ''}`; }
 }
 
 function miscToggleAll(cb) {
@@ -16532,6 +17030,7 @@ function miscOpenModal(rowId = null) {
   document.getElementById('misc-stock-hint').textContent = '';
   document.getElementById('misc-f-lot').innerHTML = '<option value="">— เลือก Lot —</option>';
   document.getElementById('misc-f-lot').onchange  = null;
+  document.getElementById('misc-f-co-hint').innerHTML = '';   // ล้างป้าย "อ้างอิง CO" ทุกครั้งที่เปิด — ตั้งใหม่เฉพาะตอนเปิดจาก coWithdrawBulkFromStock หรือแก้ไขแถวที่มี CO_Ref เท่านั้น
 
   const title  = document.getElementById('miscModalTitle');
   const editId = document.getElementById('misc-edit-id');
@@ -16571,6 +17070,11 @@ function miscOpenModal(rowId = null) {
     document.getElementById('misc-f-uom').value      = r.UOM||'';
     document.getElementById('misc-f-category').value = r.Category||'';
     document.getElementById('misc-f-remark').value   = r.Remark||'';
+    document.getElementById('misc-f-co-ref').value   = r.CO_Ref||'';
+    if (r.CO_Ref) {
+      document.getElementById('misc-f-co-hint').innerHTML =
+        `<span class="badge bg-warning text-dark"><i class="fas fa-link me-1"></i>อ้างอิง CO: ${r.CO_Ref}</span>`;
+    }
   } else {
     editId.value = '';
     title.innerHTML = '<i class="fas fa-box-open me-2"></i>เพิ่มรายการเบิกเบ็ดเตล็ด';
@@ -16608,6 +17112,7 @@ async function miscSubmit(e) {
     UOM          : document.getElementById('misc-f-uom').value,
     Category     : document.getElementById('misc-f-category').value,
     Remark       : document.getElementById('misc-f-remark').value,
+    CO_Ref       : document.getElementById('misc-f-co-ref').value || null,
   };
 
   const saveBtn = document.getElementById('misc-save-btn');
@@ -16619,9 +17124,22 @@ async function miscSubmit(e) {
   const oldRow = isEdit ? _miscData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
     ({ error } = await _sb.from('issue_misc').update(payload).eq('_row_id', parseInt(editId)));
+    if (!error && oldRow) {
+      // ย้อนยอดเดิมออกจาก stock_balance ก่อน (วัตถุดิบ/Lot/จำนวนเดิม) แล้วค่อยตัดยอดใหม่เข้าไป —
+      // กันไม่ให้แก้ไขรายการเบิกเบ็ดเตล็ดแล้ว stock ไม่ขยับตาม (บั๊กเดิมที่เจอจริง 2026-08-17)
+      await _miscReverseStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.IssuedQty) || 0);
+      await miscUpdateStock(matCode, lot, qty);
+    }
   } else {
     ({ error } = await _sb.from('issue_misc').insert(payload));
     if (!error) await miscUpdateStock(matCode, lot, qty);
+  }
+
+  // ผูก CO_Ref ไว้ (มาจาก coWithdrawBulkFromStock เท่านั้น) → คำนวณสถานะ CO ใหม่จากยอดเบิกจริงทั้งหมด (idempotent)
+  // ถ้าแก้ไขแถวที่เคยผูก CO เดิมแล้วเปลี่ยน/ถอด CO_Ref ออก ต้องคำนวณ CO เดิมใหม่ด้วย ไม่งั้นสถานะ CO เดิมจะค้างผิด
+  if (!error) {
+    if (payload.CO_Ref) await coUpdateStatusFromBulkWithdraw(payload.CO_Ref);
+    if (oldRow && oldRow.CO_Ref && oldRow.CO_Ref !== payload.CO_Ref) await coUpdateStatusFromBulkWithdraw(oldRow.CO_Ref);
   }
 
   _hideLoader();
@@ -16656,6 +17174,22 @@ async function miscUpdateStock(matCode, lot, qty) {
   }
 }
 
+// กลับด้าน miscUpdateStock — เรียกตอนแก้ไข/ลบรายการเบิกเบ็ดเตล็ด เพื่อย้อนยอดที่เคยตัดออกจาก
+// stock_balance กลับเข้าไป (คืน QtyOut/QtyBalance) ก่อนค่อยตัดยอดใหม่ (ตอนแก้ไข) หรือไม่ตัดเลย (ตอนลบ)
+// — mirror ของ _mrReverseStock (nav-mr), บั๊กเดิมที่เจอจริง 2026-08-17: หน้านี้ไม่เคยย้อน stock เลย
+async function _miscReverseStock(matCode, lot, qty) {
+  if (!matCode || !lot || qty <= 0) return;
+  const { data: existing } = await _sb
+    .from('stock_balance')
+    .select('_row_id,QtyOut,QtyBalance')
+    .eq('MaterialCode', matCode).eq('Lot', lot).maybeSingle();
+  if (!existing) return;
+  await _sb.from('stock_balance').update({
+    QtyOut     : (parseFloat(existing.QtyOut) || 0) - qty,
+    QtyBalance : (parseFloat(existing.QtyBalance) || 0) + qty,
+  }).eq('_row_id', existing._row_id);
+}
+
 async function miscDelete(rowId) {
   const r = _miscData.find(d => d._row_id === rowId);
   const res = await Swal.fire({
@@ -16669,6 +17203,9 @@ async function miscDelete(rowId) {
   miscRenderTable(); miscUpdateKPIs();
   const { error } = await _sb.from('issue_misc').delete().eq('_row_id', rowId);
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMiscData(); return; }
+  if (r) await _miscReverseStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
+  // ถ้าแถวนี้ผูก CO_Ref ไว้ (มาจาก coWithdrawBulkFromStock) ต้องคำนวณสถานะ CO ใหม่หลังลบ ไม่งั้นสถานะ CO จะค้างผิด
+  if (r?.CO_Ref) await coUpdateStatusFromBulkWithdraw(r.CO_Ref);
   _logAudit('DELETE', 'issue_misc', r?.MaterialCode, `${r?.MaterialName||''} Lot ${r?.Lot||''} จำนวน ${r?.IssuedQty||''} ประเภท ${r?.Category||''}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
 }
@@ -16686,10 +17223,230 @@ async function miscBulkDelete() {
   const { error } = await _sb.from('issue_misc').delete().in('_row_id', ids);
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  for (const r of rowsToDelete) await _miscReverseStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
+  // คำนวณสถานะ CO ใหม่ให้ทุก CO_Ref ที่มีแถวถูกลบไป (ไม่ซ้ำ CO เดิม)
+  const affectedCORefs = [...new Set(rowsToDelete.map(r => r.CO_Ref).filter(Boolean))];
+  for (const coRef of affectedCORefs) await coUpdateStatusFromBulkWithdraw(coRef);
   _logAudit('BULK_DELETE', 'issue_misc', rowsToDelete.map(r => r.MaterialCode).join(', '), `ลบ ${ids.length} รายการ`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
   document.getElementById('misc-check-all').checked = false;
   loadMiscData();
+}
+
+// ══════════════════════════════════════════════
+// เบิกเบ็ดเตล็ด: ออกใบส่ง (Misc Issue Slip Print) — mirror ของ dlvbill* (ออกใบส่งสินค้า) แต่ไม่มีขั้นแพ็คกิ้ง/
+// CO/PO เพราะเบิกเบ็ดเตล็ดไม่มีลูกค้า/CO ผูกอยู่ (ดู fgoutSubmit — misc mode ไม่เคยมี CO_Ref) เลขที่ใบส่งเก็บใน
+// ตารางแยก misc_issue_numbers (รูปแบบ ปี/เลขรัน เหมือน delivery_bill_numbers, ดู create_misc_issue_numbers.sql)
+// แล้ว stamp กลับลง issue_misc.SlipNo ของทุกแถวที่เลือก (เหมือน DeliveryBillNo บน delivery — ดู
+// alter_issue_misc_add_slipno.sql) เพื่อให้ตารางหลักเห็นว่าแถวไหนออกใบไปแล้ว
+// ══════════════════════════════════════════════
+let _miscSlipModal       = null;
+let _miscSlipIds         = [];
+let _miscSlipConfirmed   = false;
+let _miscSlipConfirmedNo = '';
+
+function miscSlipOpenModal() {
+  _miscSlipIds = Array.from(document.querySelectorAll('.misc-row-check:checked'))
+    .map(c => parseInt(c.value)).filter(id => !isNaN(id));
+  if (!_miscSlipIds.length) return;
+  if (!_miscSlipModal) _miscSlipModal = new bootstrap.Modal(document.getElementById('miscSlipModal'));
+  miscSlipOnScopeChange();
+  miscSlipRenderHistory();
+  _miscSlipModal.show();
+}
+
+function _miscSlipScopeRows() {
+  return _miscData.filter(r => _miscSlipIds.includes(r._row_id));
+}
+
+function miscSlipOnScopeChange() {
+  const rows = _miscSlipScopeRows();
+  const summaryEl = document.getElementById('miscslip-selected-summary');
+  summaryEl.innerHTML = rows.map(r =>
+    `<div>${_fmtDate(r.Date)||''} — ${r.MaterialName||''} (Lot ${r.Lot||'—'}) — ${(parseFloat(r.IssuedQty)||0).toLocaleString()} ${r.UOM||''}</div>`
+  ).join('') || '<div>ไม่พบรายการที่เลือก</div>';
+
+  // เลขที่ใบส่งของ misc issue ไม่รองรับ "พิมพ์ซ้ำใบเดิม" เหมือน dlvbill (ยังไม่มีปุ่มเปิด modal ตรงจาก id ที่รู้แล้ว
+  // เพราะไม่ได้ถูกขอมา) — ทุกครั้งที่เปิด modal คือเสนอเลขถัดไปให้เสมอ ไม่เช็คว่าสโคปนี้มีเลขเดิมอยู่แล้วหรือไม่
+  miscSlipSuggestNo().then(v => { document.getElementById('miscslip-no-input').value = v; });
+  miscSlipResetConfirmState();
+}
+
+// เลขถัดไป = จำนวนใบส่งที่ออกไปแล้วในปีเดียวกัน + 1 (รันต่อเนื่องทั้งปี ไม่ผูกกับวันที่ — เหมือน dlvbillSuggestNo)
+async function miscSlipSuggestNo() {
+  const year = new Date().getFullYear();
+  const { data, error } = await _sb.from('misc_issue_numbers').select('SlipNo').eq('Year', year);
+  if (error) { _err('คำนวณเลขที่ใบส่งไม่ได้', error.message); return `${year}/001`; }
+  return `${year}/${String((data||[]).length + 1).padStart(3, '0')}`;
+}
+
+function miscSlipResetConfirmState() {
+  _miscSlipConfirmed = false;
+  _miscSlipConfirmedNo = '';
+  document.getElementById('miscslip-status').textContent = '● ยังไม่ยืนยัน';
+  document.getElementById('miscslip-status').className = 'mrrpt-pill mrrpt-pill-unconfirmed';
+  document.getElementById('miscslip-no-input').disabled = false;
+  document.getElementById('miscslip-print-btn').disabled = true;
+  document.getElementById('miscslip-print-hint').style.display = '';
+  document.getElementById('miscslip-error').style.display = 'none';
+  miscSlipRenderPreview();
+}
+
+async function miscSlipConfirmNo() {
+  const val = document.getElementById('miscslip-no-input').value.trim();
+  const errEl = document.getElementById('miscslip-error');
+  errEl.style.display = 'none';
+  if (!val) { errEl.textContent = 'กรุณากรอกเลขที่ใบส่ง'; errEl.style.display = 'block'; return; }
+
+  const rows = _miscSlipScopeRows();
+  if (!rows.length) { errEl.textContent = 'ไม่พบรายการที่เลือก'; errEl.style.display = 'block'; return; }
+  const year = new Date().getFullYear();
+
+  _showLoader();
+  const { data: existing, error: checkErr } = await _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', val);
+  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', checkErr.message); return; }
+  if (existing && existing.length) {
+    _hideLoader();
+    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const { error: insErr } = await _sb.from('misc_issue_numbers').insert({
+    SlipNo: val, Year: year, IssueRowIds: _miscSlipIds.join(','),
+  });
+  if (insErr) {
+    _hideLoader();
+    // 23505 = unique_violation ระดับ DB (กันชนกันตอนกดยืนยันพร้อมกันจากหลายเบราว์เซอร์ ซึ่งเช็คฝั่ง client ข้างบนอาจตามไม่ทัน)
+    if (insErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
+    _err('บันทึกเลขที่ใบส่งไม่สำเร็จ', insErr.message);
+    return;
+  }
+
+  const { error: stampErr } = await _sb.from('issue_misc').update({ SlipNo: val }).in('_row_id', _miscSlipIds);
+  if (stampErr) {
+    _hideLoader();
+    _err('บันทึกเลขที่ไว้ในทะเบียนแล้ว แต่ stamp ลงรายการเบิกไม่สำเร็จ', stampErr.message);
+    return;
+  }
+  rows.forEach(r => { r.SlipNo = val; }); // sync cache ฝั่ง client ไม่ต้องรีโหลดทั้งตาราง
+  miscRenderTable();   // ให้คอลัมน์ "เลขที่ใบส่ง" ในตารางเบิกเบ็ดเตล็ดอัปเดตทันทีโดยไม่ต้องรอปิด modal
+  _hideLoader();
+
+  _miscSlipConfirmed = true;
+  _miscSlipConfirmedNo = val;
+  document.getElementById('miscslip-status').textContent = '✓ ยืนยันแล้ว (บันทึกแล้ว)';
+  document.getElementById('miscslip-status').className = 'mrrpt-pill mrrpt-pill-confirmed';
+  document.getElementById('miscslip-no-input').disabled = true;
+  document.getElementById('miscslip-print-btn').disabled = false;
+  document.getElementById('miscslip-print-hint').style.display = 'none';
+  miscSlipRenderHistory();
+  miscSlipRenderPreview();
+}
+
+async function miscSlipRenderHistory() {
+  const { data, error } = await _sb.from('misc_issue_numbers').select('*').order('_row_id', { ascending: false }).limit(15);
+  const body = document.getElementById('miscslip-history-body');
+  if (error) { body.innerHTML = `<tr><td colspan="4" class="text-danger">โหลดประวัติไม่ได้ (${error.message})</td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="4" class="text-muted">ยังไม่มีเลขที่ใบส่ง</td></tr>`; return; }
+  body.innerHTML = data.map(r => `
+    <tr>
+      <td>${r.SlipNo}</td><td>${_fmtDate((r.CreatedAt||'').slice(0,10))}</td>
+      <td>${(r.IssueRowIds||'').split(',').filter(Boolean).length}</td>
+      <td><button onclick="miscSlipEditNo(${r._row_id},'${r.SlipNo}')">แก้ไข</button></td>
+    </tr>`).join('');
+}
+
+// แก้ไขเลขที่ใบส่งที่เคยยืนยัน/บันทึกไปแล้ว — เช็คซ้ำใหม่ทุกครั้ง (ไม่รวมแถวของตัวเอง) แล้ว sync กลับ issue_misc ทุกแถวที่ใช้เลขเดิม
+async function miscSlipEditNo(rowId, currentVal) {
+  const { value: next } = await Swal.fire({
+    title: 'แก้ไขเลขที่ใบส่ง',
+    input: 'text',
+    inputValue: currentVal,
+    showCancelButton: true,
+    confirmButtonText: 'บันทึก',
+    cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเลขที่ใบส่ง' : undefined,
+  });
+  if (!next) return;
+  const newVal = next.trim();
+  if (newVal === currentVal) return;
+
+  _showLoader();
+  const { data: dup, error: checkErr } = await _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', newVal).neq('_row_id', rowId);
+  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', checkErr.message); return; }
+  if (dup && dup.length) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว`, 'error'); return; }
+
+  const { error } = await _sb.from('misc_issue_numbers').update({ SlipNo: newVal }).eq('_row_id', rowId);
+  if (error) { _hideLoader(); _err('แก้ไขไม่สำเร็จ', error.message); return; }
+
+  const { error: syncErr } = await _sb.from('issue_misc').update({ SlipNo: newVal }).eq('SlipNo', currentVal);
+  _hideLoader();
+  if (syncErr) { _err('แก้ไขเลขในทะเบียนสำเร็จ แต่ sync ไปที่รายการเบิกไม่สำเร็จ', syncErr.message); return; }
+  _miscData.forEach(r => { if (r.SlipNo === currentVal) r.SlipNo = newVal; }); // sync cache ฝั่ง client
+  miscRenderTable();
+
+  if (_miscSlipConfirmedNo === currentVal) { _miscSlipConfirmedNo = newVal; miscSlipRenderPreview(); }
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขสำเร็จ', showConfirmButton:false, timer:2000 });
+  miscSlipRenderHistory();
+}
+
+function miscSlipRenderPreview() {
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
+    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
+    'print-mode-lotscan', 'print-mode-dlvlabel');
+  document.body.classList.add('print-mode-miscslip');
+
+  const rows = _miscSlipScopeRows();
+  const trs = rows.map((r, i) => `<tr>
+      <td class="ord">${i+1}</td><td>${_fmtDate(r.Date)}</td><td>${r.MaterialName||''}</td><td>${r.MaterialCode||''}</td>
+      <td>${r.Lot||''}</td><td class="text-end qty-emph">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
+      <td>${r.UOM||''}</td><td>${r.Category||''}</td><td>${r.Remark||''}</td>
+    </tr>`).join('');
+
+  const html = `
+    <div class="mrrpt-page">
+      <div class="mrrpt-header">
+        <div class="mrrpt-logo-block">
+          <img class="mrrpt-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
+          <div class="mrrpt-company"><b>WISE NOVATION CO., LTD.</b><br>โรงงานผลิต และแบ่งบรรจุเครื่องสำอางที่มีมาตรฐาน — แผนกคลังสินค้า</div>
+        </div>
+        <div class="mrrpt-title-block">
+          <div class="mrrpt-title">ใบส่งเบิกเบ็ดเตล็ด</div>
+          <div class="mrrpt-rcno">เลขที่: ${_miscSlipConfirmed ? _miscSlipConfirmedNo : '(ยังไม่ยืนยัน)'}</div>
+          <div class="mrrpt-meta">พิมพ์เมื่อ ${_fmtDate(_planWeekLocalDateStr(new Date()))}</div>
+        </div>
+      </div>
+      <div class="mrrpt-filters">
+        <span class="minor">จำนวนรายการ: <b>${rows.length}</b></span>
+      </div>
+      ${rows.length ? `
+      <table class="mrrpt-table">
+        <thead><tr>
+          <th style="width:3%">ลำดับ</th><th style="width:8%">วันที่</th><th style="width:24%">ชื่อวัตถุดิบ</th><th style="width:9%">รหัส</th>
+          <th style="width:8%">Lot</th><th class="text-end" style="width:8%">จำนวน</th><th style="width:8%">UOM</th>
+          <th style="width:10%">ประเภท</th><th style="width:22%">หมายเหตุ</th>
+        </tr></thead>
+        <tbody>${trs}</tbody>
+      </table>` : `<div class="mrrpt-empty">ไม่พบรายการที่เลือก</div>`}
+      <div class="mrrpt-footer">
+        <div class="mrrpt-sign"><div class="line">ผู้เบิก</div></div>
+        <div class="mrrpt-sign"><div class="line">ผู้จ่าย</div></div>
+        <div class="mrrpt-sign"><div class="line">ผู้อนุมัติ</div></div>
+      </div>
+    </div>`;
+
+  const wrap = document.getElementById('miscslip-preview-body');
+  wrap.innerHTML = html;
+  // print-root มีเนื้อหาเฉพาะตอนยืนยันเลขที่แล้วเท่านั้น — กันพิมพ์เอกสารไม่มีเลขที่ออกมาโดยไม่ตั้งใจ (เช่น กด Ctrl+P ก่อนกดยืนยัน)
+  document.getElementById('miscslip-print-root').innerHTML = _miscSlipConfirmed ? html : '';
+
+  if (!_miscSlipConfirmed) {
+    const overlay = document.createElement('div');
+    overlay.className = 'mrrpt-lock-overlay';
+    overlay.innerHTML = '<div class="box">🔒 กรุณายืนยันเลขที่ใบส่งก่อน<br>จึงจะพิมพ์ได้ (ดูตัวอย่างข้อมูลได้ตามปกติ)</div>';
+    wrap.appendChild(overlay);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -18411,6 +19168,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _bootstrapped = true;
           showPage('home', document.getElementById('nav-home'));
           _planUpdateNavBadge();
+          _issueUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอค้างอนุมัติ (แค่ครั้งเดียวตอน login)
         }
       }
     } else {
