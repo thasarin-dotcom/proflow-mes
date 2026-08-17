@@ -13203,16 +13203,24 @@ function _prodrecordMatRowRecalc(seq) {
 // แบบได้ เพื่อไม่ให้บันทึกเก่าที่อนุมัติไปแล้วคำนวณต้นทุนผิดไปจากเดิม)
 let _prodrecordStationDaySeq = 0; // ตัวนับไม่ใช้ซ้ำ กันชนกันตอนลบแถวกลางแล้วเพิ่มแถวใหม่ (แพทเทิร์นเดียวกับ _bomRowSeq)
 
+// สีพื้นหลังคอลัมน์ 2 กลุ่ม — ให้แยกฝั่ง "ชม.ปกติ" กับฝั่ง "โอที" ออกจากกันชัดเจนด้วยตา ไม่ต้องอ่านหัวตาราง
+// ทีละคอลัมน์ (ผู้ใช้ขอ 2026-08-17 หลังเห็นตารางจริงว่าคอลัมน์ปกติ/OT ปนกันดูไม่ออกง่ายๆ ว่าฝั่งไหนคือฝั่งไหน)
+// คงลำดับคอลัมน์ข้อมูลเดิมไว้ (คน→ปกติ→OT ต่อ FT แล้วค่อย PT) แค่ลากเส้นแบ่งกลุ่ม + คอลัมน์คู่ ปกติ/OT ของ FT
+// กับ PT ทั้งคู่ใช้สีเดียวกันในกลุ่มนั้น (ไม่แยกสีตาม FT/PT ซ้อนอีกชั้น จะรกเกินไป) — id ของ input ไม่เปลี่ยน
+// เลย เพราะ prodrecordEntrySubmit อ่านด้วย id ไม่ได้อิงตำแหน่งคอลัมน์ ปรับแค่ลำดับ/สี td เฉยๆ ปลอดภัย
+const _PRODRECORD_ST_COL_NORMAL = 'background:#eff6ff'; // ฟ้าอ่อน = ชม.ปกติ
+const _PRODRECORD_ST_COL_OT     = 'background:#fff7ed'; // ส้มอ่อน = โอที
+
 function _prodrecordStationDayRowHTML(key, seq, d) {
   d = d || {};
   return `<tr class="prodrecord-station-day-row" data-seq="${seq}">
     <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.5" value="${d.ftNormalHrs ?? 0}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.5" value="${d.ftOtHrs ?? 0}"></td>
+    <td style="border-left:2px solid #dee2e6"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
     <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptworkers" min="0" step="1" value="${d.ptWorkers ?? 0}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptnormal" min="0" step="0.5" value="${d.ptNormalHrs ?? 0}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptot" min="0" step="0.5" value="${d.ptOtHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.01" value="${d.ftNormalHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptnormal" min="0" step="0.01" value="${d.ptNormalHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.01" value="${d.ftOtHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptot" min="0" step="0.01" value="${d.ptOtHrs ?? 0}"></td>
     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
   </tr>`;
 }
@@ -13227,15 +13235,20 @@ function _prodrecordStationBlockHTML(key, label, days) {
     <div class="table-responsive">
       <table class="table table-sm table-borderless mb-0 align-middle" style="font-size:.78rem">
         <thead>
-          <tr class="text-muted" style="font-size:.68rem">
-            <th style="min-width:130px">วันที่</th>
-            <th style="min-width:65px">FT คน</th>
-            <th style="min-width:90px">FT ชม.ปกติ</th>
-            <th style="min-width:80px">FT ชม.OT</th>
-            <th style="min-width:65px">PT คน</th>
-            <th style="min-width:90px">PT ชม.ปกติ</th>
-            <th style="min-width:80px">PT ชม.OT</th>
-            <th style="width:36px"></th>
+          <tr class="text-muted text-center" style="font-size:.68rem">
+            <th rowspan="2" style="min-width:130px;vertical-align:middle">วันที่</th>
+            <th colspan="2" style="border-left:2px solid #dee2e6">จำนวนคน</th>
+            <th colspan="2" style="${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd">ชม.ปกติ</th>
+            <th colspan="2" style="${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74">ชม.โอที</th>
+            <th rowspan="2" style="width:36px"></th>
+          </tr>
+          <tr class="text-muted text-center" style="font-size:.68rem">
+            <th style="min-width:55px;border-left:2px solid #dee2e6">FT</th>
+            <th style="min-width:55px">PT</th>
+            <th style="min-width:55px;${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd">FT</th>
+            <th style="min-width:55px;${_PRODRECORD_ST_COL_NORMAL}">PT</th>
+            <th style="min-width:55px;${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74">FT</th>
+            <th style="min-width:55px;${_PRODRECORD_ST_COL_OT}">PT</th>
           </tr>
         </thead>
         <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
