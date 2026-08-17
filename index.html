@@ -12959,7 +12959,9 @@ let _prodrecordApproveBadgeSeq = 0;
 
 async function _prodrecordUpdateApproveBadge(notifyIfPending = false, knownCount = null) {
   const badge = document.getElementById('nav-prodrecord-approve-badge');
-  if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  // จำกัดแค่ admin เท่านั้น (2026-08-17, ตามคำขอผู้ใช้ — แคบกว่า _hasRole('supervisor') เดิม) แม้
+  // supervisor จะยังกดปุ่ม "อนุมัติต้นทุน" ได้ตามปกติอยู่ (ไม่ได้แตะสิทธิ์การอนุมัติจริง แค่ตัวแจ้งเตือนนี้)
+  if (!_hasRole('admin')) { if (badge) badge.style.display = 'none'; return; }
   const mySeq = ++_prodrecordApproveBadgeSeq;
   let count = knownCount;
   if (count == null) {
