@@ -574,12 +574,12 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      ตอนพิมพ์ flex container จะไม่มีพื้นที่เหลือให้ auto margin ผลัก ช่องเซ็นชื่อจะไปติดท้ายตารางทันทีตอนพิมพ์จริง
      ทั้งที่ตัวอย่างก่อนพิมพ์ (ซึ่งไม่ผ่าน override นี้) ยังแสดงจมด้านล่างถูกต้อง — นี่คือสาเหตุที่พรีวิวกับพิมพ์จริงต่างกัน */
   #mr-print-root .mrrpt-page{box-shadow:none !important;margin:0 !important}
-  /* ใบส่งเบิกเบ็ดเตล็ด reuse .mrrpt-page เดียวกับ MR Report ตรงๆ (ตารางเรียบๆ + ช่องเซ็นชื่อ ไม่มีแพ็คกิ้ง/PO
-     เหมือนใบส่งสินค้า) เหตุผลเดียวกับ #mr-print-root ข้างบน */
-  #miscslip-print-root .mrrpt-page{box-shadow:none !important;margin:0 !important}
   /* ใบส่งสินค้าเป็นแนวตั้ง A4 ตรงกับ @page{size:A4;margin:0} ด้านล่างอยู่แล้ว (ไม่ต้องประกาศ named @page แบบ mrreport) —
      ห้ามใส่ min-height:0 เหมือนกัน เพราะ .dlvbill-footer ใช้ display:flex column + margin-top:auto แบบเดียวกับ .mrrpt-page */
   #deliverybill-print-root .dlvbill-page{box-shadow:none !important;margin:0 !important}
+  /* ใบส่งเบิกเบ็ดเตล็ด reuse เทมเพลต .dlvbill-page เดียวกับใบส่งสินค้า FG เป๊ะ (2026-08-17, ตามที่ผู้ใช้ขอ) —
+     เหตุผลเดียวกับ #deliverybill-print-root ข้างบน (เดิม reuse .mrrpt-page ของ MR Report แทน ก่อนเปลี่ยนมาเหมือน FG) */
+  #miscslip-print-root .dlvbill-page{box-shadow:none !important;margin:0 !important}
   /* รายงานผลิต/ต้นทุน (บัญชี) เป็นแนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมด้านล่างได้เลย (ไม่ต้อง named page) —
      .pcost-page ใช้ height (ไม่ใช่ min-height) แบ่งครึ่งตายตัวเป็นต้นฉบับ/สำเนา ห้ามตั้ง override ใดๆ ที่มากระทบ
      ความสูงตอนพิมพ์ (ไม่ต้องมี min-height:0 เหมือน .bpr-page เพราะไม่ได้ใช้ min-height ตั้งแต่แรก) */
@@ -4937,7 +4937,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 <div id="deliverybill-print-root"></div>
 
 <!-- ════════════ เบิกเบ็ดเตล็ด: ออกใบส่ง Modal (เลือกแถวจากตาราง Misc Issue ไว้แล้ว → ยืนยันเลขที่ใบ → พิมพ์)
-     mirror ของ dlvbillModal แต่ไม่มีขั้นแพ็คกิ้ง/CO/PO (เบิกเบ็ดเตล็ดไม่มีลูกค้า/CO ผูกอยู่) ════════════ -->
+     mirror ของ dlvbillModal แต่ไม่มีขั้นแพ็คกิ้ง (raw material ไม่มีแนวคิดจำนวนต่อกล่อง) — ตัวโมดัลนี้ไม่มีช่อง
+     เลือก CO/PO เอง (ไม่ใช่ scope ของฟีเจอร์นี้) แต่เอกสารที่พิมพ์ออก (miscSlipRenderPreview) จะโชว์กล่องลูกค้า/PO
+     ให้เองอัตโนมัติเมื่อแถวที่เลือกมี CO_Ref ผูกอยู่ (เบิกส่ง Bulk ให้ CO ผ่าน coWithdrawBulkFromStock) ════════════ -->
 <div class="modal fade" id="miscSlipModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
@@ -9619,12 +9621,45 @@ async function dlvbillOnScopeChange() {
   dlvbillResetConfirmState();
 }
 
-// เลขถัดไป = จำนวนใบส่งสินค้าที่ออกไปแล้วในปีเดียวกัน + 1 (รันต่อเนื่องทั้งปี ไม่ผูกกับลูกค้า/วันที่ — ตามตัวอย่างจริง "2026/181")
+// ── เลขที่เอกสาร (ใบส่งสินค้า FG + ใบส่งเบิกเบ็ดเตล็ด) ใช้เลขรันชุดเดียวกันต่อเนื่องกันทั้งปี ตามที่ผู้ใช้ขอ
+// (เหมือนสมุดเลขที่เอกสารเล่มเดียวของบริษัท ไม่แยกคนละชุดตามประเภทเอกสาร) — delivery_bill_numbers/misc_issue_numbers
+// ยังเป็นคนละตารางเหมือนเดิม (เก็บ DeliveryRowIds/IssueRowIds คนละแบบกัน) แค่ "เลขถัดไป"/"เช็คเลขซ้ำ" ต้องมองรวมกัน ──
+async function _billNoNextSuggest(year) {
+  const [fg, misc] = await Promise.all([
+    _sb.from('delivery_bill_numbers').select('BillNo').eq('Year', year),
+    _sb.from('misc_issue_numbers').select('SlipNo').eq('Year', year),
+  ]);
+  const error = fg.error || misc.error;
+  if (error) return { value: null, error };
+  const count = (fg.data || []).length + (misc.data || []).length;
+  return { value: `${year}/${String(count + 1).padStart(3, '0')}`, error: null };
+}
+
+// เช็คว่าเลขที่ val ถูกใช้ไปแล้วหรือยัง ข้ามทั้ง 2 ทะเบียน — delivery_bill_numbers มีคอลัมน์ CancelledAt (เลขที่ยกเลิกแล้ว
+// นำมาออกใหม่ได้ ดู dlvbillConfirmNo) ส่วน misc_issue_numbers ไม่มีระบบยกเลิก แถวไหนมีถือว่าใช้ไปแล้วถาวร
+// excludeFgRowId/excludeMiscRowId ใช้ตอนแก้ไขเลขเดิม (dlvbillEditNo/miscSlipEditNo) กันแถวของตัวเองชนตัวเอง
+async function _billNoCheckClash(val, { excludeFgRowId, excludeMiscRowId } = {}) {
+  const [fg, misc] = await Promise.all([
+    _sb.from('delivery_bill_numbers').select('_row_id,CustomerName,CancelledAt').eq('BillNo', val),
+    _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', val),
+  ]);
+  if (fg.error) return { error: fg.error };
+  if (misc.error) return { error: misc.error };
+  const fgRows   = (fg.data || []).filter(r => r._row_id !== excludeFgRowId);
+  const miscRows = (misc.data || []).filter(r => r._row_id !== excludeMiscRowId);
+  const fgActiveClash = fgRows.find(r => !r.CancelledAt);
+  if (fgActiveClash) return { clash: true, label: `ใบส่งสินค้า FG — ลูกค้า ${fgActiveClash.CustomerName || '—'}`, fgRows };
+  if (miscRows.length) return { clash: true, label: 'ใบส่งเบิกเบ็ดเตล็ด', fgRows };
+  return { clash: false, fgRows };
+}
+
+// เลขถัดไป = จำนวนเอกสาร (ใบส่งสินค้า FG + ใบส่งเบิกเบ็ดเตล็ด) ที่ออกไปแล้วในปีเดียวกัน + 1 (รันต่อเนื่องทั้งปี
+// ไม่ผูกกับลูกค้า/วันที่ — ตามตัวอย่างจริง "2026/181")
 async function dlvbillSuggestNo() {
   const year = new Date().getFullYear();
-  const { data, error } = await _sb.from('delivery_bill_numbers').select('BillNo').eq('Year', year);
+  const { value, error } = await _billNoNextSuggest(year);
   if (error) { _err('คำนวณเลขที่ใบส่งสินค้าไม่ได้', error.message); return `${year}/001`; }
-  return `${year}/${String((data||[]).length + 1).padStart(3, '0')}`;
+  return value;
 }
 
 function dlvbillResetConfirmState() {
@@ -9651,12 +9686,11 @@ async function dlvbillConfirmNo() {
   const year = new Date().getFullYear();
 
   _showLoader();
-  const { data: existing, error: checkErr } = await _sb.from('delivery_bill_numbers').select('_row_id,CustomerName,CancelledAt').eq('BillNo', val);
-  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งสินค้าไม่ได้', checkErr.message); return; }
-  const activeClash = (existing || []).find(r => !r.CancelledAt);
-  if (activeClash) {
+  const clash = await _billNoCheckClash(val);
+  if (clash.error) { _hideLoader(); _err('เช็คเลขที่ใบส่งสินค้าไม่ได้', clash.error.message); return; }
+  if (clash.clash) {
     _hideLoader();
-    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว (ลูกค้า ${activeClash.CustomerName||'—'}) — กรุณาแก้เลขใหม่`;
+    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว (${clash.label}) — กรุณาแก้เลขใหม่`;
     errEl.style.display = 'block';
     return;
   }
@@ -9664,7 +9698,7 @@ async function dlvbillConfirmNo() {
   // เลขนี้เคย "ยกเลิก" ไปแล้ว (ไม่มีแถวที่ยัง active ชนอยู่) — ผู้ใช้ยืนยันต้องการนำเลขเดิมมาออกใบใหม่แทนได้
   // (เช่นแก้ไบล์เดิมที่พิมพ์ผิดแล้วออกใหม่แทนที่ ไม่อยากขยับไปเลขถัดไป) → UPDATE แถวเดิมทับ ไม่ INSERT ซ้ำ
   // (unique constraint บน BillNo จะกัน insert ซ้ำอยู่แล้วต่อให้แถวเดิมถูกยกเลิกไปก็ตาม)
-  const cancelledRow = (existing || []).find(r => r.CancelledAt);
+  const cancelledRow = (clash.fgRows || []).find(r => r.CancelledAt);
   const writeErr = cancelledRow
     ? (await _sb.from('delivery_bill_numbers').update({
         Year: year, CustomerName: customer, DeliveryRowIds: _dlvbillIds.join(','),
@@ -9732,9 +9766,9 @@ async function dlvbillEditNo(rowId, currentVal) {
   if (newVal === currentVal) return;
 
   _showLoader();
-  const { data: dup, error: checkErr } = await _sb.from('delivery_bill_numbers').select('_row_id').eq('BillNo', newVal).neq('_row_id', rowId);
-  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งสินค้าไม่ได้', checkErr.message); return; }
-  if (dup && dup.length) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว`, 'error'); return; }
+  const clash = await _billNoCheckClash(newVal, { excludeFgRowId: rowId });
+  if (clash.error) { _hideLoader(); _err('เช็คเลขที่ใบส่งสินค้าไม่ได้', clash.error.message); return; }
+  if (clash.clash) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว (${clash.label})`, 'error'); return; }
 
   const { error } = await _sb.from('delivery_bill_numbers').update({ BillNo: newVal }).eq('_row_id', rowId);
   if (error) { _hideLoader(); _err('แก้ไขไม่สำเร็จ', error.message); return; }
@@ -17315,11 +17349,15 @@ async function miscBulkDelete() {
 }
 
 // ══════════════════════════════════════════════
-// เบิกเบ็ดเตล็ด: ออกใบส่ง (Misc Issue Slip Print) — mirror ของ dlvbill* (ออกใบส่งสินค้า) แต่ไม่มีขั้นแพ็คกิ้ง/
-// CO/PO เพราะเบิกเบ็ดเตล็ดไม่มีลูกค้า/CO ผูกอยู่ (ดู fgoutSubmit — misc mode ไม่เคยมี CO_Ref) เลขที่ใบส่งเก็บใน
-// ตารางแยก misc_issue_numbers (รูปแบบ ปี/เลขรัน เหมือน delivery_bill_numbers, ดู create_misc_issue_numbers.sql)
-// แล้ว stamp กลับลง issue_misc.SlipNo ของทุกแถวที่เลือก (เหมือน DeliveryBillNo บน delivery — ดู
-// alter_issue_misc_add_slipno.sql) เพื่อให้ตารางหลักเห็นว่าแถวไหนออกใบไปแล้ว
+// เบิกเบ็ดเตล็ด: ออกใบส่ง (Misc Issue Slip Print) — mirror ของ dlvbill* (ออกใบส่งสินค้า FG) แบบเป๊ะ ตามที่ผู้ใช้
+// ขอ (2026-08-17): เอกสารพิมพ์ใช้เทมเพลต .dlvbill-page เดียวกัน (header บริษัท/กล่องลูกค้า-PO เมื่อมี CO_Ref/
+// ตาราง 5 คอลัมน์/หมายเหตุ/เซ็นชื่อ 3 ช่อง/พิมพ์ 2 ชุดต้นฉบับ+สำเนา — ดู miscSlipRenderPreview) ต่างจาก FG แค่
+// ไม่มีขั้นแพ็คกิ้งในโมดัล (raw material ไม่มีแนวคิดจำนวนต่อกล่อง) และกล่องลูกค้า/PO โชว์เฉพาะแถวที่มี CO_Ref
+// ผูกอยู่ (มาจาก coWithdrawBulkFromStock เท่านั้น — เบิกเบ็ดเตล็ดทั่วไปไม่มีลูกค้า กล่องนี้จะไม่โชว์)
+// เลขที่ใบส่งใช้เลขรันชุดเดียวกันต่อเนื่องกับใบส่งสินค้า FG (ดู _billNoNextSuggest/_billNoCheckClash ที่
+// dlvbillSuggestNo) — เก็บใน misc_issue_numbers แยกตารางเหมือนเดิม (รูปแบบ ปี/เลขรัน เหมือน delivery_bill_numbers,
+// ดู create_misc_issue_numbers.sql) แล้ว stamp กลับลง issue_misc.SlipNo ของทุกแถวที่เลือก (เหมือน DeliveryBillNo
+// บน delivery — ดู alter_issue_misc_add_slipno.sql) เพื่อให้ตารางหลักเห็นว่าแถวไหนออกใบไปแล้ว
 // ══════════════════════════════════════════════
 let _miscSlipModal       = null;
 let _miscSlipIds         = [];
@@ -17353,12 +17391,13 @@ function miscSlipOnScopeChange() {
   miscSlipResetConfirmState();
 }
 
-// เลขถัดไป = จำนวนใบส่งที่ออกไปแล้วในปีเดียวกัน + 1 (รันต่อเนื่องทั้งปี ไม่ผูกกับวันที่ — เหมือน dlvbillSuggestNo)
+// เลขถัดไป = จำนวนเอกสาร (ใบส่งสินค้า FG + ใบส่งเบิกเบ็ดเตล็ด) ที่ออกไปแล้วในปีเดียวกัน + 1 — ใช้เลขรันชุดเดียวกัน
+// ต่อเนื่องกับใบส่งสินค้า FG ตามที่ผู้ใช้ขอ (ดู _billNoNextSuggest ที่ dlvbillSuggestNo)
 async function miscSlipSuggestNo() {
   const year = new Date().getFullYear();
-  const { data, error } = await _sb.from('misc_issue_numbers').select('SlipNo').eq('Year', year);
+  const { value, error } = await _billNoNextSuggest(year);
   if (error) { _err('คำนวณเลขที่ใบส่งไม่ได้', error.message); return `${year}/001`; }
-  return `${year}/${String((data||[]).length + 1).padStart(3, '0')}`;
+  return value;
 }
 
 function miscSlipResetConfirmState() {
@@ -17384,11 +17423,11 @@ async function miscSlipConfirmNo() {
   const year = new Date().getFullYear();
 
   _showLoader();
-  const { data: existing, error: checkErr } = await _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', val);
-  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', checkErr.message); return; }
-  if (existing && existing.length) {
+  const clash = await _billNoCheckClash(val);
+  if (clash.error) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', clash.error.message); return; }
+  if (clash.clash) {
     _hideLoader();
-    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่`;
+    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว (${clash.label}) — กรุณาแก้เลขใหม่`;
     errEl.style.display = 'block';
     return;
   }
@@ -17454,9 +17493,9 @@ async function miscSlipEditNo(rowId, currentVal) {
   if (newVal === currentVal) return;
 
   _showLoader();
-  const { data: dup, error: checkErr } = await _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', newVal).neq('_row_id', rowId);
-  if (checkErr) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', checkErr.message); return; }
-  if (dup && dup.length) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว`, 'error'); return; }
+  const clash = await _billNoCheckClash(newVal, { excludeMiscRowId: rowId });
+  if (clash.error) { _hideLoader(); _err('เช็คเลขที่ใบส่งไม่ได้', clash.error.message); return; }
+  if (clash.clash) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว (${clash.label})`, 'error'); return; }
 
   const { error } = await _sb.from('misc_issue_numbers').update({ SlipNo: newVal }).eq('_row_id', rowId);
   if (error) { _hideLoader(); _err('แก้ไขไม่สำเร็จ', error.message); return; }
@@ -17472,52 +17511,161 @@ async function miscSlipEditNo(rowId, currentVal) {
   miscSlipRenderHistory();
 }
 
-function miscSlipRenderPreview() {
+// จัดกลุ่มแถวเบิกเบ็ดเตล็ดตามวัตถุดิบ (รหัส+ชื่อ+หน่วย) — โครงเดียวกับ _dlvbillBuildGroups ของใบส่งสินค้า FG
+// เพื่อให้ตารางพิมพ์ออกมาเป็นรูปแบบเดียวกันเป๊ะ (5 คอลัมน์ ลำดับ/รายละเอียดสินค้า/วันหมดอายุ/จำนวน/หน่วย) —
+// ต่างจาก FG ตรงไม่มีขั้นแพ็คกิ้ง (raw material ไม่มีแนวคิดจำนวนต่อกล่อง) และ ประเภท/หมายเหตุ ของแต่ละ Lot
+// ถูกผนวกเข้าไปในข้อความ "Lot.xxx (...)" แทนที่จะมีคอลัมน์แยก เพื่อไม่ให้ข้อมูลหายไปแต่ยังคงคอลัมน์เท่า FG เป๊ะ
+function _miscSlipGroupKey(r) { return `${r.MaterialCode||''}||${r.MaterialName||''}||${r.UOM||''}`; }
+function _miscSlipBuildGroups(rows) {
+  const groups = {};
+  const order = [];
+  rows.forEach(r => {
+    const key = _miscSlipGroupKey(r);
+    if (!groups[key]) { groups[key] = { code: r.MaterialCode, name: r.MaterialName, uom: r.UOM, lots: [] }; order.push(key); }
+    groups[key].lots.push({
+      lotKey: r.Lot || '', lotLabel: r.Lot || '—', qty: parseFloat(r.IssuedQty) || 0,
+      category: r.Category || '', remark: r.Remark || '',
+    });
+  });
+  return { groups, order };
+}
+
+// พิมพ์ด้วยเทมเพลตเดียวกับใบส่งสินค้า FG (.dlvbill-page) เป๊ะ ตามที่ผู้ใช้ขอ — reuse CSS class เดิมทั้งหมด ไม่สร้างใหม่
+async function miscSlipRenderPreview() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
     'print-mode-lotscan', 'print-mode-dlvlabel');
   document.body.classList.add('print-mode-miscslip');
 
   const rows = _miscSlipScopeRows();
-  const trs = rows.map((r, i) => `<tr>
-      <td class="ord">${i+1}</td><td>${_fmtDate(r.Date)}</td><td>${r.MaterialName||''}</td><td>${r.MaterialCode||''}</td>
-      <td>${r.Lot||''}</td><td class="text-end qty-emph">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
-      <td>${r.UOM||''}</td><td>${r.Category||''}</td><td>${r.Remark||''}</td>
-    </tr>`).join('');
+  const wrap = document.getElementById('miscslip-preview-body');
 
-  const html = `
-    <div class="mrrpt-page">
-      <div class="mrrpt-header">
-        <div class="mrrpt-logo-block">
-          <img class="mrrpt-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
-          <div class="mrrpt-company"><b>WISE NOVATION CO., LTD.</b><br>โรงงานผลิต และแบ่งบรรจุเครื่องสำอางที่มีมาตรฐาน — แผนกคลังสินค้า</div>
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="mrrpt-empty">ไม่พบรายการที่เลือก</div>';
+    document.getElementById('miscslip-print-root').innerHTML = '';
+    return;
+  }
+
+  // กล่องลูกค้า/ที่อยู่/ผู้ติดต่อ/PO — โชว์เฉพาะตอนมี CO_Ref ผูกอยู่ (เบิกส่ง Bulk ให้ CO ผ่าน coWithdrawBulkFromStock)
+  // เบิกเบ็ดเตล็ดทั่วไปไม่มีลูกค้า ไม่ต้องมีกล่องนี้ (ยืนยันกับผู้ใช้แล้ว) — คิวรีเหมือน dlvbillRenderPreview ทุกอย่าง
+  // ต่างแค่ต้องดึง CustomerName เพิ่มเอง เพราะ issue_misc ไม่มีคอลัมน์นี้ (delivery ของ FG มีอยู่แล้วในแถวตัวเอง)
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  let coRows = [];
+  if (coRefs.length) {
+    const { data, error } = await _sb.from('customer_orders')
+      .select('Order_ID,CustomerName,PO_No,CustomerAddress,ContactPerson,ContactTel').in('Order_ID', coRefs);
+    if (!error) coRows = data || [];
+  }
+  const hasCustomer = coRefs.length > 0;
+  const customer = coRows.find(c => c.CustomerName)?.CustomerName || '';
+  const poNos    = [...new Set(coRows.map(c => c.PO_No).filter(Boolean))];
+  const address  = coRows.find(c => c.CustomerAddress)?.CustomerAddress || '';
+  const contact  = coRows.find(c => c.ContactPerson)?.ContactPerson || '';
+  const tel      = coRows.find(c => c.ContactTel)?.ContactTel || '';
+
+  // วันหมดอายุต่อ Lot — ลอง _miscMatList (stock_balance ที่โหลดไว้แล้วตอนเปิดหน้า ไม่ต้อง query ซ้ำ) ก่อน
+  // ตกไป mr_receive ทีละคู่ (MaterialCode,Lot) เฉพาะคู่ที่หาไม่เจอ (Lot เบิกหมดแล้วอาจไม่เหลือแถว stock_balance)
+  // — หลักการเดียวกับ Lot Scan (_lotscanFetchMaterialData: stock_balance ก่อน ตกไป mr_receive)
+  const pairs = [...new Set(rows.map(r => `${r.MaterialCode||''}||${r.Lot||''}`))];
+  const expMap = {};
+  pairs.forEach(key => {
+    const [code, lot] = key.split('||');
+    const hit = (_miscMatList||[]).find(m => m.MaterialCode === code && (m.Lot||'') === lot && m.ExpDate);
+    if (hit) expMap[key] = hit.ExpDate;
+  });
+  const missingPairs = pairs.filter(key => !expMap[key]);
+  if (missingPairs.length) {
+    const results = await Promise.all(missingPairs.map(key => {
+      const [code, lot] = key.split('||');
+      return _sb.from('mr_receive').select('ExpDate').eq('MaterialCode', code).eq('Lot', lot).not('ExpDate', 'is', null).limit(1);
+    }));
+    missingPairs.forEach((key, i) => {
+      const r = results[i];
+      if (!r.error && r.data && r.data[0]) expMap[key] = r.data[0].ExpDate;
+    });
+  }
+
+  const { groups, order } = _miscSlipBuildGroups(rows);
+
+  let itemNo = 0;
+  const groupHtml = order.map(key => {
+    const g = groups[key];
+    itemNo++;
+    const total = g.lots.reduce((s, l) => s + l.qty, 0);
+    const bodyRows = g.lots.map(l => {
+      const exp = expMap[`${g.code||''}||${l.lotKey}`];
+      const extra = [l.category, l.remark].filter(Boolean).join(' — ');
+      const label = `Lot.${l.lotLabel}${extra ? ` (${extra})` : ''}`;
+      return `<tr class="dlvbill-lot-row"><td></td><td>${label}</td><td class="exp">${exp?_fmtDate(exp):'—'}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
+    }).join('');
+    return `
+      <tr class="dlvbill-prod-row"><td class="num">${itemNo}</td><td>${g.name||''}${g.code?` (${g.code})`:''}</td><td class="exp"></td><td class="qty"></td><td></td></tr>
+      ${bodyRows}
+      <tr class="dlvbill-total-row"><td></td><td>รวม</td><td class="exp"></td><td class="qty">${total.toLocaleString()}</td><td>${g.uom||''}</td></tr>
+    `;
+  }).join('');
+
+  const docNo = _miscSlipConfirmed ? _miscSlipConfirmedNo : '(ยังไม่ยืนยัน)';
+  const docDate = _fmtDate(_planWeekLocalDateStr(new Date()));
+
+  // สร้าง "หน้าเอกสาร" ซ้ำ 2 ชุด (ต้นฉบับ + สำเนา) เหมือนใบส่งสินค้า FG เป๊ะ
+  const buildPage = (copyLabel) => `
+    <div class="dlvbill-page">
+      <div class="dlvbill-head">
+        <div class="dlvbill-brand">
+          <img class="dlvbill-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
+          <div class="dlvbill-company">
+            <b>ที่อยู่:</b> บริษัท บลูมมิ่ง จำกัด (สำนักงานใหญ่)<br>
+            เลขที่ 959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3,7 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
+            ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพมหานคร 10400<br>
+            TAX ID: 0105535064032 ติดต่อ: 086-355-0358, 02-056-1692-4
+          </div>
         </div>
-        <div class="mrrpt-title-block">
-          <div class="mrrpt-title">ใบส่งเบิกเบ็ดเตล็ด</div>
-          <div class="mrrpt-rcno">เลขที่: ${_miscSlipConfirmed ? _miscSlipConfirmedNo : '(ยังไม่ยืนยัน)'}</div>
-          <div class="mrrpt-meta">พิมพ์เมื่อ ${_fmtDate(_planWeekLocalDateStr(new Date()))}</div>
+        <div class="dlvbill-meta">
+          <div class="dlvbill-formcode">FM-SM-01-03 / Rev. 00 / Eff. Date 01/03/2025</div>
+          <div class="dlvbill-copytag">${copyLabel}</div>
+          <div>เอกสารเลขที่ (Document No.): <b>${docNo}</b></div>
+          <div>วันที่ (Date): <b>${docDate}</b></div>
         </div>
       </div>
-      <div class="mrrpt-filters">
-        <span class="minor">จำนวนรายการ: <b>${rows.length}</b></span>
-      </div>
-      ${rows.length ? `
-      <table class="mrrpt-table">
+
+      <div class="dlvbill-title">ใบส่งเบิกเบ็ดเตล็ด / Miscellaneous Issue Note</div>
+
+      ${hasCustomer ? `
+      <div class="dlvbill-cust-box">
+        <div class="dlvbill-cust-row"><span class="lbl">ชื่อบริษัทลูกค้า (Company Name)</span><span class="val">${customer||'—'}</span></div>
+        <div class="dlvbill-cust-row"><span class="lbl">ที่อยู่ (Address)</span><span class="val">${address||'—'}</span></div>
+        <div class="dlvbill-cust-row dlvbill-cust-row-combo">
+          <span class="lbl">ผู้ติดต่อ (Contact Person)</span><span class="val">${contact||'—'}</span>
+          <span class="lbl">เบอร์โทร (Telephone Number)</span><span class="val">${tel||'—'}</span>
+        </div>
+      </div>` : ''}
+
+      <table class="dlvbill-table">
         <thead><tr>
-          <th style="width:3%">ลำดับ</th><th style="width:8%">วันที่</th><th style="width:24%">ชื่อวัตถุดิบ</th><th style="width:9%">รหัส</th>
-          <th style="width:8%">Lot</th><th class="text-end" style="width:8%">จำนวน</th><th style="width:8%">UOM</th>
-          <th style="width:10%">ประเภท</th><th style="width:22%">หมายเหตุ</th>
+          <th style="width:6%">ลำดับ<br>(No.)</th><th style="width:54%">รายละเอียดสินค้า<br>(Description)</th>
+          <th class="exp" style="width:15%">วันหมดอายุ<br>(Exp. Date)</th>
+          <th class="qty" style="width:13%">จำนวน<br>(Quantity)</th><th style="width:12%">หน่วย<br>(Unit)</th>
         </tr></thead>
-        <tbody>${trs}</tbody>
-      </table>` : `<div class="mrrpt-empty">ไม่พบรายการที่เลือก</div>`}
-      <div class="mrrpt-footer">
-        <div class="mrrpt-sign"><div class="line">ผู้เบิก</div></div>
-        <div class="mrrpt-sign"><div class="line">ผู้จ่าย</div></div>
-        <div class="mrrpt-sign"><div class="line">ผู้อนุมัติ</div></div>
+        <tbody>${groupHtml}</tbody>
+      </table>
+
+      ${hasCustomer ? `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>` : ''}
+
+      <div class="dlvbill-notes">
+        <div>หมายเหตุ: 1. กรุณาตรวจเช็คสินค้า ไม่เกิน 3-5 วัน</div>
+        <div>2. ได้รับสินค้าตามรายการข้างบนนี้ไว้ถูกต้อง และอยู่ในสภาพเรียบร้อยตามจำนวนทุกประการ</div>
+      </div>
+
+      <div class="dlvbill-footer">
+        <div class="dlvbill-sign"><div class="line">ผู้รับสินค้า</div><div class="date">วันที่ ...../...../.....</div></div>
+        <div class="dlvbill-sign"><div class="line">ผู้ส่งสินค้า</div><div class="date">วันที่ ...../...../.....</div></div>
+        <div class="dlvbill-sign"><div class="line">ผู้อนุมัติ</div><div class="date">วันที่ ...../...../.....</div></div>
       </div>
     </div>`;
 
-  const wrap = document.getElementById('miscslip-preview-body');
+  const html = buildPage('ต้นฉบับ') + buildPage('สำเนา');
+
   wrap.innerHTML = html;
   // print-root มีเนื้อหาเฉพาะตอนยืนยันเลขที่แล้วเท่านั้น — กันพิมพ์เอกสารไม่มีเลขที่ออกมาโดยไม่ตั้งใจ (เช่น กด Ctrl+P ก่อนกดยืนยัน)
   document.getElementById('miscslip-print-root').innerHTML = _miscSlipConfirmed ? html : '';
