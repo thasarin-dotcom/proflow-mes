@@ -12754,8 +12754,11 @@ let _prodrecordDetailsByRecord = {}; // ProdRecord_ID → array ของ produc
 let _prodrecordPendingMOs = [];      // MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิตครบทุก Lot FG — {mo, lots, noFgData}
 let _prodrecordMOStatusMap = {};     // MO_ID → Status ของ MO ทั้งหมด — ใช้กรองการ์ดในตาราง (โชว์เฉพาะ MO ที่เสร็จแล้ว)
 
-// ขั้นตอนกำลังคน — ใช้ชุดเดียวกับ 3 ขั้นตอนที่หน้า "ภาพรวมการผลิต" (Gantt) ใช้อยู่แล้ว
-// (_prodStatusSteps) ข้ามขั้นตอนที่สินค้านั้นไม่ได้ตั้งค่ากำลังผลิต/วันไว้ในหน้า BOM เพื่อไม่ต้องกรอกขั้นที่ไม่เกี่ยวข้อง
+// ขั้นตอนกำลังคน — ใช้ชุดเดียวกับ 3 ขั้นตอนที่หน้า "ภาพรวมการผลิต" (Gantt) ใช้อยู่แล้ว (_prodStatusSteps)
+// เดิมข้ามขั้นตอนที่สินค้านั้นไม่ได้ตั้งค่ากำลังผลิต/วันไว้ในหน้า BOM — แก้ไขแล้ว (2026-08-17): โชว์ครบทุก
+// ขั้นตอนเสมอ ไม่กรองตาม BOM Capacity อีกต่อไป (เคยทำให้ขั้นตอนที่เคยกรอกข้อมูลไว้หายไปตอนแก้ไขซ้ำ ถ้า BOM
+// ไม่ได้ตั้ง Capacity ของขั้นนั้นไว้ — ผู้ใช้ยืนยันให้แก้แบบนี้). `capField` เหลือไว้เฉยๆ ไม่ได้ใช้กรองแล้ว
+// (คนละตัวกับ `def.capField` ที่หน้าภาพรวมการผลิต/Gantt ใช้ — อย่าสับสนว่าเป็นตัวเดียวกัน)
 const _prodrecordSteps = [
   { key: 'Fill',        label: 'บรรจุ',           capField: 'CapacityFillPerDay' },
   { key: 'Lot',         label: 'ยิง Lot',          capField: 'CapacityLotPerDay' },
@@ -13059,24 +13062,82 @@ function _prodrecordMatRowRecalc(seq) {
   _prodrecordRecalcBulkActual(); // "ใช้จริง" ของแถวนี้เปลี่ยน ถ้าเป็นแถว Bulk จะกระทบตัวหารของ % ยีลด์ด้วย
 }
 
-function _prodrecordStationRowHTML(key, label, ex) {
-  return `<div class="prodrecord-station-row border rounded p-2 mb-2" data-key="${key}">
-    <div class="fw-bold mb-1" style="font-size:.85rem"><i class="fas fa-industry me-1 text-primary"></i>${label}</div>
-    <div class="row g-2">
-      <div class="col-md-2"><label class="form-label small mb-0">FT คน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ftworkers" min="0" step="1" value="${ex.ftWorkers ?? 0}"></div>
-      <div class="col-md-2"><label class="form-label small mb-0">FT ชม.ปกติ/วัน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ftnormal" min="0" step="0.5" value="${ex.ftNormalHrs ?? 0}"></div>
-      <div class="col-md-2"><label class="form-label small mb-0">FT OT ชม./วัน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ftot" min="0" step="0.5" value="${ex.ftOtHrs ?? 0}"></div>
-      <div class="col-md-2"><label class="form-label small mb-0">PT คน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ptworkers" min="0" step="1" value="${ex.ptWorkers ?? 0}"></div>
-      <div class="col-md-2"><label class="form-label small mb-0">PT ชม.ปกติ/วัน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ptnormal" min="0" step="0.5" value="${ex.ptNormalHrs ?? 0}"></div>
-      <div class="col-md-2"><label class="form-label small mb-0">PT OT ชม./วัน</label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-ptot" min="0" step="0.5" value="${ex.ptOtHrs ?? 0}"></div>
+// ── กำลังคนต่อขั้นตอน แบบตารางหลายวัน (2026-08-17) ──
+// เดิมแต่ละขั้นตอนมีแค่ 1 ชุดตัวเลข "ชม./วันเฉลี่ย" ไม่ระบุว่าวันไหน (ผู้ใช้ทักว่าไม่พอ เพราะแต่ละวันจริง
+// จำนวนคน/ชม.ไม่เท่ากัน) — เปลี่ยนเป็นตารางที่เพิ่ม/ลบแถว "วันที่ทำงาน" ได้อิสระต่อขั้นตอน แต่ละแถวมีวันที่ +
+// จำนวนคน/ชม.ปกติ/ชม.OT แยก FT-PT เหมือนเดิม ไม่ใช่ค่าเฉลี่ยต่อวันอีกต่อไป
+// รูปแบบ StationsData ใหม่: [{key, days:[{date,ftWorkers,ftNormalHrs,ftOtHrs,ptWorkers,ptNormalHrs,ptOtHrs}, ...]}]
+// (ของเดิมก่อนวันนี้เป็น {key,ftWorkers,ftNormalHrs,...} แบบแบน — _prodrecordRecalcApprove ยังอ่านทั้ง 2
+// แบบได้ เพื่อไม่ให้บันทึกเก่าที่อนุมัติไปแล้วคำนวณต้นทุนผิดไปจากเดิม)
+let _prodrecordStationDaySeq = 0; // ตัวนับไม่ใช้ซ้ำ กันชนกันตอนลบแถวกลางแล้วเพิ่มแถวใหม่ (แพทเทิร์นเดียวกับ _bomRowSeq)
+
+function _prodrecordStationDayRowHTML(key, seq, d) {
+  d = d || {};
+  return `<tr class="prodrecord-station-day-row" data-seq="${seq}">
+    <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.5" value="${d.ftNormalHrs ?? 0}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.5" value="${d.ftOtHrs ?? 0}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptworkers" min="0" step="1" value="${d.ptWorkers ?? 0}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptnormal" min="0" step="0.5" value="${d.ptNormalHrs ?? 0}"></td>
+    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptot" min="0" step="0.5" value="${d.ptOtHrs ?? 0}"></td>
+    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
+  </tr>`;
+}
+
+function _prodrecordStationBlockHTML(key, label, days) {
+  const rows = days.map(d => _prodrecordStationDayRowHTML(key, _prodrecordStationDaySeq++, d)).join('');
+  return `<div class="prodrecord-station-block border rounded p-2 mb-2" data-key="${key}">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <div class="fw-bold" style="font-size:.85rem"><i class="fas fa-industry me-1 text-primary"></i>${label}</div>
+      <button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="prodrecordAddStationDay('${key}')"><i class="fas fa-plus me-1"></i>เพิ่มวัน</button>
     </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-borderless mb-0 align-middle" style="font-size:.78rem">
+        <thead>
+          <tr class="text-muted" style="font-size:.68rem">
+            <th style="min-width:130px">วันที่</th>
+            <th style="min-width:65px">FT คน</th>
+            <th style="min-width:90px">FT ชม.ปกติ</th>
+            <th style="min-width:80px">FT ชม.OT</th>
+            <th style="min-width:65px">PT คน</th>
+            <th style="min-width:90px">PT ชม.ปกติ</th>
+            <th style="min-width:80px">PT ชม.OT</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
+      </table>
+    </div>
+    <div class="text-muted text-center prodrecord-station-empty ${days.length ? 'd-none' : ''}" style="font-size:.75rem">ยังไม่มีข้อมูลวันทำงาน — กด "เพิ่มวัน"</div>
   </div>`;
+}
+
+function _prodrecordUpdateStationEmptyState(key) {
+  const tbody = document.getElementById(`prodrecord-station-days-${key}`);
+  const block = document.querySelector(`.prodrecord-station-block[data-key="${key}"]`);
+  const emptyEl = block ? block.querySelector('.prodrecord-station-empty') : null;
+  if (!tbody || !emptyEl) return;
+  emptyEl.classList.toggle('d-none', tbody.children.length > 0);
+}
+
+function prodrecordAddStationDay(key, day) {
+  const tbody = document.getElementById(`prodrecord-station-days-${key}`);
+  if (!tbody) return;
+  const seq = _prodrecordStationDaySeq++;
+  // insertAdjacentHTML บน <tbody> จริงจะ parse <tr> ถูกต้องตาม table context — ต่างจากตั้ง innerHTML ผ่าน
+  // <div> ธรรมดาซึ่งเบราว์เซอร์จะตัด <tr> ทิ้งเพราะไม่มี table context ห่อ
+  tbody.insertAdjacentHTML('beforeend', _prodrecordStationDayRowHTML(key, seq, day || {}));
+  _prodrecordUpdateStationEmptyState(key);
+  return seq;
+}
+
+function prodrecordRemoveStationDay(seq) {
+  const el = document.querySelector(`.prodrecord-station-day-row[data-seq="${seq}"]`);
+  if (!el) return;
+  const key = el.closest('.prodrecord-station-block')?.dataset.key;
+  el.remove();
+  if (key) _prodrecordUpdateStationEmptyState(key);
 }
 
 // ช่อง "% ยีลด์" (id เดิมชื่อ prodrecord-f-bulkactual/คอลัมน์ DB เดิมชื่อ Bulk_Actual — ตั้งใจไม่เปลี่ยนชื่อ
@@ -13131,12 +13192,11 @@ async function prodrecordOpenEntryModal(gi) {
   _prodrecordRecalcBulkActual();
 
   _showLoader();
-  const [issueRes, siblingRes, existingDetailRes, stockRes, bomCapRes, bomRemarkRes] = await Promise.all([
+  const [issueRes, siblingRes, existingDetailRes, stockRes, bomRemarkRes] = await Promise.all([
     r.MO_Ref ? _sb.from('issue_production').select('MaterialCode,MaterialName,Lot,IssuedQty,UOM').eq('MO_ID', r.MO_Ref) : Promise.resolve({ data: [] }),
     r.MO_Ref ? _sb.from('production_records').select('ProdRecord_ID').eq('MO_Ref', r.MO_Ref).neq('ProdRecord_ID', r.ProdRecord_ID) : Promise.resolve({ data: [] }),
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
     _sb.from('stock_balance').select('MaterialCode,Lot,UnitCost'),
-    _sb.from('bom').select('CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay').eq('ProductCode', r.ProductCode).limit(1),
     _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', r.ProductCode),
   ]);
 
@@ -13183,17 +13243,29 @@ async function prodrecordOpenEntryModal(gi) {
   }
   _prodrecordRecalcBulkActual(); // คำนวณ % ยีลด์ จริงตอนนี้ที่ทั้งแถววัตถุดิบและ _prodrecordEntryBulkCodes พร้อมแล้ว
 
-  // ── Stations: ข้ามขั้นตอนที่สินค้านี้ไม่ได้ตั้งกำลังผลิต/วันไว้ในหน้า BOM ──
-  const capRow = (bomCapRes.data || [])[0] || {};
-  let stepKeys = _prodrecordSteps.filter(s => parseFloat(capRow[s.capField]) > 0).map(s => s.key);
-  if (!stepKeys.length) stepKeys = _prodrecordSteps.map(s => s.key); // ไม่มีข้อมูล capacity เลย โชว์ครบทุกขั้นตอนไว้ก่อน
-
+  // ── Stations: โชว์ครบทุกขั้นตอนเสมอ (2026-08-17 แก้บั๊ก — เดิมกรองตาม BOM Capacity ทำให้ขั้นตอนที่เคย
+  // กรอกข้อมูลไว้แล้วหายไปเงียบๆ ตอนแก้ไขซ้ำถ้า BOM ไม่ได้ตั้ง Capacity ของขั้นนั้นไว้ ผู้ใช้ยืนยันให้แสดงครบ
+  // ทุกขั้นตอนเสมอแทน ไม่ต้องพึ่งค่า BOM อีกต่อไป) ──
   let existingStations = [];
   try { existingStations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { existingStations = []; }
-  document.getElementById('prodrecord-entry-stations').innerHTML = stepKeys.map(key => {
-    const step = _prodrecordSteps.find(s => s.key === key);
-    const ex = existingStations.find(s => s.key === key) || {};
-    return _prodrecordStationRowHTML(key, step.label, ex);
+  _prodrecordStationDaySeq = 0;
+  document.getElementById('prodrecord-entry-stations').innerHTML = _prodrecordSteps.map(step => {
+    const ex = existingStations.find(s => s.key === step.key) || {};
+    // รูปแบบใหม่เก็บเป็นตารางหลายวัน (ex.days) — ถ้าเป็นบันทึกเก่าก่อน 2026-08-17 (ไม่มี ex.days แต่มีค่า
+    // FT/PT แบบแบนแบบเดิม) แปลงเป็น 1 แถววันเดียวโดยใช้ Date_Start ของบันทึกนี้เป็นวันที่ ไม่ให้ข้อมูลที่เคย
+    // กรอกไว้หายไปเฉยๆ ตอนเปิดแก้ไขครั้งแรกหลังอัปเดต
+    let days;
+    if (Array.isArray(ex.days)) {
+      days = ex.days;
+    } else if (ex.ftWorkers || ex.ftNormalHrs || ex.ftOtHrs || ex.ptWorkers || ex.ptNormalHrs || ex.ptOtHrs) {
+      days = [{
+        date: r.Date_Start || '', ftWorkers: ex.ftWorkers || 0, ftNormalHrs: ex.ftNormalHrs || 0, ftOtHrs: ex.ftOtHrs || 0,
+        ptWorkers: ex.ptWorkers || 0, ptNormalHrs: ex.ptNormalHrs || 0, ptOtHrs: ex.ptOtHrs || 0,
+      }];
+    } else {
+      days = [];
+    }
+    return _prodrecordStationBlockHTML(step.key, step.label, days);
   }).join('');
 
   _prodrecordEntryModal.show();
@@ -13240,17 +13312,23 @@ async function prodrecordEntrySubmit(e) {
     };
   });
 
-  const stations = Array.from(document.querySelectorAll('.prodrecord-station-row')).map(rowEl => {
-    const key = rowEl.dataset.key;
-    return {
-      key,
-      ftWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-ftworkers`).value) || 0,
-      ftNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-ftnormal`).value) || 0,
-      ftOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-ftot`).value) || 0,
-      ptWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-ptworkers`).value) || 0,
-      ptNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-ptnormal`).value) || 0,
-      ptOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-ptot`).value) || 0,
-    };
+  // แต่ละขั้นตอนเก็บเป็นตารางหลายวัน (days[]) แทนค่าเฉลี่ย ชม./วันเดียวแบบเดิม (2026-08-17) — วนตาม
+  // .prodrecord-station-block (1 ต่อขั้นตอน) แล้วอ่านทุกแถว .prodrecord-station-day-row ข้างในเป็น days
+  const stations = Array.from(document.querySelectorAll('.prodrecord-station-block')).map(blockEl => {
+    const key = blockEl.dataset.key;
+    const days = Array.from(blockEl.querySelectorAll('.prodrecord-station-day-row')).map(rowEl => {
+      const seq = rowEl.dataset.seq;
+      return {
+        date       : document.getElementById(`prodrecord-st-${key}-${seq}-date`).value || '',
+        ftWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftworkers`).value) || 0,
+        ftNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftnormal`).value) || 0,
+        ftOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftot`).value) || 0,
+        ptWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptworkers`).value) || 0,
+        ptNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptnormal`).value) || 0,
+        ptOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptot`).value) || 0,
+      };
+    });
+    return { key, days };
   });
 
   const materialCost = materials.reduce((s, m) => s + m.ActualUsedQty * m.UnitCost, 0);
@@ -13384,10 +13462,23 @@ function _prodrecordRecalcApprove() {
 
   let laborCost = 0;
   stations.forEach(s => {
-    laborCost += (s.ftWorkers||0) * (s.ftNormalHrs||0) * workDays * ftRate;
-    laborCost += (s.ftWorkers||0) * (s.ftOtHrs||0) * workDays * ftOt;
-    laborCost += (s.ptWorkers||0) * (s.ptNormalHrs||0) * workDays * ptRate;
-    laborCost += (s.ptWorkers||0) * (s.ptOtHrs||0) * workDays * ptOt;
+    if (Array.isArray(s.days)) {
+      // รูปแบบใหม่ (2026-08-17): แต่ละแถว "วัน" มีค่าจริงของวันนั้นอยู่แล้ว ไม่ต้องคูณ workDays ซ้ำ
+      // (ต่างจากแบบเก่าที่เป็นค่าเฉลี่ย ชม./วันเดียว แล้วคูณจำนวนวันทั้งหมดของบันทึกนี้)
+      s.days.forEach(d => {
+        laborCost += (d.ftWorkers||0) * (d.ftNormalHrs||0) * ftRate;
+        laborCost += (d.ftWorkers||0) * (d.ftOtHrs||0) * ftOt;
+        laborCost += (d.ptWorkers||0) * (d.ptNormalHrs||0) * ptRate;
+        laborCost += (d.ptWorkers||0) * (d.ptOtHrs||0) * ptOt;
+      });
+    } else {
+      // บันทึกเก่าก่อน 2026-08-17 (ไม่มี s.days เลย) — ยังเป็นค่าเฉลี่ย ชม./วันเดียวแบบเดิม ต้องคูณ workDays
+      // เหมือนเดิม ไม่งั้นต้นทุนของบันทึกเก่าที่เคยอนุมัติไปแล้วจะคำนวณต่างไปจากตอนอนุมัติจริง
+      laborCost += (s.ftWorkers||0) * (s.ftNormalHrs||0) * workDays * ftRate;
+      laborCost += (s.ftWorkers||0) * (s.ftOtHrs||0) * workDays * ftOt;
+      laborCost += (s.ptWorkers||0) * (s.ptNormalHrs||0) * workDays * ptRate;
+      laborCost += (s.ptWorkers||0) * (s.ptOtHrs||0) * workDays * ptOt;
+    }
   });
   const overhead    = (ohUtil + ohInd) * workDays;
   const materialCost = parseFloat(r.MaterialCost) || 0;
@@ -14788,28 +14879,20 @@ async function coLoadBomProducts() {
     return true;
   });
 
-  // เผื่อลูกค้าซื้อแค่ Bulk (สูตร/วัตถุดิบตั้งต้นของสินค้านั้น ยังไม่บรรจุ) แยกต่างหากจากสินค้าสำเร็จรูป —
-  // ดึงบรรทัด Bulk ของแต่ละ ProductCode จาก bom (Remark ตัวพิมพ์เล็ก ≠ 'pac' = Bulk ตาม convention เดียวกับ
-  // _moComputeMaterialCheck/prodrecordOpenEntryModal/moReleasedOpenModal) แล้วสร้างเป็นตัวเลือก "{ชื่อสินค้า} (Bulk)"
-  // โดย ProductCode ของตัวเลือกนี้คือ MaterialCode ของ Bulk จริง (ผูกกับ stock_balance ตอนเบิกส่ง ไม่ใช่ stock_fg)
-  const { data: bulkLines } = await _bomFetchPaged('ProductCode,MaterialCode,MaterialName,UOM,Remark', []);
-  const nameByCode = {};
-  _coBomProducts.forEach(p => { nameByCode[p.ProductCode] = p.ProductName; });
+  // เผื่อลูกค้าซื้อแค่ Bulk (วัตถุดิบตั้งต้น ยังไม่บรรจุ) แยกต่างหากจากสินค้าสำเร็จรูป — ดึงรหัส+ชื่อตรงจาก
+  // Master วัตถุดิบ (materials) ที่ TYPE='BULK' เท่านั้น (ไม่ผสมชื่อสินค้าสำเร็จรูปจาก bom แบบเดิมที่เคยทำ
+  // "{ชื่อ FG} (Bulk)" — ผู้ใช้แจ้งชัดเจนว่าไม่ต้องการชื่อแบบนั้น ต้องการชื่อจริงจาก Master วัตถุดิบ 2026-08-17)
+  // ProductCode ของตัวเลือกนี้คือ MaterialCode ตรงๆ — ผูกกับ stock_balance ตอนเบิกส่งเหมือนเดิม (คีย์ไม่เปลี่ยน)
+  const { data: matRows } = await _sb.from('materials').select('MaterialCode,MaterialName,UOM,TYPE');
   const seenBulk = new Set();
-  _coBulkProducts = (bulkLines || []).filter(l => (l.Remark || '').toLowerCase() !== 'pac').reduce((acc, l) => {
-    const fgName = nameByCode[l.ProductCode];
-    if (!fgName || !l.MaterialCode) return acc;
-    const key = l.ProductCode + '|' + l.MaterialCode;
-    if (seenBulk.has(key)) return acc;
-    seenBulk.add(key);
-    acc.push({
-      ProductCode: l.MaterialCode,
-      ProductName: `${fgName} (Bulk)`,
-      UOF: l.UOM || '',
-      isBulk: true,
-    });
-    return acc;
-  }, []);
+  _coBulkProducts = (matRows || [])
+    .filter(m => (m.TYPE || '').toUpperCase() === 'BULK')
+    .filter(m => {
+      if (!m.MaterialCode || seenBulk.has(m.MaterialCode)) return false;
+      seenBulk.add(m.MaterialCode);
+      return true;
+    })
+    .map(m => ({ ProductCode: m.MaterialCode, ProductName: m.MaterialName || m.MaterialCode, UOF: m.UOM || '', isBulk: true }));
 }
 
 function coProductSelect(input) {
@@ -15204,10 +15287,8 @@ async function coWithdrawBulkFromStock(idx) {
   await loadMiscData();
 
   miscOpenModal();
-  // ProductName ของ CO แบบ Bulk คือ "{ชื่อสินค้า} (Bulk)" (ดู coLoadBomProducts) — ตัดคำต่อท้ายออกก่อนใส่ช่องค้นหา
-  // ให้ตรงกับชื่อวัตถุดิบจริงใน stock_balance/materials ไม่งั้นจะโชว์ค้างเป็นชื่อที่ค้นหาไม่เจอ
-  const matName = (r.ProductName || '').replace(/\s*\(Bulk\)\s*$/, '');
-  miscSelectMaterial(r.ProductCode, matName);
+  // ProductName ของ CO แบบ Bulk คือชื่อจริงจาก Master วัตถุดิบตรงๆ อยู่แล้ว (ดู coLoadBomProducts) — ใส่ค้นหาได้เลย
+  miscSelectMaterial(r.ProductCode, r.ProductName || '');
   document.getElementById('misc-f-co-ref').value = r.Order_ID || '';
   document.getElementById('misc-f-co-hint').innerHTML =
     `<span class="badge bg-warning text-dark"><i class="fas fa-link me-1"></i>อ้างอิง CO: ${r.Order_ID || ''} (คงค้าง ${remain.toLocaleString()} ${r.UOM||''})</span>`;
