@@ -543,9 +543,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root{display:none}
 @media print{
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -557,6 +557,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   #lotscan-print-root{display:none !important}
   #dlvlabel-print-root{display:none !important}
   #miscslip-print-root{display:none !important}
+  #admindash-report-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -568,6 +569,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   body.print-mode-lotscan #lotscan-print-root{display:block !important}
   body.print-mode-dlvlabel #dlvlabel-print-root{display:block !important}
   body.print-mode-miscslip #miscslip-print-root{display:block !important}
+  body.print-mode-admindash #admindash-report-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -588,6 +590,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      .wreport-print-page ไม่ตั้ง min-height (ปล่อยให้สูงตามเนื้อหาจริง) กันบั๊กเดียวกับที่เจอใน BPR
      (min-height ทำให้วัด scrollHeight ผิด) เพราะหน้านี้ไม่มีการวัดความสูงเพื่อจัดหน้าอัตโนมัติเลย */
   #weeklyreport-print-root .wreport-print-page{box-shadow:none !important;margin:0 !important}
+  /* แดชบอร์ดต้นทุน & กำไร — reuse .wreport-print-page ตัวเดียวกับรายงานรายสัปดาห์เป๊ะ (เลย์เอาต์/สไตล์อินโฟกราฟิก
+     เดียวกัน) แค่คนละ print-root กันชนกันตาม pattern เดิม ไม่ตั้ง min-height ด้วยเหตุผลเดียวกัน */
+  #admindash-report-print-root .wreport-print-page{box-shadow:none !important;margin:0 !important}
   /* ใบ Released (สติกเกอร์เขียว) แนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมได้เลย (ไม่ต้อง named page) —
      .morel-sheet เป็น grid ตายตัว 2×5 ต่อแผ่น ไม่มีการวัดความสูงอัตโนมัติเหมือน BPR เลยไม่ต้องกัน min-height */
   #mo-released-print-root .morel-sheet{box-shadow:none !important;margin:0 !important}
@@ -663,6 +668,10 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 /* ── รายงานรายสัปดาห์: Print/PDF Modal (อินโฟกราฟิกสรุปผลิต-จัดส่ง — แทนที่ปุ่มร่างอีเมลเดิม) ── */
 #weeklyreportPrintModal .modal-dialog{max-width:900px}
 #weeklyreportPrintModal .modal-body{background:#525659;padding:24px;max-height:82vh;overflow:auto}
+/* ── แดชบอร์ดต้นทุน & กำไร: Print/PDF Modal — ต้องกว้างเท่ากัน (900px) เพราะเนื้อหาข้างในเป็น .wreport-print-page
+   ความกว้างคงที่ 210mm (~794px) เหมือนกัน ถ้าไม่ตั้ง max-width ตรงนี้ modal จะใช้ค่า default ของ Bootstrap
+   (แคบกว่ามาก) ทำให้เนื้อหาล้น/ถูกตัดขอบ (เจอบั๊กจริงตอนทดสอบ 2026-08-17 — ลืมเพิ่มบรรทัดนี้ตอนสร้างครั้งแรก) ── */
+#admindashReportModal .modal-dialog{max-width:900px}
 .wreport-print-page{
   font-family:Sarabun,sans-serif;color:#1e293b;
   width:210mm;box-sizing:border-box;padding:8mm; /* ขอบแคบ ตามที่ผู้ใช้ขอ (2026-08-13) — เดิม 14mm กว้างไป */
@@ -1202,6 +1211,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     <a href="#" class="nav-link mb-1" id="nav-weeklyreport" onclick="showPage('weeklyreport',this)" title="รายงานรายสัปดาห์">
       <i class="fas fa-paper-plane me-2"></i><span>รายงานรายสัปดาห์</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-admindash" onclick="showPage('admindash',this)" title="แดชบอร์ดต้นทุน & กำไร" style="display:none">
+      <i class="fas fa-sack-dollar me-2"></i><span>ต้นทุน & กำไร</span>
+    </a>
     </div>
 
     <hr class="my-2">
@@ -1225,7 +1237,8 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-issue" onclick="showPage('issue',this)" title="เบิกผลิต (Issue)">
       <i class="fas fa-dolly me-2"></i><span>เบิกผลิต (Issue)</span>
-      <span id="nav-issue-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem"></span>
+      <span id="nav-issue-waiting-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="MO รอเบิกวัตถุดิบ"></span>
+      <span id="nav-issue-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไข/เพิ่ม/ลบ รออนุมัติ"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-fg" onclick="showPage('fg',this)" title="รับ FG">
       <i class="fas fa-cubes me-2"></i><span>รับ FG</span>
@@ -2131,6 +2144,148 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
+  <!-- PAGE: แดชบอร์ดต้นทุน & กำไร (admin เท่านั้น) — กำไร "รับรู้จริง" นับเฉพาะของที่ delivery.Status='ส่งถึงแล้ว'
+       (ส่งถึงลูกค้าจริง) เทียบกับต้นทุน/หน่วยของ Lot ที่ผลิตจริง (join ผ่าน Lot_FG กับ production_records ที่
+       Status='อนุมัติแล้ว') — ของที่ผลิตแล้วแต่ยังไม่ส่งออกนับเป็น "มูลค่าสต็อกคงเหลือ" แยกต่างหาก ไม่ใช่กำไร
+       ราคาขายใช้ delivery.SellingPriceSnapshot (ราคา ณ วันที่ส่งจริง) ถ้ามีบันทึกไว้ ไม่มีค่อย fallback ไปใช้
+       bom.SellingPrice ปัจจุบันแทน — เดือนที่ใช้จัดกลุ่มใช้ delivery.ArrivedDate ถ้ามี ไม่มีค่อย fallback ไปใช้
+       delivery.Date (วันที่สร้างใบส่งของ) ทั้งสองคอลัมน์เป็นของใหม่ (ดู alter_delivery_add_selling_price_snapshot.sql,
+       alter_delivery_add_arrived_date.sql — ต้องรันใน Supabase ก่อนถึงจะมีค่า) ดู project_proflow memory
+       2026-08-17 สำหรับที่มาของการออกแบบ -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-admindash">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-sack-dollar me-2"></i>แดชบอร์ดต้นทุน & กำไร</h4>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-light fw-bold text-primary" onclick="admindashOpenReportPreview()">
+            <i class="fas fa-file-pdf me-1"></i>ออกรายงาน
+          </button>
+          <button class="btn btn-sm btn-light fw-bold text-primary" onclick="admindashLoadData()">
+            <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="alert alert-secondary py-2 px-3 mb-3" style="font-size:.78rem">
+        <i class="fas fa-circle-info me-1"></i>กำไรนับเฉพาะของที่ <b>ส่งถึงลูกค้าแล้วจริง</b> (สถานะจัดส่ง "ส่งถึงแล้ว")
+        เทียบกับต้นทุน/หน่วยของ Lot ที่ผลิตจริง ไม่ใช่ยอดผลิต — ของที่ผลิตแล้วแต่ยังไม่ส่งออกจะอยู่ใน "มูลค่าสต็อกคงเหลือ"
+        แยกต่างหาก ยังไม่นับเป็นกำไร ทั้งหมดอิงย้อนหลัง 6 เดือน (ใช้วันที่ "ถึงจริง" ถ้ามีบันทึกไว้ ไม่มีค่อย fallback ไปใช้วันที่สร้างใบส่งของแทน · ราคาขายใช้ราคา ณ วันที่ส่งถ้ามีบันทึกไว้ ไม่มีค่อยใช้ราคาปัจจุบันแทน)
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="kpi-card"><div class="kpi-num" id="admindash-kpi-cost">—</div><div class="kpi-label">ต้นทุนการผลิตรวม (6 ด.)</div></div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="kpi-card" style="border-color:#7c3aed">
+            <div class="kpi-num" style="color:#7c3aed" id="admindash-kpi-revenue">—</div><div class="kpi-label">รายได้จากที่ส่งถึงแล้ว (6 ด.)</div>
+            <div style="font-size:.68rem" id="admindash-kpi-revenue-yoy"></div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="kpi-card" style="border-color:#22c55e">
+            <div class="kpi-num text-success" id="admindash-kpi-profit">—</div>
+            <div class="kpi-label">กำไรที่รับรู้จริง (6 ด.) · <span id="admindash-kpi-margin">—</span></div>
+            <div style="font-size:.68rem" id="admindash-kpi-profit-yoy"></div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="kpi-card" style="border-color:#0ea5e9;cursor:help" title="ยอดผลิตคงเหลือที่ยังไม่ถูกส่งออก (จาก stock_fg) × ต้นทุน/หน่วยของ Lot นั้น — เป็นมูลค่าสินทรัพย์คงเหลือ ไม่ใช่กำไร">
+            <div class="kpi-num" style="color:#0ea5e9" id="admindash-kpi-stockvalue">—</div><div class="kpi-label">มูลค่าสต็อกคงเหลือ (ยังไม่รับรู้กำไร)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6" style="flex:0 0 33.33%;max-width:33.33%">
+          <div class="kpi-card" style="border-color:#f59e0b;cursor:help" title="สินค้าที่ส่งถึงแล้วในช่วงนี้ แต่ยังไม่ได้ตั้งราคาขายไว้ที่หน้า BOM จึงไม่ถูกนับในรายได้/กำไร">
+            <div class="kpi-num text-warning" id="admindash-kpi-nodata">—</div><div class="kpi-label">สินค้าไม่มีราคาขาย (BOM)</div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 33.33%;max-width:33.33%">
+          <div class="kpi-card" style="border-color:#ef4444;cursor:help" title="Lot ที่ส่งถึงแล้วในช่วงนี้ แต่ยังหาบันทึกผลิตที่อนุมัติต้นทุนของ Lot นั้นไม่เจอ จึงไม่ถูกนับในต้นทุนขาย/กำไร">
+            <div class="kpi-num text-danger" id="admindash-kpi-nocostlot">—</div><div class="kpi-label">Lot ที่ส่งออกแล้วแต่ไม่มีต้นทุน</div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 33.33%;max-width:33.33%">
+          <div class="kpi-card" style="border-color:#64748b" id="admindash-kpi-pending-card" title="บันทึกผลิตที่ยังไม่ผ่านการอนุมัติต้นทุน">
+            <div class="kpi-num text-secondary" id="admindash-kpi-pending">—</div><div class="kpi-label">รอเช็คต้นทุน</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="glass-card h-100">
+            <div class="fw-bold small text-muted mb-2">ต้นทุนการผลิตรายเดือน (6 เดือนล่าสุด)</div>
+            <div style="position:relative;height:240px"><canvas id="admindash-chart-cost"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="glass-card h-100">
+            <div class="fw-bold small text-muted mb-2">รายได้ ต้นทุนขาย และกำไรที่รับรู้จริงรายเดือน (ตามยอดส่งถึงลูกค้า)</div>
+            <div style="position:relative;height:240px"><canvas id="admindash-chart-profit"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold small text-muted" id="admindash-top-toggle-label">Top 5 สินค้ากำไรสูงสุด (6 ด. · ตามยอดส่งถึงลูกค้า)</div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="admindashToggleTopMode()">
+            <i class="fas fa-arrow-right-arrow-left me-1"></i>สลับดูกำไรต่ำสุด
+          </button>
+        </div>
+        <div style="position:relative;height:220px"><canvas id="admindash-chart-top"></canvas></div>
+      </div>
+
+      <div class="glass-card mt-3">
+        <div class="fw-bold small text-muted mb-2"><i class="fas fa-triangle-exclamation text-warning me-1"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด) — ควรพิจารณาปรับราคาขาย</div>
+        <div id="admindash-volatility-table"><div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>กำลังตรวจสอบ...</div></div>
+      </div>
+
+      <div class="glass-card mt-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div class="fw-bold small text-muted">เจาะลึกรายสินค้า (6 เดือนล่าสุด) — กำไร/หน่วยตามต้นทุนที่อนุมัติแล้วของแต่ละ Lot ที่ผลิต ไม่ว่าจะส่งออกไปแล้วหรือยัง</div>
+          <div class="d-flex gap-2">
+            <select id="admindash-drill-product" class="form-select form-select-sm" style="max-width:320px" onchange="admindashRenderDrilldown()">
+              <option value="">— เลือกสินค้า —</option>
+            </select>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="ดาวน์โหลดข้อมูลต้นทุน/กำไร">
+                <i class="fas fa-file-csv"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); admindashExportDrillCSV();">เฉพาะสินค้านี้ (CSV)</a></li>
+                <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); admindashExportAllProductsXLSX();">ทั้งหมดทุกสินค้า (Excel หลายชีท)</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div id="admindash-drill-noprice-alert" class="alert alert-warning py-1 px-2 mb-2" style="font-size:.75rem;display:none">
+          <i class="fas fa-triangle-exclamation me-1"></i>สินค้านี้ยังไม่ได้ตั้งราคาขายไว้ที่หน้า BOM จึงคำนวณกำไร%ไม่ได้ (แสดงแค่ต้นทุน/หน่วยตาม Lot)
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <div class="text-muted" style="font-size:.7rem;font-weight:600;margin-bottom:2px">กำไร% ต่อหน่วยรายเดือน</div>
+            <div style="position:relative;height:170px"><canvas id="admindash-chart-drilltrend"></canvas></div>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted" style="font-size:.7rem;font-weight:600;margin-bottom:2px">ต้นทุน/หน่วยรายเดือน แยกตามประเภท</div>
+            <div style="position:relative;height:170px"><canvas id="admindash-chart-drillcost"></canvas></div>
+          </div>
+        </div>
+        <div id="admindash-drill-table"><div class="text-center text-muted py-4">เลือกสินค้าเพื่อดูรายละเอียดกำไรต่อ Lot/เดือน</div></div>
       </div>
     </div>
   </div>
@@ -4653,6 +4808,26 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 <!-- รายงานการผลิต และต้นทุน Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P) -->
 <div id="pcost-print-root"></div>
 
+<!-- ════════════ แดชบอร์ดต้นทุน & กำไร: ออกรายงานอินโฟกราฟิก (reuse เลย์เอาต์ .wreport-* ชุดเดียวกับรายงานรายสัปดาห์) ════════════ -->
+<div class="modal fade" id="admindashReportModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-file-pdf me-2"></i>ตัวอย่างรายงานต้นทุน & กำไร — ตรวจสอบก่อนพิมพ์</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="admindash-report-preview-body" style="background:#525659;padding:24px;max-height:82vh;overflow:auto"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="admindash-report-print-root"></div>
+
 <!-- ════════════ ไลน์ผลิต MO: ออกใบ Released (สติกเกอร์เขียว FM-QC-01-05, ดวงละ 10 ต่อแผ่น A4) ════════════ -->
 <div class="modal fade" id="moReleasedModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -5001,6 +5176,8 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<!-- SheetJS — ใช้สร้างไฟล์ .xlsx หลายชีทตอนกด "ดาวน์โหลดทั้งหมด" ที่หน้าแดชบอร์ดต้นทุน & กำไร (admindashExportAllProductsXLSX) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // ══════════════════════════════════════════════
 // Supabase Config — ใส่ค่าของคุณที่นี่
@@ -5980,6 +6157,7 @@ function showPage(page, navEl) {
     'codash'    : codashLoadData,
     'prodstatus': loadProdStatusData,
     'weeklyreport': weeklyreportLoadData,
+    'admindash' : admindashLoadData,
     'auditlog'  : auditlogLoadData,
     'signuprequests': signupreqLoadData,
     'lotscan'   : lotscanInit,
@@ -9094,6 +9272,16 @@ async function fgoutSubmit(e) {
 
 // ── สร้างแถว "รอจัดส่ง" ในตาราง delivery อัตโนมัติทันทีที่เบิก FG ส่งลูกค้า (กันเคสลืมกด "+เพิ่มการจัดส่ง" เอง) ──
 async function deliveryAutoCreate(wdRowId, wd) {
+  // ถ่าย snapshot ราคาขาย ณ ตอนสร้างใบส่งของไว้เลย (SellingPriceSnapshot — คอลัมน์ใหม่ ดู
+  // alter_delivery_add_selling_price_snapshot.sql) เพื่อให้แดชบอร์ดต้นทุน & กำไรคำนวณกำไรจากราคาขาย ณ วันขายจริง
+  // แทนราคาปัจจุบันของสินค้าที่อาจเปลี่ยนไปแล้ว — ถ้า query ไม่เจอราคา (สินค้ายังไม่ตั้งราคาขายในหน้า BOM) จะได้
+  // null ไปเก็บตรงๆ ไม่ throw error กันการเบิก/สร้างใบส่งของหยุดชะงักเพราะเรื่องนี้
+  let sellingPrice = null;
+  try {
+    const { data } = await _sb.from('bom').select('SellingPrice').eq('ProductCode', wd.ProductCode).limit(1).maybeSingle();
+    sellingPrice = data?.SellingPrice ?? null;
+  } catch (e) { console.error('deliveryAutoCreate: ดึงราคาขายจาก bom ไม่สำเร็จ (ไม่กระทบการสร้างใบส่งของ)', e); }
+
   const payload = {
     Delivery_ID  : await deliveryGenerateID(),
     Date         : wd.Date,
@@ -9106,8 +9294,17 @@ async function deliveryAutoCreate(wdRowId, wd) {
     QtyDelivered : wd.QtyFG,
     UOM          : wd.UOM,
     Status       : 'รอจัดส่ง',
+    SellingPriceSnapshot: sellingPrice,
   };
-  const { error } = await _sb.from('delivery').insert(payload);
+  let { error } = await _sb.from('delivery').insert(payload);
+  // ถ้ายังไม่ได้รัน alter_delivery_add_selling_price_snapshot.sql คอลัมน์นี้จะไม่มีจริงใน DB — PostgREST ตอบ
+  // error แบบ "Could not find the 'SellingPriceSnapshot' column" (PGRST204) กลับมา ห้ามปล่อยให้การสร้างใบส่งของ
+  // ทั้งเส้นพังเพราะฟีเจอร์เสริมนี้เด็ดขาด (เบิก FG ส่งลูกค้าเป็น flow หลักที่ใช้งานจริงอยู่แล้ว) จึง retry
+  // แบบไม่มี field นี้ทันทีถ้าเจอ error ที่ระบุชื่อคอลัมน์นี้ตรงๆ
+  if (error && (error.message || '').includes('SellingPriceSnapshot')) {
+    delete payload.SellingPriceSnapshot;
+    ({ error } = await _sb.from('delivery').insert(payload));
+  }
   if (error) console.error('deliveryAutoCreate: สร้างแถวจัดส่งอัตโนมัติไม่สำเร็จ', error);
   return error || null;
 }
@@ -9297,7 +9494,19 @@ async function deliveryAdvanceStatus(rowId, newStatus) {
   const r = _deliveryData.find(d => d._row_id === rowId);
   if (!r) return;
   _showLoader();
-  const { error } = await _sb.from('delivery').update({ Status: newStatus }).eq('_row_id', rowId);
+  const updatePayload = { Status: newStatus };
+  // ArrivedDate = วันที่ "ถึงจริง" (คอลัมน์ใหม่ ดู alter_delivery_add_arrived_date.sql) stamp เฉพาะตอนเปลี่ยน
+  // เป็นสถานะสุดท้ายเท่านั้น ใช้เป็นตัวจัดกลุ่มเดือนที่แม่นกว่า delivery.Date (วันที่สร้างใบส่งของ) เดิม
+  // ในแดชบอร์ดต้นทุน & กำไร
+  if (newStatus === 'ส่งถึงแล้ว') updatePayload.ArrivedDate = _ymdLocal(new Date());
+  let { error } = await _sb.from('delivery').update(updatePayload).eq('_row_id', rowId);
+  // เหตุผลเดียวกับ deliveryAutoCreate — ถ้ายังไม่ได้รัน SQL migration คอลัมน์นี้จะไม่มีจริงใน DB ห้ามปล่อยให้
+  // เปลี่ยนสถานะจัดส่งพังเพราะฟีเจอร์เสริมนี้เด็ดขาด (เป็น flow หลักที่ใช้งานจริงอยู่แล้ว) จึง retry แบบไม่มี
+  // field นี้ทันทีถ้าเจอ error ที่ระบุชื่อคอลัมน์นี้ตรงๆ
+  if (error && (error.message || '').includes('ArrivedDate')) {
+    delete updatePayload.ArrivedDate;
+    ({ error } = await _sb.from('delivery').update(updatePayload).eq('_row_id', rowId));
+  }
   _hideLoader();
   if (error) { _err('อัปเดตสถานะไม่สำเร็จ', error.message); return; }
 
@@ -11219,7 +11428,10 @@ function _weeklyreportBuildDetailList(byProductMap, variant, cap) {
 function _weeklyreportBuildSummary(range, prodRows, planRows, dlvRows) {
   // 1) การผลิต — นับทุกสถานะ แต่แยกจำนวนที่ยังรอเช็คต้นทุนไว้ต่างหาก
   const approvedCount = prodRows.filter(r => r.Status === 'อนุมัติแล้ว').length;
-  const pendingCount  = prodRows.filter(r => r.Status === 'รอเช็คต้นทุน').length;
+  // นับเฉพาะที่กรอกผลผลิตแล้ว (FG_Actual != null) แต่ยังไม่อนุมัติ — บั๊กเดียวกับที่เจอและแก้ใน admindash
+  // (2026-08-17): Status เริ่มต้นของบันทึกใหม่ทุกใบคือ 'รอเช็คต้นทุน' ตั้งแต่สร้าง ก่อนกรอกผลผลิตด้วยซ้ำ
+  // นับแบบเดิม (ทุกแถว Status นี้เฉยๆ) ทำให้ตัวเลขบวมเกินจริง ไม่ตรงกับที่เห็นในหน้า "บันทึกผลิต" จริง
+  const pendingCount  = prodRows.filter(r => r.Status === 'รอเช็คต้นทุน' && r.FG_Actual != null).length;
   const prodByProduct = {};
   prodRows.forEach(r => {
     const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
@@ -11336,7 +11548,7 @@ function weeklyreportOpenPrintPreview() {
   const html = _weeklyreportBuildPrintHTML(_wreportSummary, _wreportMonthWeekData);
   document.getElementById('weeklyreport-print-root').innerHTML = html;
   document.getElementById('weeklyreport-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-pcost');
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-pcost', 'print-mode-admindash');
   document.body.classList.add('print-mode-weeklyreport');
   if (!_weeklyreportPrintModal) _weeklyreportPrintModal = new bootstrap.Modal(document.getElementById('weeklyreportPrintModal'));
   _weeklyreportPrintModal.show();
@@ -13110,7 +13322,7 @@ function prodrecordRenderTable() {
           <span class="text-muted small me-2">แผน ${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}${hasActual ? ` · จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()}` : ''}</span>
           ${!hasActual ? `<button class="btn btn-sm btn-primary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-pen me-1"></i>กรอกผลผลิต</button>` : ''}
           ${hasActual && !approved ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
-            ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
+            ${_hasRole('admin') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})"><i class="fas fa-print me-1"></i>พิมพ์รายงานต้นทุน</button>
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}` : ''}
           <button class="btn btn-sm btn-outline-secondary" title="${expanded?'ย่อ':'ดูรายละเอียด'}">
@@ -13888,7 +14100,7 @@ async function prodrecordReportPrint(gi) {
   };
 
   const html = _pcostBuildHTML(data);
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery');
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-admindash');
   document.body.classList.add('print-mode-pcost');
   document.getElementById('pcost-preview-body').innerHTML = html;
   document.getElementById('pcost-print-root').innerHTML   = html;
@@ -14917,7 +15129,7 @@ function _morelRemarkGroupOnChange(seq, field, value) {
 
 function moReleasedPrint() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-admindash');
   document.body.classList.add('print-mode-moreleased');
   window.print();
 }
@@ -14931,7 +15143,7 @@ function moReleasedPrintBlankSheet() {
   for (let i = 0; i < 10; i++) stickers += `<div class="morel-sticker">${_morelStickerHTML(blank)}</div>`;
   document.getElementById('mo-released-print-root').innerHTML = `<div class="morel-sheet">${stickers}</div>`;
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-admindash');
   document.body.classList.add('print-mode-moreleased');
   window.print();
 }
@@ -15938,6 +16150,772 @@ function codashRenderOverdueTable(coData) {
 }
 
 // ══════════════════════════════════════════════
+// PAGE: แดชบอร์ดต้นทุน & กำไร (admin เท่านั้น — ดู _renderCurrentUserBadge)
+// ต้นทุนการผลิต (กราฟบน): sum(MaterialCost/LaborCost/Overhead) จาก production_records ที่ Status='อนุมัติแล้ว'
+//         เท่านั้น กรองด้วย Date_End/Date_Start อยู่ใน 6 เดือนล่าสุด — ยังเป็นภาพ "ต้นทุนที่เกิดขึ้นจากการผลิต"
+//         เหมือนเดิม ไม่เกี่ยวกับว่าขายออกไปหรือยัง
+// กำไร (กราฟล่าง/Top สินค้า): เปลี่ยนจากเดิม (ผลิตเสร็จ = กำไรทันที) มาเป็น "รับรู้จริง" ตามหลักบัญชี — นับเฉพาะ
+//         ของที่ delivery.Status='ส่งถึงแล้ว' (ส่งถึงลูกค้าจริง ไม่ใช่แค่เบิกออกจากคลัง) คูณราคาขายปัจจุบันจาก
+//         bom.SellingPrice ลบด้วยต้นทุนขาย = QtyDelivered × CostPerUnit ของ "Lot ที่ผลิตจริง" (join ผ่าน Lot_FG
+//         กลับไปที่ production_records ที่อนุมัติแล้ว ไม่ใช่ต้นทุนเฉลี่ยเดา) — ของที่ผลิตแล้วแต่ยังไม่ส่งออก
+//         ไม่นับเป็นกำไร/ขาดทุนเลย (ดู admindashRenderStockValue) สินค้าที่ไม่มีราคาขาย หรือ Lot ที่หา
+//         ต้นทุนไม่เจอ จะถูกกันออกจากกำไร/รายได้ แต่นับจำนวนไว้ในการ์ด KPI เพื่อความโปร่งใส
+// ข้อจำกัดสำคัญ: delivery ไม่มีคอลัมน์ "วันที่ถึงจริง" แยก — ใช้ delivery.Date (วันที่สร้างใบส่งของ) แทนในการ
+//         จัดกลุ่มรายเดือน จึงอาจคลาดเคลื่อนจากวันที่ของถึงมือลูกค้าจริงได้บ้าง
+let _admindashCharts    = {};
+let _admindashLastDlv   = [];   // delivery ที่ "ส่งถึงแล้ว" ในช่วง 6 เดือน (เก็บไว้ให้ปุ่มสลับ Top/Bottom ใช้ซ้ำ)
+let _admindashPriceMap  = {};   // ProductCode → SellingPrice (จาก bom, ล่าสุดไม่ null ชนะ)
+let _admindashCostByLot = {};   // "ProductCode|Lot_FG" → CostPerUnit (จาก production_records ที่อนุมัติแล้ว, ทุกช่วงเวลาไม่จำกัด 6 เดือน เพราะของที่ส่งออกอาจผลิตมาก่อนหน้านั้น)
+let _admindashTopMode   = 'top'; // 'top' = กำไรสูงสุด, 'bottom' = กำไรต่ำสุด/ขาดทุน
+let _admindashLastProd  = [];   // production_records ที่อนุมัติแล้วในช่วง 6 เดือน (ทุกสินค้า) — ใช้ป้อนตัวเลือกสินค้า + ตาราง/กราฟเจาะลึกรายสินค้า
+let _admindashReportModal = null;
+// เกณฑ์เตือน "กำไร% ต่ำ" ในตารางเจาะลึกรายสินค้า — ผู้ใช้ตั้งไว้ที่ 10% (2026-08-17) Lot ที่กำไร%เป็นบวกแต่ต่ำกว่า
+// นี้จะมีไอคอน ⚠ กำกับ (Lot ที่กำไรติดลบยังคงแสดงสีแดงเหมือนเดิมอยู่แล้ว ไม่เกี่ยวกับค่านี้)
+const _ADMINDASH_LOW_MARGIN_PCT = 10;
+// เกณฑ์เตือน "ต้นทุนผันผวน" — วัดจากช่วงห่างสูงสุด-ต่ำสุดของต้นทุน/หน่วยเฉลี่ยถ่วงน้ำหนักรายเดือน (3 เดือนล่าสุด)
+// หารด้วยค่าเฉลี่ย ถ้าเกิน % นี้ถือว่าผันผวนเกินเกณฑ์ ควรพิจารณาปรับราคาขาย (ผู้ใช้ระบุ 2026-08-17)
+const _ADMINDASH_COST_VOLATILITY_PCT = 5;
+let _admindashLastDrillExport = null; // { productLabel, rows: [...] } ของสินค้าที่กำลังเลือกอยู่ในหน้าเจาะลึก — ให้ปุ่ม CSV อ่าน
+
+function _admindashDestroy(key) {
+  if (_admindashCharts[key]) { _admindashCharts[key].destroy(); delete _admindashCharts[key]; }
+}
+
+function _admindashMonthKey(r) { return (r.Date_End || r.Date_Start || '').slice(0, 7); }
+function _admindashLotKey(code, lot) { return (code || '') + '|' + (lot || ''); }
+// ArrivedDate (วันที่ "ส่งถึงแล้ว" จริง) มาก่อนเสมอถ้ามี — เป็นคอลัมน์ใหม่ (alter_delivery_add_arrived_date.sql)
+// ที่ deliveryAdvanceStatus stamp ให้ตอนกดเปลี่ยนสถานะเป็น "ส่งถึงแล้ว" แถวเก่าก่อนรัน SQL/ก่อนแก้โค้ดจุดนั้น
+// จะไม่มีค่านี้ เลย fallback ไปที่ Date (วันที่สร้างใบส่งของ) เหมือนเดิมโดยอัตโนมัติ
+function _admindashDlvMonthKey(r) { return (r.ArrivedDate || r.Date || '').slice(0, 7); }
+// ราคาขายของ 1 แถว delivery — ใช้ SellingPriceSnapshot (ราคา ณ วันที่ส่ง ถ้ามีการบันทึกไว้ตอนสร้างใบส่งของ
+// หลังเพิ่มคอลัมน์นี้) ก่อนเสมอ ไม่มีค่อยย้อนไปใช้ราคาปัจจุบันจาก bom.SellingPrice เหมือนพฤติกรรมเดิม
+function _admindashDlvPrice(r, priceMap) { return r.SellingPriceSnapshot ?? priceMap[r.ProductCode] ?? null; }
+
+function _admindashLast6Months() {
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months;
+}
+
+async function admindashLoadData() {
+  _showLoader();
+  const [prodRes, bomRes, dlvRes, stockFgRes] = await Promise.all([
+    _sb.from('production_records')
+      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,Status')
+      .order('_row_id', { ascending: false }),
+    // bom มีหลักหมื่นแถว (ซ้ำ/ขยะปนอยู่ — ดู SKILL.md) ใช้ _bomFetchPaged วน .range() เอง เพราะ PostgREST
+    // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่
+    _bomFetchPaged('ProductCode,SellingPrice', [{ col: 'ProductCode' }]),
+    // ส่งถึงลูกค้าจริงเท่านั้น (ไม่ใช่แค่ "จัดส่งแล้ว"/"รอจัดส่ง") — นี่คือจุดที่รับรู้กำไรได้ตามที่ผู้ใช้ตัดสินใจ
+    // ArrivedDate/SellingPriceSnapshot เป็นคอลัมน์ใหม่ (ดู alter_delivery_add_arrived_date.sql,
+    // alter_delivery_add_selling_price_snapshot.sql — ต้องรันใน Supabase SQL Editor ก่อนถึงจะมีค่า) ใช้
+    // select('*') แทนการระบุชื่อคอลัมน์ตรงๆ โดยตั้งใจ — ถ้ายังไม่ได้รัน SQL migration แล้ว select แบบระบุชื่อ
+    // คอลัมน์ที่ยังไม่มีจริงจะโดน PostgREST ปฏิเสธทั้ง query (ทำแดชบอร์ดทั้งหน้าพังไปเลย ไม่ใช่แค่ฟีเจอร์ย่อยที่
+    // fallback ได้) select('*') กันปัญหานี้เพราะคอลัมน์ที่ยังไม่มีจะแค่ไม่ปรากฏใน object แถวนั้นเฉยๆ (undefined)
+    // ไม่ error — โค้ดด้านล่าง fallback ไปใช้ Date/ราคาปัจจุบันเหมือนเดิมโดยอัตโนมัติอยู่แล้วเมื่อเจอ undefined
+    _sb.from('delivery').select('*').eq('Status', 'ส่งถึงแล้ว'),
+    _sb.from('stock_fg').select('ProductCode,ProductName,LotFG,FGBalance,UOM'),
+  ]);
+  _hideLoader();
+  if (prodRes.error)    { _err('โหลดข้อมูลบันทึกผลิตไม่ได้', prodRes.error.message); return; }
+  if (bomRes.error)     { _err('โหลดราคาขายจาก BOM ไม่ได้', bomRes.error.message); return; }
+  if (dlvRes.error)     { _err('โหลดข้อมูลจัดส่งไม่ได้', dlvRes.error.message); return; }
+  if (stockFgRes.error) { _err('โหลด Stock FG ไม่ได้', stockFgRes.error.message); return; }
+
+  const priceMap = {};
+  (bomRes.data || []).forEach(r => { if (r.SellingPrice != null) priceMap[r.ProductCode] = parseFloat(r.SellingPrice); });
+  _admindashPriceMap = priceMap;
+
+  const allRecs      = prodRes.data || [];
+  // นับเฉพาะที่กรอกผลผลิตแล้ว (FG_Actual != null) แต่ยังไม่อนุมัติต้นทุน — ไม่นับรวมบันทึกที่เพิ่งสร้าง
+  // (จากแผนผลิต/สร้างเอง) แต่ยังไม่ถึงขั้นกรอกผลผลิตเลย เพราะ Status เริ่มต้นของบันทึกใหม่ทุกใบคือ
+  // 'รอเช็คต้นทุน' อยู่แล้วตั้งแต่สร้าง (ดู insert ที่ prodrecordEntrySubmit/prodrecordCreateSubmit) นับแบบ
+  // เดิม (ทุกแถว Status นี้เฉยๆ) ทำให้ตัวเลขบวมเกินจริง ไม่ตรงกับที่เห็นในหน้า "บันทึกผลิต" จริง (ซึ่งโชว์ปุ่ม
+  // "อนุมัติต้นทุน" ให้กดเฉพาะแถวที่ FG_Actual != null เท่านั้น) — พบจากผู้ใช้รายงานว่าหน้า prodrecord ไม่มี
+  // รายการค้างอนุมัติเลย แต่ KPI นี้ยังโชว์ยอดค้างอยู่
+  const pendingCount = allRecs.filter(r => r.Status === 'รอเช็คต้นทุน' && r.FG_Actual != null).length;
+  const approvedRecs = allRecs.filter(r => r.Status === 'อนุมัติแล้ว');
+
+  // ต้นทุน/หน่วยตาม Lot จริง — ไม่จำกัดช่วงเวลา เพราะของที่เพิ่งส่งออกอาจผลิตมาก่อนหน้า 6 เดือนที่แล้วก็ได้
+  const costByLot = {};
+  approvedRecs.forEach(r => { costByLot[_admindashLotKey(r.ProductCode, r.Lot_FG)] = parseFloat(r.CostPerUnit) || 0; });
+  _admindashCostByLot = costByLot;
+
+  const months = _admindashLast6Months();
+  const inRangeProd = approvedRecs.filter(r => months.includes(_admindashMonthKey(r)));
+
+  const dlvRows = (dlvRes.data || []).filter(r => months.includes(_admindashDlvMonthKey(r)));
+  _admindashLastDlv = dlvRows;
+
+  const noPriceCount   = new Set(dlvRows.filter(r => _admindashDlvPrice(r, priceMap) == null).map(r => r.ProductCode)).size;
+  const noCostLotCount = new Set(dlvRows
+    .filter(r => costByLot[_admindashLotKey(r.ProductCode, r.Lot_FG)] === undefined)
+    .map(r => _admindashLotKey(r.ProductCode, r.Lot_FG))).size;
+
+  _admindashLastProd = inRangeProd;
+
+  // เทียบช่วงเดียวกันปีก่อน (YoY) — ใช้ข้อมูลชุดเดียวกับที่ query มาแล้ว (allRecs/dlvRes.data ยังไม่ได้กรองช่วงเวลา
+  // ทั้งคู่) ไม่ต้อง query เพิ่ม แค่เลื่อนเดือนที่กรองไปปีก่อนหน้า — หมายเหตุ: ทั้ง production_records และ delivery
+  // query ไม่มี pagination (ไม่เหมือน bom ที่ใช้ _bomFetchPaged) จึงโดน PostgREST cap ที่ 1000 แถว/request เป็น
+  // ค่า default ถ้าตารางมีมากกว่านั้นทั้งหมด ยิ่งกระทบข้อมูลเก่า (ปีก่อน) มากกว่าข้อมูลใหม่ เพราะ order by _row_id
+  // desc แล้วตัดที่ 1000 แถวแรก (แถวเก่าสุดมีโอกาสหลุดก่อน) — ยังไม่ได้แก้จุดนี้ในรอบนี้ ถ้าตัวเลข YoY ดูผิดปกติ
+  // (เช่น 0 ทั้งที่ปีก่อนควรมีข้อมูล) ให้สงสัยจุดนี้ก่อน
+  const priorMonths = months.map(m => { const [y, mo] = m.split('-'); return `${parseInt(y) - 1}-${mo}`; });
+  const priorProdRows = approvedRecs.filter(r => priorMonths.includes(_admindashMonthKey(r)));
+  const priorDlvRows  = (dlvRes.data || []).filter(r => priorMonths.includes(_admindashDlvMonthKey(r)));
+  let priorRevenue = 0, priorCogs = 0;
+  priorDlvRows.forEach(r => {
+    const p = _admindashDlvProfit(r, priceMap, costByLot);
+    if (p) { priorRevenue += p.revenue; priorCogs += p.cogs; }
+  });
+  const priorProfit = priorRevenue - priorCogs;
+  const priorCost = priorProdRows.reduce((s, r) => s + (parseFloat(r.TotalCost) || 0), 0);
+
+  admindashRenderKPIs(inRangeProd, dlvRows, priceMap, costByLot, pendingCount, noPriceCount, noCostLotCount,
+    { revenue: priorRevenue, profit: priorProfit, cost: priorCost, hasData: priorDlvRows.length > 0 || priorProdRows.length > 0 });
+  admindashRenderCostChart(inRangeProd, months);
+  admindashRenderProfitChart(dlvRows, months, priceMap, costByLot);
+  admindashRenderTopProducts(dlvRows, priceMap, costByLot);
+  admindashRenderStockValue(stockFgRes.data || [], costByLot);
+  admindashRenderVolatilityAlerts(approvedRecs, priceMap, months);
+  admindashPopulateDrillProducts(inRangeProd);
+  admindashRenderDrilldown();
+}
+
+// รายรับ/ต้นทุนขาย/กำไร ของแถว delivery หนึ่งแถว — คืน null ถ้าจับคู่ราคาขายหรือต้นทุน Lot ไม่ได้ (กันออกจากผลรวม)
+function _admindashDlvProfit(r, priceMap, costByLot) {
+  const price = _admindashDlvPrice(r, priceMap);
+  const cost  = costByLot[_admindashLotKey(r.ProductCode, r.Lot_FG)];
+  if (price == null || cost === undefined) return null;
+  const qty = parseFloat(r.QtyDelivered) || 0;
+  const revenue = qty * price;
+  const cogs    = qty * cost;
+  return { revenue, cogs, profit: revenue - cogs };
+}
+
+// ข้อความเปรียบเทียบ YoY — คืนสีเขียว/ลูกศรขึ้นถ้าดีขึ้น (higherIsBetter=false ใช้กับต้นทุน ที่ยิ่งน้อยยิ่งดี)
+function _admindashYoyHTML(current, prior, hasData, higherIsBetter = true) {
+  if (!hasData || !prior) return '<span class="text-muted">ไม่มีข้อมูลปีก่อนเทียบ</span>';
+  const delta = Math.round((current - prior) / Math.abs(prior) * 1000) / 10;
+  const good = higherIsBetter ? delta >= 0 : delta <= 0;
+  const cls = good ? 'text-success' : 'text-danger';
+  const arrow = delta >= 0 ? 'up' : 'down';
+  return `<span class="${cls}"><i class="fas fa-arrow-${arrow}"></i> ${delta >= 0 ? '+' : ''}${delta}%</span> เทียบช่วงเดียวกันปีก่อน`;
+}
+
+function admindashRenderKPIs(prodRows, dlvRows, priceMap, costByLot, pendingCount, noPriceCount, noCostLotCount, prior) {
+  const totalCost = prodRows.reduce((s, r) => s + (parseFloat(r.TotalCost) || 0), 0);
+
+  let totalRevenue = 0, totalCogs = 0;
+  dlvRows.forEach(r => {
+    const p = _admindashDlvProfit(r, priceMap, costByLot);
+    if (!p) return;
+    totalRevenue += p.revenue;
+    totalCogs    += p.cogs;
+  });
+  const totalProfit = totalRevenue - totalCogs;
+  const margin = totalRevenue > 0 ? Math.round(totalProfit / totalRevenue * 1000) / 10 : 0;
+
+  const fmt = v => '฿' + Math.round(v).toLocaleString();
+  const el = id => document.getElementById(id);
+  el('admindash-kpi-cost').textContent     = fmt(totalCost);
+  el('admindash-kpi-revenue').textContent  = fmt(totalRevenue);
+  el('admindash-kpi-profit').textContent   = (totalProfit < 0 ? '-' : '') + fmt(Math.abs(totalProfit));
+  el('admindash-kpi-profit').className     = 'kpi-num ' + (totalProfit >= 0 ? 'text-success' : 'text-danger');
+  el('admindash-kpi-margin').textContent   = margin + '% มาร์จิ้น';
+  el('admindash-kpi-nodata').textContent   = noPriceCount.toLocaleString();
+  el('admindash-kpi-nocostlot').textContent = noCostLotCount.toLocaleString();
+  el('admindash-kpi-pending').textContent  = pendingCount.toLocaleString();
+
+  if (prior && el('admindash-kpi-revenue-yoy')) el('admindash-kpi-revenue-yoy').innerHTML = _admindashYoyHTML(totalRevenue, prior.revenue, prior.hasData, true);
+  if (prior && el('admindash-kpi-profit-yoy'))  el('admindash-kpi-profit-yoy').innerHTML  = _admindashYoyHTML(totalProfit, prior.profit, prior.hasData, true);
+
+  // มียอดรอเช็คต้นทุน → กดการ์ดนี้เพื่อไปหน้า "บันทึกผลิต" ได้เลย (pattern เดียวกับการ์ดลัดในหน้าแรก
+  // "บันทึกผลิตค้างอนุมัติ" — onclick="showPage('prodrecord', nav-prodrecord)" ตรงๆ ไม่ได้ทำ filter เพิ่ม
+  // เพราะหน้า prodrecord เองยังไม่มีตัวกรองสถานะ มีแค่ช่องค้นหาข้อความ)
+  const pendingCard = el('admindash-kpi-pending-card');
+  if (pendingCard) {
+    if (pendingCount > 0) {
+      pendingCard.classList.add('home-shortcut-card');
+      pendingCard.onclick = () => showPage('prodrecord', document.getElementById('nav-prodrecord'));
+      pendingCard.title = 'กดเพื่อไปหน้าบันทึกผลิต';
+    } else {
+      pendingCard.classList.remove('home-shortcut-card');
+      pendingCard.onclick = null;
+      pendingCard.title = 'บันทึกผลิตที่ยังไม่ผ่านการอนุมัติต้นทุน';
+    }
+  }
+}
+
+function admindashRenderCostChart(rows, months) {
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+  const sumBy  = field => months.map(m => rows.filter(r => _admindashMonthKey(r) === m)
+    .reduce((s, r) => s + (parseFloat(r[field]) || 0), 0));
+
+  _admindashDestroy('cost');
+  _admindashCharts.cost = new Chart(document.getElementById('admindash-chart-cost'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'วัตถุดิบ', data: sumBy('MaterialCost'), borderColor: '#1e3a8a', backgroundColor: '#1e3a8a', tension: .3, borderWidth: 2, pointRadius: 3 },
+        { label: 'ค่าแรง',   data: sumBy('LaborCost'),    borderColor: '#0f766e', backgroundColor: '#0f766e', tension: .3, borderWidth: 2, pointRadius: 3 },
+        { label: 'Overhead', data: sumBy('Overhead'),     borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: .3, borderWidth: 2, pointRadius: 3 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => '฿' + v.toLocaleString() } } },
+    },
+  });
+}
+
+function admindashRenderProfitChart(dlvRows, months, priceMap, costByLot) {
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+  const byMonth = months.map(m => {
+    const acc = { revenue: 0, cogs: 0 };
+    dlvRows.filter(r => _admindashDlvMonthKey(r) === m).forEach(r => {
+      const p = _admindashDlvProfit(r, priceMap, costByLot);
+      if (!p) return;
+      acc.revenue += p.revenue;
+      acc.cogs    += p.cogs;
+    });
+    return acc;
+  });
+  const revByMonth    = byMonth.map(a => a.revenue);
+  const cogsByMonth   = byMonth.map(a => a.cogs);
+  const profitByMonth = byMonth.map(a => a.revenue - a.cogs);
+
+  _admindashDestroy('profit');
+  _admindashCharts.profit = new Chart(document.getElementById('admindash-chart-profit'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'รายได้ (ส่งถึงแล้ว)', data: revByMonth,    borderColor: '#7c3aed', backgroundColor: '#7c3aed', tension: .3, borderWidth: 2, pointRadius: 3 },
+        { label: 'ต้นทุนขาย (COGS)',    data: cogsByMonth,   borderColor: '#ef4444', backgroundColor: '#ef4444', tension: .3, borderWidth: 2, pointRadius: 3 },
+        { label: 'กำไรที่รับรู้จริง',    data: profitByMonth, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.15)', tension: .3, borderWidth: 2, pointRadius: 3, fill: true },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => '฿' + v.toLocaleString() } } },
+    },
+  });
+}
+
+function admindashToggleTopMode() {
+  _admindashTopMode = _admindashTopMode === 'top' ? 'bottom' : 'top';
+  admindashRenderTopProducts(_admindashLastDlv, _admindashPriceMap, _admindashCostByLot);
+}
+
+function admindashRenderTopProducts(dlvRows, priceMap, costByLot) {
+  const map = {};
+  dlvRows.forEach(r => {
+    const p = _admindashDlvProfit(r, priceMap, costByLot);
+    if (!p) return;
+    if (!map[r.ProductCode]) map[r.ProductCode] = { name: r.ProductName || r.ProductCode, profit: 0 };
+    map[r.ProductCode].profit += p.profit;
+  });
+  let entries = Object.values(map);
+  entries.sort((a, b) => _admindashTopMode === 'top' ? b.profit - a.profit : a.profit - b.profit);
+  entries = entries.slice(0, 5);
+
+  const label = document.getElementById('admindash-top-toggle-label');
+  if (label) label.textContent = (_admindashTopMode === 'top' ? 'Top 5 สินค้ากำไรสูงสุด' : 'Top 5 สินค้ากำไรต่ำสุด/ขาดทุน') + ' (6 ด. · ตามยอดส่งถึงลูกค้า)';
+
+  _admindashDestroy('top');
+  _admindashCharts.top = new Chart(document.getElementById('admindash-chart-top'), {
+    type: 'bar',
+    data: {
+      labels: entries.map(e => e.name),
+      datasets: [{ label: 'กำไรสะสม', data: entries.map(e => Math.round(e.profit)),
+        backgroundColor: entries.map(e => e.profit >= 0 ? '#22c55e' : '#ef4444'), borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { callback: v => '฿' + v.toLocaleString() } } },
+    },
+  });
+}
+
+// มูลค่าสต็อกคงเหลือ = ยอดคงเหลือปัจจุบันใน stock_fg (ทุก Lot ทุกสินค้า ไม่จำกัด 6 เดือน เพราะเป็นยอด ณ ปัจจุบัน)
+// × ต้นทุน/หน่วยของ Lot นั้น (จับคู่ผ่าน ProductCode+LotFG เหมือนกำไร) — Lot ที่หาต้นทุนไม่เจอจะไม่รวมในมูลค่านี้
+// (เช่น Lot เก่าก่อนระบบนี้เริ่มเก็บต้นทุนต่อ Lot) ถือว่าเป็นมูลค่าขั้นต่ำที่ยืนยันได้ ไม่ใช่มูลค่าที่แท้จริงทั้งหมด
+function admindashRenderStockValue(stockFgRows, costByLot) {
+  let stockValue = 0;
+  stockFgRows.forEach(r => {
+    const cost = costByLot[_admindashLotKey(r.ProductCode, r.LotFG)];
+    if (cost === undefined) return;
+    stockValue += (parseFloat(r.FGBalance) || 0) * cost;
+  });
+  const el = document.getElementById('admindash-kpi-stockvalue');
+  if (el) el.textContent = '฿' + Math.round(stockValue).toLocaleString();
+}
+
+// สแกนทุกสินค้าที่มีข้อมูลต้นทุน/หน่วยเฉลี่ยถ่วงน้ำหนักรายเดือน (weighted by FG_Actual เหมือนกราฟ/ตารางอื่นในหน้านี้)
+// อย่างน้อย 2 ใน 3 เดือนล่าสุด — ถ้าช่วงห่างสูงสุด-ต่ำสุดของต้นทุน/หน่วยเกิน _ADMINDASH_COST_VOLATILITY_PCT ของ
+// ค่าเฉลี่ย ถือว่าผันผวนเกินเกณฑ์ ควรพิจารณาปรับราคา — ราคาที่แนะนำคำนวณให้ได้ "มาร์จิ้น% เท่าเดิมก่อนต้นทุนขึ้น"
+// (originalMarginPct = จากราคาขายปัจจุบันเทียบต้นทุนของเดือนแรกสุดที่มีข้อมูลใน 3 เดือนนี้ ไม่ใช่ min/max เพราะ
+// ต้นทุนอาจไม่ได้ขึ้นเป็นเส้นตรง) แล้วนำ margin% นั้นมาคำนวณย้อนกลับกับต้นทุนของเดือนล่าสุดที่มีข้อมูล
+function admindashRenderVolatilityAlerts(approvedRecs, priceMap, months6) {
+  const container = document.getElementById('admindash-volatility-table');
+  if (!container) return;
+
+  const last3 = months6.slice(3); // เรียงเก่า→ใหม่ ตาม _admindashLast6Months()
+
+  const byProduct = {}; // ProductCode -> { name, monthAgg: { month: {cost, qty} } }
+  approvedRecs.forEach(r => {
+    const m = _admindashMonthKey(r);
+    if (!last3.includes(m)) return;
+    const code = r.ProductCode;
+    if (!byProduct[code]) byProduct[code] = { name: r.ProductName || code, monthAgg: {} };
+    if (!byProduct[code].monthAgg[m]) byProduct[code].monthAgg[m] = { cost: 0, qty: 0 };
+    byProduct[code].monthAgg[m].cost += parseFloat(r.TotalCost) || 0;
+    byProduct[code].monthAgg[m].qty  += parseFloat(r.FG_Actual) || 0;
+  });
+
+  const alerts = [];
+  Object.entries(byProduct).forEach(([code, p]) => {
+    const monthCosts = last3.map(m => {
+      const agg = p.monthAgg[m];
+      return (agg && agg.qty) ? agg.cost / agg.qty : null;
+    });
+    const valid = monthCosts.filter(v => v != null);
+    if (valid.length < 2) return; // ข้อมูลไม่พอจะวัดความผันผวน
+
+    const minCost = Math.min(...valid);
+    const maxCost = Math.max(...valid);
+    const avgCost = valid.reduce((a, b) => a + b, 0) / valid.length;
+    const volatilityPct = avgCost > 0 ? Math.round((maxCost - minCost) / avgCost * 1000) / 10 : 0;
+    if (volatilityPct < _ADMINDASH_COST_VOLATILITY_PCT) return;
+
+    const firstIdx = monthCosts.findIndex(v => v != null);
+    const lastIdx  = monthCosts.length - 1 - [...monthCosts].reverse().findIndex(v => v != null);
+    const baselineCost = monthCosts[firstIdx];
+    const currentCost  = monthCosts[lastIdx];
+    const price = priceMap[code];
+
+    let suggestedPrice = null, originalMarginPct = null, marginNow = null;
+    if (price != null && price > 0) {
+      originalMarginPct = (price - baselineCost) / price;
+      marginNow = Math.round((price - currentCost) / price * 1000) / 10;
+      if (originalMarginPct < 1) suggestedPrice = Math.round(currentCost / (1 - originalMarginPct) * 100) / 100;
+    }
+
+    alerts.push({ code, name: p.name, minCost, maxCost, volatilityPct, price, suggestedPrice, marginNow });
+  });
+
+  alerts.sort((a, b) => b.volatilityPct - a.volatilityPct);
+
+  if (!alerts.length) {
+    container.innerHTML = '<div class="text-center text-muted py-3">ไม่มีสินค้าที่ต้นทุนผันผวนเกินเกณฑ์ในช่วง 3 เดือนล่าสุด</div>';
+    return;
+  }
+
+  const fmtB = v => v == null ? '—' : '฿' + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  container.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>สินค้า</th><th class="text-end">ต้นทุนต่ำสุด-สูงสุด (3 ด.)</th><th class="text-end">ผันผวน%</th>
+      <th class="text-end">ราคาขายปัจจุบัน</th><th class="text-end">มาร์จิ้นตอนนี้</th><th class="text-end">ราคาที่แนะนำ</th></tr></thead>
+    <tbody>${alerts.map(a => `<tr>
+      <td>${a.name}</td>
+      <td class="text-end">${fmtB(a.minCost)} – ${fmtB(a.maxCost)}</td>
+      <td class="text-end text-warning fw-bold">${a.volatilityPct}%</td>
+      <td class="text-end">${a.price != null ? fmtB(a.price) : '—'}</td>
+      <td class="text-end ${a.marginNow != null && a.marginNow < _ADMINDASH_LOW_MARGIN_PCT ? 'text-danger' : ''}">${a.marginNow != null ? a.marginNow + '%' : '—'}</td>
+      <td class="text-end fw-bold text-success">${a.suggestedPrice != null ? fmtB(a.suggestedPrice) : (a.price == null ? 'ยังไม่มีราคาขาย' : '—')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>
+  <div style="font-size:.7rem;color:#94a3b8;margin-top:6px">ราคาที่แนะนำคำนวณให้ได้มาร์จิ้น% เท่ากับก่อนต้นทุนเริ่มขึ้น (เทียบราคาขายปัจจุบันกับต้นทุนของเดือนแรกสุดที่มีข้อมูลใน 3 เดือนนี้) แล้วนำมาร์จิ้นนั้นมาใช้กับต้นทุนล่าสุด</div>`;
+}
+
+// ── เจาะลึกรายสินค้า: กำไร/หน่วยตาม Lot ที่ผลิต (ไม่ใช่ตามยอดส่งออกจริงเหมือนกราฟหลัก — ตั้งใจให้ต่างกัน เพราะ
+// จุดประสงค์ตรงนี้คือดูประสิทธิภาพต้นทุนการผลิตต่อ Lot/เดือน "ถ้าขายที่ราคาปัจจุบันจะกำไรกี่%" ไม่ใช่กำไรที่รับรู้
+// จริงทางบัญชี — นับทุก Lot ที่อนุมัติต้นทุนแล้วในช่วง 6 เดือน ไม่ว่าจะส่งออกไปแล้วหรือยังค้างอยู่ในสต็อก)
+function admindashPopulateDrillProducts(rows) {
+  const sel = document.getElementById('admindash-drill-product');
+  if (!sel) return;
+  const prev = sel.value;
+  const map = new Map();
+  rows.forEach(r => { if (r.ProductCode && !map.has(r.ProductCode)) map.set(r.ProductCode, r.ProductName || r.ProductCode); });
+  const products = Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'th'));
+  sel.innerHTML = '<option value="">— เลือกสินค้า —</option>' +
+    products.map(([code, name]) => `<option value="${code}">${name} (${code})</option>`).join('');
+  if (products.some(([code]) => code === prev)) sel.value = prev;
+}
+
+// แยกต้นทุนวัตถุดิบดิบ vs บรรจุภัณฑ์ต่อ 1 บันทึกผลิต (ProdRecord_ID) — production_records.MaterialCost เป็นยอด
+// รวมทั้งสองอย่างมาตั้งแต่ต้น (sum ActualUsedQty×UnitCost ของทุกวัตถุดิบที่เบิกไป ไม่แยกประเภท) ต้อง join
+// production_record_details (รายการวัตถุดิบจริงที่ใช้ต่อบันทึก) กับ bom.Remark ของสินค้านั้น ('PAC' = บรรจุภัณฑ์,
+// อย่างอื่นถือเป็นวัตถุดิบดิบ ตาม convention เดียวกับหน้า BOM/BPR ที่ทำไว้ก่อนแล้ว) ถึงจะแยกได้ — โหลดแบบ lazy
+// เฉพาะตอนเลือกสินค้าในหน้าเจาะลึก (ไม่ query ทุกสินค้าล่วงหน้า เพราะ production_record_details มีข้อมูลระดับ
+// รายการวัตถุดิบ ปริมาณเยอะกว่าระดับหัวบันทึกมาก)
+// ตั้งค่าเริ่มต้นของทุกบันทึกเป็น {material: MaterialCost ทั้งก้อน, packaging: 0} ก่อนเสมอ แล้วค่อยเขียนทับด้วย
+// ผลแยกจริงเฉพาะบันทึกที่มี production_record_details อยู่ — กันกรณีบันทึกเก่า/ไม่มี detail แล้วยอดหายไปเงียบๆ
+// (จะเห็นเป็น "วัตถุดิบ" ก้อนเดียวไม่แยกแทน ยังรวมถูกต้อง แค่ไม่ได้แยกประเภทให้)
+async function _admindashFetchMaterialSplit(code, rows) {
+  const parts = {};
+  rows.forEach(r => { parts[r.ProdRecord_ID] = { material: parseFloat(r.MaterialCost) || 0, packaging: 0 }; });
+
+  const prodIds = rows.map(r => r.ProdRecord_ID).filter(Boolean);
+  if (!prodIds.length) return parts;
+
+  const [bomRes, detailsRes] = await Promise.all([
+    _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', code),
+    _sb.from('production_record_details').select('ProdRecord_ID,MaterialCode,TotalCost').in('ProdRecord_ID', prodIds),
+  ]);
+  if (bomRes.error || detailsRes.error) return parts;
+
+  const pacSet = new Set((bomRes.data || []).filter(b => (b.Remark || '').toLowerCase() === 'pac').map(b => b.MaterialCode));
+  const fresh = {};
+  (detailsRes.data || []).forEach(d => {
+    if (!fresh[d.ProdRecord_ID]) fresh[d.ProdRecord_ID] = { material: 0, packaging: 0 };
+    const key = pacSet.has(d.MaterialCode) ? 'packaging' : 'material';
+    fresh[d.ProdRecord_ID][key] += parseFloat(d.TotalCost) || 0;
+  });
+  Object.keys(fresh).forEach(pid => { parts[pid] = fresh[pid]; });
+  return parts;
+}
+
+// คำนวณตาราง "เจาะลึกรายสินค้า" ของสินค้า 1 รายการ (ตัวเลขดิบ ไม่ format เป็น string) — ใช้ร่วมกันทั้งตอนแสดง
+// บนจอ (admindashRenderDrilldown) และตอน export ทุกสินค้าเป็น Excel หลายชีท (admindashExportAllProductsXLSX)
+// กันโค้ด 2 จุดคำนวณไม่ตรงกัน
+async function _admindashComputeDrillRows(code) {
+  const price = _admindashPriceMap[code];
+  const rows = _admindashLastProd.filter(r => r.ProductCode === code)
+    .sort((a, b) => (_admindashMonthKey(b) || '').localeCompare(_admindashMonthKey(a) || ''));
+  const partsByRecord = await _admindashFetchMaterialSplit(code, rows);
+
+  const computedRows = rows.map(r => {
+    const qty = parseFloat(r.FG_Actual) || 0;
+    const p = partsByRecord[r.ProdRecord_ID] || { material: parseFloat(r.MaterialCost) || 0, packaging: 0 };
+    const cost = parseFloat(r.CostPerUnit) || 0;
+    const profitPerUnit = price != null ? price - cost : null;
+    return {
+      lot: r.Lot_FG || '', month: _admindashMonthKey(r) || '', qty, uom: r.UOM || '',
+      lossPct: r.YieldOverall != null ? Math.round((100 - parseFloat(r.YieldOverall)) * 10) / 10 : null,
+      materialPerUnit: qty ? p.material / qty : null,
+      packagingPerUnit: qty ? p.packaging / qty : null,
+      laborPerUnit: qty ? (parseFloat(r.LaborCost) || 0) / qty : null,
+      utilityPerUnit: qty ? (parseFloat(r.Overhead) || 0) / qty : null,
+      costPerUnit: cost,
+      sellingPrice: price,
+      profitPerUnit,
+      marginPct: (price != null && price > 0) ? Math.round(profitPerUnit / price * 1000) / 10 : null,
+    };
+  });
+  return { price, rows, partsByRecord, computedRows };
+}
+
+async function admindashRenderDrilldown() {
+  const code = document.getElementById('admindash-drill-product')?.value || '';
+  const tableEl = document.getElementById('admindash-drill-table');
+  const alertEl = document.getElementById('admindash-drill-noprice-alert');
+  _admindashDestroy('drilltrend');
+  _admindashDestroy('drillcost');
+
+  if (!code) {
+    if (tableEl) tableEl.innerHTML = '<div class="text-center text-muted py-4">เลือกสินค้าเพื่อดูรายละเอียดกำไรต่อ Lot/เดือน</div>';
+    if (alertEl) alertEl.style.display = 'none';
+    _admindashLastDrillExport = null;
+    return;
+  }
+
+  if (tableEl) tableEl.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดรายละเอียดต้นทุน...</div>';
+
+  const { price, rows, partsByRecord, computedRows } = await _admindashComputeDrillRows(code);
+
+  // ถ้าผู้ใช้เปลี่ยนสินค้าที่เลือกไปแล้วระหว่างรอโหลด (สลับ dropdown เร็วๆ) ทิ้งผลลัพธ์รอบนี้ไป ไม่เขียนทับหน้าจอผิดสินค้า
+  if ((document.getElementById('admindash-drill-product')?.value || '') !== code) return;
+
+  if (alertEl) alertEl.style.display = price == null ? '' : 'none';
+
+  const drillProductLabel = document.getElementById('admindash-drill-product')?.selectedOptions?.[0]?.textContent || code;
+  _admindashLastDrillExport = { productLabel: drillProductLabel, rows: computedRows };
+
+  if (tableEl) {
+    if (!computedRows.length) {
+      tableEl.innerHTML = '<div class="text-center text-muted py-4">ไม่มีบันทึกผลิตที่อนุมัติต้นทุนแล้วของสินค้านี้ใน 6 เดือนล่าสุด</div>';
+    } else {
+      tableEl.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+        <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th>
+          <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ/หน่วย</th>
+          <th class="text-end">ต้นทุนรวม/หน่วย</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
+        <tbody>${computedRows.map(c => {
+          const pClass = c.profitPerUnit == null ? '' : (c.profitPerUnit >= 0 ? 'text-success' : 'text-danger');
+          const fmtB = v => v == null ? '—' : '฿' + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+          return `<tr>
+            <td>${c.lot || '—'}</td>
+            <td>${c.month || '—'}</td>
+            <td class="text-end">${c.qty.toLocaleString()} ${c.uom}</td>
+            <td class="text-end">${c.lossPct != null ? c.lossPct + '%' : '—'}</td>
+            <td class="text-end">${fmtB(c.materialPerUnit)}</td>
+            <td class="text-end">${fmtB(c.packagingPerUnit)}</td>
+            <td class="text-end">${fmtB(c.laborPerUnit)}</td>
+            <td class="text-end">${fmtB(c.utilityPerUnit)}</td>
+            <td class="text-end">${fmtB(c.costPerUnit)}</td>
+            <td class="text-end">${c.sellingPrice != null ? fmtB(c.sellingPrice) : '—'}</td>
+            <td class="text-end ${pClass}">${c.profitPerUnit != null ? (c.profitPerUnit >= 0 ? '+' : '') + fmtB(c.profitPerUnit) : '—'}</td>
+            <td class="text-end ${pClass}">${c.marginPct != null ? c.marginPct + '%' : '—'}${
+              (c.marginPct != null && c.marginPct >= 0 && c.marginPct < _ADMINDASH_LOW_MARGIN_PCT)
+                ? ` <i class="fas fa-triangle-exclamation text-warning" title="กำไร%ต่ำกว่าเกณฑ์ (${_ADMINDASH_LOW_MARGIN_PCT}%)"></i>`
+                : ''
+            }</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+    }
+  }
+
+  const months = _admindashLast6Months();
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+
+  // เฉลี่ยถ่วงน้ำหนักตามปริมาณผลิตจริงของแต่ละ Lot ในเดือนนั้น (Lot ผลิตมากมีน้ำหนักมากกว่า) ใช้ร่วมกันทั้ง
+  // กราฟกำไร% และกราฟต้นทุนแยกประเภท — วน rows ต่อเดือนแค่รอบเดียว ไม่แยกฟังก์ชันคำนวณซ้ำหลายรอบ
+  const byMonth = months.map(m => {
+    const monthRows = rows.filter(r => _admindashMonthKey(r) === m);
+    const totalQty = monthRows.reduce((s, r) => s + (parseFloat(r.FG_Actual) || 0), 0);
+    if (!totalQty) return { material: null, packaging: null, labor: null, utility: null, cost: null };
+    const sumField = f => monthRows.reduce((s, r) => s + (parseFloat(r[f]) || 0), 0);
+    const sumSplit = key => monthRows.reduce((s, r) => s + ((partsByRecord[r.ProdRecord_ID]?.[key]) || 0), 0);
+    return {
+      material: sumSplit('material') / totalQty,
+      packaging: sumSplit('packaging') / totalQty,
+      labor: sumField('LaborCost') / totalQty,
+      utility: sumField('Overhead') / totalQty,
+      cost: sumField('TotalCost') / totalQty,
+    };
+  });
+  const marginByMonth = byMonth.map(m => (price == null || m.cost == null) ? null : Math.round((price - m.cost) / price * 1000) / 10);
+
+  _admindashCharts.drilltrend = new Chart(document.getElementById('admindash-chart-drilltrend'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{ label: 'กำไร% ต่อหน่วย (ถ่วงน้ำหนักตามปริมาณผลิต)', data: marginByMonth,
+        borderColor: '#0ea5e9', backgroundColor: '#0ea5e9', spanGaps: true, tension: .3, borderWidth: 2, pointRadius: 3 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => (Math.round(v * 100) / 100) + '%' } } },
+    },
+  });
+
+  _admindashCharts.drillcost = new Chart(document.getElementById('admindash-chart-drillcost'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'วัตถุดิบ/หน่วย',   data: byMonth.map(m => m.material),  borderColor: '#1e3a8a', backgroundColor: 'rgba(30,58,138,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
+        { label: 'บรรจุภัณฑ์/หน่วย', data: byMonth.map(m => m.packaging), borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
+        { label: 'ค่าแรง/หน่วย',     data: byMonth.map(m => m.labor),     borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
+        { label: 'ค่าน้ำไฟ/หน่วย',   data: byMonth.map(m => m.utility),   borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
+      scales: { y: { stacked: true, beginAtZero: true, ticks: { callback: v => '฿' + (Math.round(v * 100) / 100) } } },
+    },
+  });
+}
+
+// ดาวน์โหลดตาราง "เจาะลึกรายสินค้า" ปัจจุบันเป็น CSV (เปิดใน Excel ได้ตรงๆ) — อ่านจาก _admindashLastDrillExport
+// ที่ admindashRenderDrilldown เตรียมไว้ให้แล้ว (ตัวเลขดิบ ยังไม่ format) ไม่คำนวณซ้ำ/parse กลับจาก HTML
+// ใส่ ﻿ (BOM) นำหน้าเสมอ ไม่งั้น Excel เปิดไฟล์ที่มีภาษาไทยแล้วตัวอักษรจะเพี้ยน (mojibake)
+function admindashExportDrillCSV() {
+  const exp = _admindashLastDrillExport;
+  if (!exp || !exp.rows.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'เลือกสินค้าที่มีข้อมูลในช่วง 6 เดือนก่อน'); return; }
+
+  const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
+  const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
+    'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+  const lines = [headers.join(',')];
+  exp.rows.forEach(c => {
+    lines.push([
+      `"${(c.lot || '').replace(/"/g, '""')}"`, c.month, c.qty, `"${c.uom}"`,
+      c.lossPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit), round2(c.laborPerUnit),
+      round2(c.utilityPerUnit), round2(c.costPerUnit), c.sellingPrice ?? '', round2(c.profitPerUnit), c.marginPct ?? '',
+    ].join(','));
+  });
+
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const safeLabel = (exp.productLabel || 'สินค้า').replace(/[^a-zA-Z0-9ก-๙_-]+/g, '_');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ต้นทุนกำไร_${safeLabel}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Excel sheet name ห้ามมี \ / ? * [ ] : ยาวเกิน 31 ตัวอักษร และห้ามซ้ำกันในเวิร์กบุ๊กเดียวกัน — สินค้าคนละรหัส
+// อาจมีชื่อขึ้นต้นเหมือนกันจนโดนตัดที่ 31 ตัวอักษรแล้วชนกันได้ จึงกันซ้ำด้วยเลขต่อท้ายเสมอ
+function _admindashSafeSheetName(name, usedSet) {
+  const base = (name || 'สินค้า').replace(/[\\/?*[\]:]/g, '_').trim().slice(0, 31) || 'สินค้า';
+  let candidate = base, i = 2;
+  while (usedSet.has(candidate)) {
+    const suffix = `_${i}`;
+    candidate = base.slice(0, 31 - suffix.length) + suffix;
+    i++;
+  }
+  usedSet.add(candidate);
+  return candidate;
+}
+
+// ดาวน์โหลดตาราง "เจาะลึกรายสินค้า" ของ "ทุกสินค้า" ที่มีบันทึกผลิตอนุมัติแล้วในช่วง 6 เดือนนี้ เป็นไฟล์ Excel
+// เดียว แยกชีทตามสินค้า (ตามที่ผู้ใช้ขอ — CSV ทำหลายชีทในไฟล์เดียวไม่ได้ ต้องใช้ .xlsx จริงผ่านไลบรารี SheetJS)
+// เรียก _admindashComputeDrillRows ต่อสินค้าแบบขนาน (Promise.all) — แต่ละสินค้ายิง query แยก 2 ตัว (bom +
+// production_record_details) ถ้ามีสินค้าเยอะมากอาจมี query พร้อมกันเยอะพอสมควร ยังไม่ได้ทำ throttle เพราะเป็น
+// ปุ่มที่กดเองไม่บ่อย ไม่ใช่ query อัตโนมัติตอนโหลดหน้า
+async function admindashExportAllProductsXLSX() {
+  const codes = Array.from(new Set(_admindashLastProd.map(r => r.ProductCode))).filter(Boolean);
+  if (!codes.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'ยังไม่มีสินค้าที่มีบันทึกผลิตอนุมัติแล้วในช่วง 6 เดือนนี้'); return; }
+  if (typeof XLSX === 'undefined') { _err('โหลดไลบรารี Excel ไม่สำเร็จ', 'เช็คการเชื่อมต่ออินเทอร์เน็ต แล้วลองรีเฟรชหน้าใหม่'); return; }
+
+  const nameMap = {};
+  _admindashLastProd.forEach(r => { if (r.ProductCode && !nameMap[r.ProductCode]) nameMap[r.ProductCode] = r.ProductName || r.ProductCode; });
+
+  _showLoader();
+  try {
+    const results = await Promise.all(codes.map(code => _admindashComputeDrillRows(code).then(res => ({ code, ...res }))));
+
+    const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
+      'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+    const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
+
+    const wb = XLSX.utils.book_new();
+    const usedSheetNames = new Set();
+    results.forEach(({ code, computedRows }) => {
+      if (!computedRows.length) return; // ข้ามสินค้าที่ไม่มีบันทึกผลิตในช่วง 6 เดือนนี้ ไม่ต้องสร้างชีทเปล่า
+      const aoa = [headers, ...computedRows.map(c => [
+        c.lot, c.month, c.qty, c.uom, c.lossPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit),
+        round2(c.laborPerUnit), round2(c.utilityPerUnit), round2(c.costPerUnit), c.sellingPrice ?? '',
+        round2(c.profitPerUnit), c.marginPct ?? '',
+      ])];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, _admindashSafeSheetName(nameMap[code] || code, usedSheetNames));
+    });
+
+    if (!wb.SheetNames.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'ไม่มีสินค้าใดมีบันทึกผลิตในช่วง 6 เดือนนี้เลย'); return; }
+    XLSX.writeFile(wb, `ต้นทุนกำไร_ทุกสินค้า_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  } finally {
+    _hideLoader();
+  }
+}
+
+// ── ออกรายงานอินโฟกราฟิก: reuse เลย์เอาต์ .wreport-* ชุดเดียวกับ "รายงานรายสัปดาห์" (หัวเรื่องไล่สี, การ์ด KPI
+// วงกลมไอคอน, section มีเส้นคั่นสีฟ้า) แทนการออกแบบชุดใหม่ — อ่านตัวเลข KPI ตรงจาก DOM ที่ admindashRenderKPIs/
+// admindashRenderStockValue เขียนไว้แล้ว (ไม่คำนวณซ้ำ) เพื่อให้รายงานตรงกับที่เห็นบนจอเป๊ะเสมอ ส่วนกราฟทั้งหมด
+// ใช้ Chart.js `toBase64Image()` แปลงจากแคนวาสที่วาดไว้บนจอ (ไม่วาดกราฟใหม่) กันเลขไม่ตรงกันระหว่างจอกับรายงาน
+function _admindashBuildReportHTML() {
+  const el = id => document.getElementById(id)?.textContent || '—';
+  const now = new Date();
+  const printedAt = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  const months = _admindashLast6Months();
+  const rangeLabel = months.length ? `${months[0]} – ${months[months.length - 1]}` : '—';
+
+  const kpiTile = (icon, color, num, label, sub) => `
+    <div class="wreport-kpi">
+      <div class="wreport-kpi-icon" style="background:${color}"><i class="fas ${icon}"></i></div>
+      <div class="wreport-kpi-num">${num}</div>
+      <div class="wreport-kpi-label">${label}</div>
+      ${sub ? `<div class="wreport-kpi-sub">${sub}</div>` : ''}
+    </div>`;
+
+  const kpiRow = `<div class="wreport-kpi-row" style="grid-template-columns:repeat(4,1fr)">
+    ${kpiTile('fa-industry', '#1e3a8a', el('admindash-kpi-cost'), 'ต้นทุนการผลิตรวม')}
+    ${kpiTile('fa-hand-holding-dollar', '#7c3aed', el('admindash-kpi-revenue'), 'รายได้จากที่ส่งถึงแล้ว')}
+    ${kpiTile('fa-chart-line', '#16a34a', el('admindash-kpi-profit'), 'กำไรที่รับรู้จริง', el('admindash-kpi-margin'))}
+    ${kpiTile('fa-boxes-stacked', '#0ea5e9', el('admindash-kpi-stockvalue'), 'มูลค่าสต็อกคงเหลือ')}
+  </div>`;
+
+  const noteRow = `<div style="font-size:11px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-bottom:18px">
+    <i class="fas fa-circle-info me-1"></i>สินค้าไม่มีราคาขาย ${el('admindash-kpi-nodata')} รายการ ·
+    Lot ที่ส่งออกแล้วแต่ไม่มีต้นทุน ${el('admindash-kpi-nocostlot')} รายการ ·
+    รอเช็คต้นทุน ${el('admindash-kpi-pending')} รายการ (ทั้งหมดนี้ไม่รวมในตัวเลขข้างต้น)
+  </div>`;
+
+  const chartImg = (key, alt) => {
+    const c = _admindashCharts[key];
+    return c ? `<img src="${c.toBase64Image()}" style="width:100%;display:block" alt="${alt}">` : `<div class="wreport-empty">ไม่มีข้อมูล</div>`;
+  };
+
+  const drillSel = document.getElementById('admindash-drill-product');
+  const drillCode = drillSel?.value || '';
+  const drillSection = !drillCode ? '' : `
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-magnifying-glass-chart"></i>เจาะลึกสินค้า: ${drillSel.selectedOptions[0]?.textContent || drillCode}</div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">${chartImg('drilltrend', 'กำไร% รายเดือนของสินค้าที่เลือก')}</div>
+        <div style="flex:1">${chartImg('drillcost', 'ต้นทุน/หน่วยรายเดือน แยกตามประเภท')}</div>
+      </div>
+    </div>`;
+
+  return `<div class="wreport-print-page">
+    <div class="wreport-hero">
+      <div>
+        <div class="wreport-hero-title"><i class="fas fa-sack-dollar"></i>รายงานต้นทุนการผลิตและกำไร</div>
+        <div class="wreport-hero-range">ย้อนหลัง 6 เดือน (${rangeLabel}) · พิมพ์เมื่อ ${printedAt}</div>
+      </div>
+      <img src="wisenovation_LOGO%20-Cut.png" class="wreport-hero-logo" onerror="this.style.display='none'">
+    </div>
+
+    ${kpiRow}
+    ${noteRow}
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-industry"></i>ต้นทุนการผลิตรายเดือน</div>
+      ${chartImg('cost', 'ต้นทุนการผลิตรายเดือน')}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-chart-line"></i>รายได้ ต้นทุนขาย และกำไรที่รับรู้จริงรายเดือน</div>
+      ${chartImg('profit', 'รายได้ ต้นทุนขาย และกำไร')}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-ranking-star"></i>${document.getElementById('admindash-top-toggle-label')?.textContent || 'Top 5 สินค้า'}</div>
+      ${chartImg('top', 'Top 5 สินค้า')}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-triangle-exclamation"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด)</div>
+      ${document.getElementById('admindash-volatility-table')?.innerHTML || ''}
+    </div>
+    ${drillSection}
+
+    <div class="wreport-footer">
+      กำไรนับเฉพาะของที่ "ส่งถึงลูกค้าแล้วจริง" เทียบต้นทุน/หน่วยของ Lot ที่ผลิตจริง ไม่ใช่ยอดผลิต ·
+      ราคาขายอ้างอิงราคาปัจจุบันในหน้า BOM ไม่ใช่ราคา ณ วันที่ขายจริง
+    </div>
+  </div>`;
+}
+
+function admindashOpenReportPreview() {
+  if (!_admindashCharts.cost || !_admindashCharts.profit) { _err('ยังโหลดข้อมูลไม่เสร็จ', 'กรุณารอสักครู่แล้วลองใหม่'); return; }
+  const html = _admindashBuildReportHTML();
+  document.getElementById('admindash-report-print-root').innerHTML = html;
+  document.getElementById('admindash-report-preview-body').innerHTML = html;
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
+    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip');
+  document.body.classList.add('print-mode-admindash');
+  if (!_admindashReportModal) _admindashReportModal = new bootstrap.Modal(document.getElementById('admindashReportModal'));
+  _admindashReportModal.show();
+}
+
+// ══════════════════════════════════════════════
 // PAGE: เบิกผลิต (Issue)
 // ══════════════════════════════════════════════
 let _issueData      = [];
@@ -15949,6 +16927,18 @@ let _issueModal     = null;
 let _issueExpandedSet = new Set();   // MO_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _issueActualUsedMap = {};        // "MO_ID|MaterialCode|Lot" → ใช้จริงจากบันทึกผลิตที่อนุมัติแล้วเท่านั้น
 let _issueEditRequests = [];         // issue_edit_requests แถวที่ยัง "รออนุมัติ" เท่านั้น (แก้ไข/เพิ่ม/ลบ รายการที่เบิกไปแล้ว)
+
+// สถานะ MO ที่ถือว่า "รอเบิก" (ยังไม่เบิกวัตถุดิบ) — แยกออกมาเป็นฟังก์ชันของตัวเอง (เหมือน
+// _prodrecordFetchPendingMOs ที่แยกให้ prodrecordLoadData()/_prodrecordUpdateNavBadge() ใช้ตรรกะเดียวกัน)
+// ให้ loadIssueData() (dropdown เลือก MO ในโมดัลเบิกวัตถุดิบ) กับ badge แจ้งเตือนที่ sidebar ใช้กฎเดียวกันเป๊ะๆ
+// ไม่ให้ตรรกะเพี้ยนกันถ้าแก้จุดใดจุดหนึ่งแล้วลืมอีกจุด
+function _issueIsWaitingStatus(status) {
+  const s = (status || '').toLowerCase();
+  // 'แพลนแล้ว' (จองวัตถุดิบไว้ล่วงหน้าจากปุ่ม "แพลนการผลิต") และ 'ยืนยันการผลิต' (ยืนยันแผน ออกใบบันทึกผลิตแล้ว
+  // จากหน้าแผนผลิต) ก็ต้องเบิกได้เหมือนกัน — ไม่งั้น MO ที่แพลน/ยืนยันแผนไว้แล้วจะหายไปจากตัวเลือกหน้านี้ ทั้งที่
+  // ปุ่ม "สั่งเบิก" ที่หน้า MO เด้งมาที่นี่ได้ปกติ
+  return s.includes('รอเบิก') || s.includes('รอ') || s === 'wait' || status === 'แพลนแล้ว' || status === 'ยืนยันการผลิต';
+}
 
 async function loadIssueData() {
   _showLoader();
@@ -15973,13 +16963,7 @@ async function loadIssueData() {
   // ถ้าตาราง issue_edit_requests ยังไม่ถูกสร้าง (ยังไม่ได้รัน create_issue_edit_requests.sql) ให้ข้ามไปเงียบๆ
   // แทนที่จะ error ทั้งหน้า — ฟีเจอร์คำขออนุมัติจะแค่ไม่ทำงาน ส่วนอื่นของหน้ายังใช้ได้ปกติ
   _issueEditRequests = reqRes.error ? [] : (reqRes.data || []);
-  _issueMOList    = (moRes.data   || []).filter(m => {
-    const s = (m.Status||'').toLowerCase();
-    // 'แพลนแล้ว' (จองวัตถุดิบไว้ล่วงหน้าจากปุ่ม "แพลนการผลิต") และ 'ยืนยันการผลิต' (ยืนยันแผน ออกใบบันทึกผลิตแล้ว
-    // จากหน้าแผนผลิต) ก็ต้องเบิกได้เหมือนกัน — ไม่งั้น MO ที่แพลน/ยืนยันแผนไว้แล้วจะหายไปจากตัวเลือกหน้านี้ ทั้งที่
-    // ปุ่ม "สั่งเบิก" ที่หน้า MO เด้งมาที่นี่ได้ปกติ
-    return s.includes('รอเบิก') || s.includes('รอ') || s === 'wait' || m.Status === 'แพลนแล้ว' || m.Status === 'ยืนยันการผลิต';
-  });
+  _issueMOList    = (moRes.data   || []).filter(m => _issueIsWaitingStatus(m.Status));
   // MO ทั้งหมด (ไม่กรองสถานะ) ใช้หา Lot FG ของ MO ที่เบิกไปแล้ว ซึ่งอาจไม่ใช่สถานะ "รอเบิก" อีกต่อไป
   _issueMOAllMap = {};
   (moRes.data || []).forEach(m => { _issueMOAllMap[m.MO_ID] = m; });
@@ -16001,10 +16985,45 @@ async function loadIssueData() {
 
   issueUpdateKPIs();
   issueRenderTable();
+  _issueUpdateWaitingBadge(false, _issueMOList.length); // เลี่ยง query ซ้ำ ใช้ตัวเลขที่เพิ่งคำนวณเลย (เหมือน prodrecordLoadData)
   _issueUpdateNavBadge();
 }
 
-// นับคำขอแก้ไข/เพิ่ม/ลบ ที่ยังรออนุมัติ ขึ้นเป็นเลขแจ้งเตือนสีแดงที่ nav-issue — เหมือน _planUpdateNavBadge
+// นับ MO ที่ยัง "รอเบิก" วัตถุดิบ ขึ้นเป็นเลขแจ้งเตือนสีแดงที่ nav-issue — เหมือน _prodrecordUpdateNavBadge เป๊ะๆ
+// เห็นได้ทุก role (ต่างจาก nav-issue-badge สีเหลืองด้านล่างที่จำกัดแค่หัวหน้างานขึ้นไป) เพราะพนักงานทั่วไป/
+// บัญชีแท็บเลตคลังก็เบิกวัตถุดิบเองได้ ไม่ใช่ปุ่มอนุมัติที่จำกัดสิทธิ์ — เพิ่มตามคำขอผู้ใช้ 2026-08-17
+// knownCount: ถ้า loadIssueData() เพิ่งคำนวณ _issueMOList มาแล้วให้ส่งเลขมาเลย กัน query ซ้ำ — ถ้าไม่ส่งมา
+// (เรียกตอน login bootstrap ก่อนเคยเข้าหน้านี้เลยในเซสชันนี้) จะคิวรีสดเอง
+// notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามี MO ค้างด้วย ตาม
+// pattern เดียวกับ _issueUpdateNavBadge/_prodrecordUpdateNavBadge
+let _issueWaitingBadgeSeq = 0;
+
+async function _issueUpdateWaitingBadge(notifyIfPending = false, knownCount = null) {
+  const badge = document.getElementById('nav-issue-waiting-badge');
+  const mySeq = ++_issueWaitingBadgeSeq;
+  let count = knownCount;
+  if (count == null) {
+    const { data: moStatusRows, error } = await _sb.from('manufacturing_orders').select('Status');
+    if (mySeq !== _issueWaitingBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
+    if (error) return; // เงียบไว้ เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
+    count = (moStatusRows || []).filter(m => _issueIsWaitingStatus(m.Status)).length;
+  }
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `MO รอเบิกวัตถุดิบ ${count} รายการ`,
+      html: `มีใบสั่งผลิต (MO) ที่ยังไม่ได้เบิกวัตถุดิบเข้าสายผลิตอยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้าเบิกผลิต', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('issue', document.getElementById('nav-issue'));
+  }
+}
+
+// นับคำขอแก้ไข/เพิ่ม/ลบ ที่ยังรออนุมัติ ขึ้นเป็นเลขแจ้งเตือนสีเหลืองที่ nav-issue — เหมือน _planUpdateNavBadge
 // เป๊ะๆ (query ตรงเองทุกครั้ง ไม่พึ่ง _issueEditRequests เพื่อให้เห็นค่าที่ถูกต้องได้ตั้งแต่หน้าแรกหลัง login
 // แม้ยังไม่เคยเข้าหน้าเบิกผลิตเลยในเซสชันนี้) เห็นเฉพาะหัวหน้างานขึ้นไป (_hasRole('supervisor')) เพราะมีแค่
 // ระดับนี้ที่กดอนุมัติได้ — operator เห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
@@ -17706,7 +18725,7 @@ function _miscSlipBuildGroups(rows) {
 async function miscSlipRenderPreview() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash');
   document.body.classList.add('print-mode-miscslip');
 
   const rows = _miscSlipScopeRows();
@@ -18858,7 +19877,7 @@ function lotscanOpenReport() {
 
 function lotscanPrintReport() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-dlvlabel');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-dlvlabel', 'print-mode-admindash');
   document.body.classList.add('print-mode-lotscan');
   window.print();
 }
@@ -19073,7 +20092,7 @@ function _lotlabelRenderPreview() {
 
 function lotlabelPrint() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-dlvlabel');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-dlvlabel', 'print-mode-admindash');
   document.body.classList.add('print-mode-lotlabel');
   window.print();
 }
@@ -19179,7 +20198,7 @@ function _dlvlabelRenderPreview() {
 
 function dlvlabelPrint() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel');
+    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-admindash');
   document.body.classList.add('print-mode-dlvlabel');
   window.print();
 }
@@ -19528,6 +20547,10 @@ function _renderCurrentUserBadge() {
   // audit log: มีการบังคับจริงที่ RLS ด้วย (create_user_roles.sql — INSERT/UPDATE/DELETE เฉพาะ admin)
   const navUserroles = document.getElementById('nav-userroles');
   if (navUserroles) navUserroles.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "ต้นทุน & กำไร" (admindash) — รายงานต้นทุนการผลิต/กำไรประเมิน ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-08-17)
+  // เหมือน nav-weeklyreport: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
+  const navAdmindash = document.getElementById('nav-admindash');
+  if (navAdmindash) navAdmindash.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -19569,6 +20592,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _bootstrapped = true;
           showPage('home', document.getElementById('nav-home'));
           _planUpdateNavBadge();
+          _issueUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO รอเบิกวัตถุดิบ (แค่ครั้งเดียวตอน login)
           _issueUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอค้างอนุมัติ (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO เสร็จแล้วยังไม่มีบันทึกผลิต (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
