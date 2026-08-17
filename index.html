@@ -3903,13 +3903,17 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
               <label class="form-label">PT OT (฿/ชม.)</label>
               <input type="number" id="prodrecord-ap-pt-ot" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-3">
+              <label class="form-label">Out Source ค่าแรง (฿/ชม.)</label>
+              <input type="number" id="prodrecord-ap-os-rate" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Out Source OT (฿/ชม.)</label>
+              <input type="number" id="prodrecord-ap-os-ot" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
+            </div>
+            <div class="col-md-12">
               <label class="form-label">Overhead ค่าสาธารณูปโภค (฿/วัน)</label>
               <input type="number" id="prodrecord-ap-oh-util" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Overhead ทางอ้อม (฿/วัน)</label>
-              <input type="number" id="prodrecord-ap-oh-ind" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
             </div>
           </div>
           <div id="prodrecord-ap-preview" class="mt-3"></div>
@@ -13220,7 +13224,9 @@ function _prodrecordMatRowRecalc(seq) {
 // เดิมแต่ละขั้นตอนมีแค่ 1 ชุดตัวเลข "ชม./วันเฉลี่ย" ไม่ระบุว่าวันไหน (ผู้ใช้ทักว่าไม่พอ เพราะแต่ละวันจริง
 // จำนวนคน/ชม.ไม่เท่ากัน) — เปลี่ยนเป็นตารางที่เพิ่ม/ลบแถว "วันที่ทำงาน" ได้อิสระต่อขั้นตอน แต่ละแถวมีวันที่ +
 // จำนวนคน/ชม.ปกติ/ชม.OT แยก FT-PT เหมือนเดิม ไม่ใช่ค่าเฉลี่ยต่อวันอีกต่อไป
-// รูปแบบ StationsData ใหม่: [{key, days:[{date,ftWorkers,ftNormalHrs,ftOtHrs,ptWorkers,ptNormalHrs,ptOtHrs}, ...]}]
+// รูปแบบ StationsData ใหม่: [{key, days:[{date,ftWorkers,ftNormalHrs,ftOtHrs,ptWorkers,ptNormalHrs,ptOtHrs,
+// osWorkers,osNormalHrs,osOtHrs}, ...]}] (osXxx = พนักงาน Out Source เพิ่มเข้ามาวันเดียวกับที่ทำตาราง
+// หลายวัน — โครงสร้างเดียวกับ FT/PT เป๊ะ ตามที่ผู้ใช้ยืนยัน)
 // (ของเดิมก่อนวันนี้เป็น {key,ftWorkers,ftNormalHrs,...} แบบแบน — _prodrecordRecalcApprove ยังอ่านทั้ง 2
 // แบบได้ เพื่อไม่ให้บันทึกเก่าที่อนุมัติไปแล้วคำนวณต้นทุนผิดไปจากเดิม)
 let _prodrecordStationDaySeq = 0; // ตัวนับไม่ใช้ซ้ำ กันชนกันตอนลบแถวกลางแล้วเพิ่มแถวใหม่ (แพทเทิร์นเดียวกับ _bomRowSeq)
@@ -13233,16 +13239,23 @@ let _prodrecordStationDaySeq = 0; // ตัวนับไม่ใช้ซ้�
 const _PRODRECORD_ST_COL_NORMAL = 'background:#eff6ff'; // ฟ้าอ่อน = ชม.ปกติ
 const _PRODRECORD_ST_COL_OT     = 'background:#fff7ed'; // ส้มอ่อน = โอที
 
+// เส้นแบ่งหนา (3px) คั่นระหว่างกลุ่มพนักงานประจำ/PartTime/Outsource — คนละแนวคิดจากสีพื้นหลัง
+// _PRODRECORD_ST_COL_NORMAL/_OT ด้านบน (ยังคงไว้ ใช้ไล่สีปกติ/OT *ภายใน* แต่ละกลุ่มคนเหมือนเดิม)
+const _PRODRECORD_ST_GROUP_BORDER = 'border-left:3px solid #94a3b8';
+
 function _prodrecordStationDayRowHTML(key, seq, d) {
   d = d || {};
   return `<tr class="prodrecord-station-day-row" data-seq="${seq}">
     <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}"></td>
-    <td style="border-left:2px solid #dee2e6"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
-    <td><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptworkers" min="0" step="1" value="${d.ptWorkers ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.01" value="${d.ftNormalHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.01" value="${d.ftNormalHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.01" value="${d.ftOtHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptworkers" min="0" step="1" value="${d.ptWorkers ?? 0}"></td>
     <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptnormal" min="0" step="0.01" value="${d.ptNormalHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.01" value="${d.ftOtHrs ?? 0}"></td>
     <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptot" min="0" step="0.01" value="${d.ptOtHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osworkers" min="0" step="1" value="${d.osWorkers ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osnormal" min="0" step="0.01" value="${d.osNormalHrs ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osot" min="0" step="0.01" value="${d.osOtHrs ?? 0}"></td>
     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
   </tr>`;
 }
@@ -13259,18 +13272,21 @@ function _prodrecordStationBlockHTML(key, label, days) {
         <thead>
           <tr class="text-muted text-center" style="font-size:.68rem">
             <th rowspan="2" style="min-width:130px;vertical-align:middle">วันที่</th>
-            <th colspan="2" style="border-left:2px solid #dee2e6">จำนวนคน</th>
-            <th colspan="2" style="${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd">ชม.ปกติ</th>
-            <th colspan="2" style="${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74">ชม.โอที</th>
+            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">พนักงานประจำ</th>
+            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">Part Time</th>
+            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">Outsource</th>
             <th rowspan="2" style="width:36px"></th>
           </tr>
           <tr class="text-muted text-center" style="font-size:.68rem">
-            <th style="min-width:55px;border-left:2px solid #dee2e6">FT</th>
-            <th style="min-width:55px">PT</th>
-            <th style="min-width:55px;${_PRODRECORD_ST_COL_NORMAL};border-left:2px solid #93c5fd">FT</th>
-            <th style="min-width:55px;${_PRODRECORD_ST_COL_NORMAL}">PT</th>
-            <th style="min-width:55px;${_PRODRECORD_ST_COL_OT};border-left:2px solid #fdba74">FT</th>
-            <th style="min-width:55px;${_PRODRECORD_ST_COL_OT}">PT</th>
+            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
+            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
+            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
+            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
+            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
+            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
+            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
+            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
+            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
           </tr>
         </thead>
         <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
@@ -13428,6 +13444,7 @@ async function prodrecordOpenEntryModal(gi) {
       days = [{
         date: r.Date_Start || '', ftWorkers: ex.ftWorkers || 0, ftNormalHrs: ex.ftNormalHrs || 0, ftOtHrs: ex.ftOtHrs || 0,
         ptWorkers: ex.ptWorkers || 0, ptNormalHrs: ex.ptNormalHrs || 0, ptOtHrs: ex.ptOtHrs || 0,
+        osWorkers: 0, osNormalHrs: 0, osOtHrs: 0, // Out Source เพิ่มทีหลัง — บันทึกเก่าไม่เคยมีเลยเสมอ 0
       }];
     } else {
       days = [];
@@ -13493,6 +13510,9 @@ async function prodrecordEntrySubmit(e) {
         ptWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptworkers`).value) || 0,
         ptNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptnormal`).value) || 0,
         ptOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptot`).value) || 0,
+        osWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osworkers`).value) || 0,
+        osNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osnormal`).value) || 0,
+        osOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osot`).value) || 0,
       };
     });
     return { key, days };
@@ -13587,7 +13607,7 @@ async function prodrecordOpenApproveModal(gi) {
   _showLoader();
   const [detailsRes, lastApprovedRes, bomRes] = await Promise.all([
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
-    _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OverheadUtility,OverheadIndirect')
+    _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
     _sb.from('bom').select('SellingPrice').eq('ProductCode', r.ProductCode).limit(1),
   ]);
@@ -13602,8 +13622,9 @@ async function prodrecordOpenApproveModal(gi) {
   document.getElementById('prodrecord-ap-ft-ot').value   = r.FT_OT_Rate ?? last.FT_OT_Rate ?? '';
   document.getElementById('prodrecord-ap-pt-rate').value = r.PT_LaborRate ?? last.PT_LaborRate ?? '';
   document.getElementById('prodrecord-ap-pt-ot').value   = r.PT_OT_Rate ?? last.PT_OT_Rate ?? '';
+  document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? '';
+  document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
   document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? last.OverheadUtility ?? '';
-  document.getElementById('prodrecord-ap-oh-ind').value  = r.OverheadIndirect ?? last.OverheadIndirect ?? '';
 
   document.getElementById('prodrecord-ap-info').innerHTML =
     `<span class="badge bg-secondary me-1">${r.ProdRecord_ID}</span><b>${r.ProductName||''}</b>` +
@@ -13624,30 +13645,38 @@ function _prodrecordRecalcApprove() {
   const ftOt   = parseFloat(document.getElementById('prodrecord-ap-ft-ot').value) || 0;
   const ptRate = parseFloat(document.getElementById('prodrecord-ap-pt-rate').value) || 0;
   const ptOt   = parseFloat(document.getElementById('prodrecord-ap-pt-ot').value) || 0;
+  const osRate = parseFloat(document.getElementById('prodrecord-ap-os-rate').value) || 0;
+  const osOt   = parseFloat(document.getElementById('prodrecord-ap-os-ot').value) || 0;
   const ohUtil = parseFloat(document.getElementById('prodrecord-ap-oh-util').value) || 0;
-  const ohInd  = parseFloat(document.getElementById('prodrecord-ap-oh-ind').value) || 0;
 
   let laborCost = 0;
   stations.forEach(s => {
     if (Array.isArray(s.days)) {
       // รูปแบบใหม่ (2026-08-17): แต่ละแถว "วัน" มีค่าจริงของวันนั้นอยู่แล้ว ไม่ต้องคูณ workDays ซ้ำ
-      // (ต่างจากแบบเก่าที่เป็นค่าเฉลี่ย ชม./วันเดียว แล้วคูณจำนวนวันทั้งหมดของบันทึกนี้)
+      // (ต่างจากแบบเก่าที่เป็นค่าเฉลี่ย ชม./วันเดียว แล้วคูณจำนวนวันทั้งหมดของบันทึกนี้) — Out Source (os*)
+      // เพิ่มเข้ามาทีหลัง (2026-08-17 เช่นกัน) แต่ค่า default 0 ตาม d.osWorkers||0 อยู่แล้ว ไม่กระทบบันทึก
+      // ก่อนหน้าที่ไม่มีฟิลด์นี้เลย
       s.days.forEach(d => {
         laborCost += (d.ftWorkers||0) * (d.ftNormalHrs||0) * ftRate;
         laborCost += (d.ftWorkers||0) * (d.ftOtHrs||0) * ftOt;
         laborCost += (d.ptWorkers||0) * (d.ptNormalHrs||0) * ptRate;
         laborCost += (d.ptWorkers||0) * (d.ptOtHrs||0) * ptOt;
+        laborCost += (d.osWorkers||0) * (d.osNormalHrs||0) * osRate;
+        laborCost += (d.osWorkers||0) * (d.osOtHrs||0) * osOt;
       });
     } else {
       // บันทึกเก่าก่อน 2026-08-17 (ไม่มี s.days เลย) — ยังเป็นค่าเฉลี่ย ชม./วันเดียวแบบเดิม ต้องคูณ workDays
-      // เหมือนเดิม ไม่งั้นต้นทุนของบันทึกเก่าที่เคยอนุมัติไปแล้วจะคำนวณต่างไปจากตอนอนุมัติจริง
+      // เหมือนเดิม ไม่งั้นต้นทุนของบันทึกเก่าที่เคยอนุมัติไปแล้วจะคำนวณต่างไปจากตอนอนุมัติจริง (รูปแบบแบนนี้
+      // ไม่เคยมี Out Source เลย จึง (s.osWorkers||0) เป็น 0 เสมอ ไม่กระทบผลลัพธ์)
       laborCost += (s.ftWorkers||0) * (s.ftNormalHrs||0) * workDays * ftRate;
       laborCost += (s.ftWorkers||0) * (s.ftOtHrs||0) * workDays * ftOt;
       laborCost += (s.ptWorkers||0) * (s.ptNormalHrs||0) * workDays * ptRate;
       laborCost += (s.ptWorkers||0) * (s.ptOtHrs||0) * workDays * ptOt;
+      laborCost += (s.osWorkers||0) * (s.osNormalHrs||0) * workDays * osRate;
+      laborCost += (s.osWorkers||0) * (s.osOtHrs||0) * workDays * osOt;
     }
   });
-  const overhead    = (ohUtil + ohInd) * workDays;
+  const overhead    = ohUtil * workDays;
   const materialCost = parseFloat(r.MaterialCost) || 0;
   const totalCost   = materialCost + laborCost + overhead;
   const fgActual    = parseFloat(r.FG_Actual) || 0;
@@ -13717,8 +13746,9 @@ async function prodrecordApproveSubmit() {
     FT_OT_Rate      : parseFloat(document.getElementById('prodrecord-ap-ft-ot').value) || 0,
     PT_LaborRate    : parseFloat(document.getElementById('prodrecord-ap-pt-rate').value) || 0,
     PT_OT_Rate      : parseFloat(document.getElementById('prodrecord-ap-pt-ot').value) || 0,
+    OS_LaborRate    : parseFloat(document.getElementById('prodrecord-ap-os-rate').value) || 0,
+    OS_OT_Rate      : parseFloat(document.getElementById('prodrecord-ap-os-ot').value) || 0,
     OverheadUtility : parseFloat(document.getElementById('prodrecord-ap-oh-util').value) || 0,
-    OverheadIndirect: parseFloat(document.getElementById('prodrecord-ap-oh-ind').value) || 0,
     LaborCost     : c.laborCost,
     Overhead      : c.overhead,
     TotalCost     : c.totalCost,
