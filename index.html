@@ -12874,7 +12874,9 @@ async function prodrecordLoadData() {
   _prodrecordMOStatusMap = Object.fromEntries(pendingRes.allMOs.map(m => [m.MO_ID, m.Status]));
   _prodrecordPendingMOs = pendingRes.pending;
   _prodrecordUpdateNavBadge(false, _prodrecordPendingMOs.length); // เลี่ยง query ซ้ำ ใช้ตัวเลขที่เพิ่งคำนวณเลย
-  _prodrecordUpdateApproveBadge(false, _prodrecordData.filter(r => r.Status === 'รอเช็คต้นทุน').length); // เช่นกัน
+  // นับเฉพาะที่ _prodrecordMOIsDone ผ่านด้วย (เหมือน prodrecordRenderTable กรองการ์ด) ไม่งั้น badge จะนับ
+  // รวมบันทึกของ MO ที่ยังผลิตไม่เสร็จ (การ์ดถูกซ่อนไว้ตาม 2026-08-13) ทำให้เลข badge ไม่ตรงกับที่เห็นจริงบนจอ
+  _prodrecordUpdateApproveBadge(false, _prodrecordData.filter(r => r.Status === 'รอเช็คต้นทุน' && _prodrecordMOIsDone(r)).length);
 
   prodrecordRenderTable();
 }
@@ -12931,6 +12933,28 @@ async function _prodrecordUpdateNavBadge(notifyIfPending = false, knownCount = n
 // (prodrecordOpenApproveModal) ก็จำกัดแค่ระดับนี้อยู่แล้ว — พนักงานทั่วไปเห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
 // ใช้ stale-response guard แบบเดียวกับ _prodrecordUpdateNavBadge ด้านบน (คนละเลขลำดับ คนละ badge) — เหตุผล
 // เดียวกัน: login bootstrap คิวรีสดเองอาจค้างรอนานกว่าตอนที่หน้าโหลด/อนุมัติเสร็จไปแล้วด้วย knownCount
+
+// เดิม (2026-08-17 ตอนสร้าง) นับ Status='รอเช็คต้นทุน' ทุกแถวตรงๆ ไม่กรองอะไรเพิ่ม — เจอบั๊กจริงวันเดียวกัน
+// (ผู้ใช้รายงาน "รอเช็คจริง 3 แจ้งเตือนมี 4"): prodrecordRenderTable()/_prodrecordMOIsDone ตั้งใจซ่อนการ์ดของ
+// MO ที่ยังผลิตไม่เสร็จออกจากตารางอยู่แล้ว (ยืนยันไว้ตั้งแต่ 2026-08-13) แต่ตัวนับ badge นี้ไม่เคยกรองตามนั้น
+// เลย จึงนับรวมบันทึกที่การ์ดถูกซ่อนไว้ด้วย ทำให้เลขไม่ตรงกับที่เห็นจริงบนจอ — ผู้ใช้ยืนยันให้แก้ไปทาง "badge
+// ต้องตรงกับการ์ดที่เห็นจริงเสมอ" จึงเพิ่ม `_prodrecordCountPendingApprovals()` ที่กรองด้วย _prodrecordMOIsDone
+// เดียวกันเป๊ะ (คิวรี manufacturing_orders สดเองเพราะ _prodrecordMOStatusMap อาจยังว่างถ้ายังไม่เคยเข้าหน้านี้
+// เลยในเซสชันนี้ — เหตุผลเดียวกับที่ _prodrecordFetchPendingMOs ไม่พึ่ง cache ของหน้า)
+async function _prodrecordCountPendingApprovals() {
+  const [{ data: pendingRows }, { data: allMOs }] = await Promise.all([
+    _sb.from('production_records').select('MO_Ref').eq('Status', 'รอเช็คต้นทุน'),
+    _sb.from('manufacturing_orders').select('MO_ID,Status'),
+  ]);
+  const moStatusMap = Object.fromEntries((allMOs || []).map(m => [m.MO_ID, m.Status]));
+  const isDone = (r) => {
+    if (!r.MO_Ref) return true;
+    const status = moStatusMap[r.MO_Ref];
+    return status === undefined || _moDoneStatuses.includes(status);
+  };
+  return (pendingRows || []).filter(isDone).length;
+}
+
 let _prodrecordApproveBadgeSeq = 0;
 
 async function _prodrecordUpdateApproveBadge(notifyIfPending = false, knownCount = null) {
@@ -12939,12 +12963,8 @@ async function _prodrecordUpdateApproveBadge(notifyIfPending = false, knownCount
   const mySeq = ++_prodrecordApproveBadgeSeq;
   let count = knownCount;
   if (count == null) {
-    const { count: c, error } = await _sb.from('production_records')
-      .select('_row_id', { count: 'exact', head: true })
-      .eq('Status', 'รอเช็คต้นทุน');
+    count = await _prodrecordCountPendingApprovals();
     if (mySeq !== _prodrecordApproveBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
-    if (error) return; // เงียบไว้ — เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
-    count = c;
   }
   if (badge) {
     if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
