@@ -1252,6 +1252,8 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-prodrecord" onclick="showPage('prodrecord',this)" title="บันทึกผลิต">
       <i class="fas fa-clipboard-list me-2"></i><span>บันทึกผลิต</span>
+      <span id="nav-prodrecord-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิต"></span>
+      <span id="nav-prodrecord-approve-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="บันทึกผลิตรอเช็คต้นทุน"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-bpr" onclick="showPage('bpr',this)" title="รายงาน BPR">
       <i class="fas fa-file-pdf me-2"></i><span>รายงาน BPR</span>
@@ -12799,36 +12801,30 @@ const _prodrecordSteps = [
   { key: 'InspectPack', label: 'ตรวจสอบ/แพ็ค',   capField: 'CapacityInspectPackPerDay' },
 ];
 
-async function prodrecordLoadData() {
-  _showLoader();
-  const _cancelPlaceholder = _deferLoadingPlaceholder('prodrecord-cards', '<div class="glass-card text-center py-5 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
-
-  const [prRes, moRes] = await Promise.all([
-    _sb.from('production_records').select('*').order('_row_id', { ascending: false }),
-    _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,OrderQty,MO_Received,Status'),
-  ]);
-  _cancelPlaceholder();
-  _hideLoader();
-  if (prRes.error) { _err('โหลดบันทึกผลิตไม่ได้', prRes.error.message); return; }
-  _prodrecordData = prRes.data || [];
-
-  const allMOs = moRes.data || [];
-  _prodrecordMOStatusMap = Object.fromEntries(allMOs.map(m => [m.MO_ID, m.Status]));
-
-  // ── MO ที่เสร็จสิ้นแล้วแต่ยังไม่มีบันทึกผลิตครบทุก Lot FG ──
-  // MO เสร็จได้ 2 ทางที่ไม่ผ่านหน้า "แผนผลิต" เลย: fgUpdateMOProgress() (รับ FG ครบยอดอัตโนมัติ)
-  // และ moForceClose() (ตัดจบงาน) — ทั้งคู่ไม่เคยสร้าง production_records ให้ ต้องมาตามหาที่นี่แทน
-  _prodrecordPendingMOs = [];
+// ── MO ที่เสร็จสิ้นแล้วแต่ยังไม่มีบันทึกผลิตครบทุก Lot FG ──
+// MO เสร็จได้ 2 ทางที่ไม่ผ่านหน้า "แผนผลิต" เลย: fgUpdateMOProgress() (รับ FG ครบยอดอัตโนมัติ)
+// และ moForceClose() (ตัดจบงาน) — ทั้งคู่ไม่เคยสร้าง production_records ให้ ต้องมาตามหาที่นี่แทน
+// แยกออกมาเป็นฟังก์ชันของตัวเอง (2026-08-17) ให้ prodrecordLoadData() และ _prodrecordUpdateNavBadge()
+// ใช้ตรรกะเดียวกัน — คิวรี production_records เอง (แค่ MO_Ref/Lot_FG) ไม่พึ่ง _prodrecordData cache ของหน้า
+// เพราะตัวนับแจ้งเตือนที่ sidebar ต้องเห็นค่าที่ถูกต้องได้ตั้งแต่ login แม้ยังไม่เคยเข้าหน้านี้เลยในเซสชันนี้
+async function _prodrecordFetchPendingMOs() {
+  const { data: allMOsRaw } = await _sb.from('manufacturing_orders')
+    .select('MO_ID,ProductCode,ProductName,LOT,OrderQty,MO_Received,Status');
+  const allMOs = allMOsRaw || [];
   const doneMOs = allMOs.filter(m => _moDoneStatuses.includes(m.Status));
+  const pending = [];
   if (doneMOs.length) {
     const moIds = doneMOs.map(m => m.MO_ID);
-    const { data: fgRows } = await _sb.from('fg_receive').select('*').in('MO_ID', moIds);
+    const [{ data: fgRows }, { data: recordedRows }] = await Promise.all([
+      _sb.from('fg_receive').select('*').in('MO_ID', moIds),
+      _sb.from('production_records').select('MO_Ref,Lot_FG').in('MO_Ref', moIds),
+    ]);
     if (fgRows && fgRows.length) _fgDetectCols(fgRows); // ใช้ column-detection เดียวกับหน้ารับ FG (Lot_FG/LotFG ไม่คงที่)
     const lotColName = _fgCols.lot;
     const qtyColName = _fgCols.qty;
 
     const recordedLots = {}; // MO_ID → Set ของ Lot_FG ที่มีบันทึกผลิตแล้ว
-    _prodrecordData.forEach(r => {
+    (recordedRows || []).forEach(r => {
       if (!r.MO_Ref) return;
       (recordedLots[r.MO_Ref] ||= new Set()).add(String(r.Lot_FG));
     });
@@ -12853,14 +12849,116 @@ async function prodrecordLoadData() {
       const outstanding = Array.from(byLot.values());
       if (!lotsForMO.length && !recorded.size) {
         // ไม่มีข้อมูลรับ FG เลย (เช่น ตัดจบงานโดยไม่เคยรับ FG) — ยังให้สร้างบันทึกได้ กรอก Lot เอง
-        _prodrecordPendingMOs.push({ mo, lots: [], noFgData: true });
+        pending.push({ mo, lots: [], noFgData: true });
       } else if (outstanding.length) {
-        _prodrecordPendingMOs.push({ mo, lots: outstanding, noFgData: false });
+        pending.push({ mo, lots: outstanding, noFgData: false });
       }
     });
   }
+  return { pending, allMOs };
+}
+
+async function prodrecordLoadData() {
+  _showLoader();
+  const _cancelPlaceholder = _deferLoadingPlaceholder('prodrecord-cards', '<div class="glass-card text-center py-5 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
+
+  const [prRes, pendingRes] = await Promise.all([
+    _sb.from('production_records').select('*').order('_row_id', { ascending: false }),
+    _prodrecordFetchPendingMOs(),
+  ]);
+  _cancelPlaceholder();
+  _hideLoader();
+  if (prRes.error) { _err('โหลดบันทึกผลิตไม่ได้', prRes.error.message); return; }
+  _prodrecordData = prRes.data || [];
+
+  _prodrecordMOStatusMap = Object.fromEntries(pendingRes.allMOs.map(m => [m.MO_ID, m.Status]));
+  _prodrecordPendingMOs = pendingRes.pending;
+  _prodrecordUpdateNavBadge(false, _prodrecordPendingMOs.length); // เลี่ยง query ซ้ำ ใช้ตัวเลขที่เพิ่งคำนวณเลย
+  _prodrecordUpdateApproveBadge(false, _prodrecordData.filter(r => r.Status === 'รอเช็คต้นทุน').length); // เช่นกัน
 
   prodrecordRenderTable();
+}
+
+// ตัวกัน "ผลลัพธ์เก่าทับผลลัพธ์ใหม่" (stale-response guard) ระหว่าง _prodrecordUpdateNavBadge — จำเป็นเพราะ
+// ฟังก์ชันนี้ถูกเรียกจาก 2 จุดที่ไม่รอกัน (fire-and-forget): ตอน login bootstrap (คิวรีสดเอง ใช้เวลานานกว่า
+// เพราะต้องรอ 2-3 query ต่อกัน) กับตอน prodrecordLoadData() ทุกครั้งที่เข้า/รีเฟรชหน้า (ใช้ knownCount ตอบ
+// ทันทีไม่ต้อง query). ถ้า login bootstrap ยังค้างรอ query อยู่ตอนที่ผู้ใช้เปิดหน้าบันทึกผลิตแล้วเสร็จงาน
+// (สร้างบันทึก/อนุมัติต้นทุน) จนตัวเลขที่ถูกต้องกลายเป็น 0 ไปแล้ว — พอ query ของ bootstrap เสร็จช้าทีหลัง จะ
+// เอาค่าเก่ามาทับ badge ที่ถูกต้องอยู่แล้วให้ผิดอีกครั้ง (บั๊กจริงที่เจอ 2026-08-17: badge ขึ้น "1" ทั้งที่หน้า
+// ไม่มีอะไรค้างแล้ว) แก้ด้วยเลขลำดับการเรียกต่อบัดจ์นี้ (_prodrecordBadgeSeq) — เรียกครั้งไหนใหม่กว่าจะเพิ่มเลข
+// นี้ทันที (ไม่ต้องรอ query) ถ้าผลลัพธ์ query กลับมาแล้วเลขลำดับไม่ตรงกับตอนเริ่มเรียก แปลว่ามีการเรียกที่ใหม่
+// กว่าเกิดขึ้นระหว่างรอ ทิ้งผลลัพธ์นี้ไปเลย ไม่เขียนทับ DOM
+let _prodrecordBadgeSeq = 0;
+
+// นับ MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิตครบทุก Lot FG ขึ้นเป็นเลขแจ้งเตือนสีแดงที่ nav-prodrecord — เหมือน
+// _planUpdateNavBadge/_issueUpdateNavBadge เป๊ะๆ เห็นได้ทุก role (ต่างจาก nav-issue-badge ที่จำกัดแค่หัวหน้า
+// งานขึ้นไป) เพราะพนักงานทั่วไปก็เข้าหน้านี้มากรอกผลผลิตได้เหมือนกัน ไม่ใช่ปุ่มอนุมัติที่จำกัดสิทธิ์
+// knownCount: ถ้า prodrecordLoadData() เพิ่งคำนวณ _prodrecordPendingMOs มาแล้วให้ส่งเลขมาเลย กัน query ซ้ำ —
+// ถ้าไม่ส่งมา (เช่น เรียกตอน login bootstrap ก่อนเคยเข้าหน้านี้เลยในเซสชันนี้) จะคิวรีสดเอง
+// notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามี MO ค้างด้วย ตามที่
+// ผู้ใช้ขอ "อยากให้มีช่องแจ้งเตือน จะได้เข้ามาดูว่ามีอะไรค้างอยู่" ไม่ใช่ต้องเปิดหน้าบันทึกผลิตเองถึงจะเห็น
+async function _prodrecordUpdateNavBadge(notifyIfPending = false, knownCount = null) {
+  const badge = document.getElementById('nav-prodrecord-badge');
+  const mySeq = ++_prodrecordBadgeSeq;
+  let count = knownCount;
+  if (count == null) {
+    const { pending } = await _prodrecordFetchPendingMOs();
+    if (mySeq !== _prodrecordBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
+    count = pending.length;
+  }
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิต ${count} รายการ`,
+      html: `มี MO ที่ผลิตเสร็จแล้วแต่ยังไม่ได้สร้าง/กรอก <b>บันทึกผลิต</b> ครบทุก Lot อยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้าบันทึกผลิต', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('prodrecord', document.getElementById('nav-prodrecord'));
+  }
+}
+
+// นับบันทึกผลิตที่กรอกผลผลิตแล้วแต่ยังรออนุมัติต้นทุน (Status='รอเช็คต้นทุน') ขึ้นเป็นเลขแจ้งเตือนสีเหลือง
+// (คนละสีจาก nav-prodrecord-badge สีแดง — ตั้งใจแยกสีให้ต่างความหมาย: แดง="ยังไม่มีบันทึก", เหลือง="มีบันทึก
+// แล้วรออนุมัติ", สีเหลืองใช้สีเดียวกับ badge สถานะ "รอเช็คต้นทุน" เองในตาราง _prodrecordStatusBadge ด้านล่าง
+// ให้เข้าใจง่ายว่าหมายถึงอะไร) เพิ่มตามคำขอผู้ใช้ 2026-08-17 (เจอ record สถานะรอเช็คต้นทุนในตารางแต่ไม่มี
+// แจ้งเตือนอะไรเลย) — **นับทุกรายการที่ค้างอยู่ ไม่กรองตามอายุ** ต่างจาก home-kpi-pendingapprove ที่หน้าแรก
+// (นับเฉพาะที่ค้าง ≥2 วัน สำหรับเป็นสัญญาณเสี่ยง) ยืนยันกับผู้ใช้แล้วว่าอยากได้ตัวเลขรวมทั้งหมด ไม่ใช่แค่ที่ค้างนาน
+// **เห็นเฉพาะหัวหน้างานขึ้นไป (_hasRole('supervisor'))** เหมือน nav-issue-badge เพราะการอนุมัติต้นทุนจริง
+// (prodrecordOpenApproveModal) ก็จำกัดแค่ระดับนี้อยู่แล้ว — พนักงานทั่วไปเห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
+// ใช้ stale-response guard แบบเดียวกับ _prodrecordUpdateNavBadge ด้านบน (คนละเลขลำดับ คนละ badge) — เหตุผล
+// เดียวกัน: login bootstrap คิวรีสดเองอาจค้างรอนานกว่าตอนที่หน้าโหลด/อนุมัติเสร็จไปแล้วด้วย knownCount
+let _prodrecordApproveBadgeSeq = 0;
+
+async function _prodrecordUpdateApproveBadge(notifyIfPending = false, knownCount = null) {
+  const badge = document.getElementById('nav-prodrecord-approve-badge');
+  if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  const mySeq = ++_prodrecordApproveBadgeSeq;
+  let count = knownCount;
+  if (count == null) {
+    const { count: c, error } = await _sb.from('production_records')
+      .select('_row_id', { count: 'exact', head: true })
+      .eq('Status', 'รอเช็คต้นทุน');
+    if (mySeq !== _prodrecordApproveBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
+    if (error) return; // เงียบไว้ — เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
+    count = c;
+  }
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'info',
+      title: `บันทึกผลิตรอเช็คต้นทุน ${count} รายการ`,
+      html: `มีบันทึกผลิตที่กรอกผลผลิตแล้ว (Stage A) รออนุมัติต้นทุน (Stage B) อยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้าบันทึกผลิต', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('prodrecord', document.getElementById('nav-prodrecord'));
+  }
 }
 
 function _prodrecordStatusBadge(status) {
@@ -15847,12 +15945,21 @@ async function loadIssueData() {
 // ระดับนี้ที่กดอนุมัติได้ — operator เห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
 // notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามีคำขอค้างด้วย ไม่ใช่แค่
 // ขึ้นเลขเงียบๆ ที่ sidebar — ตามที่ user ขอให้ "แจ้งเตือน Admin เลย" ไม่ใช่ต้องเปิดหน้าเบิกผลิตเองถึงจะเห็น
+// ใช้ stale-response guard แบบเดียวกับ _prodrecordUpdateNavBadge (ดูหมายเหตุ 2026-08-17 ที่ฟังก์ชันนั้น) —
+// ฟังก์ชันนี้ก็ถูกเรียกจาก 2 จุดที่ไม่รอกันเหมือนกัน: ตอน login bootstrap (notifyIfPending=true) กับตอน
+// loadIssueData() ทุกครั้งที่เข้า/รีเฟรชหน้า — ถ้า login bootstrap ยังค้างรอ query อยู่ตอนที่ผู้ใช้เปิดหน้า
+// เบิกผลิตแล้วอนุมัติคำขอจนตัวเลขที่ถูกต้องกลายเป็นน้อยลง/0 ไปแล้ว query ของ bootstrap ที่เสร็จช้าทีหลังจะ
+// เอาค่าเก่ามาทับ badge ที่ถูกต้องอยู่แล้วให้ผิดอีกครั้ง (บั๊กคลาสเดียวกับที่เจอใน _prodrecordUpdateNavBadge)
+let _issueBadgeSeq = 0;
+
 async function _issueUpdateNavBadge(notifyIfPending = false) {
   const badge = document.getElementById('nav-issue-badge');
   if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  const mySeq = ++_issueBadgeSeq;
   const { count, error } = await _sb.from('issue_edit_requests')
     .select('_row_id', { count: 'exact', head: true })
     .eq('Status', 'รออนุมัติ');
+  if (mySeq !== _issueBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
   if (error) return; // ตารางอาจยังไม่ถูกสร้าง (ยังไม่ได้รัน create_issue_edit_requests.sql) หรือ error อื่น —
                       // เงียบไว้ เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
   if (badge) {
@@ -19398,6 +19505,8 @@ document.addEventListener('DOMContentLoaded', function() {
           showPage('home', document.getElementById('nav-home'));
           _planUpdateNavBadge();
           _issueUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอค้างอนุมัติ (แค่ครั้งเดียวตอน login)
+          _prodrecordUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO เสร็จแล้วยังไม่มีบันทึกผลิต (แค่ครั้งเดียวตอน login)
+          _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
         }
       }
     } else {
