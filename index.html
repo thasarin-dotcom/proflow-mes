@@ -4035,8 +4035,8 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
   <div class="modal fade" id="prodrecordApproveModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
-        <div class="modal-header" style="background:#15803d;color:white">
-          <h5 class="modal-title"><i class="fas fa-check-double me-2"></i>อนุมัติต้นทุน</h5>
+        <div class="modal-header" id="prodrecord-ap-header" style="background:#15803d;color:white">
+          <h5 class="modal-title" id="prodrecord-ap-title"><i class="fas fa-check-double me-2"></i>อนุมัติต้นทุน</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -4074,8 +4074,8 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           <div id="prodrecord-ap-preview" class="mt-3"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-          <button type="button" class="btn btn-success" onclick="prodrecordApproveSubmit()">
+          <button type="button" class="btn btn-secondary" id="prodrecord-ap-cancel-btn" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-success" id="prodrecord-ap-save-btn" onclick="prodrecordApproveSubmit()">
             <i class="fas fa-check-circle me-1"></i>ยืนยันอนุมัติ
           </button>
         </div>
@@ -8713,7 +8713,10 @@ function fgoutRenderBillGroups() {
       g.rows.forEach(r => { statusCounts[r.Status] = (statusCounts[r.Status] || 0) + 1; });
       const statusSummary = Object.entries(statusCounts).map(([st, n]) => `${_deliveryStatusBadge(st)} <small class="text-muted">${n}</small>`).join(' ');
       const actionHtml = allArrived
-        ? `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>ส่งสำเร็จแล้ว</span>`
+        ? `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>ส่งสำเร็จแล้ว</span>` +
+          (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();fgoutBillUndoAdvanceAll('${g.billNo}')" title="ยกเลิกส่งสำเร็จทั้งใบ (แอดมินเท่านั้น) — ย้อนกลับเป็นจัดส่งแล้ว">
+             <i class="fas fa-undo me-1"></i>ยกเลิกส่งสำเร็จ
+           </button>` : '')
         : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();fgoutBillAdvanceAll('${g.billNo}')" title="ทำเครื่องหมายส่งถึงลูกค้าสำเร็จทั้งใบ">
              <i class="fas fa-check-circle me-1"></i>ส่งสำเร็จ
            </button>`;
@@ -8787,6 +8790,52 @@ async function fgoutBillAdvanceAll(billNo) {
   _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs);
 }
 
+// ยกเลิก "ส่งสำเร็จ" ทั้งใบ (เผื่อกดพลาด/ต้องแก้ไข) — ย้อนแถวที่เป็น "ส่งถึงแล้ว" ในใบนี้กลับเป็น "จัดส่งแล้ว"
+// (ถอยกลับ 1 ขั้นในสาย รอจัดส่ง→จัดส่งแล้ว→ส่งถึงแล้ว ไม่ถอยไปถึงรอจัดส่ง เพราะของยังถูกส่งออกจากคลังจริง แค่ยัง
+// ไม่ยืนยันว่าถึงลูกค้าแล้ว) แค่แอดมินเท่านั้นที่เห็นปุ่มนี้ (ดู actionHtml/_hasRole('admin') ข้างบน) — ยังไม่มีการ
+// บังคับที่ RLS เหมือนปุ่มอนุมัติ/ปิดงานอื่นๆ ในแอปนี้ (เป็น UI-only ตามข้อจำกัดที่ตั้งใจไว้ทั้งระบบ)
+async function fgoutBillUndoAdvanceAll(billNo) {
+  const rows = _deliveryData.filter(d => d.DeliveryBillNo === billNo && d.Status === 'ส่งถึงแล้ว');
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันยกเลิก "ส่งสำเร็จ" ทั้งใบ ${billNo}?`,
+    html: `${rows.length} รายการจะถูกย้อนสถานะกลับเป็น "จัดส่งแล้ว" (ยังไม่ยืนยันว่าถึงลูกค้า)`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#dc3545'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error } = await _sb.from('delivery').update({ Status: 'จัดส่งแล้ว' }).in('_row_id', ids);
+  if (error) { _hideLoader(); _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+
+  const wdRefs = rows.map(r => parseInt(r.WD_Ref)).filter(n => !isNaN(n));
+  if (wdRefs.length) await _sb.from('fg_withdraw').update({ 'ส่งแล้ว': 0 }).in('_row_id', wdRefs);
+
+  // เช็คย้อนกลับสถานะ CO — ถ้าตอน "ส่งสำเร็จ" เคยดันให้ CO ปิดงานเป็น "ส่งสำเร็จ" ไปแล้ว (_deliveryCheckCOComplete)
+  // และของใบนี้เป็นส่วนที่ทำให้ยอด "ส่งถึงแล้ว" ครบยอดสั่ง พอย้อนแถวพวกนี้กลับ ยอดอาจไม่ครบแล้ว ต้องเปิด CO กลับ
+  // เป็น "ส่งบางส่วน" (ค่าเดิมที่ fgoutUpdateCOStatus ใช้ตอนเบิกครบยอดแล้วแต่ยังไม่ได้ปิดงานจากฝั่งจัดส่ง) ไม่งั้น
+  // หน้า CO จะค้างโชว์ "ส่งสำเร็จ" ทั้งที่ยอดจัดส่งจริงไม่ครบแล้ว (_coComputeDisplayStatus การันตีค่าตามจริงเสมอ
+  // ถ้า Status ยังเป็นหนึ่งใน _coDoneStatuses อยู่ ไม่คำนวณสดให้)
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  for (const coRef of coRefs) {
+    const { data: coRows } = await _sb.from('customer_orders').select('_row_id,OrderQty,Status').eq('Order_ID', coRef);
+    const co = (coRows || [])[0];
+    if (!co || co.Status !== 'ส่งสำเร็จ') continue;
+    const { data: dlv } = await _sb.from('delivery').select('QtyDelivered').eq('CO_Ref', coRef).eq('Status', 'ส่งถึงแล้ว');
+    const totalDelivered = (dlv || []).reduce((s, r) => s + (parseFloat(r.QtyDelivered) || 0), 0);
+    if (totalDelivered < (parseFloat(co.OrderQty) || 0)) {
+      await _sb.from('customer_orders').update({ Status: 'ส่งบางส่วน', CompletedAt: null }).eq('_row_id', co._row_id);
+    }
+  }
+
+  _logAudit('CANCEL', 'delivery', billNo, `ยกเลิกส่งสำเร็จ ${rows.length} รายการ (แอดมิน)`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ยกเลิกส่งสำเร็จทั้งใบ ${billNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  _hideLoader();
+  await loadDeliveryData();
+}
+
 // ยกเลิกเลขที่ใบส่งสินค้า (กรณีออกเลขไปแล้วแต่มีเหตุให้ต้องยกเลิก/ออกใหม่ เช่นพิมพ์ผิด/ข้อมูลผิด) — แค่ล้าง
 // DeliveryBillNo ของทุกแถวในใบนี้กลับเป็น null (กลับไปเป็น "ยังไม่ออกใบส่ง" ในตารางเบิก FG ปกติ ออกเลขใหม่
 // ได้อีกครั้ง) ไม่แตะสถานะจัดส่ง (Status) เลย เพราะการยกเลิก "เลขที่ใบ/เอกสาร" คนละเรื่องกับการยกเลิก
@@ -8842,9 +8891,16 @@ async function _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs) {
       `เลขใบส่งสินค้า: ${billNo}\n` +
       `PO: ${poNos.length ? poNos.join(', ') : '—'}\n\n` +
       `รายการที่ส่ง:\n${itemLines}`;
-    await _sb.functions.invoke('notify-fg-delivery-success', { body: { text } });
+    const { data, error } = await _sb.functions.invoke('notify-fg-delivery-success', { body: { text } });
+    if (error) {
+      let detail = error.message || String(error);
+      try { detail = await error.context?.text() || detail; } catch (_) {}
+      console.error('LINE notify (delivery success) failed — edge function returned an error', detail, error);
+    } else {
+      console.log('LINE notify (delivery success) invoked ok', data);
+    }
   } catch (e) {
-    console.error('LINE notify (delivery success) failed', e);
+    console.error('LINE notify (delivery success) failed — invoke() threw', e);
   }
 }
 
@@ -13323,11 +13379,9 @@ function prodrecordRenderTable() {
           ${!hasActual ? `<button class="btn btn-sm btn-primary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-pen me-1"></i>กรอกผลผลิต</button>` : ''}
           ${hasActual && !approved ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
             ${_hasRole('admin') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
-          ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})"><i class="fas fa-print me-1"></i>พิมพ์รายงานต้นทุน</button>
+          ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})" title="พิมพ์รายงานต้นทุน"><i class="fas fa-print me-1"></i>พิมพ์ต้นทุน</button>
+            ${_hasRole('admin') ? `<button class="btn btn-sm btn-outline-info" onclick="prodrecordOpenApproveModal(${gi}, true)" title="ดูต้นทุนที่อนุมัติ"><i class="fas fa-eye me-1"></i>ดูต้นทุน</button>` : ''}
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}` : ''}
-          <button class="btn btn-sm btn-outline-secondary" title="${expanded?'ย่อ':'ดูรายละเอียด'}">
-            <i class="fas fa-chevron-${expanded?'up':'down'}"></i>
-          </button>
         </div>
       </div>
       ${!expanded ? '' : _prodrecordRenderExpanded(r)}
@@ -13811,7 +13865,13 @@ function _prodrecordWorkDays(r) {
   return Math.max(1, diffDays || 1);
 }
 
-async function prodrecordOpenApproveModal(gi) {
+// viewOnly=true: admin ดูรายละเอียดต้นทุนที่อนุมัติไปแล้วได้เฉยๆ ไม่ต้องกด "เปิดกลับ" ก่อน (ตามคำขอผู้ใช้
+// 2026-08-17) — ใช้ modal เดียวกับตอนอนุมัติจริงเป๊ะ (ไม่สร้าง modal ใหม่ซ้ำ) แค่ล็อกช่องกรอกเรตทั้งหมดเป็น
+// readonly + ซ่อนปุ่ม "ยืนยันอนุมัติ" ไว้ชั่วคราว ค่าที่ prefill เป็นค่าจริงที่อนุมัติไปแล้ว (r.FT_LaborRate
+// ฯลฯ ที่บันทึกไว้ตอนอนุมัติ) แล้วให้ _prodrecordRecalcApprove() คำนวณ preview จากค่าเดิมเป๊ะ (ไม่ recompute
+// ใหม่จากอะไรเลย เพราะ input ถูกล็อกด้วยค่าที่บันทึกไว้จริง) สลับกลับเป็นโหมดแก้ไขปกติทุกครั้งที่เปิดโหมด
+// อนุมัติจริง (viewOnly=false) เพราะ modal/DOM element เดียวกันถูกใช้ซ้ำทั้ง 2 โหมด
+async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   const r = _prodrecordLastRows[gi];
   if (!r) return;
   if (!_prodrecordApproveModal) _prodrecordApproveModal = new bootstrap.Modal(document.getElementById('prodrecordApproveModal'));
@@ -13841,6 +13901,16 @@ async function prodrecordOpenApproveModal(gi) {
   document.getElementById('prodrecord-ap-info').innerHTML =
     `<span class="badge bg-secondary me-1">${r.ProdRecord_ID}</span><b>${r.ProductName||''}</b>` +
     ` <span class="text-muted">· FG จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()} ${r.UOM||''} · ต้นทุนวัตถุดิบ ฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>`;
+
+  const rateInputIds = ['prodrecord-ap-ft-rate','prodrecord-ap-ft-ot','prodrecord-ap-pt-rate','prodrecord-ap-pt-ot',
+    'prodrecord-ap-os-rate','prodrecord-ap-os-ot','prodrecord-ap-oh-util'];
+  rateInputIds.forEach(id => { document.getElementById(id).readOnly = viewOnly; });
+  document.getElementById('prodrecord-ap-save-btn').classList.toggle('d-none', viewOnly);
+  document.getElementById('prodrecord-ap-cancel-btn').textContent = viewOnly ? 'ปิด' : 'ยกเลิก';
+  document.getElementById('prodrecord-ap-header').style.background = viewOnly ? '#0369a1' : '#15803d';
+  document.getElementById('prodrecord-ap-title').innerHTML = viewOnly
+    ? '<i class="fas fa-eye me-2"></i>ต้นทุนที่อนุมัติแล้ว (อ่านอย่างเดียว)'
+    : '<i class="fas fa-check-double me-2"></i>อนุมัติต้นทุน';
 
   _prodrecordRecalcApprove();
   _prodrecordApproveModal.show();
