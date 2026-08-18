@@ -8882,7 +8882,7 @@ async function _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs) {
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
     const itemLines = rows.map((r, i) =>
-      `${i + 1}. ${r.ProductName || '—'} | Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
+      `${i + 1}. ${r.ProductName || '—'}\n    Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
     ).join('\n');
     const text =
       `📦 แจ้งจัดส่งสำเร็จ\n` +
