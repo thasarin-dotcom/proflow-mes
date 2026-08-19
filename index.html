@@ -11425,8 +11425,11 @@ function _weeklyreportBuildMonthWeekHTML(weeksData, selectedDateVal) {
   const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
   const cards = weeksData.map(wk => {
     const isCurrent = selectedDateVal >= wk.range.start && selectedDateVal <= wk.range.end;
-    const { top: prodTop } = _weeklyreportTopN(wk.produced, 5);
-    const { top: dlvTop } = _weeklyreportTopN(wk.shipped, 5);
+    // ไม่จำกัด top-N อีกต่อไป (เดิมตัดที่ 5 แล้วไม่มีข้อความ "และอีก N รายการ" บอกเลย ทำให้ดูเหมือนข้อมูล
+    // ขึ้นไม่ครบ — ผู้ใช้เจอเคสจริงที่สัปดาห์หนึ่งมีมากกว่า 5 สินค้าแล้วของหายไปเงียบๆ 2026-08-19) การ์ดนี้
+    // เป็น "ภาพรวมว่าสัปดาห์นั้นผลิต/ส่งอะไรบ้าง" ตามที่ผู้ใช้ขอไว้แต่แรก จึงควรครบทุกรายการเสมอ ไม่ตัดทอน
+    const { top: prodTop } = _weeklyreportTopN(wk.produced, Infinity);
+    const { top: dlvTop } = _weeklyreportTopN(wk.shipped, Infinity);
     const prodList = !prodTop.length ? `<div class="wreport-week-empty">ไม่มีการผลิต</div>` :
       prodTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
     const dlvList = !dlvTop.length ? `<div class="wreport-week-empty">ไม่มีการจัดส่ง</div>` :
