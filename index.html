@@ -8713,9 +8713,9 @@ function fgoutRenderBillGroups() {
       g.rows.forEach(r => { statusCounts[r.Status] = (statusCounts[r.Status] || 0) + 1; });
       const statusSummary = Object.entries(statusCounts).map(([st, n]) => `${_deliveryStatusBadge(st)} <small class="text-muted">${n}</small>`).join(' ');
       const actionHtml = allArrived
-        ? `<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>ส่งสำเร็จแล้ว</span>` +
+        ? `<span class="badge bg-success" title="ส่งสำเร็จแล้ว"><i class="fas fa-check-circle me-1"></i>สำเร็จแล้ว</span>` +
           (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();fgoutBillUndoAdvanceAll('${g.billNo}')" title="ยกเลิกส่งสำเร็จทั้งใบ (แอดมินเท่านั้น) — ย้อนกลับเป็นจัดส่งแล้ว">
-             <i class="fas fa-undo me-1"></i>ยกเลิกส่งสำเร็จ
+             <i class="fas fa-undo me-1"></i>เลิกสำเร็จ
            </button>` : '')
         : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();fgoutBillAdvanceAll('${g.billNo}')" title="ทำเครื่องหมายส่งถึงลูกค้าสำเร็จทั้งใบ">
              <i class="fas fa-check-circle me-1"></i>ส่งสำเร็จ
@@ -8734,13 +8734,13 @@ function fgoutRenderBillGroups() {
           <div class="d-flex align-items-center gap-2">
             ${statusSummary}
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvbillOpenModal(${JSON.stringify(g.rows.map(r => r._row_id))})" title="ปริ้นใบส่งสินค้าซ้ำ">
-              <i class="fas fa-print me-1"></i>ปริ้นใบส่งสินค้า
+              <i class="fas fa-print me-1"></i>ปริ้น
             </button>
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}')" title="พิมพ์ป้ายกล่อง (QR) แยกตามสินค้า สำหรับแปะกล่องของใบส่งนี้">
               <i class="fas fa-qrcode me-1"></i>ป้ายกล่อง
             </button>
             <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();fgoutCancelBill('${g.billNo}')" title="ยกเลิกเลขที่ใบส่งนี้ — รายการจะกลับไปออกเลขใหม่ได้อีกครั้ง">
-              <i class="fas fa-ban me-1"></i>ยกเลิกใบส่ง
+              <i class="fas fa-ban me-1"></i>ยกเลิกใบ
             </button>
             ${actionHtml}
             <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
