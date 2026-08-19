@@ -14334,16 +14334,16 @@ function bprRenderTable() {
   });
   const tbody = document.getElementById('bpr-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
-  tbody.innerHTML = rows.map(r => `<tr>
-    <td><span class="badge bg-secondary">${r.ProdRecord_ID||'—'}</span></td>
+  tbody.innerHTML = rows.map(r => `<tr${r.NeedsReprint ? ' class="table-warning"' : ''}>
+    <td><span class="badge bg-secondary">${r.ProdRecord_ID||'—'}</span>${r.NeedsReprint ? ' <span class="badge bg-warning text-dark" title="MO ต้นทางถูกแก้ไข Lot/จำนวนหลังพิมพ์ครั้งก่อน"><i class="fas fa-triangle-exclamation me-1"></i>มีแก้ไขข้อมูลใหม่</span>' : ''}</td>
     <td>${r.Lot_FG ?? '—'}</td>
     <td>${r.MO_Ref||'—'}</td>
     <td>${r.ProductName||'—'}<br><small class="text-muted">${r.ProductCode||''}</small></td>
     <td>${_fmtDate(r.Date_Start)}</td>
     <td class="text-end fw-bold">${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}</td>
     <td class="text-center">
-      <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="bprPrint(${r._row_id})" title="พิมพ์ BPR">
-        <i class="fas fa-print"></i> พิมพ์ BPR
+      <button class="btn btn-sm py-0 px-2 ${r.NeedsReprint ? 'btn-warning' : 'btn-outline-danger'}" onclick="bprPrint(${r._row_id})" title="${r.NeedsReprint ? 'ข้อมูลแก้ไขใหม่ กรุณาพิมพ์ใบใหม่' : 'พิมพ์ BPR'}">
+        <i class="fas fa-print"></i> ${r.NeedsReprint ? 'พิมพ์ใบใหม่' : 'พิมพ์ BPR'}
       </button>
     </td>
   </tr>`).join('');
@@ -14400,6 +14400,13 @@ async function bprPrint(rowId) {
   document.body.classList.add('print-mode-bpr');
   if (!_bprPreviewModal) _bprPreviewModal = new bootstrap.Modal(document.getElementById('bprPreviewModal'));
   _bprPreviewModal.show();
+
+  // เพิ่งพิมพ์ใบใหม่ไปแล้ว เคลียร์ธง "มีแก้ไขข้อมูลใหม่" ทิ้ง (ไม่บล็อก modal ที่เปิดไปแล้ว, fire-and-forget)
+  if (r.NeedsReprint) {
+    r.NeedsReprint = false;
+    bprRenderTable();
+    _sb.from('production_records').update({ NeedsReprint: false }).eq('_row_id', rowId);
+  }
 }
 
 function _bprMetaTable(d) {
@@ -14716,6 +14723,7 @@ async function moSubmit(e) {
   };
   let oldRow;
   let _moPlanSyncInfo = null; // ถ้าไม่ null แปลว่าต้อง sync ยอดจอง+แผนผลิตหลังบันทึก MO สำเร็จ (ดูท้ายฟังก์ชัน)
+  let _moBprSyncInfo  = null; // ถ้าไม่ null แปลว่า LOT/OrderQty เปลี่ยน ต้อง sync ไปหน้า BPR หลังบันทึก MO สำเร็จ
   if (!isEdit) {
     payload.MO_Received = 0;
     payload.Pending     = qty;
@@ -14727,13 +14735,22 @@ async function moSubmit(e) {
     oldRow = _moData.find(d => d._row_id === parseInt(editId));
     const received = parseFloat(oldRow?.MO_Received) || 0;
     payload.Pending = qty - received;
+    const oldQty = parseFloat(oldRow?.OrderQty) || 0;
+
+    // แก้ไข LOT หรือ OrderQty ของ MO ที่มีบันทึกผลิต (production_records)/รายงาน BPR ผูกอยู่แล้ว ต้อง sync
+    // Lot_FG/FG_Planned ไปที่บันทึกผลิตนั้นด้วย ไม่งั้นหน้ารายงาน BPR จะยังโชว์ Lot/จำนวนเก่าที่ผิดไปจาก MO จริง
+    // (ผู้ใช้ร้องขอ 2026-08-19) — เก็บไว้ sync หลังบันทึก MO สำเร็จเท่านั้น (ดู _moSyncProdRecordAfterEdit ท้ายไฟล์)
+    const lotChanged = (oldRow?.LOT || '') !== (payload.LOT || '');
+    const qtyChanged = qty > 0 && qty !== oldQty;
+    if (lotChanged || qtyChanged) {
+      _moBprSyncInfo = { moId: oldRow.MO_ID, lotChanged, newLot: payload.LOT, qtyChanged, newQty: qty };
+    }
 
     // แก้ไข OrderQty ของ MO ที่ "แพลนแล้ว" (จองวัตถุดิบไว้แล้วตาม BOM×OrderQty เดิม) ต้องปรับยอดจอง
     // (mo_material_reservations) กับยอดในแผนผลิต (production_plan.PlanQty) ให้เชื่อมโยงตามไปด้วยเสมอ — เดิม
     // เป็น snapshot ตายตัวไม่ผูกสดกับ OrderQty ที่แก้ทีหลัง (ผู้ใช้ยืนยันไว้ก่อนหน้าว่ารับความเสี่ยงได้ ตอนนี้ขอ
     // ให้เชื่อมกันแทน) เช็คสต็อกจริงก่อนด้วยว่าพอสำหรับจำนวนใหม่ไหม (เหมือนตอนกดปุ่ม "แพลนการผลิต" ครั้งแรก) —
     // ถ้าไม่พอ บล็อกการบันทึกทั้งหมดไปเลย กันยอดจอง/แผนผลิตเพี้ยนไม่ตรงกับ OrderQty จริง
-    const oldQty = parseFloat(oldRow?.OrderQty) || 0;
     if (oldRow?.Status === 'แพลนแล้ว' && qty > 0 && qty !== oldQty) {
       const shortfallCheck = _moComputeMaterialCheck({ ...oldRow, OrderQty: qty });
       if (shortfallCheck.shortfallCount > 0) {
@@ -14769,12 +14786,49 @@ async function moSubmit(e) {
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
 
   if (_moPlanSyncInfo) await _moSyncReservationAndPlan(_moPlanSyncInfo);
+  if (_moBprSyncInfo) await _moSyncProdRecordAfterEdit(_moBprSyncInfo);
   if (isEdit) _logAudit('EDIT', 'manufacturing_orders', payload.MO_ID, _diffFields(oldRow, payload));
   _moModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่ม MO สำเร็จ',
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadMOData();
+}
+
+// แก้ไข LOT/OrderQty บน MO แล้ว sync ไปที่บันทึกผลิต (production_records) ที่ผูก MO_Ref นี้อยู่ เพื่อให้หน้า
+// รายงาน BPR (bprRenderTable/bprPrint) แสดง Lot/จำนวนตรงกับ MO ล่าสุดเสมอ (ผู้ใช้ร้องขอ 2026-08-19) — sync ค่า
+// Lot_FG/FG_Planned ให้ตรงๆ ได้เฉพาะกรณี MO นี้มีบันทึกผลิตอยู่ใบเดียว (กรณีปกติ) เพราะถ้ามีหลายใบ (ผลิตหลาย
+// Lot ต่อ MO เดียว, กรณีจริงที่มีอยู่ในระบบนี้ — ดูหมายเหตุ "One MO can legitimately have multiple
+// production_records rows" ในหน้าบันทึกผลิต) ไม่มีทางรู้ว่าค่าใหม่ควรลงใบไหน จึงแค่ตั้งธง NeedsReprint ไว้เตือน
+// ให้ตรวจสอบเอง ไม่เดาแก้ Lot_FG/FG_Planned ให้ **ไม่แตะบันทึกที่อนุมัติต้นทุนแล้ว (Status='อนุมัติแล้ว') เด็ดขาด**
+// ตามหลัก "ห้ามแก้ข้อมูลอนุมัติแล้วเงียบๆ" ที่ใช้ทั้งแอปนี้ (เทียบ _issueSyncProdRecordDetail's blockedApproved)
+async function _moSyncProdRecordAfterEdit({ moId, lotChanged, newLot, qtyChanged, newQty }) {
+  const { data: records, error } = await _sb.from('production_records')
+    .select('_row_id,ProdRecord_ID,Status').eq('MO_Ref', moId);
+  if (error || !records || !records.length) return;
+
+  const singleRecord = records.length === 1;
+  const blockedApproved = [];
+  for (const rec of records) {
+    if (rec.Status === 'อนุมัติแล้ว') { blockedApproved.push(rec.ProdRecord_ID); continue; }
+    const upd = { NeedsReprint: true };
+    if (singleRecord) {
+      if (lotChanged) {
+        const lotNum = parseInt(String(newLot ?? '').replace(/\D/g, ''));
+        upd.Lot_FG = isNaN(lotNum) ? null : lotNum;
+      }
+      if (qtyChanged) upd.FG_Planned = newQty;
+    }
+    await _sb.from('production_records').update(upd).eq('_row_id', rec._row_id);
+  }
+
+  if (blockedApproved.length) {
+    Swal.fire({ icon: 'info', title: 'มีบันทึกผลิตที่อนุมัติต้นทุนแล้ว',
+      html: `MO นี้มีบันทึกผลิต <b>${blockedApproved.join(', ')}</b> ที่อนุมัติต้นทุนแล้ว ระบบไม่แก้ไข Lot/จำนวนให้อัตโนมัติ<br>กรุณากด "เปิดกลับ" ที่หน้าบันทึกผลิตก่อนหากต้องแก้ไขข้อมูลบันทึกนั้น` });
+  } else if (!singleRecord) {
+    Swal.fire({ icon: 'info', title: 'MO นี้มีหลายบันทึกผลิต',
+      html: `พบบันทึกผลิตหลายใบสำหรับ MO นี้ (${records.map(r=>r.ProdRecord_ID).join(', ')})<br>ระบบตั้งธง "ต้องพิมพ์ใหม่" ไว้ที่หน้ารายงาน BPR ให้แล้ว แต่ไม่ได้แก้ Lot/จำนวนให้อัตโนมัติ กรุณาตรวจสอบและแก้ไขเองว่า Lot/จำนวนควรลงบันทึกใบไหน` });
+  }
 }
 
 async function moDelete(rowId) {
