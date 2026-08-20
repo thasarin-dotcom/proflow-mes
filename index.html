@@ -13412,7 +13412,7 @@ function _prodrecordMatRowHTML(seq) {
         <input type="text" class="form-control form-control-sm" id="prodrecord-mat-name-${seq}" readonly>
         <input type="hidden" id="prodrecord-mat-code-${seq}">
       </div>
-      <div class="col-md-1">
+      <div class="col-md-2">
         <label class="form-label small mb-0">Lot</label>
         <input type="text" class="form-control form-control-sm" id="prodrecord-mat-lot-${seq}" readonly>
       </div>
@@ -13435,10 +13435,10 @@ function _prodrecordMatRowHTML(seq) {
       <div class="col-md-1">
         <label class="form-label small mb-0">UOM</label>
         <input type="text" class="form-control form-control-sm" id="prodrecord-mat-uom-${seq}" readonly>
+        <input type="hidden" id="prodrecord-mat-unitcost-${seq}">
       </div>
-      <div class="col-md-2">
-        <label class="form-label small mb-0">ต้นทุน/หน่วย <small class="text-muted">(ดึงจากสต็อก แก้ได้)</small></label>
-        <input type="number" class="form-control form-control-sm" id="prodrecord-mat-unitcost-${seq}" min="0" step="0.01">
+      <div class="col-md-1 text-end">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="prodrecordRefetchUnitCost(${seq})" title="ดึงราคาล่าสุดจากสต็อกใหม่ (แทนต้นทุน/หน่วยเดิมที่แช่แข็งไว้ตั้งแต่กรอกครั้งแรก)"><i class="fas fa-sync-alt"></i></button>
       </div>
       <div class="col-md-1 text-end">
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="_prodrecordRemoveMaterialRow(${seq})" title="ลบแถวนี้"><i class="fas fa-times"></i></button>
@@ -13470,6 +13470,39 @@ function _prodrecordRemoveMaterialRow(seq) {
   const el = document.querySelector(`.prodrecord-mat-row[data-seq="${seq}"]`);
   if (el) el.remove();
   _prodrecordRecalcBulkActual(); // ลบแถว Bulk ออกกระทบตัวหารของ % ยีลด์ ต้องคำนวณใหม่
+}
+
+// ดึงต้นทุน/หน่วยล่าสุดจาก stock_balance มาแทนค่าเดิมที่แช่แข็งไว้ตั้งแต่กรอกผลผลิตครั้งแรก (ปุ่มต่อแถว,
+// เพิ่ม 2026-08-20 ตามคำขอผู้ใช้ หลัง 2 รอบก่อนหน้า: (1) พบว่า UnitCost ที่ดึงมาตอนแรกอาจผิด/เป็น 0 แล้ว
+// ไม่เคยอัปเดตอีกเลยแม้จะไปแก้ต้นทุนที่ถูกต้องใน stock_balance ทีหลังก็ตาม (2) ผู้ใช้ขอเปิดช่องให้พิมพ์เอง
+// เป็นการชั่วคราวก่อนขอเอาออก เพราะไม่อยากให้พิมพ์มั่วได้อิสระ — ปุ่มนี้จึงเป็นทางกลาง: ดึงค่าจริงจาก DB
+// สดๆ มาแทนที่ให้เอง ไม่เปิดให้พิมพ์เองอิสระ ช่อง UnitCost ยังเป็น hidden เหมือนเดิม จึงต้องแจ้งผลลัพธ์เป็น
+// toast เพราะช่องจริงมองไม่เห็นบนหน้าจอ
+async function prodrecordRefetchUnitCost(seq) {
+  const matCode = document.getElementById(`prodrecord-mat-code-${seq}`).value;
+  const lot     = document.getElementById(`prodrecord-mat-lot-${seq}`).value;
+  const matName = document.getElementById(`prodrecord-mat-name-${seq}`).value;
+  if (!matCode) return;
+
+  _showLoader();
+  const { data, error } = await _sb.from('stock_balance').select('UnitCost').eq('MaterialCode', matCode).eq('Lot', lot);
+  _hideLoader();
+  if (error) { _err('ดึงต้นทุนไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) {
+    Swal.fire({ icon: 'warning', title: 'ไม่พบข้อมูลสต็อก', text: `ไม่พบ ${matName} Lot ${lot} ใน stock_balance`,
+      toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+    return;
+  }
+  // stock_balance ไม่มี unique constraint บน (MaterialCode, Lot) — เผื่อมีแถวซ้ำค่าไม่ตรงกัน แจ้งเตือนไว้
+  // ไม่เดาเงียบๆ ว่าแถวแรกถูกต้องเสมอ (ตาม house convention เรื่อง lookup ที่ไม่ใช่ PK)
+  const costs = [...new Set(data.map(d => parseFloat(d.UnitCost) || 0))];
+  const newCost = costs[0];
+  document.getElementById(`prodrecord-mat-unitcost-${seq}`).value = newCost;
+  Swal.fire({
+    icon: costs.length > 1 ? 'warning' : 'success',
+    title: `อัปเดตต้นทุน/หน่วยเป็น ฿${newCost.toLocaleString(undefined,{maximumFractionDigits:2})}${costs.length > 1 ? ' (⚠ พบหลายค่าไม่ตรงกันใน stock_balance ใช้ค่าแรกที่เจอ)' : ''}`,
+    toast: true, position: 'top-end', showConfirmButton: false, timer: 3500, timerProgressBar: true,
+  });
 }
 
 // ใช้จริง = เบิกไป − ของเสีย − ของคืน (คำนวณอัตโนมัติ ไม่ให้พิมพ์เอง กันตัวเลขไม่ตรงกัน)
@@ -13679,12 +13712,21 @@ async function prodrecordOpenEntryModal(gi) {
   document.getElementById('prodrecord-entry-materials').innerHTML = '';
   const existingDetails = existingDetailRes.data || [];
   if (existingDetails.length) {
-    // เคยกรอกไว้แล้ว (แก้ไขผลผลิต) — ใช้ค่าที่บันทึกไว้เดิมเป็นหลัก ไม่ดึงจาก issue_production ใหม่
-    existingDetails.forEach(d => _prodrecordAddMaterialRow({
-      MaterialCode: d.MaterialCode, MaterialName: d.MaterialName, Lot: d.LotMaterial,
-      IssuedQty: d.IssuedQty, ActualUsedQty: d.ActualUsedQty, ScrapQty: d.ScrapQty, ReturnedQty: d.ReturnedQty,
-      UOM: d.UOM, UnitCost: d.UnitCost_MR,
-    }));
+    // เคยกรอกไว้แล้ว (แก้ไขผลผลิต) — ใช้ค่าที่บันทึกไว้เดิมเป็นหลัก (เบิกไป/ของเสีย/ของคืน ไม่ดึงจาก
+    // issue_production ใหม่) **ยกเว้นต้นทุน/หน่วย** ซึ่ง auto-sync จาก stock_balance สดๆ ทุกครั้งที่เปิด
+    // modal นี้ (2026-08-20 ตามคำขอผู้ใช้ — เดิมเคยแช่แข็ง d.UnitCost_MR ไว้ตลอดไปจนกว่าจะกดปุ่มรีเฟรชเอง
+    // ต่อแถว ตอนนี้ไม่ต้องกดเองแล้ว เปิดหน้าทีไรได้ราคาล่าสุดเสมอ) ใช้ค่าเก่าที่แช่แข็งไว้เป็น fallback
+    // เฉพาะกรณีหา MaterialCode+Lot นี้ใน stock_balance ตอนนี้ไม่เจอเลย (เช่น Lot ถูกลบไปแล้ว) กันไม่ให้
+    // เผลอรีเซ็ตเป็น 0 ทั้งที่เคยมีค่าจริงบันทึกไว้
+    existingDetails.forEach(d => {
+      const key = (d.MaterialCode||'') + '|' + (d.LotMaterial||'');
+      const liveCost = stockMap[key];
+      _prodrecordAddMaterialRow({
+        MaterialCode: d.MaterialCode, MaterialName: d.MaterialName, Lot: d.LotMaterial,
+        IssuedQty: d.IssuedQty, ActualUsedQty: d.ActualUsedQty, ScrapQty: d.ScrapQty, ReturnedQty: d.ReturnedQty,
+        UOM: d.UOM, UnitCost: liveCost != null ? liveCost : (d.UnitCost_MR ?? 0),
+      });
+    });
   } else {
     (issueRes.data || []).forEach(ip => {
       const key = (ip.MaterialCode||'') + '|' + (ip.Lot||'');
