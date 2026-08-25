@@ -7591,7 +7591,7 @@ async function mrUpdateStock(matCode, lot, qty, unitCost, expDate, uom, matName)
   // เช็คว่ามี record นี้ใน stock แล้วไหม
   const { data: existing } = await _sb
     .from('stock_balance')
-    .select('_row_id,"QtyIn","QtyBalance","TotalCost","StockValue"')
+    .select('_row_id,"QtyIn","QtyBalance","TotalCost","StockValue","ExpDate"')
     .eq('"MaterialCode"', matCode)
     .eq('"Lot"', lot)
     .maybeSingle();
@@ -7611,6 +7611,9 @@ async function mrUpdateStock(matCode, lot, qty, unitCost, expDate, uom, matName)
       TotalCost  : (parseFloat(existing.TotalCost)||0) + addCost,
       StockValue : newStockVal,
       UnitCost   : newUnitCost,
+      // ExpDate เดิมไม่เคยถูกอัปเดตตรงนี้เลย ถูกตั้งครั้งเดียวตอน insert ครั้งแรกเท่านั้น (branch ด้านล่าง) —
+      // ทำให้แก้วันหมดอายุที่หน้ารับ MR ของ Lot ที่เคยรับมาแล้วไม่ไปอัปเดตหน้า Stock ที่อ่านจากตารางนี้ (แก้ 2026-08-25)
+      ExpDate    : expDate || existing.ExpDate,
     }).eq('_row_id', existing._row_id);
   } else {
     // ไม่มี → สร้างใหม่
@@ -13536,32 +13539,109 @@ function _prodrecordMatRowRecalc(seq) {
 // แบบได้ เพื่อไม่ให้บันทึกเก่าที่อนุมัติไปแล้วคำนวณต้นทุนผิดไปจากเดิม)
 let _prodrecordStationDaySeq = 0; // ตัวนับไม่ใช้ซ้ำ กันชนกันตอนลบแถวกลางแล้วเพิ่มแถวใหม่ (แพทเทิร์นเดียวกับ _bomRowSeq)
 
-// สีพื้นหลังคอลัมน์ 2 กลุ่ม — ให้แยกฝั่ง "ชม.ปกติ" กับฝั่ง "โอที" ออกจากกันชัดเจนด้วยตา ไม่ต้องอ่านหัวตาราง
-// ทีละคอลัมน์ (ผู้ใช้ขอ 2026-08-17 หลังเห็นตารางจริงว่าคอลัมน์ปกติ/OT ปนกันดูไม่ออกง่ายๆ ว่าฝั่งไหนคือฝั่งไหน)
-// คงลำดับคอลัมน์ข้อมูลเดิมไว้ (คน→ปกติ→OT ต่อ FT แล้วค่อย PT) แค่ลากเส้นแบ่งกลุ่ม + คอลัมน์คู่ ปกติ/OT ของ FT
-// กับ PT ทั้งคู่ใช้สีเดียวกันในกลุ่มนั้น (ไม่แยกสีตาม FT/PT ซ้อนอีกชั้น จะรกเกินไป) — id ของ input ไม่เปลี่ยน
-// เลย เพราะ prodrecordEntrySubmit อ่านด้วย id ไม่ได้อิงตำแหน่งคอลัมน์ ปรับแค่ลำดับ/สี td เฉยๆ ปลอดภัย
-const _PRODRECORD_ST_COL_NORMAL = 'background:#eff6ff'; // ฟ้าอ่อน = ชม.ปกติ
-const _PRODRECORD_ST_COL_OT     = 'background:#fff7ed'; // ส้มอ่อน = โอที
-
-// เส้นแบ่งหนา (3px) คั่นระหว่างกลุ่มพนักงานประจำ/PartTime/Outsource — คนละแนวคิดจากสีพื้นหลัง
-// _PRODRECORD_ST_COL_NORMAL/_OT ด้านบน (ยังคงไว้ ใช้ไล่สีปกติ/OT *ภายใน* แต่ละกลุ่มคนเหมือนเดิม)
+// เส้นแบ่งหนา (3px) คั่นระหว่างกลุ่มพนักงานประจำ/PartTime/Outsource
 const _PRODRECORD_ST_GROUP_BORDER = 'border-left:3px solid #94a3b8';
+
+// เกณฑ์ชั่วโมงก่อนนับเป็น OT ต่อประเภทพนักงาน — Outsource ยืนยันแยกจาก FT/PT (2026-08-20)
+const _PRODRECORD_OT_THRESHOLD = { ft: 8, pt: 8, os: 9.5 };
+
+// คำนวณ ชม.ปกติ/ชม.OT จากเวลาเข้า-ออกงาน หักพักเที่ยง 12:00–13:00 อัตโนมัติถ้ากะงานคาบเกี่ยวช่วงนั้นจริง
+// (2026-08-20 ตามคำขอผู้ใช้ — เดิมต้องพิมพ์ ชม.ปกติ/ชม.OT เป็นตัวเลขทศนิยมเอง คำนวณเองว่าหักพักเที่ยงแล้ว
+// เท่าไหร่) ยืนยันกับผู้ใช้แล้วว่า **ไม่รองรับกะข้ามเที่ยงคืน** (เวลาออก ≤ เวลาเข้า ถือว่ากรอกยังไม่ครบ คืน 0
+// ไปก่อน ไม่ error) และ ชม.ปกติ/OT **มาจากเวลาเข้า-ออกเท่านั้น ไม่ให้พิมพ์ทับเอง**
+function _prodrecordCalcHoursFromTime(startStr, endStr, otThreshold) {
+  if (!startStr || !endStr) return { totalHrs: 0, normal: 0, ot: 0 };
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [eh, em] = endStr.split(':').map(Number);
+  const startMin = sh * 60 + sm, endMin = eh * 60 + em;
+  let totalMin = endMin - startMin;
+  if (totalMin <= 0) return { totalHrs: 0, normal: 0, ot: 0 };
+  const lunchStart = 12 * 60, lunchEnd = 13 * 60;
+  const overlap = Math.max(0, Math.min(endMin, lunchEnd) - Math.max(startMin, lunchStart));
+  totalMin -= overlap;
+  const totalHrs = Math.max(0, totalMin / 60);
+  const normal = Math.min(totalHrs, otThreshold);
+  const ot = Math.max(0, totalHrs - otThreshold);
+  return { totalHrs, normal, ot };
+}
+
+// เรียกทุกครั้งที่แก้เวลาเข้า/ออกของ FT/PT/OS แถวใดแถวหนึ่ง — อัปเดตช่อง hidden ชม.ปกติ/ชม.OT (ที่
+// prodrecordEntrySubmit ยังอ่านด้วย id เดิมเป๊ะ ไม่ต้องแก้จุดนั้นเลย) แล้วรีเฟรชแถวสรุปรวมด้านล่าง
+function _prodrecordStationTimeRecalc(key, seq, type) {
+  const startEl  = document.getElementById(`prodrecord-st-${key}-${seq}-${type}start`);
+  const endEl    = document.getElementById(`prodrecord-st-${key}-${seq}-${type}end`);
+  const normalEl = document.getElementById(`prodrecord-st-${key}-${seq}-${type}normal`);
+  const otEl     = document.getElementById(`prodrecord-st-${key}-${seq}-${type}ot`);
+  const { normal, ot } = _prodrecordCalcHoursFromTime(startEl.value, endEl.value, _PRODRECORD_OT_THRESHOLD[type]);
+  normalEl.value = normal.toFixed(2);
+  otEl.value = ot.toFixed(2);
+  _prodrecordUpdateStationSummary(key, seq);
+}
+
+// ข้อความสรุป ชม.ปกติ/OT ต่อประเภทพนักงาน 1 แถววัน — ใช้ร่วมกันทั้งตอนสร้าง HTML ครั้งแรกจากข้อมูล
+// (รับ plain object) และตอนรีเฟรชสดจาก DOM หลังผู้ใช้แก้เวลา (ดู _prodrecordUpdateStationSummary
+// ด้านล่าง ซึ่งประกอบ object แบบเดียวกันจากค่าปัจจุบันใน DOM แล้วส่งเข้าฟังก์ชันนี้) กันไม่ให้สูตร/รูปแบบ
+// ข้อความหลุดไม่ตรงกันระหว่าง 2 จุดเรียก
+const _PRODRECORD_ST_LABELS = { ft: 'พนักงานประจำ', pt: 'Part Time', os: 'Outsource' };
+function _prodrecordStationSummaryText(d) {
+  d = d || {};
+  const parts = ['ft', 'pt', 'os'].map(type => {
+    const start = d[`${type}Start`], end = d[`${type}End`];
+    const normal = parseFloat(d[`${type}NormalHrs`]) || 0;
+    const ot = parseFloat(d[`${type}OtHrs`]) || 0;
+    if (!(start && end) && !normal && !ot) return null;
+    return `${_PRODRECORD_ST_LABELS[type]} ${normal.toFixed(1)} ชม.${ot > 0 ? ` +OT ${ot.toFixed(1)} ชม.` : ''}`;
+  }).filter(Boolean);
+  return parts.length ? parts.join('   ·   ') : 'ยังไม่ได้กรอกเวลาเข้า-ออก';
+}
+
+// อ่านค่าปัจจุบันจาก DOM ของทั้ง 3 ประเภทพนักงานในแถววันเดียวกัน มาประกอบเป็นข้อความสรุปแล้วเขียนลงแถว
+// สรุปที่อยู่ใต้แถวกรอกเวลา (2026-08-20 ตามคำขอผู้ใช้ — เดิมโชว์เป็นบรรทัดเล็กใต้ช่อง "เลิกงาน" ของแต่ละ
+// ประเภทแยกกัน ผู้ใช้บอกว่าเบียดกันไป ขอเป็นแถวสรุปรวมแยกต่างหากด้านล่างแทน ไม่ให้ช่องกรอกแคบลง)
+function _prodrecordUpdateStationSummary(key, seq) {
+  const el = document.getElementById(`prodrecord-st-${key}-${seq}-summary`);
+  if (!el) return;
+  const d = {};
+  ['ft', 'pt', 'os'].forEach(type => {
+    d[`${type}Start`]      = document.getElementById(`prodrecord-st-${key}-${seq}-${type}start`)?.value || '';
+    d[`${type}End`]        = document.getElementById(`prodrecord-st-${key}-${seq}-${type}end`)?.value || '';
+    d[`${type}NormalHrs`]  = document.getElementById(`prodrecord-st-${key}-${seq}-${type}normal`)?.value || 0;
+    d[`${type}OtHrs`]      = document.getElementById(`prodrecord-st-${key}-${seq}-${type}ot`)?.value || 0;
+  });
+  el.textContent = _prodrecordStationSummaryText(d);
+}
+
+// สร้าง 3 คอลัมน์ (จำนวน/เวลาเข้า/เวลาออก) ของพนักงาน 1 ประเภทในแถววันหนึ่ง — ใช้ร่วมกันทั้ง FT/PT/OS
+// ช่อง ชม.ปกติ/ชม.OT ที่เคยพิมพ์เองได้ กลายเป็น hidden input คำนวณจากเวลาแทน (ดู _prodrecordStationTimeRecalc)
+// ค่าเก่า (ชม.ปกติ/ชม.OT แบบตัวเลข ไม่มีเวลาเข้า-ออกเลย) ยังคงถูกเก็บไว้ใน hidden input เหมือนเดิม
+// (ไม่ให้หายไปเฉยๆ) — ข้อความสรุปที่เคยกำกับ "(บันทึกเก่า)" ย้ายไปอยู่ในแถวสรุปรวมด้านล่างแล้ว
+function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, normal, ot) {
+  return `
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}"></td>
+    <td><input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')"></td>
+    <td>
+      <input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')">
+      <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}normal" value="${normal ?? 0}">
+      <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}ot" value="${ot ?? 0}">
+    </td>`;
+}
+
+// จำนวนคอลัมน์รวมของตาราง (สำหรับ colspan แถวสรุป): วันที่(1) + 3 ประเภทพนักงาน×3 คอลัมน์(9) + ปุ่มลบ(1)
+const _PRODRECORD_ST_TOTAL_COLS = 11;
 
 function _prodrecordStationDayRowHTML(key, seq, d) {
   d = d || {};
   return `<tr class="prodrecord-station-day-row" data-seq="${seq}">
     <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}"></td>
-    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftworkers" min="0" step="1" value="${d.ftWorkers ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftnormal" min="0" step="0.01" value="${d.ftNormalHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ftot" min="0" step="0.01" value="${d.ftOtHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptworkers" min="0" step="1" value="${d.ptWorkers ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptnormal" min="0" step="0.01" value="${d.ptNormalHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-ptot" min="0" step="0.01" value="${d.ptOtHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osworkers" min="0" step="1" value="${d.osWorkers ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_NORMAL}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osnormal" min="0" step="0.01" value="${d.osNormalHrs ?? 0}"></td>
-    <td style="${_PRODRECORD_ST_COL_OT}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-osot" min="0" step="0.01" value="${d.osOtHrs ?? 0}"></td>
+    ${_prodrecordStationTypeColsHTML(key, seq, 'ft', d.ftWorkers, d.ftStart, d.ftEnd, d.ftNormalHrs, d.ftOtHrs)}
+    ${_prodrecordStationTypeColsHTML(key, seq, 'pt', d.ptWorkers, d.ptStart, d.ptEnd, d.ptNormalHrs, d.ptOtHrs)}
+    ${_prodrecordStationTypeColsHTML(key, seq, 'os', d.osWorkers, d.osStart, d.osEnd, d.osNormalHrs, d.osOtHrs)}
     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
+  </tr>
+  <tr class="prodrecord-station-summary-row" data-seq="${seq}">
+    <td colspan="${_PRODRECORD_ST_TOTAL_COLS}" style="background:#f8fafc;border-top:none">
+      <small class="text-muted fst-italic" id="prodrecord-st-${key}-${seq}-summary">${_prodrecordStationSummaryText(d)}</small>
+    </td>
   </tr>`;
 }
 
@@ -13584,19 +13664,20 @@ function _prodrecordStationBlockHTML(key, label, days) {
           </tr>
           <tr class="text-muted text-center" style="font-size:.68rem">
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
-            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
+            <th style="min-width:80px">เริ่ม</th>
+            <th style="min-width:80px">เสร็จ</th>
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
-            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
+            <th style="min-width:80px">เริ่ม</th>
+            <th style="min-width:80px">เสร็จ</th>
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:65px;${_PRODRECORD_ST_COL_NORMAL}">ชม.ปกติ</th>
-            <th style="min-width:60px;${_PRODRECORD_ST_COL_OT}">ชม.OT</th>
+            <th style="min-width:80px">เริ่ม</th>
+            <th style="min-width:80px">เสร็จ</th>
           </tr>
         </thead>
         <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
       </table>
     </div>
+    <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เกิน OT: ประจำ/Part Time 8 ชม., Outsource 9.5 ชม.</div>
     <div class="text-muted text-center prodrecord-station-empty ${days.length ? 'd-none' : ''}" style="font-size:.75rem">ยังไม่มีข้อมูลวันทำงาน — กด "เพิ่มวัน"</div>
   </div>`;
 }
@@ -13606,7 +13687,8 @@ function _prodrecordUpdateStationEmptyState(key) {
   const block = document.querySelector(`.prodrecord-station-block[data-key="${key}"]`);
   const emptyEl = block ? block.querySelector('.prodrecord-station-empty') : null;
   if (!tbody || !emptyEl) return;
-  emptyEl.classList.toggle('d-none', tbody.children.length > 0);
+  // นับเฉพาะแถวกรอกเวลาจริง ไม่นับแถวสรุปรวมที่ตามมาด้วยทุกแถว (2026-08-20)
+  emptyEl.classList.toggle('d-none', tbody.querySelectorAll('.prodrecord-station-day-row').length > 0);
 }
 
 function prodrecordAddStationDay(key, day) {
@@ -13624,6 +13706,7 @@ function prodrecordRemoveStationDay(seq) {
   const el = document.querySelector(`.prodrecord-station-day-row[data-seq="${seq}"]`);
   if (!el) return;
   const key = el.closest('.prodrecord-station-block')?.dataset.key;
+  document.querySelector(`.prodrecord-station-summary-row[data-seq="${seq}"]`)?.remove(); // แถวสรุปคู่กัน
   el.remove();
   if (key) _prodrecordUpdateStationEmptyState(key);
 }
@@ -13819,12 +13902,18 @@ async function prodrecordEntrySubmit(e) {
       return {
         date       : document.getElementById(`prodrecord-st-${key}-${seq}-date`).value || '',
         ftWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftworkers`).value) || 0,
+        ftStart    : document.getElementById(`prodrecord-st-${key}-${seq}-ftstart`).value || '',
+        ftEnd      : document.getElementById(`prodrecord-st-${key}-${seq}-ftend`).value || '',
         ftNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftnormal`).value) || 0,
         ftOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftot`).value) || 0,
         ptWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptworkers`).value) || 0,
+        ptStart    : document.getElementById(`prodrecord-st-${key}-${seq}-ptstart`).value || '',
+        ptEnd      : document.getElementById(`prodrecord-st-${key}-${seq}-ptend`).value || '',
         ptNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptnormal`).value) || 0,
         ptOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptot`).value) || 0,
         osWorkers  : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osworkers`).value) || 0,
+        osStart    : document.getElementById(`prodrecord-st-${key}-${seq}-osstart`).value || '',
+        osEnd      : document.getElementById(`prodrecord-st-${key}-${seq}-osend`).value || '',
         osNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osnormal`).value) || 0,
         osOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osot`).value) || 0,
       };
