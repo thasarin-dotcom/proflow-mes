@@ -495,7 +495,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow:auto;max-height:64vh;position:relative}
 #publicReportView .gtable{display:grid;font-size:.74rem}
 #publicReportView .g-corner{grid-column:1;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
-#publicReportView .g-daycell{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:8px 2px 6px;border-left:1px solid #eef2f7}
+#publicReportView .g-monthhead{grid-row:1;position:sticky;top:0;z-index:4;background:#eef2f7;border-bottom:1px solid #dbe3ee;border-left:1px solid #eef2f7;
+  text-align:center;font-weight:700;font-size:.68rem;color:#475569;height:24px;line-height:24px}
+#publicReportView .g-daycell{position:sticky;top:24px;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:8px 2px 6px;border-left:1px solid #eef2f7}
 #publicReportView .g-daycell .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
 #publicReportView .g-daycell .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
 #publicReportView .g-daycell.weekend{background:rgba(244,63,94,.07)}
@@ -504,7 +506,10 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-linehead{grid-column:1;position:sticky;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
 #publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85}
 #publicReportView .g-rowlabel{grid-column:1;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
-  padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent}
+  padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent;cursor:pointer;user-select:none}
+#publicReportView .g-rowlabel:hover{background:#f8fafc}
+#publicReportView .g-rowlabel .chev{font-size:.62rem;color:#94a3b8;transition:transform .15s;flex-shrink:0;width:10px}
+#publicReportView .g-rowlabel.open .chev{transform:rotate(90deg)}
 #publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem}
 #publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b}
 #publicReportView .g-steplabel{grid-column:1;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
@@ -11250,22 +11255,73 @@ async function planGenerateReportLink() {
 // คำนวณฝั่งเซิร์ฟเวอร์ตามเวลาที่เปิดลิงก์ ไม่ผูกกับตอนสร้างลิงก์ — ดูคอมเมนต์ที่ plan-report/index.ts)
 // ใช้ helper ชุดเดียวกับ Gantt จริงของหน้า "ภาพรวมการผลิต" (prodStatusComputeMOSteps/PROD_STEP_DEFS/
 // _ganttAddDays/_ganttDow/_prodStatusPlanStartByMO/_prodStatusLineByMO/PLAN_LINES/_planLineColor) ไม่คำนวณ
-// ตารางขั้นตอนซ้ำอีกชุด — ต่างจากหน้าในแอปแค่ 2 จุด: (1) capMap/overridesMap ส่งเข้าไปตรงๆ จากข้อมูลที่ Edge
+// ตารางขั้นตอนซ้ำอีกชุด — ต่างจากหน้าในแอปแค่ 1 จุด: capMap/overridesMap ส่งเข้าไปตรงๆ จากข้อมูลที่ Edge
 // Function ให้มา แทนที่จะอ่านจาก state ของหน้า nav-prodstatus (คนละ session กัน, หน้านี้ไม่ login เลย)
-// (2) ทุก MO แสดงขั้นตอนกางออกตลอด ไม่มีปุ่มพับ/กาง/แก้ไข เพราะเป็นหน้าดูอย่างเดียวสำหรับคนนอกแอป
-function _pubGanttBuildSection(data) {
-  // ลิงก์ที่สร้างไว้ก่อน Edge Function เวอร์ชันนี้ deploy จะไม่มี field พวกนี้เลย — ข้าม section ไปเงียบๆ
-  // ไม่ error (เหมือน weeklyReportSection ด้านล่างที่เช็ค data.prodRows/data.dlvRows ก่อนเหมือนกัน)
-  if (!data.ganttStartDate || !Array.isArray(data.ganttPlanRows)) return '';
+//
+// พับ/กางขั้นตอนย่อยได้เหมือนหน้าในแอป (เพิ่ม 2026-08-25 หลังผู้ใช้ทดสอบจริงแล้วพบว่ากางค้างตลอดทำให้
+// รายงาน 2 เดือนยาวเกินไป) — เก็บ payload ไว้ที่ _pubGanttData + เซ็ต MO ที่กางอยู่ไว้ที่ _pubGanttOpenMO
+// (เริ่มพับหมดทุกครั้งที่เปิดรายงานใหม่ เหมือนค่าเริ่มต้นของหน้าในแอป) แล้ว re-render เฉพาะ
+// #pubgantt-gtable ตอนคลิก ไม่ build ทั้ง section ใหม่ — เหตุผลเดียวกับ prodStatusRenderGantt เดิม
+let _pubGanttData = null;
+let _pubGanttOpenMO = new Set();
 
+function _pubGanttToggleMO(moId) {
+  _pubGanttOpenMO.has(moId) ? _pubGanttOpenMO.delete(moId) : _pubGanttOpenMO.add(moId);
+  _pubGanttRenderGrid();
+}
+
+function _pubGanttDays(data) {
   const days = [];
   for (let d = data.ganttStartDate; ; d = _ganttAddDays(d, 1)) {
     days.push(d);
     if (d === data.ganttEndDate || days.length > 400) break; // กันลูปไม่รู้จบถ้าข้อมูลวันที่ผิดปกติ
   }
-  const todayStr = _planWeekLocalDateStr(new Date());
+  return days;
+}
+
+function _pubGanttBuildSection(data) {
+  // ลิงก์ที่สร้างไว้ก่อน Edge Function เวอร์ชันนี้ deploy จะไม่มี field พวกนี้เลย — ข้าม section ไปเงียบๆ
+  // ไม่ error (เหมือน weeklyReportSection ด้านล่างที่เช็ค data.prodRows/data.dlvRows ก่อนเหมือนกัน)
+  if (!data.ganttStartDate || !Array.isArray(data.ganttPlanRows)) return '';
+
+  _pubGanttData = data;
+  _pubGanttOpenMO = new Set(); // เปิดรายงานใหม่ทุกครั้ง เริ่มพับหมดเสมอ
+
+  const days = _pubGanttDays(data);
   const monthsTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   const fmtShort = (d) => { const [y, m, dd] = d.split('-').map(Number); return `${dd} ${monthsTh[m - 1]} ${y + 543}`; };
+
+  const planStartByMO = _prodStatusPlanStartByMO(data.ganttPlanRows);
+  const lineByMO = _prodStatusLineByMO(data.ganttPlanRows);
+  const anyMo = PLAN_LINES.some(line => (data.moRows || []).some(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]));
+
+  const legend = PLAN_LINES.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('')
+    + `<span><i style="background:rgba(244,63,94,.15);box-shadow:inset 0 0 0 1px #e11d48"></i>วันอาทิตย์</span>`
+    + `<span><i style="box-shadow:inset 0 0 0 2px #2563eb;background:transparent"></i>วันนี้</span>`;
+
+  const body = anyMo ? `
+    <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
+    <div class="note-box mb-2" style="font-size:.72rem">คลิกที่แถว MO เพื่อดู/ซ่อน 3 ขั้นตอนย่อย (บรรจุ / ยิง Lot / ตรวจสอบ-แพ็ค)</div>
+    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:230px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
+    : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
+
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวม Gantt การผลิต (${fmtShort(data.ganttStartDate)} – ${fmtShort(data.ganttEndDate)})</h6>
+    <div class="text-muted small mb-2">แสดงเดือนปัจจุบันและเดือนถัดไปเสมอ ไม่ว่าจะเปิดลิงก์นี้เมื่อไหร่ก็ตาม — แยกอิสระจากช่วงตารางแผนผลิตด้านล่าง</div>
+    ${body}
+  </div>`;
+}
+
+// re-render เฉพาะกริดข้างในการ์ด (ไม่แตะ legend/หัวข้อรอบนอก) ตอนเปิดหน้าครั้งแรก และทุกครั้งที่พับ/กาง MO
+// ผ่าน _pubGanttToggleMO — ใช้ _pubGanttData ที่เก็บไว้ตอน build section ไม่ fetch ข้อมูลซ้ำ
+function _pubGanttRenderGrid() {
+  const data = _pubGanttData;
+  const gt = document.getElementById('pubgantt-gtable');
+  if (!data || !gt) return;
+
+  const days = _pubGanttDays(data);
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const monthsTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
   const capByCode = {};
   (data.ganttBomCap || []).forEach(r => { if (r.ProductCode && !capByCode[r.ProductCode]) capByCode[r.ProductCode] = r; });
@@ -11275,36 +11331,46 @@ function _pubGanttBuildSection(data) {
   const planStartByMO = _prodStatusPlanStartByMO(data.ganttPlanRows);
   const lineByMO = _prodStatusLineByMO(data.ganttPlanRows);
 
-  const legend = PLAN_LINES.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('')
-    + `<span><i style="background:rgba(244,63,94,.15);box-shadow:inset 0 0 0 1px #e11d48"></i>วันอาทิตย์</span>`
-    + `<span><i style="box-shadow:inset 0 0 0 2px #2563eb;background:transparent"></i>วันนี้</span>`;
+  // ป้ายเดือนแถวบนสุด (แถวที่ 1) — กันปัญหา "วันที่เรียงยาว 2 เดือนแล้วไม่รู้ว่าอยู่เดือนไหน" ที่ผู้ใช้เจอจริง
+  // แถววันที่ (dow+dnum เดิม) ขยับลงมาเป็นแถวที่ 2 แทน แถว MO/ไลน์ทั้งหมดขยับลงมาเริ่มที่แถว 3
+  const monthSpans = [];
+  days.forEach((d, i) => {
+    const [y, m] = d.split('-').map(Number);
+    const key = y + '-' + m;
+    const last = monthSpans[monthSpans.length - 1];
+    if (last && last.key === key) last.end = i; else monthSpans.push({ key, y, m, start: i, end: i });
+  });
 
-  let grid = `<div class="g-corner"></div>`;
+  let html = `<div class="g-corner" style="grid-row:1 / 3"></div>`;
+  monthSpans.forEach(sp => {
+    html += `<div class="g-monthhead" style="grid-column:${sp.start+2} / ${sp.end+3};grid-row:1">${monthsTh[sp.m-1]} ${sp.y+543}</div>`;
+  });
   days.forEach((d, i) => {
     const w = _ganttDow(d) === 0, t = d === todayStr;
-    grid += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:1">
+    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:2">
       <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
   });
 
-  let row = 2, anyMo = false;
+  let row = 3;
   PLAN_LINES.forEach(line => {
     const rows = (data.moRows || []).filter(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]);
     if (!rows.length) return;
-    anyMo = true;
     const color = _planLineColor(line);
-    grid += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO</span></div>`;
-    days.forEach((d, i) => { grid += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+    html += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO</span></div>`;
+    days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
     row++;
 
     rows.forEach(m => {
       const planStart = planStartByMO[m.MO_ID];
       const steps = prodStatusComputeMOSteps(m, planStart, capByCode, overridesMap);
+      const isOpen = _pubGanttOpenMO.has(m.MO_ID);
 
-      grid += `<div class="g-rowlabel" style="grid-row:${row};border-left-color:${color}">
+      html += `<div class="g-rowlabel${isOpen?' open':''}" onclick="_pubGanttToggleMO('${m.MO_ID}')" style="grid-row:${row};border-left-color:${color}">
+        <span class="chev">▶</span>
         <div><div class="g-mo">${m.MO_ID}${m.LOT ? ` <span class="text-muted fw-normal">· Lot ${m.LOT}</span>` : ''}</div>
         <div class="g-prod">${m.ProductName||''} · ${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</div></div>
       </div>`;
-      days.forEach((d, i) => { grid += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
 
       if (!steps.length) {
         // ไม่มีข้อมูลกำลังผลิตของสินค้านี้ใน BOM เลย — แสดงแท่งเดียวใช้ช่วงวันที่จาก production_plan จริงแทน
@@ -11312,19 +11378,28 @@ function _pubGanttBuildSection(data) {
         if (moDates.length && !(moDates[moDates.length-1] < days[0] || moDates[0] > days[days.length-1])) {
           let s = days.indexOf(moDates[0]), e = days.indexOf(moDates[moDates.length-1]);
           if (s < 0) s = 0; if (e < 0) e = days.length - 1;
-          grid += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+          html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+        }
+        row++;
+      } else if (!isOpen) {
+        const totalStart = steps[0].start, totalEnd = steps[steps.length-1].end;
+        if (!(totalEnd < days[0] || totalStart > days[days.length-1])) {
+          let s = days.indexOf(totalStart), e = days.indexOf(totalEnd);
+          if (s < 0) s = 0; if (e < 0) e = days.length - 1;
+          html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">
+            รวม ${steps.reduce((a,s)=>a+s.days,0)} วัน · ${steps.length} ขั้นตอน</div>`;
         }
         row++;
       } else {
         row++;
         steps.forEach((st, si) => {
-          grid += `<div class="g-steplabel" style="grid-row:${row}"><span class="stepord">${si+1}</span>${st.label}</div>`;
-          days.forEach((d, i) => { grid += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+          html += `<div class="g-steplabel" style="grid-row:${row}"><span class="stepord">${si+1}</span>${st.label}</div>`;
+          days.forEach((d, i) => { html += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
           if (!(st.end < days[0] || st.start > days[days.length-1])) {
             let s = days.indexOf(st.start), e = days.indexOf(st.end);
             if (s < 0) s = 0; if (e < 0) e = days.length - 1;
             const shade = (0.55 + si / Math.max(1, steps.length - 1) * 0.45).toFixed(2);
-            grid += `<div class="g-stepbar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color};opacity:${shade}">
+            html += `<div class="g-stepbar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color};opacity:${shade}">
               ${st.label} · ${st.days}ว.</div>`;
           }
           row++;
@@ -11333,16 +11408,7 @@ function _pubGanttBuildSection(data) {
     });
   });
 
-  const body = anyMo ? `
-    <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
-    <div class="gantt-card"><div class="gtable" style="grid-template-columns:230px repeat(${days.length}, minmax(46px,1fr))">${grid}</div></div>`
-    : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
-
-  return `<div class="glass-card mb-3">
-    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวม Gantt การผลิต (${fmtShort(data.ganttStartDate)} – ${fmtShort(data.ganttEndDate)})</h6>
-    <div class="text-muted small mb-2">แสดงเดือนปัจจุบันและเดือนถัดไปเสมอ ไม่ว่าจะเปิดลิงก์นี้เมื่อไหร่ก็ตาม — แยกอิสระจากช่วงตารางแผนผลิตด้านล่าง</div>
-    ${body}
-  </div>`;
+  gt.innerHTML = html;
 }
 
 // เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
@@ -11371,39 +11437,14 @@ async function _renderPublicReport(token) {
   }
 
   const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 3 });
-  const fmtDate = (dateStr, withDow) => {
+  const fmtDate = (dateStr) => {
     if (!dateStr) return '—';
     const [y, m, d] = dateStr.split('-').map(Number);
-    const dow = withDow ? `วัน${['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'][new Date(y, m - 1, d).getDay()]} ` : '';
-    return `${dow}${d} ${_planDowThaiMonths[m - 1]} ${y + 543}`;
+    return `${d} ${_planDowThaiMonths[m - 1]} ${y + 543}`;
   };
 
   const periodLabel = data.period === 'week' ? 'รายสัปดาห์' : 'รายเดือน';
   const rangeLabel = `${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}`;
-
-  const byDate = {};
-  data.planRows.forEach(r => (byDate[r.PlanDate] ||= []).push(r));
-  const dateKeys = Object.keys(byDate).sort();
-
-  const planStatusColor = { 'วางแผน': '#d97706', 'ยืนยันแล้ว': '#16a34a' };
-  const planStatusLabel = { 'วางแผน': 'รอยืนยัน', 'ยืนยันแล้ว': 'ยืนยันแล้ว' };
-
-  const planSection = !dateKeys.length ? `<div class="text-center text-muted py-4">ไม่มีแผนผลิตในช่วงนี้</div>` : dateKeys.map(dateStr => {
-    const rows = byDate[dateStr];
-    return `<div style="background:#eff6ff;font-weight:700;padding:8px 10px;border-radius:8px;margin:14px 0 6px;font-size:.85rem">${fmtDate(dateStr, true)}</div>
-    <div class="table-responsive"><table class="table table-sm mb-0">
-      <thead><tr><th>ไลน์</th><th>กะ</th><th>เวลา</th><th>สินค้า</th><th class="text-end">จำนวน</th><th>MO อ้างอิง</th><th>สถานะ</th></tr></thead>
-      <tbody>${rows.map(r => `<tr>
-        <td>${r.Line||''}</td>
-        <td>${r.Shift||''}</td>
-        <td>${(r.TimeStart||'').slice(0,5)}–${(r.TimeEnd||'').slice(0,5)}</td>
-        <td>${r.ProductName||''}<br><span class="text-muted small">${r.ProductCode||''}</span></td>
-        <td class="text-end">${fmtQty(r.PlanQty)} ${r.UOM||''}</td>
-        <td>${r.MO_Ref||'—'}</td>
-        <td><span class="badge" style="background:${planStatusColor[r.Status]||'#64748b'}">${planStatusLabel[r.Status]||r.Status||''}</span></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
-  }).join('');
 
   const moStatusColor = { 'แพลนแล้ว':'#d97706','ยืนยันการผลิต':'#334155','เบิกแล้ว':'#0ea5e9','กำลังผลิต':'#2563eb' };
   const activeStatuses = ['แพลนแล้ว','ยืนยันการผลิต','เบิกแล้ว','กำลังผลิต'];
@@ -11446,10 +11487,11 @@ async function _renderPublicReport(token) {
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
     ${ganttSection}
-    <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ตารางแผนผลิตตามไลน์ / กะ / วันที่</h6>${planSection}</div>
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
     ${weeklyReportSection}
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
+
+  _pubGanttRenderGrid(); // ต้องเรียกหลัง bodyEl.innerHTML เซ็ตเสร็จ — #pubgantt-gtable เพิ่งถูกสร้างขึ้นตอนนี้เอง
 }
 
 // ══════════════════════════════════════════════
