@@ -4717,7 +4717,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 <!-- Public Report View — โหมดพิเศษเมื่อ URL มี ?report=TOKEN ข้าม login gate ทั้งหมด ดูฟังก์ชัน
      _renderPublicReport ท้ายไฟล์ (เรียกจาก DOMContentLoaded ก่อนเช็ค session ใดๆ) -->
 <div id="publicReportView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
-  <div style="max-width:960px;margin:0 auto;padding:16px" id="publicReportBody">
+  <div style="padding:16px 24px" id="publicReportBody">
     <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
   </div>
 </div>
@@ -11411,6 +11411,36 @@ function _pubGanttRenderGrid() {
   gt.innerHTML = html;
 }
 
+// รายงานสาธารณะ: การ์ด "ภาพรวมรายสัปดาห์" (ผลิต/จัดส่งแยกตามสัปดาห์ในเดือน) — เพิ่ม 2026-08-25 แทนที่การ์ด
+// "การผลิต"/"สรุปภาพรวม MO" ที่ตัดออก ใช้ helper ชุดเดียวกับหน้า "รายงานรายสัปดาห์"/หน้าพิมพ์ของมันเป๊ะ
+// (_weeklyreportMonthWeekRanges/_weeklyreportBuildMonthWeekData/_weeklyreportBuildMonthWeekHTML —
+// ทั้งหมดเป็น pure function ล้วนๆ ไม่ query DB เอง) ไม่คำนวณตารางแบ่งสัปดาห์ซ้ำอีกชุด
+//
+// ⚠️ ใช้ได้เฉพาะลิงก์แบบ "รายเดือน" (data.period === 'month') เท่านั้น — ลิงก์แบบ "รายสัปดาห์" ที่
+// plan-report Edge Function ดึง data.prodRows/data.dlvRows มาให้แค่ 7 วัน (ขอบเขตเดียวกับ
+// link.StartDate/EndDate) ไม่พอครอบทั้งเดือนสำหรับตารางนี้ ซึ่งต้องแบ่งเป็นสัปดาห์จันทร์–เสาร์เต็มเดือน —
+// เลือกไม่แก้ Edge Function ให้ดึงข้อมูลทั้งเดือนเพิ่มในรอบนี้ (ผู้ใช้ redeploy ไปแล้วรอบก่อนหน้า ไม่อยากให้
+// ต้อง redeploy อีกถ้าไม่จำเป็น) เพื่อความง่าย — ถ้าจะให้ใช้ได้กับลิงก์รายสัปดาห์ด้วย ต้องเพิ่ม query
+// production_records/delivery ช่วง spanStart/spanEnd (ครอบทุกสัปดาห์ที่แตะเดือนนั้น อาจเลยเดือนไปเล็กน้อย
+// ที่ขอบ) ที่ Edge Function ก่อน แล้ว redeploy ใหม่
+function _pubWeeklyOverviewSection(data) {
+  if (data.period !== 'month') return '';
+  if (!Array.isArray(data.prodRows) || !Array.isArray(data.dlvRows)) return '';
+
+  // หมายเหตุ: data.startDate/endDate ตอน period==='month' คือวันที่ 1 ถึงวันสุดท้ายของเดือนพอดี (ดู
+  // _planReportComputeRange) แต่สัปดาห์แรก/สุดท้ายของเดือนอาจมีบางวันคาบเกี่ยวไปเดือนก่อน/ถัดไป — เดือน
+  // เหล่านั้นจะไม่มีข้อมูลติดมาด้วย (data.prodRows/dlvRows ถูกตัดที่ขอบเดือนพอดีตามด้านบน) การ์ดสัปดาห์แรก/
+  // สุดท้ายจึงอาจนับได้น้อยกว่าหน้า "รายงานรายสัปดาห์" ในแอปเล็กน้อยสำหรับวันที่อยู่นอกเดือนนั้น — ยอมรับ
+  // ข้อจำกัดนี้เพื่อเลี่ยงการแก้ Edge Function เพิ่ม (ดูหมายเหตุด้านบน)
+  const monthWeeks = _weeklyreportMonthWeekRanges(data.startDate);
+  const weeksData = _weeklyreportBuildMonthWeekData(monthWeeks, data.prodRows, data.dlvRows);
+
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวมรายสัปดาห์ — ${_weeklyreportMonthLabel(data.startDate)}</h6>
+    ${_weeklyreportBuildMonthWeekHTML(weeksData, data.startDate)}
+  </div>`;
+}
+
 // เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
 // login/RLS เลย (ข้อมูลมาจาก Edge Function plan-report ที่อ่านด้วย service_role) ใช้ CSS/คลาสของแอป
 // เอง (glass-card, table, badge ฯลฯ) ที่โหลดอยู่แล้วในหน้านี้ ไม่ต้องทำหน้าแยก
@@ -11436,7 +11466,6 @@ async function _renderPublicReport(token) {
     showError(msgMap[data?.error] || 'ไม่สามารถโหลดรายงานได้'); return;
   }
 
-  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 3 });
   const fmtDate = (dateStr) => {
     if (!dateStr) return '—';
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -11446,39 +11475,29 @@ async function _renderPublicReport(token) {
   const periodLabel = data.period === 'week' ? 'รายสัปดาห์' : 'รายเดือน';
   const rangeLabel = `${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}`;
 
-  const moStatusColor = { 'แพลนแล้ว':'#d97706','ยืนยันการผลิต':'#334155','เบิกแล้ว':'#0ea5e9','กำลังผลิต':'#2563eb' };
-  const activeStatuses = ['แพลนแล้ว','ยืนยันการผลิต','เบิกแล้ว','กำลังผลิต'];
-  const counts = {}; activeStatuses.forEach(s => counts[s] = 0);
-  data.moRows.forEach(m => counts[m.Status] = (counts[m.Status]||0) + 1);
-
-  const moSection = !data.moRows.length ? `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ตอนนี้</div>` : `
-    <div class="row g-2 mb-3 text-center">${activeStatuses.map(s => `<div class="col-6 col-md-3">
-      <div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold" style="color:${moStatusColor[s]}">${counts[s]}</div><div class="text-muted small">${s}</div></div></div>`).join('')}</div>
-    <div class="table-responsive"><table class="table table-sm mb-0">
-      <thead><tr><th>MO</th><th>สินค้า</th><th>สถานะ</th><th class="text-end">สั่งผลิต</th><th class="text-end">รับแล้ว</th><th class="text-end">คงค้าง</th><th>กำหนดส่ง</th></tr></thead>
-      <tbody>${data.moRows.map(m => `<tr>
-        <td>${m.MO_ID||''}</td>
-        <td>${m.ProductName||''}<br><span class="text-muted small">${m.ProductCode||''}</span></td>
-        <td><span class="badge" style="background:${moStatusColor[m.Status]||'#64748b'}">${m.Status||''}</span></td>
-        <td class="text-end">${fmtQty(m.OrderQty)}</td>
-        <td class="text-end">${fmtQty(m.MO_Received)}</td>
-        <td class="text-end">${fmtQty(m.Pending)}</td>
-        <td>${fmtDate(m.DeliveryDate)}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
-
   // รายงานผลิต-จัดส่งรายสัปดาห์ (Lot/เลขใบส่ง/แผนผลิต vs ผลจริง) — เพิ่ม 2026-08-13 ตามคำขอผู้ใช้ให้ลิงก์
-  // เดียวกันนี้ที่ส่งให้เจ้านายเห็นรายงานนี้ด้วย ไม่ใช่แค่ตารางแผน/MO แบบเดิม ใช้ _weeklyreportBuildSummary/
-  // _weeklyreportBuildSummaryHTML ตัวเดียวกับที่หน้า "รายงานรายสัปดาห์" (สำหรับ admin) ใช้อยู่แล้วเป๊ะ ไม่แยก
-  // โค้ดคำนวณซ้ำอีกชุด — เช็ค `data.prodRows`/`data.dlvRows` ก่อนเผื่อ Edge Function ยังไม่ได้ deploy เวอร์ชัน
-  // ใหม่ (ลิงก์เก่าที่ยังไม่รี generate จะไม่มี field พวกนี้ ก็แค่ไม่แสดง section นี้ ไม่ error)
+  // เดียวกันนี้ที่ส่งให้เจ้านายเห็นรายงานนี้ด้วย ไม่ใช่แค่ตารางแผน/MO แบบเดิม ใช้ _weeklyreportBuildSummary
+  // ตัวเดียวกับที่หน้า "รายงานรายสัปดาห์" (สำหรับ admin) ใช้อยู่แล้วเป๊ะ ไม่แยกโค้ดคำนวณซ้ำอีกชุด — เช็ค
+  // `data.prodRows`/`data.dlvRows` ก่อนเผื่อ Edge Function ยังไม่ได้ deploy เวอร์ชันใหม่ (ลิงก์เก่าที่ยังไม่
+  // รี generate จะไม่มี field พวกนี้ ก็แค่ไม่แสดง section นี้ ไม่ error)
+  //
+  // อัปเดต 2026-08-25 ตามคำขอผู้ใช้: ตัด "สรุปภาพรวม MO ที่กำลังดำเนินการ" กับการ์ด "การผลิต" ออกจากรายงาน
+  // สาธารณะ (ยังอยู่ในหน้า "รายงานรายสัปดาห์" ของแอปปกติเหมือนเดิม — ใช้ 2 การ์ดย่อย
+  // _weeklyreportPlanVsActualCardHTML/_weeklyreportDeliveryCardHTML ที่แยกออกมาจาก
+  // _weeklyreportBuildSummaryHTML แทนที่จะเรียกฟังก์ชันรวมทั้งชุด ไม่ต้องแตะฟังก์ชันเดิมที่หน้าแอปยังใช้อยู่)
+  // และเพิ่ม "ภาพรวมรายสัปดาห์" (สรุปผลิต/จัดส่งแยกตามสัปดาห์ในเดือน — component เดียวกับที่หน้า
+  // "รายงานรายสัปดาห์"/หน้าพิมพ์ใช้อยู่แล้ว) แทนที่ — **ใช้ได้เฉพาะลิงก์แบบ "รายเดือน" เท่านั้น** เพราะ
+  // ลิงก์แบบ "รายสัปดาห์" ที่ Edge Function ดึงมาให้มีข้อมูลแค่ 7 วัน ไม่พอครอบทั้งเดือนสำหรับตารางนี้ (ไม่ได้
+  // แก้ Edge Function ให้ดึงข้อมูลทั้งเดือนเพิ่มในรอบนี้ — ดูหมายเหตุที่ _pubWeeklyOverviewSection ด้านล่าง)
   let weeklyReportSection = '';
   if (Array.isArray(data.prodRows) && Array.isArray(data.dlvRows)) {
     const wreportSummary = _weeklyreportBuildSummary({ start: data.startDate, end: data.endDate }, data.prodRows, data.planRows || [], data.dlvRows);
     weeklyReportSection = `
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">🏭 รายงานผลิต-จัดส่ง (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
-    ${_weeklyreportBuildSummaryHTML(wreportSummary)}`;
+    ${_pubWeeklyOverviewSection(data)}
+    ${_weeklyreportPlanVsActualCardHTML(wreportSummary)}
+    ${_weeklyreportDeliveryCardHTML(wreportSummary)}`;
   }
 
   const ganttSection = _pubGanttBuildSection(data);
@@ -11487,7 +11506,6 @@ async function _renderPublicReport(token) {
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
     ${ganttSection}
-    <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
     ${weeklyReportSection}
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
 
@@ -11747,16 +11765,23 @@ function weeklyreportRenderPreview(s) {
   document.getElementById('wreport-summary').innerHTML = _weeklyreportBuildSummaryHTML(s);
 }
 
-// สร้าง HTML สรุปสัปดาห์เดียว (การผลิต/แผนผลิต vs ผลจริง/การจัดส่ง) แยกจากการ set DOM ตรงๆ เพื่อให้
-// เรียกซ้ำได้จากที่อื่นได้ด้วย — ใช้ตอนฝัง "รายงานรายสัปดาห์" นี้เข้าไปในลิงก์สาธารณะที่ส่งให้เจ้านาย
-// (ดู _renderPublicReport, เพิ่ม 2026-08-13) นอกเหนือจากหน้า "รายงานรายสัปดาห์" ปกติของแอป
-function _weeklyreportBuildSummaryHTML(s) {
-  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
-
-  // การ์ดบนจอใช้ component เดียวกับหน้าพิมพ์ (bar + Lot chip) — ผู้ใช้ขอให้เห็น Lot/เลขใบส่งและให้ดูทันสมัยขึ้น
-  // (2026-08-13) เลยรวมดีไซน์เดียวกันทั้ง 2 ที่แทนตาราง Bootstrap ธรรมดาแบบเดิม
+// การ์ด "การผลิต" (ใบบันทึกผลิต + bar-list ต่อสินค้า) — แยกเป็นฟังก์ชันของตัวเองเมื่อ 2026-08-25 (เดิมเป็น
+// ส่วนหนึ่งของ _weeklyreportBuildSummaryHTML) เพื่อให้รายงานสาธารณะ (_renderPublicReport) เลือกไม่ใส่
+// การ์ดนี้ได้ (ผู้ใช้ขอให้ตัดออกจากรายงานสาธารณะ) โดยไม่ต้องแตะโค้ดของหน้า "รายงานรายสัปดาห์" ปกติในแอป
+// ที่ยังต้องการเห็นการ์ดนี้เหมือนเดิมทุกอย่าง
+function _weeklyreportProductionCardHTML(s) {
   const prodDetailHTML = _weeklyreportBuildDetailList(s.production.byProduct, 'prod', 8);
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การผลิต</h6>
+    <div class="mb-2">ใบบันทึกผลิตทั้งหมด <b>${s.production.total}</b> ใบ (อนุมัติแล้ว ${s.production.approvedCount} · รอเช็คต้นทุน ${s.production.pendingCount})</div>
+    ${s.production.pendingCount > 0 ? `<div class="alert alert-warning py-1 px-2 mb-2" style="font-size:.8rem">มี ${s.production.pendingCount} ใบยังรอเช็คต้นทุน</div>` : ''}
+    ${prodDetailHTML}
+  </div>`;
+}
 
+// การ์ด "แผนผลิต vs ผลจริง" — แยกออกมาเหตุผลเดียวกับข้างบน
+function _weeklyreportPlanVsActualCardHTML(s) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
   const planEntries = Object.entries(s.plan.byProduct);
   const planTable = !planEntries.length ? `<div class="text-muted small">ไม่มีแผนผลิตที่ยืนยันแล้วในสัปดาห์นี้</div>` : `
     <table class="table table-sm mb-0"><thead><tr><th>สินค้า</th><th class="text-end">แผน</th><th class="text-end">ผลิตจริง</th><th class="text-end">% สำเร็จ</th></tr></thead>
@@ -11765,7 +11790,15 @@ function _weeklyreportBuildSummaryHTML(s) {
       return `<tr><td>${v.name}</td><td class="text-end">${fmtQty(v.planQty)} ${v.uom}</td><td class="text-end">${fmtQty(v.actualQty)} ${v.uom}</td><td class="text-end">${pct.toFixed(0)}%</td></tr>`;
     }).join('')}</tbody></table>
     ${s.plan.unconfirmedCount > 0 ? `<div class="text-muted small mt-1">มีอีก ${s.plan.unconfirmedCount} แผนที่ยังไม่ยืนยัน (ไม่รวมในตารางนี้)</div>` : ''}`;
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">แผนผลิต vs ผลจริง</h6>
+    <div class="table-responsive">${planTable}</div>
+  </div>`;
+}
 
+// การ์ด "การจัดส่ง" — แยกออกมาเหตุผลเดียวกับข้างบน
+function _weeklyreportDeliveryCardHTML(s) {
+  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
   const dlvStatusBadges = Object.entries(s.delivery.statusCount)
     .map(([st, n]) => `${_deliveryStatusBadge(st)} <span class="text-muted small me-2">${n}</span>`).join('');
   const dlvDetailHTML = _weeklyreportBuildDetailList(s.delivery.byProduct, 'ship', 8);
@@ -11777,23 +11810,19 @@ function _weeklyreportBuildSummaryHTML(s) {
     <tbody>${custTop.map(([, v]) => `<tr><td>${v.name}</td><td class="text-end">${fmtQty(v.qty)}</td></tr>`).join('')}</tbody></table>
     ${custRest > 0 ? `<div class="text-muted small mt-1">และอีก ${custRest} ราย</div>` : ''}`;
 
-  return `
-    <div class="glass-card mb-3">
-      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การผลิต</h6>
-      <div class="mb-2">ใบบันทึกผลิตทั้งหมด <b>${s.production.total}</b> ใบ (อนุมัติแล้ว ${s.production.approvedCount} · รอเช็คต้นทุน ${s.production.pendingCount})</div>
-      ${s.production.pendingCount > 0 ? `<div class="alert alert-warning py-1 px-2 mb-2" style="font-size:.8rem">มี ${s.production.pendingCount} ใบยังรอเช็คต้นทุน</div>` : ''}
-      ${prodDetailHTML}
-    </div>
-    <div class="glass-card mb-3">
-      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">แผนผลิต vs ผลจริง</h6>
-      <div class="table-responsive">${planTable}</div>
-    </div>
-    <div class="glass-card mb-3">
-      <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การจัดส่ง</h6>
-      <div class="mb-2">${dlvStatusBadges}</div>
-      ${dlvDetailHTML}
-      <div class="table-responsive">${dlvCustomerList}</div>
-    </div>`;
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การจัดส่ง</h6>
+    <div class="mb-2">${dlvStatusBadges}</div>
+    ${dlvDetailHTML}
+    <div class="table-responsive">${dlvCustomerList}</div>
+  </div>`;
+}
+
+// สร้าง HTML สรุปสัปดาห์เดียวครบ 3 การ์ด (การผลิต/แผนผลิต vs ผลจริง/การจัดส่ง) — ใช้โดยหน้า "รายงานรายสัปดาห์"
+// ปกติของแอปเท่านั้น (weeklyreportRenderPreview) รายงานสาธารณะประกอบการ์ดเองจาก 2 ฟังก์ชันด้านบนโดยตรง
+// (ข้าม _weeklyreportProductionCardHTML) ดู _renderPublicReport
+function _weeklyreportBuildSummaryHTML(s) {
+  return _weeklyreportProductionCardHTML(s) + _weeklyreportPlanVsActualCardHTML(s) + _weeklyreportDeliveryCardHTML(s);
 }
 
 // ── พิมพ์รายงานรายสัปดาห์เป็น PDF/กระดาษ (แทนที่ปุ่มร่างอีเมลเดิม ตามคำขอผู้ใช้ 2026-08-13) ──
