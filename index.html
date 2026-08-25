@@ -490,6 +490,35 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #page-prodstatus .g-popover .reset-row{margin-top:6px;text-align:center}
 #page-prodstatus .g-popover .reset-row button{border:none;background:none;color:#dc2626;font-size:.68rem;cursor:pointer;text-decoration:underline}
 
+/* ── รายงานแผนผลิตสาธารณะ (_pubGanttBuildSection): Gantt เดียวกันกับ #page-prodstatus ทุกกฎ —
+   ก๊อปเฉพาะ selector prefix มาเป็น #publicReportView ไม่แก้ค่าใดๆ เพื่อให้หน้าตาเหมือนกันเป๊ะ ── */
+#publicReportView .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow:auto;max-height:64vh;position:relative}
+#publicReportView .gtable{display:grid;font-size:.74rem}
+#publicReportView .g-corner{grid-column:1;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
+#publicReportView .g-daycell{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:8px 2px 6px;border-left:1px solid #eef2f7}
+#publicReportView .g-daycell .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
+#publicReportView .g-daycell .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
+#publicReportView .g-daycell.weekend{background:rgba(244,63,94,.07)}
+#publicReportView .g-daycell.weekend .dow,#publicReportView .g-daycell.weekend .dnum{color:#e11d48}
+#publicReportView .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
+#publicReportView .g-linehead{grid-column:1;position:sticky;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
+#publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85}
+#publicReportView .g-rowlabel{grid-column:1;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+  padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent}
+#publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem}
+#publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b}
+#publicReportView .g-steplabel{grid-column:1;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+  padding:5px 10px 5px 30px;font-size:.68rem;color:#64748b;display:flex;align-items:center;gap:5px}
+#publicReportView .g-steplabel .stepord{width:15px;height:15px;border-radius:50%;background:#94a3b8;color:#fff;font-size:.55rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#publicReportView .g-bgcell{border-left:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#f8fafc}
+#publicReportView .g-bgcell.weekend{background:rgba(244,63,94,.07)}
+#publicReportView .g-bgcell.today{box-shadow:inset 0 0 0 2px #2563eb}
+#publicReportView .g-bgcell.stepbg{background:#fff}
+#publicReportView .g-bgcell.stepbg.weekend{background:rgba(244,63,94,.07)}
+#publicReportView .g-bar{align-self:center;height:22px;border-radius:11px;display:flex;align-items:center;padding:0 9px;font-size:.66rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+#publicReportView .g-stepbar{align-self:center;height:18px;border-radius:9px;display:flex;align-items:center;padding:0 8px;font-size:.63rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+#publicReportView .g-nodata{grid-column:1;position:sticky;left:0;background:#fff;padding:5px 10px 5px 30px;font-size:.68rem;color:#cbd5e1;font-style:italic}
+
 /* ── Issue Modal Card Styles ── */
 .issue-mat-card{border-radius:10px;overflow:hidden;margin-bottom:.7rem;box-shadow:0 2px 6px rgba(0,0,0,.07);border:1.5px solid #dee2e6;background:#fff}
 .issue-mat-card.ok  {border-color:#86efac}
@@ -2286,6 +2315,32 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           </div>
         </div>
         <div id="admindash-drill-table"><div class="text-center text-muted py-4">เลือกสินค้าเพื่อดูรายละเอียดกำไรต่อ Lot/เดือน</div></div>
+      </div>
+
+      <div class="glass-card mt-3">
+        <div class="fw-bold small text-muted mb-2"><i class="fas fa-user-clock me-1"></i>ค่าแรง & ชม.ทำงาน (ภาพรวมทั้งบริษัท 6 เดือนล่าสุด)</div>
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-laborring-ft"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#1e3a8a">พนักงานประจำ (FT)</div>
+            <div class="fw-bold" id="admindash-laborring-ft-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-laborring-ft-hours">—</div>
+          </div>
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-laborring-pt"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#0f766e">พาร์ทไทม์ (PT)</div>
+            <div class="fw-bold" id="admindash-laborring-pt-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-laborring-pt-hours">—</div>
+          </div>
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-laborring-os"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#7c3aed">เอาท์ซอร์ส (OS)</div>
+            <div class="fw-bold" id="admindash-laborring-os-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-laborring-os-hours">—</div>
+          </div>
+        </div>
+        <div class="text-muted small mb-1">แนวโน้มรายเดือน</div>
+        <div style="position:relative;height:220px"><canvas id="admindash-chart-labor"></canvas></div>
       </div>
     </div>
   </div>
@@ -11190,6 +11245,106 @@ async function planGenerateReportLink() {
   }
 }
 
+// รายงานสาธารณะ: Section "ภาพรวม Gantt การผลิต" — เพิ่ม 2026-08-25 ตามคำขอผู้ใช้ให้ลิงก์ Report แผนผลิต
+// มีหน้า Gantt ของภาพรวมแผนผลิตด้วย ไม่ใช่แค่ตารางแผน/MO แบบเดิม ขอบเขต 2 เดือน (เดือนปัจจุบัน+เดือนถัดไป,
+// คำนวณฝั่งเซิร์ฟเวอร์ตามเวลาที่เปิดลิงก์ ไม่ผูกกับตอนสร้างลิงก์ — ดูคอมเมนต์ที่ plan-report/index.ts)
+// ใช้ helper ชุดเดียวกับ Gantt จริงของหน้า "ภาพรวมการผลิต" (prodStatusComputeMOSteps/PROD_STEP_DEFS/
+// _ganttAddDays/_ganttDow/_prodStatusPlanStartByMO/_prodStatusLineByMO/PLAN_LINES/_planLineColor) ไม่คำนวณ
+// ตารางขั้นตอนซ้ำอีกชุด — ต่างจากหน้าในแอปแค่ 2 จุด: (1) capMap/overridesMap ส่งเข้าไปตรงๆ จากข้อมูลที่ Edge
+// Function ให้มา แทนที่จะอ่านจาก state ของหน้า nav-prodstatus (คนละ session กัน, หน้านี้ไม่ login เลย)
+// (2) ทุก MO แสดงขั้นตอนกางออกตลอด ไม่มีปุ่มพับ/กาง/แก้ไข เพราะเป็นหน้าดูอย่างเดียวสำหรับคนนอกแอป
+function _pubGanttBuildSection(data) {
+  // ลิงก์ที่สร้างไว้ก่อน Edge Function เวอร์ชันนี้ deploy จะไม่มี field พวกนี้เลย — ข้าม section ไปเงียบๆ
+  // ไม่ error (เหมือน weeklyReportSection ด้านล่างที่เช็ค data.prodRows/data.dlvRows ก่อนเหมือนกัน)
+  if (!data.ganttStartDate || !Array.isArray(data.ganttPlanRows)) return '';
+
+  const days = [];
+  for (let d = data.ganttStartDate; ; d = _ganttAddDays(d, 1)) {
+    days.push(d);
+    if (d === data.ganttEndDate || days.length > 400) break; // กันลูปไม่รู้จบถ้าข้อมูลวันที่ผิดปกติ
+  }
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const monthsTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const fmtShort = (d) => { const [y, m, dd] = d.split('-').map(Number); return `${dd} ${monthsTh[m - 1]} ${y + 543}`; };
+
+  const capByCode = {};
+  (data.ganttBomCap || []).forEach(r => { if (r.ProductCode && !capByCode[r.ProductCode]) capByCode[r.ProductCode] = r; });
+  const overridesMap = {};
+  (data.ganttStepOverrides || []).forEach(r => { overridesMap[r.MO_Ref + '|' + r.StepKey] = r.StartDate; });
+
+  const planStartByMO = _prodStatusPlanStartByMO(data.ganttPlanRows);
+  const lineByMO = _prodStatusLineByMO(data.ganttPlanRows);
+
+  const legend = PLAN_LINES.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('')
+    + `<span><i style="background:rgba(244,63,94,.15);box-shadow:inset 0 0 0 1px #e11d48"></i>วันอาทิตย์</span>`
+    + `<span><i style="box-shadow:inset 0 0 0 2px #2563eb;background:transparent"></i>วันนี้</span>`;
+
+  let grid = `<div class="g-corner"></div>`;
+  days.forEach((d, i) => {
+    const w = _ganttDow(d) === 0, t = d === todayStr;
+    grid += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:1">
+      <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
+  });
+
+  let row = 2, anyMo = false;
+  PLAN_LINES.forEach(line => {
+    const rows = (data.moRows || []).filter(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]);
+    if (!rows.length) return;
+    anyMo = true;
+    const color = _planLineColor(line);
+    grid += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO</span></div>`;
+    days.forEach((d, i) => { grid += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+    row++;
+
+    rows.forEach(m => {
+      const planStart = planStartByMO[m.MO_ID];
+      const steps = prodStatusComputeMOSteps(m, planStart, capByCode, overridesMap);
+
+      grid += `<div class="g-rowlabel" style="grid-row:${row};border-left-color:${color}">
+        <div><div class="g-mo">${m.MO_ID}${m.LOT ? ` <span class="text-muted fw-normal">· Lot ${m.LOT}</span>` : ''}</div>
+        <div class="g-prod">${m.ProductName||''} · ${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</div></div>
+      </div>`;
+      days.forEach((d, i) => { grid += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+
+      if (!steps.length) {
+        // ไม่มีข้อมูลกำลังผลิตของสินค้านี้ใน BOM เลย — แสดงแท่งเดียวใช้ช่วงวันที่จาก production_plan จริงแทน
+        const moDates = data.ganttPlanRows.filter(r => r.MO_Ref === m.MO_ID).map(r => r.PlanDate).sort();
+        if (moDates.length && !(moDates[moDates.length-1] < days[0] || moDates[0] > days[days.length-1])) {
+          let s = days.indexOf(moDates[0]), e = days.indexOf(moDates[moDates.length-1]);
+          if (s < 0) s = 0; if (e < 0) e = days.length - 1;
+          grid += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+        }
+        row++;
+      } else {
+        row++;
+        steps.forEach((st, si) => {
+          grid += `<div class="g-steplabel" style="grid-row:${row}"><span class="stepord">${si+1}</span>${st.label}</div>`;
+          days.forEach((d, i) => { grid += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+          if (!(st.end < days[0] || st.start > days[days.length-1])) {
+            let s = days.indexOf(st.start), e = days.indexOf(st.end);
+            if (s < 0) s = 0; if (e < 0) e = days.length - 1;
+            const shade = (0.55 + si / Math.max(1, steps.length - 1) * 0.45).toFixed(2);
+            grid += `<div class="g-stepbar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color};opacity:${shade}">
+              ${st.label} · ${st.days}ว.</div>`;
+          }
+          row++;
+        });
+      }
+    });
+  });
+
+  const body = anyMo ? `
+    <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
+    <div class="gantt-card"><div class="gtable" style="grid-template-columns:230px repeat(${days.length}, minmax(46px,1fr))">${grid}</div></div>`
+    : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
+
+  return `<div class="glass-card mb-3">
+    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวม Gantt การผลิต (${fmtShort(data.ganttStartDate)} – ${fmtShort(data.ganttEndDate)})</h6>
+    <div class="text-muted small mb-2">แสดงเดือนปัจจุบันและเดือนถัดไปเสมอ ไม่ว่าจะเปิดลิงก์นี้เมื่อไหร่ก็ตาม — แยกอิสระจากช่วงตารางแผนผลิตด้านล่าง</div>
+    ${body}
+  </div>`;
+}
+
 // เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
 // login/RLS เลย (ข้อมูลมาจาก Edge Function plan-report ที่อ่านด้วย service_role) ใช้ CSS/คลาสของแอป
 // เอง (glass-card, table, badge ฯลฯ) ที่โหลดอยู่แล้วในหน้านี้ ไม่ต้องทำหน้าแยก
@@ -11285,9 +11440,12 @@ async function _renderPublicReport(token) {
     ${_weeklyreportBuildSummaryHTML(wreportSummary)}`;
   }
 
+  const ganttSection = _pubGanttBuildSection(data);
+
   bodyEl.innerHTML = `
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
+    ${ganttSection}
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ตารางแผนผลิตตามไลน์ / กะ / วันที่</h6>${planSection}</div>
     <div class="glass-card mb-3"><h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">สรุปภาพรวม MO ที่กำลังดำเนินการ</h6>${moSection}</div>
     ${weeklyReportSection}
@@ -12095,8 +12253,11 @@ function _ganttAddWorkDays(start, days) {
 
 // คำนวณตารางขั้นตอนของ MO หนึ่งตัว — ไล่ต่อกันตามลำดับ ข้ามขั้นที่ไม่มีข้อมูลกำลังผลิตของสินค้านั้น
 // ขั้นที่เคยถูกปรับเอง (มีใน overrides) จะ "ปัก" วันเริ่มไว้ตายตัว ขั้นถัดไปที่ยังไม่เคยปรับจะขยับตามให้อัตโนมัติ
-function prodStatusComputeMOSteps(mo, planStart) {
-  const cap = _prodStatusBomCapByCode[mo.ProductCode];
+// capMap/overridesMap รับพารามิเตอร์ได้ (default = state ของหน้า nav-prodstatus เอง) — เพิ่มเข้ามาเพื่อให้
+// รายงานสาธารณะ (_pubGanttBuildSection) เรียกใช้ฟังก์ชันเดียวกันนี้ได้โดยส่ง map ของตัวเองเข้ามาแทน ไม่ต้อง
+// คำนวณ logic ซ้ำอีกชุด — หน้า nav-prodstatus เดิมไม่ต้องเปลี่ยนอะไร เพราะ default ตรงกับพฤติกรรมเดิมทุกจุด
+function prodStatusComputeMOSteps(mo, planStart, capMap = _prodStatusBomCapByCode, overridesMap = _prodStatusStepOverrides) {
+  const cap = capMap[mo.ProductCode];
   if (!cap || !planStart) return [];
   const qty = parseFloat(mo.OrderQty) || 0;
   let cursor = _ganttNextWorkDay(planStart);
@@ -12105,7 +12266,7 @@ function prodStatusComputeMOSteps(mo, planStart) {
     const rate = parseFloat(cap[def.capField]) || 0;
     if (!rate) return; // ไม่มีข้อมูลกำลังผลิตของขั้นนี้ ข้ามไป ไม่แสดงเป็นแท่ง
     const overrideKey = mo.MO_ID + '|' + def.key;
-    const manual = _prodStatusStepOverrides[overrideKey];
+    const manual = overridesMap[overrideKey];
     const start = _ganttNextWorkDay(manual || cursor);
     const days = Math.max(1, Math.ceil(qty / rate));
     const end = _ganttAddWorkDays(start, days);
@@ -12120,18 +12281,20 @@ function prodStatusGanttGoToday() { _prodStatusGanttWindowStart = _ganttAddDays(
 function _prodStatusGanttClosePopover() { if (_prodStatusGanttPopoverEl) { _prodStatusGanttPopoverEl.remove(); _prodStatusGanttPopoverEl = null; } }
 
 // planStart ของแต่ละ MO = วันที่เก่าสุดใน production_plan ของ MO นั้น (จุดเริ่มขั้นตอนที่ 1)
-function _prodStatusPlanStartByMO() {
+// รับ planRows เป็นพารามิเตอร์ได้ (default = state ของหน้า nav-prodstatus เอง) — เหตุผลเดียวกับ
+// prodStatusComputeMOSteps ด้านบน ให้รายงานสาธารณะ (_pubGanttBuildSection) ส่ง ganttPlanRows ของตัวเองเข้ามาได้
+function _prodStatusPlanStartByMO(planRows = _prodStatusPlanAllData) {
   const map = {};
-  _prodStatusPlanAllData.forEach(r => {
+  planRows.forEach(r => {
     if (!r.MO_Ref || !r.PlanDate) return;
     if (!map[r.MO_Ref] || r.PlanDate < map[r.MO_Ref]) map[r.MO_Ref] = r.PlanDate;
   });
   return map;
 }
 // ไลน์ของ MO = ไลน์จากแถวแผนแรกสุด (เรียงตามวันที่) ของ MO นั้น
-function _prodStatusLineByMO() {
+function _prodStatusLineByMO(planRows = _prodStatusPlanAllData) {
   const map = {};
-  _prodStatusPlanAllData.slice().sort((a, b) => (a.PlanDate || '').localeCompare(b.PlanDate || '')).forEach(r => {
+  planRows.slice().sort((a, b) => (a.PlanDate || '').localeCompare(b.PlanDate || '')).forEach(r => {
     if (r.MO_Ref && !map[r.MO_Ref]) map[r.MO_Ref] = r.Line;
   });
   return map;
@@ -16466,7 +16629,7 @@ async function admindashLoadData() {
   _showLoader();
   const [prodRes, bomRes, dlvRes, stockFgRes] = await Promise.all([
     _sb.from('production_records')
-      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,Status')
+      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status')
       .order('_row_id', { ascending: false }),
     // bom มีหลักหมื่นแถว (ซ้ำ/ขยะปนอยู่ — ดู SKILL.md) ใช้ _bomFetchPaged วน .range() เอง เพราะ PostgREST
     // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่
@@ -16543,6 +16706,7 @@ async function admindashLoadData() {
   admindashRenderTopProducts(dlvRows, priceMap, costByLot);
   admindashRenderStockValue(stockFgRes.data || [], costByLot);
   admindashRenderVolatilityAlerts(approvedRecs, priceMap, months);
+  admindashRenderLaborChart(inRangeProd, months);
   admindashPopulateDrillProducts(inRangeProd);
   admindashRenderDrilldown();
 }
@@ -16989,6 +17153,145 @@ async function admindashRenderDrilldown() {
   });
 }
 
+// ชม.-คนรวม (worker×ชม. ปกติ+OT รวมทุกประเภท FT/PT/OS) จาก StationsData ของ 1 บันทึกผลิต — สูตรเดียวกับที่ใช้
+// คำนวณ LaborCost ตอนอนุมัติ (_prodrecordRecalcApprove ~บรรทัด 14072) รองรับทั้ง 2 รูปแบบ StationsData (ใหม่:
+// s.days[] มีค่าจริงต่อวัน, เก่า: ค่าเฉลี่ย ชม./วันเดียว ต้องคูณ workDays ของบันทึกนั้น — ใช้ _prodrecordWorkDays
+// ตัวเดียวกับที่หน้า "บันทึกผลิต" ใช้ กันตัวเลขไม่ตรงกัน)
+// ค่าแรง/ชม.ทำงานแยกตามประเภท FT/PT/OS **และแยกปกติ vs OT** ของ 1 บันทึกผลิต (ผู้ใช้ขอเพิ่ม 2026-08-17 — เดิม
+// รวมปกติ+OT เป็นก้อนเดียว มองไม่เห็นว่า OT เท่าไหร่) ใช้เรตที่บันทึกไว้ตอนอนุมัติต้นทุนของบันทึกนั้นเป๊ะ
+// (FT_LaborRate ฯลฯ เป็นคอลัมน์ต่อบันทึก ไม่ใช่ค่าคงที่บริษัท เพราะเรตปรับเปลี่ยนได้ตามช่วงเวลา) สูตรต้นทุนเดียวกับ
+// _prodrecordRecalcApprove เป๊ะ แค่แยกผลรวมตามประเภท+ประเภทกะแทนที่จะรวมเป็น laborCost ก้อนเดียว
+function _admindashLaborByType(r) {
+  const result = { ftCost: 0, ptCost: 0, osCost: 0,
+    ftNormalHours: 0, ftOtHours: 0, ptNormalHours: 0, ptOtHours: 0, osNormalHours: 0, osOtHours: 0 };
+  let stations = [];
+  try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { return result; }
+  const ftRate = parseFloat(r.FT_LaborRate) || 0, ftOt = parseFloat(r.FT_OT_Rate) || 0;
+  const ptRate = parseFloat(r.PT_LaborRate) || 0, ptOt = parseFloat(r.PT_OT_Rate) || 0;
+  const osRate = parseFloat(r.OS_LaborRate) || 0, osOt = parseFloat(r.OS_OT_Rate) || 0;
+  const workDays = _prodrecordWorkDays(r);
+
+  stations.forEach(s => {
+    if (Array.isArray(s.days)) {
+      s.days.forEach(d => {
+        result.ftNormalHours += (d.ftWorkers || 0) * (d.ftNormalHrs || 0);
+        result.ftOtHours     += (d.ftWorkers || 0) * (d.ftOtHrs || 0);
+        result.ptNormalHours += (d.ptWorkers || 0) * (d.ptNormalHrs || 0);
+        result.ptOtHours     += (d.ptWorkers || 0) * (d.ptOtHrs || 0);
+        result.osNormalHours += (d.osWorkers || 0) * (d.osNormalHrs || 0);
+        result.osOtHours     += (d.osWorkers || 0) * (d.osOtHrs || 0);
+        result.ftCost += (d.ftWorkers || 0) * (d.ftNormalHrs || 0) * ftRate + (d.ftWorkers || 0) * (d.ftOtHrs || 0) * ftOt;
+        result.ptCost += (d.ptWorkers || 0) * (d.ptNormalHrs || 0) * ptRate + (d.ptWorkers || 0) * (d.ptOtHrs || 0) * ptOt;
+        result.osCost += (d.osWorkers || 0) * (d.osNormalHrs || 0) * osRate + (d.osWorkers || 0) * (d.osOtHrs || 0) * osOt;
+      });
+    } else {
+      result.ftNormalHours += (s.ftWorkers || 0) * (s.ftNormalHrs || 0) * workDays;
+      result.ftOtHours     += (s.ftWorkers || 0) * (s.ftOtHrs || 0) * workDays;
+      result.ptNormalHours += (s.ptWorkers || 0) * (s.ptNormalHrs || 0) * workDays;
+      result.ptOtHours     += (s.ptWorkers || 0) * (s.ptOtHrs || 0) * workDays;
+      result.osNormalHours += (s.osWorkers || 0) * (s.osNormalHrs || 0) * workDays;
+      result.osOtHours     += (s.osWorkers || 0) * (s.osOtHrs || 0) * workDays;
+      result.ftCost += ((s.ftWorkers || 0) * (s.ftNormalHrs || 0) * ftRate + (s.ftWorkers || 0) * (s.ftOtHrs || 0) * ftOt) * workDays;
+      result.ptCost += ((s.ptWorkers || 0) * (s.ptNormalHrs || 0) * ptRate + (s.ptWorkers || 0) * (s.ptOtHrs || 0) * ptOt) * workDays;
+      result.osCost += ((s.osWorkers || 0) * (s.osNormalHrs || 0) * osRate + (s.osWorkers || 0) * (s.osOtHrs || 0) * osOt) * workDays;
+    }
+  });
+  return result;
+}
+
+// ค่าแรง & ชม.ทำงาน ภาพรวมทั้งบริษัท รายเดือน — ค่าแรงเป็นแท่งซ้อน (stacked) ตามประเภทพนักงาน FT/PT/OS, ชม.ทำงาน
+// เป็นเส้นทึบรวม (ทุกประเภท+ปกติ+OT รวมกัน) บวกเส้นประ 3 เส้นแยก "OT เฉพาะ" ต่อประเภท (สีตรงกับแท่งของประเภทนั้น
+// เพื่อให้จับคู่ภาพได้ง่าย) ตามที่ผู้ใช้ขอให้เห็น OT แยกตามประเภทด้วย (2026-08-17)
+function admindashRenderLaborChart(inRangeProd, months) {
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+  const round1 = v => Math.round(v * 10) / 10;
+  const byMonth = months.map(m => {
+    const monthRows = inRangeProd.filter(r => _admindashMonthKey(r) === m);
+    const acc = { ftCost: 0, ptCost: 0, osCost: 0,
+      ftNormalHours: 0, ftOtHours: 0, ptNormalHours: 0, ptOtHours: 0, osNormalHours: 0, osOtHours: 0 };
+    monthRows.forEach(r => {
+      const t = _admindashLaborByType(r);
+      acc.ftCost += t.ftCost; acc.ptCost += t.ptCost; acc.osCost += t.osCost;
+      acc.ftNormalHours += t.ftNormalHours; acc.ftOtHours += t.ftOtHours;
+      acc.ptNormalHours += t.ptNormalHours; acc.ptOtHours += t.ptOtHours;
+      acc.osNormalHours += t.osNormalHours; acc.osOtHours += t.osOtHours;
+    });
+    const totalHours = acc.ftNormalHours + acc.ftOtHours + acc.ptNormalHours + acc.ptOtHours + acc.osNormalHours + acc.osOtHours;
+    return { ...acc, totalHours };
+  });
+
+  _admindashDestroy('labor');
+  _admindashCharts.labor = new Chart(document.getElementById('admindash-chart-labor'), {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'พนักงานประจำ (FT)', data: byMonth.map(m => Math.round(m.ftCost)),
+          backgroundColor: '#1e3a8a', yAxisID: 'y', stack: 'cost' },
+        { type: 'bar', label: 'พาร์ทไทม์ (PT)', data: byMonth.map(m => Math.round(m.ptCost)),
+          backgroundColor: '#0f766e', yAxisID: 'y', stack: 'cost' },
+        { type: 'bar', label: 'เอาท์ซอร์ส (OS)', data: byMonth.map(m => Math.round(m.osCost)),
+          backgroundColor: '#7c3aed', yAxisID: 'y', stack: 'cost' },
+        { type: 'line', label: 'ชม.ทำงานรวม', data: byMonth.map(m => round1(m.totalHours)),
+          borderColor: '#f59e0b', backgroundColor: '#f59e0b', yAxisID: 'y1', tension: .3, borderWidth: 2, pointRadius: 3 },
+        { type: 'line', label: 'OT: FT', data: byMonth.map(m => round1(m.ftOtHours)),
+          borderColor: '#1e3a8a', backgroundColor: 'transparent', borderDash: [4, 3], yAxisID: 'y1', tension: .3, borderWidth: 1.5, pointRadius: 2 },
+        { type: 'line', label: 'OT: PT', data: byMonth.map(m => round1(m.ptOtHours)),
+          borderColor: '#0f766e', backgroundColor: 'transparent', borderDash: [4, 3], yAxisID: 'y1', tension: .3, borderWidth: 1.5, pointRadius: 2 },
+        { type: 'line', label: 'OT: OS', data: byMonth.map(m => round1(m.osOtHours)),
+          borderColor: '#7c3aed', backgroundColor: 'transparent', borderDash: [4, 3], yAxisID: 'y1', tension: .3, borderWidth: 1.5, pointRadius: 2 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
+      scales: {
+        y:  { position: 'left', stacked: true, beginAtZero: true, ticks: { callback: v => '฿' + v.toLocaleString() } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { callback: v => v.toLocaleString() + ' ชม.' } },
+      },
+    },
+  });
+
+  admindashRenderLaborRings(inRangeProd);
+}
+
+// วงกลม 3 วง สรุปยอดรวมทั้ง 6 เดือนต่อประเภทพนักงาน (FT/PT/OS) — โดนัทแต่ละวงแสดงสัดส่วนค่าแรงของประเภทนั้น
+// เทียบกับค่าแรงรวมทั้งหมด (สีของประเภท vs สีเทาของ "ที่เหลือ") ข้อความใต้วงแสดง ฿ รวม แล้วแยกปกติ/OT ให้เห็น
+// ชัดว่า OT กี่ชม. — เพราะแต่ละวงเป็นคนละประเภทอยู่แล้ว การแยกปกติ/OT ตรงนี้จึงเท่ากับ "แยกตามประเภท" ในตัว
+function admindashRenderLaborRings(inRangeProd) {
+  const totals = { ftCost: 0, ptCost: 0, osCost: 0,
+    ftNormalHours: 0, ftOtHours: 0, ptNormalHours: 0, ptOtHours: 0, osNormalHours: 0, osOtHours: 0 };
+  inRangeProd.forEach(r => {
+    const t = _admindashLaborByType(r);
+    totals.ftCost += t.ftCost; totals.ptCost += t.ptCost; totals.osCost += t.osCost;
+    totals.ftNormalHours += t.ftNormalHours; totals.ftOtHours += t.ftOtHours;
+    totals.ptNormalHours += t.ptNormalHours; totals.ptOtHours += t.ptOtHours;
+    totals.osNormalHours += t.osNormalHours; totals.osOtHours += t.osOtHours;
+  });
+  const totalCost = totals.ftCost + totals.ptCost + totals.osCost;
+
+  const types = [
+    { key: 'ft', color: '#1e3a8a' },
+    { key: 'pt', color: '#0f766e' },
+    { key: 'os', color: '#7c3aed' },
+  ];
+  types.forEach(({ key, color }) => {
+    const cost = totals[key + 'Cost'];
+    const normalHours = totals[key + 'NormalHours'];
+    const otHours = totals[key + 'OtHours'];
+    _admindashDestroy('laborring_' + key);
+    _admindashCharts['laborring_' + key] = new Chart(document.getElementById(`admindash-chart-laborring-${key}`), {
+      type: 'doughnut',
+      data: { datasets: [{ data: [cost, Math.max(0, totalCost - cost)], backgroundColor: [color, '#e5e7eb'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '72%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } } },
+    });
+    const elCost = document.getElementById(`admindash-laborring-${key}-cost`);
+    const elHours = document.getElementById(`admindash-laborring-${key}-hours`);
+    if (elCost) elCost.textContent = '฿' + Math.round(cost).toLocaleString();
+    if (elHours) elHours.textContent = `ปกติ ${Math.round(normalHours * 10) / 10} · OT ${Math.round(otHours * 10) / 10} ชม.`;
+  });
+}
+
 // ดาวน์โหลดตาราง "เจาะลึกรายสินค้า" ปัจจุบันเป็น CSV (เปิดใน Excel ได้ตรงๆ) — อ่านจาก _admindashLastDrillExport
 // ที่ admindashRenderDrilldown เตรียมไว้ให้แล้ว (ตัวเลขดิบ ยังไม่ format) ไม่คำนวณซ้ำ/parse กลับจาก HTML
 // ใส่ ﻿ (BOM) นำหน้าเสมอ ไม่งั้น Excel เปิดไฟล์ที่มีภาษาไทยแล้วตัวอักษรจะเพี้ยน (mojibake)
@@ -17153,6 +17456,21 @@ function _admindashBuildReportHTML() {
     <div class="wreport-section">
       <div class="wreport-section-title"><i class="fas fa-triangle-exclamation"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด)</div>
       ${document.getElementById('admindash-volatility-table')?.innerHTML || ''}
+    </div>
+
+    <div class="wreport-section">
+      <div class="wreport-section-title"><i class="fas fa-user-clock"></i>ค่าแรง & ชม.ทำงาน (ภาพรวมทั้งบริษัท 6 เดือนล่าสุด)</div>
+      <div style="display:flex;gap:10px;margin-bottom:8px">
+        ${['ft', 'pt', 'os'].map(key => {
+          const labels = { ft: 'พนักงานประจำ (FT)', pt: 'พาร์ทไทม์ (PT)', os: 'เอาท์ซอร์ส (OS)' };
+          const get = suffix => document.getElementById(`admindash-laborring-${key}-${suffix}`)?.textContent || '';
+          return `<div style="flex:1;text-align:center">${chartImg('laborring_' + key, labels[key])}
+            <div style="font-size:11px;font-weight:700">${get('cost')}</div>
+            <div style="font-size:10px;color:#94a3b8">${get('hours')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${chartImg('labor', 'ค่าแรงเทียบ ชม.ทำงานรายเดือน')}
     </div>
     ${drillSection}
 
