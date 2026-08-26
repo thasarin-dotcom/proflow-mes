@@ -531,21 +531,39 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
 /* หัวข้อไลน์ "ลอยตรึง" ขณะเลื่อนผ่านแถว MO ของไลน์นั้น (เพิ่ม 2026-08-26 ตามคำขอผู้ใช้) — เทคนิค nested-sticky
    มาตรฐาน: .g-linehead-wrap เป็น grid item ที่ span หลายแถวครอบทั้งไลน์ (พื้นหลังโปร่งใส ไม่บังแถว MO ข้างใต้)
-   ส่วน .g-linehead (ลูกข้างใน) เป็น position:sticky;top จริง — ลอยอยู่ที่ขอบบนของ wrap ตราบใดที่ยังอยู่ในช่วง
-   แถวของไลน์นั้น แล้ว "หลุด" ไปพร้อม wrap เมื่อเลื่อนพ้นแถวสุดท้ายของไลน์นั้นแล้ว ให้หัวข้อไลน์ถัดไปขึ้นแทน
-   — ต่างจาก #page-prodstatus (มี toolbar/nav ต้องอยู่นิ่ง จึง scroll แค่ในการ์ดเอง ไม่ต้องมี leapfrog แบบนี้) */
-#publicReportView .g-rail{grid-column:1;position:sticky;left:0;z-index:4}
-#publicReportView .g-linehead-wrap{grid-column:2}
+   ส่วน .g-linehead (ลูกข้างใน) ลอยอยู่ที่ขอบบนของ wrap ตราบใดที่ยังอยู่ในช่วงแถวของไลน์นั้น แล้ว "หลุด" ไป
+   พร้อม wrap เมื่อเลื่อนพ้นแถวสุดท้ายของไลน์นั้นแล้ว ให้หัวข้อไลน์ถัดไปขึ้นแทน — ต่างจาก #page-prodstatus (มี
+   toolbar/nav ต้องอยู่นิ่ง จึง scroll แค่ในการ์ดเอง ไม่ต้องมี leapfrog แบบนี้)
+   ⚠️ ตรึงแนวนอน (ซ้าย-ขวา) ไม่ได้ใช้ position:sticky;left อีกต่อไป — เจอบั๊กจริงจากการทดสอบสกอลแนวนอนไกลๆ
+   2026-08-26 (ผู้ใช้รายงานเป็น "เลื่อนซ้ายขวา หัวชื่อห้องหาย"): position:sticky ของ grid item ที่ตรึงซ้าย
+   หยุดทำงาน (โดนหนีบค้างที่ตำแหน่งหนึ่ง แล้วเลื่อนตามปกติต่อ) ทันทีที่ scrollLeft เกินประมาณ (ความกว้าง
+   .gantt-card ที่มองเห็น) − (ความกว้างตัวเอง) พิสูจน์แล้วว่าไม่ใช่บั๊กเฉพาะ .g-linehead ตัวเดียว — .g-rowlabel/
+   .g-rail แบบเดิม (grid item ตรงๆ ไม่ซ้อนใน div ไหนเลย) ก็เป็นบั๊กเดียวกันทุกตัว เกินจุดนั้นไปจะเลื่อนหลุดจอ
+   ทันที แค่ก่อนหน้านี้ข้อมูลทดสอบสั้นไป (สกอลไม่ถึงจุดพัง) เลยไม่เจอ — ดูเหมือนเป็นข้อจำกัด/บั๊กของ browser
+   เรื่อง containing block ของ position:sticky ในกริดกว้างมากๆ ไม่ใช่สิ่งที่แก้ด้วย CSS ล้วนๆ ได้ตรงไปตรงมา
+   (ลองมาหลายทางแล้ว: overflow-y หลายค่า, position:relative บน .gtable ก็ไม่ช่วย) — เปลี่ยนมาใช้
+   transform:translateX(scrollLeft) ที่อัปเดตด้วย JS แทน (ดู _pubGanttSyncFreeze, ผูกกับ onscroll ของ
+   .gantt-card) ซึ่งไม่มีข้อจำกัดเรื่อง containing block แบบ sticky เลย ใช้ได้ไม่จำกัดระยะสกอล — ยกเว้น
+   .g-linehead ที่ยังต้องมี position:sticky;top (แนวตั้ง) อยู่คู่กัน: **ห้ามใส่ transform บน element เดียวกับที่
+   ยังใช้ position:sticky อยู่** เจอมาแล้วว่า transform ทำให้ sticky (แม้แค่แนวตั้ง) ของ element นั้นหยุดทำงาน
+   ไปเลย (พฤติกรรม browser จริง ไม่ใช่แค่ทฤษฎี) — .g-linehead-wrap (แนวตั้งอย่างเดียว, ไม่มี transform) กับ
+   .g-linehead (transform แนวนอนอย่างเดียว, ไม่มี position:sticky) จึงต้องแยกกันคนละ element เหมือนที่เคย
+   ออกแบบไว้รอบแรกก่อนยุบทิ้งไปตอนแก้บั๊กทับซ้อน (ตอนนี้กลับมาซ้อน 2 ชั้นอีกครั้ง แต่กลไกแนวนอนเปลี่ยนไปแล้ว)
+   ⚠️ .g-corner (มุมซ้ายบน, ยังใช้ position:sticky;top+left แบบเดิม) ยังไม่ได้แก้บั๊กนี้ — เป็นกล่องขาวเปล่าไว้
+   บังมุม ผลกระทบต่ำ (ไม่ใช่ข้อมูล แค่พื้นหลัง) เลือกไม่แก้รอบนี้เพื่อจำกัดขอบเขตการเปลี่ยนแปลง ถ้าจะแก้ ต้องแยก
+   เป็น wrap+inner แบบเดียวกันนี้ */
+#publicReportView .g-rail{grid-column:1;z-index:4}
+#publicReportView .g-linehead-wrap{grid-column:2;position:sticky;top:75px;z-index:4}
 /* ความสูงคงที่ + บรรทัดเดียวห้ามตัดขึ้นบรรทัดใหม่ (เพิ่ม 2026-08-26 แก้บั๊กหัวไลน์ทับแถวข้างล่าง — เดิม
    .g-linehead-wrap span หลายแถว แต่แถวแรก (.g-bgcell ที่ไม่มี class ใหม่ด้านล่าง) สูงเท่าพื้นหลังธรรมดา
    ~20px เฉยๆ ไม่รู้ว่าต้องเผื่อที่ให้ label ข้างในสูงเท่าไหร่ ถ้าชื่อไลน์+จำนวนยาวจนตัดบรรทัด label ก็ล้นทับ
    แถวถัดไป) .g-bgcell-head (ตั้ง class เฉพาะแถวหัวไลน์) ให้ min-height เท่ากันไว้คู่กัน บังคับให้แถวนั้นสูง
    พอเสมอไม่ว่าเนื้อหาอื่นในแถวจะสูงแค่ไหน */
-#publicReportView .g-linehead{position:sticky;top:75px;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:0 12px;height:34px;font-weight:700;font-size:.74rem;color:#fff}
+#publicReportView .g-linehead{display:flex;align-items:center;gap:8px;padding:0 12px;height:34px;font-weight:700;font-size:.74rem;color:#fff}
 #publicReportView .g-linehead span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85;white-space:nowrap;flex-shrink:0}
 #publicReportView .g-bgcell-head{min-height:34px}
-#publicReportView .g-rowlabel{grid-column:2;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-rowlabel{grid-column:2;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent;cursor:pointer;user-select:none}
 #publicReportView .g-rowlabel:hover{background:#f8fafc}
 #publicReportView .g-rowlabel .chev{font-size:.62rem;color:#94a3b8;transition:transform .15s;flex-shrink:0;width:10px}
@@ -553,7 +571,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-rowlabel .g-qty-emph{font-weight:700;color:#0f172a;font-size:.78rem}
-#publicReportView .g-steplabel{grid-column:2;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-steplabel{grid-column:2;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:5px 10px 5px 30px;font-size:.68rem;color:#64748b;display:flex;align-items:center;gap:5px}
 #publicReportView .g-steplabel .stepord{width:15px;height:15px;border-radius:50%;background:#94a3b8;color:#fff;font-size:.55rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 #publicReportView .g-bgcell{border-left:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#f8fafc}
@@ -11513,6 +11531,16 @@ function _pubGanttToggleMO(moId) {
   _pubGanttRenderGrid();
 }
 
+// ตรึงคอลัมน์ราง+ป้ายชื่อ (ซ้าย) ขณะเลื่อนแนวนอนใน .gantt-card ด้วย transform:translateX ที่อัปเดตด้วย JS
+// (เพิ่ม 2026-08-26 แทนที่ position:sticky;left ที่พังตอนสกอลไกลๆ — ดูคอมเมนต์ CSS #publicReportView
+// .g-linehead-wrap สำหรับสาเหตุแบบละเอียด) เรียกจาก onscroll ของ .gantt-card เอง และเรียกซ้ำทุกครั้งหลัง
+// _pubGanttRenderGrid วาดกริดใหม่ (ตอนพับ/กาง MO) เพราะ DOM ใหม่ทั้งหมดเริ่มที่ transform ว่างเปล่าเสมอ
+// (ไม่รอ onscroll event ซึ่งจะไม่ยิงถ้าตำแหน่งสกอลไม่ได้เปลี่ยนจริง)
+function _pubGanttSyncFreeze(card) {
+  const tx = card.scrollLeft ? `translateX(${card.scrollLeft}px)` : '';
+  card.querySelectorAll('.g-rail, .g-rowlabel, .g-steplabel, .g-linehead').forEach(el => { el.style.transform = tx; });
+}
+
 // แผน "ยังไม่มี MO จริง" (MO_Ref ว่าง — ยังไม่ได้กด "สั่งผลิต" ที่หน้าแผนผลิต) ของไลน์หนึ่งๆ — เพิ่ม 2026-08-25
 // ต่างจาก planStartByMO/lineByMO ด้านล่าง (ซึ่งอ่านจาก MO_Ref เป็นคีย์ จึงข้ามแถวไม่มี MO ไปเองอยู่แล้ว)
 // ฟังก์ชันนี้จงใจอ่านตรงข้าม — เอาเฉพาะแถวที่ "ไม่มี" MO_Ref เท่านั้น ให้เจ้านายเห็นว่ามีแพลนไว้แล้วแม้ยังไม่
@@ -11555,7 +11583,7 @@ function _pubGanttBuildSection(data) {
   const body = anyMo ? `
     <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
     <div class="note-box mb-2" style="font-size:.72rem">คลิกที่แถว MO เพื่อดู/ซ่อน 3 ขั้นตอนย่อย (บรรจุ / ยิง Lot / ตรวจสอบ-แพ็ค) — แท่งลายเส้นจางๆ ป้าย "รอยืนยัน" คือแผนที่ยังไม่ได้สั่งผลิตเป็น MO จริง ระยะเวลา "~N วัน" เป็นการประมาณคร่าวๆ จากกำลังผลิตต่อวัน อาจเปลี่ยนแปลงได้</div>
-    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:8px 300px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
+    <div class="gantt-card" onscroll="_pubGanttSyncFreeze(this)"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:8px 300px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
     : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
 
   return `<div class="glass-card mb-3">
@@ -11629,9 +11657,9 @@ function _pubGanttRenderGrid() {
     const totalRows = tentativePlans.length + moEntries.reduce((a, e) => a + e.rowCount, 0);
     const headerRow = row;
 
-    // .g-rail (แถบสีเต็มความสูงของไลน์นี้) + .g-linehead-wrap (กล่องโปร่งใส span เท่ากัน ครอบ .g-linehead
-    // ที่ลอยตรึงอยู่ข้างใน) — ทั้งคู่ span ตั้งแต่แถวหัวข้อไปจนถึงแถวสุดท้ายของไลน์นี้ ดูคอมเมนต์ CSS
-    // #publicReportView .g-linehead ด้านบนสำหรับกลไก nested-sticky แบบเต็มๆ
+    // .g-rail (แถบสีเต็มความสูงของไลน์นี้) + .g-linehead-wrap (ลอยตรึงแนวตั้ง, span หลายแถว) ครอบ
+    // .g-linehead (ลอยตรึงแนวนอนด้วย transform, ดูคอมเมนต์ CSS #publicReportView .g-linehead-wrap ด้านบน
+    // สำหรับเหตุผลที่ต้องแยก 2 element คนละกลไก) — span ตั้งแต่แถวหัวข้อไปจนถึงแถวสุดท้ายของไลน์นี้
     html += `<div class="g-rail" style="grid-row:${headerRow} / ${headerRow + 1 + totalRows};background:${color}"></div>`;
     html += `<div class="g-linehead-wrap" style="grid-row:${headerRow} / ${headerRow + 1 + totalRows}">
       <div class="g-linehead" style="background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO${tentativePlans.length ? ` · ${tentativePlans.length} รอยืนยัน` : ''}</span></div>
@@ -11716,6 +11744,11 @@ function _pubGanttRenderGrid() {
   });
 
   gt.innerHTML = html;
+
+  // DOM ใหม่ทั้งหมดเริ่มที่ transform ว่างเปล่า (ตำแหน่งธรรมชาติ) เสมอ — ถ้าผู้ใช้เลื่อนขวาไว้ก่อนกด
+  // พับ/กาง MO ต้อง sync transform ทันที ไม่รอ onscroll (จะไม่ยิงเพราะตำแหน่งสกอลไม่ได้เปลี่ยน)
+  const card = gt.closest('.gantt-card');
+  if (card) _pubGanttSyncFreeze(card);
 }
 
 // รายงานสาธารณะ: การ์ด "ภาพรวมรายสัปดาห์" (ผลิต/จัดส่งแยกตามสัปดาห์ในเดือน) — เพิ่ม 2026-08-25 แทนที่การ์ด
