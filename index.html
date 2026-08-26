@@ -3616,6 +3616,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           </table>
         </div>
       </div>
+      <div id="misc-bill-groups" class="mt-3"></div>
     </div>
   </div>
 
@@ -9976,26 +9977,34 @@ async function _billNoNextSuggest(year) {
   ]);
   const error = fg.error || misc.error;
   if (error) return { value: null, error };
-  const count = (fg.data || []).length + (misc.data || []).length;
-  return { value: `${year}/${String(count + 1).padStart(3, '0')}`, error: null };
+  // ต้องหาเลขรันสูงสุดที่เคยออกจริง (ไม่ใช่นับจำนวนแถว) เพราะเลขที่เอกสารจริงของโรงงานนี้ไม่ได้เริ่มที่ 001 —
+  // สืบเนื่องจากสมุดเลขที่เอกสารเดิมของบริษัทที่มีอยู่ก่อนระบบนี้ (พบจริง 2026-08-26: มี 11 แถวในตาราง แต่เลขจริง
+  // คือ 189-199 ไม่ใช่ 001-011) นับจำนวนแถว+1 จะได้เลขที่ต่ำกว่าเลขจริงมาก ต้อง parse เลขจากทุกแถวแล้วหาค่าสูงสุด
+  const parseSeq = (no) => { const m = /^\d+\/(\d+)$/.exec(no || ''); return m ? parseInt(m[1], 10) : 0; };
+  const allNos = [...(fg.data || []).map(r => r.BillNo), ...(misc.data || []).map(r => r.SlipNo)];
+  const maxSeq = allNos.reduce((max, no) => Math.max(max, parseSeq(no)), 0);
+  return { value: `${year}/${String(maxSeq + 1).padStart(3, '0')}`, error: null };
 }
 
-// เช็คว่าเลขที่ val ถูกใช้ไปแล้วหรือยัง ข้ามทั้ง 2 ทะเบียน — delivery_bill_numbers มีคอลัมน์ CancelledAt (เลขที่ยกเลิกแล้ว
-// นำมาออกใหม่ได้ ดู dlvbillConfirmNo) ส่วน misc_issue_numbers ไม่มีระบบยกเลิก แถวไหนมีถือว่าใช้ไปแล้วถาวร
+// เช็คว่าเลขที่ val ถูกใช้ไปแล้วหรือยัง ข้ามทั้ง 2 ทะเบียน — ทั้ง delivery_bill_numbers และ misc_issue_numbers
+// มีคอลัมน์ CancelledAt เหมือนกัน (เลขที่ยกเลิกแล้วนำมาออกใหม่ได้ ดู dlvbillConfirmNo/miscSlipConfirmNo —
+// ต้องรัน alter_misc_issue_numbers_add_cancelled.sql ก่อนฝั่ง misc ถึงจะมีคอลัมน์นี้) กันซ้ำเฉพาะแถวที่ยัง
+// active (CancelledAt ยังว่าง) เท่านั้น แถวที่ถูกยกเลิกไปแล้วไม่ถือเป็นเลขซ้ำอีกต่อไป
 // excludeFgRowId/excludeMiscRowId ใช้ตอนแก้ไขเลขเดิม (dlvbillEditNo/miscSlipEditNo) กันแถวของตัวเองชนตัวเอง
 async function _billNoCheckClash(val, { excludeFgRowId, excludeMiscRowId } = {}) {
   const [fg, misc] = await Promise.all([
     _sb.from('delivery_bill_numbers').select('_row_id,CustomerName,CancelledAt').eq('BillNo', val),
-    _sb.from('misc_issue_numbers').select('_row_id').eq('SlipNo', val),
+    _sb.from('misc_issue_numbers').select('_row_id,CancelledAt').eq('SlipNo', val),
   ]);
   if (fg.error) return { error: fg.error };
   if (misc.error) return { error: misc.error };
   const fgRows   = (fg.data || []).filter(r => r._row_id !== excludeFgRowId);
   const miscRows = (misc.data || []).filter(r => r._row_id !== excludeMiscRowId);
-  const fgActiveClash = fgRows.find(r => !r.CancelledAt);
-  if (fgActiveClash) return { clash: true, label: `ใบส่งสินค้า FG — ลูกค้า ${fgActiveClash.CustomerName || '—'}`, fgRows };
-  if (miscRows.length) return { clash: true, label: 'ใบส่งเบิกเบ็ดเตล็ด', fgRows };
-  return { clash: false, fgRows };
+  const fgActiveClash   = fgRows.find(r => !r.CancelledAt);
+  const miscActiveClash = miscRows.find(r => !r.CancelledAt);
+  if (fgActiveClash) return { clash: true, label: `ใบส่งสินค้า FG — ลูกค้า ${fgActiveClash.CustomerName || '—'}`, fgRows, miscRows };
+  if (miscActiveClash) return { clash: true, label: 'ใบส่งเบิกเบ็ดเตล็ด', fgRows, miscRows };
+  return { clash: false, fgRows, miscRows };
 }
 
 // เลขถัดไป = จำนวนเอกสาร (ใบส่งสินค้า FG + ใบส่งเบิกเบ็ดเตล็ด) ที่ออกไปแล้วในปีเดียวกัน + 1 (รันต่อเนื่องทั้งปี
@@ -10352,7 +10361,7 @@ function _planShiftKeysFromLabel(label) {
 function _planMonthRange(d) {
   const y = d.getFullYear(), m = d.getMonth();
   const start = `${y}-${String(m+1).padStart(2,'0')}-01`;
-  const end   = new Date(y, m+1, 0).toISOString().split('T')[0];
+  const end   = _planWeekLocalDateStr(new Date(y, m+1, 0));
   return { start, end };
 }
 
@@ -16226,8 +16235,10 @@ async function coWithdrawBulkFromStock(idx) {
 
 // เรียกหลังบันทึก/แก้ไข/ลบรายการเบิกเบ็ดเตล็ดที่ผูก CO_Ref ไว้ (มาจาก coWithdrawBulkFromStock เท่านั้น — เบิก
 // เบ็ดเตล็ดปกติไม่มี CO_Ref) — คำนวณสถานะ CO ใหม่จากยอดเบิกจริงทั้งหมด ณ ตอนนี้เสมอ (idempotent เหมือน
-// fgoutUpdateCOStatus) ต่างจากฝั่ง FG ตรงที่ Bulk ไม่มี delivery pipeline คั่นกลาง ("เบิก" = "ส่งจริง" ตามที่ตกลง
-// กับผู้ใช้ไว้) จึงปิดงานเป็น 'ส่งสำเร็จ' ทันทีที่เบิกครบยอด ไม่ต้องรอยืนยัน "ส่งถึงแล้ว" แบบฝั่งจัดส่ง FG
+// fgoutUpdateCOStatus) **ไม่ปิดงานเป็น "ส่งสำเร็จ" อัตโนมัติอีกต่อไป (เปลี่ยน 2026-08-26 ตามคำขอผู้ใช้)** — ต่อให้
+// เบิกครบยอดแล้วก็ยังค้างที่ "ส่งบางส่วน" จนกว่าจะกดปุ่ม "ส่งเสร็จ" ที่การ์ดใบเบิกยืนยันก่อน (ดู
+// miscBillConfirmComplete/_miscCheckCOComplete) — เหมือนหน้าเบิก FG ที่ต้องกด "ส่งสำเร็จ" ยืนยันก่อนตัดยอด CO
+// (fgoutBillAdvanceAll/_deliveryCheckCOComplete) แทนที่จะปิดงานทันทีตอนเบิกจากคลัง
 async function coUpdateStatusFromBulkWithdraw(coRef) {
   if (!coRef) return;
   const { data: coRows, error: coErr } = await _sb.from('customer_orders')
@@ -16245,11 +16256,9 @@ async function coUpdateStatusFromBulkWithdraw(coRef) {
     .select('IssuedQty').eq('CO_Ref', coRef);
   if (prevErr) { console.error('coUpdateStatusFromBulkWithdraw: query failed', prevErr); return; }
   const totalSent = (prev||[]).reduce((s, r) => s + (parseFloat(r.IssuedQty)||0), 0);
-  const orderQty  = parseFloat(co.OrderQty) || 0;
 
   const payload = {};
   if (totalSent <= 0) { payload.Status = co.Status; }
-  else if (totalSent >= orderQty) { payload.Status = 'ส่งสำเร็จ'; payload.CompletedAt = new Date().toISOString(); }
   else { payload.Status = 'ส่งบางส่วน'; }
 
   if (payload.Status !== co.Status) {
@@ -18875,6 +18884,8 @@ function miscRenderTable() {
   const q    = (document.getElementById('misc-search')?.value||'').toLowerCase();
   const from = document.getElementById('misc-date-from')?.value||'';
   const to   = document.getElementById('misc-date-to')?.value||'';
+  // กำลังค้นหาอยู่ → เห็นทุกแถวปกติ (รวมแถวที่ออกใบส่งแล้ว) กันหาไม่เจอแถวที่ย้ายไปอยู่การ์ดข้างล่าง — เหมือน fgoutRenderTable
+  const hasActiveFilter = !!q;
 
   const rows = _miscData.filter(r => {
     const d = String(r.Date||'');
@@ -18884,11 +18895,17 @@ function miscRenderTable() {
       const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Category, r.Remark, r.CO_Ref].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    // มีเลขที่ใบส่งแล้ว → ย้ายไปรวมเป็นการ์ดใน #misc-bill-groups ข้างล่างแทน ไม่ต้องซ้ำในตารางนี้อีก
+    if (!hasActiveFilter && r.SlipNo) return false;
     return true;
   });
 
   const tbody = document.getElementById('misc-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>';
+    miscRenderBillGroups();
+    return;
+  }
 
   tbody.innerHTML = rows.map(r => `<tr>
     <td><input type="checkbox" class="misc-row-check" value="${r._row_id}" onchange="miscCheckState()"></td>
@@ -18906,6 +18923,8 @@ function miscRenderTable() {
       <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="miscDelete(${r._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>
     </td>
   </tr>`).join('');
+
+  miscRenderBillGroups();
 }
 
 function miscCheckState() {
@@ -19159,6 +19178,13 @@ async function _miscReverseStock(matCode, lot, qty) {
 
 async function miscDelete(rowId) {
   const r = _miscData.find(d => d._row_id === rowId);
+  // กันข้อมูลกำพร้า — ถ้าออกเลขที่ใบส่งไปแล้ว (SlipNo) ลบแถวนี้ทิ้งตรงๆ ไม่ได้ เพราะทะเบียนเลขที่ใน
+  // misc_issue_numbers จะค้างอยู่โดยไม่มีข้อมูลอ้างอิง กันไม่ให้เลขนี้ถูกนำมาออกซ้ำได้อีกโดยไม่มีทางแก้ผ่าน UI
+  // (พบเป็นบั๊กจริง 2026-08-26) — ต้องกด "ยกเลิกใบ" ที่การ์ดใบส่งก่อน ถึงจะลบรายการเบิกนี้ได้ (mirror ของ fgoutDelete)
+  if (r?.SlipNo) {
+    _err('ลบไม่ได้', `รายการนี้ออกเลขที่ใบส่งไปแล้ว (${r.SlipNo}) กรุณากด "ยกเลิกใบ" ที่การ์ดใบส่งก่อน ถึงจะลบรายการนี้ได้`);
+    return;
+  }
   const res = await Swal.fire({
     title:'ยืนยันการลบ?',
     html:`<div class="text-start"><b>${r?.MaterialName||''}</b><br>Lot: ${r?.Lot||''} | จำนวน: ${r?.IssuedQty||''} | ประเภท: ${r?.Category||''}</div>`,
@@ -19180,6 +19206,16 @@ async function miscDelete(rowId) {
 async function miscBulkDelete() {
   const ids = Array.from(document.querySelectorAll('.misc-row-check:checked')).map(c => parseInt(c.value));
   if (!ids.length) return;
+
+  // เช็คทุกแถวก่อน — ถ้ามีแถวใดแถวหนึ่งออกเลขที่ใบส่งไปแล้ว (SlipNo) บล็อกทั้งชุดเลย ไม่ลบเฉพาะแถวที่ผ่าน
+  // แล้วข้ามแถวที่ติด เพราะจะได้ผลลัพธ์ "ลบได้บางส่วน" ที่ผู้ใช้ไม่ได้คาดคิด (mirror ของ fgoutBulkDelete)
+  const blocked = ids.map(id => _miscData.find(d => d._row_id === id)).filter(r => r?.SlipNo);
+  if (blocked.length) {
+    const list = blocked.map(r => `${r.MaterialName||''} (Lot ${r.Lot||'—'}) — ใบส่งเลขที่ "${r.SlipNo}"`).join('<br>');
+    _err('ลบไม่ได้', `มี ${blocked.length} รายการที่ออกเลขที่ใบส่งไปแล้ว กรุณากด "ยกเลิกใบ" ที่การ์ดใบส่งของรายการเหล่านี้ก่อน แล้วลบใหม่อีกครั้ง:<br>${list}`);
+    return;
+  }
+
   const res = await Swal.fire({
     title:`ลบ ${ids.length} รายการ?`, icon:'warning', showCancelButton:true,
     confirmButtonColor:'#d33', confirmButtonText:'ลบข้อมูล', cancelButtonText:'ยกเลิก'
@@ -19200,6 +19236,213 @@ async function miscBulkDelete() {
   loadMiscData();
 }
 
+// ── จัดกรุ๊ปรายการที่ออกใบส่งแล้ว (มี SlipNo) มาเป็นการ์ดเดียวต่อเลขใบ — mirror ของ _fgoutBuildBillGroups/
+// fgoutRenderBillGroups (เบิก FG) แบบเป๊ะ ต่างกันแค่: (1) ใบที่ไม่ได้ผูก CO_Ref เลย (เบิกภายใน/ตัวอย่าง/ทดสอบ ฯลฯ)
+// ไม่มีปุ่ม "ส่งเสร็จ" เพราะไม่มี CO ให้ตัดยอด — โชว์ badge "เบิกภายใน" เฉยๆ, (2) ไม่มีตาราง delivery คั่นกลาง จึง
+// ใช้คอลัมน์ issue_misc."Delivered" (boolean ใหม่ — ดู alter_issue_misc_add_delivered.sql) แทน delivery.Status เป็น
+// ตัวบอกว่าแถวไหน "ยืนยันส่งเสร็จ" ไปแล้ว ──
+let _miscBillExpandedSet = new Set();
+
+function _miscBuildBillGroups() {
+  const bySlip = {};
+  _miscData.forEach(r => {
+    if (!r.SlipNo) return;
+    (bySlip[r.SlipNo] = bySlip[r.SlipNo] || []).push(r);
+  });
+  return Object.keys(bySlip)
+    .map(slipNo => ({ slipNo, rows: bySlip[slipNo] }))
+    .sort((a, b) => b.slipNo.localeCompare(a.slipNo));
+}
+
+function miscToggleBillExpand(slipNo) {
+  if (_miscBillExpandedSet.has(slipNo)) _miscBillExpandedSet.delete(slipNo);
+  else _miscBillExpandedSet.add(slipNo);
+  miscRenderBillGroups();
+}
+
+function miscRenderBillGroups() {
+  const wrap = document.getElementById('misc-bill-groups');
+  if (!wrap) return;
+  const groups = _miscBuildBillGroups();
+  if (!groups.length) { wrap.innerHTML = ''; return; }
+
+  wrap.innerHTML = `<div class="kpi-section-label" style="margin:2px 0 6px">ออกใบส่งแล้ว (${groups.length})</div>` +
+    groups.map(g => {
+      const expanded  = _miscBillExpandedSet.has(g.slipNo);
+      const coRefs    = [...new Set(g.rows.map(r => r.CO_Ref).filter(Boolean))];
+      const hasCoRef  = coRefs.length > 0;
+      const itemCount = g.rows.length;
+      const allDelivered = hasCoRef && g.rows.every(r => !r.CO_Ref || r.Delivered);
+
+      const actionHtml = !hasCoRef
+        ? `<span class="badge bg-secondary" title="ไม่ได้ผูกกับ CO — ไม่ต้องตัดยอด"><i class="fas fa-box me-1"></i>เบิกภายใน</span>`
+        : allDelivered
+          ? `<span class="badge bg-success" title="ยืนยันตัดยอด CO แล้ว"><i class="fas fa-check-circle me-1"></i>สำเร็จแล้ว</span>` +
+            (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();miscBillUndoComplete('${g.slipNo}')" title="ยกเลิกส่งเสร็จ (แอดมินเท่านั้น) — ย้อนกลับเป็นรอยืนยัน">
+               <i class="fas fa-undo me-1"></i>เลิกสำเร็จ
+             </button>` : '')
+          : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();miscBillConfirmComplete('${g.slipNo}')" title="ยืนยันส่งเสร็จ — ตัดยอดใน CO">
+               <i class="fas fa-check-circle me-1"></i>ส่งเสร็จ
+             </button>`;
+
+      return `<div class="glass-card mb-2 p-0 overflow-hidden${allDelivered ? ' border-success border-2' : ''}">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="miscToggleBillExpand('${g.slipNo}')">
+          <div>
+            <span class="badge bg-primary me-2"><i class="fas fa-file-invoice me-1"></i>${g.slipNo}</span>
+            ${coRefs.length ? `<b>${coRefs.join(', ')}</b><span class="text-muted mx-1">·</span>` : ''}
+            <span>${itemCount} รายการ</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();miscSlipOpenModal(${JSON.stringify(g.rows.map(r => r._row_id))})" title="ปริ้นใบส่งซ้ำ">
+              <i class="fas fa-print me-1"></i>ปริ้น
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();miscCancelSlip('${g.slipNo}')" title="ยกเลิกเลขที่ใบส่งนี้ — รายการจะกลับไปออกเลขใหม่ได้อีกครั้ง">
+              <i class="fas fa-ban me-1"></i>ยกเลิกใบ
+            </button>
+            ${actionHtml}
+            <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
+          </div>
+        </div>
+        ${!expanded ? '' : `<div class="border-top p-3">
+          ${g.rows.map(r => `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <div>${r.MaterialName || '—'} <span class="badge bg-light text-dark border ms-1">Lot ${r.Lot || '—'}</span></div>
+            <div class="d-flex align-items-center gap-2">
+              <span>${(parseFloat(r.IssuedQty) || 0).toLocaleString()} ${r.UOM || ''}</span>
+              ${r.CO_Ref ? (r.Delivered ? '<span class="badge bg-success">ยืนยันแล้ว</span>' : '<span class="badge bg-warning text-dark">รอยืนยัน</span>') : ''}
+            </div>
+          </div>`).join('')}
+        </div>`}
+      </div>`;
+    }).join('');
+}
+
+// กด "ส่งเสร็จ" บนการ์ด → ทำเครื่องหมาย issue_misc.Delivered=true ทุกแถวในใบนี้ที่ผูก CO_Ref (แถวที่ไม่มี CO_Ref
+// ในใบเดียวกัน เช่นรายการผสมกับของทั่วไป ก็ทำเครื่องหมายด้วยเพื่อความสม่ำเสมอ) แล้วค่อยไปเช็ค/ตัดยอด CO ทีหลัง —
+// เดิม coUpdateStatusFromBulkWithdraw ปิดงาน CO เป็น "ส่งสำเร็จ" ทันทีที่เบิกครบยอด (ดูหมายเหตุที่ฟังก์ชันนั้น) แต่
+// ผู้ใช้ขอให้ต้องกดยืนยันที่นี่ก่อนถึงจะตัดยอดจริง เหมือนหน้าเบิก FG (fgoutBillAdvanceAll → _deliveryCheckCOComplete)
+async function miscBillConfirmComplete(slipNo) {
+  const rows = _miscData.filter(r => r.SlipNo === slipNo && r.CO_Ref && !r.Delivered);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันว่าส่งเสร็จใบ ${slipNo}?`,
+    html: `${rows.length} รายการจะถูกทำเครื่องหมาย "ส่งเสร็จ" แล้วตัดยอดใน CO ที่เกี่ยวข้อง`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยันส่งเสร็จ', cancelButtonText: 'ยกเลิก'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error } = await _sb.from('issue_misc').update({ Delivered: true }).in('_row_id', ids);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ส่งเสร็จใบ ${slipNo}`, showConfirmButton: false, timer: 1800 });
+  await loadMiscData();
+
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  for (const coRef of coRefs) await _miscCheckCOComplete(coRef);
+  _logAudit('EDIT', 'issue_misc', slipNo, `ยืนยันส่งเสร็จ ${rows.length} รายการ`);
+}
+
+// ยกเลิก "ส่งเสร็จ" ทั้งใบ (เผื่อกดพลาด) — ย้อน Delivered กลับเป็น false แล้วเปิด CO กลับเป็น "ส่งบางส่วน" ถ้าเคย
+// ถูกปิดเป็น "ส่งสำเร็จ" ไปแล้วจากใบนี้ — mirror ของ fgoutBillUndoAdvanceAll (แอดมินเท่านั้น, UI-only ไม่มี RLS บังคับ)
+async function miscBillUndoComplete(slipNo) {
+  const rows = _miscData.filter(r => r.SlipNo === slipNo && r.CO_Ref && r.Delivered);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันยกเลิก "ส่งเสร็จ" ใบ ${slipNo}?`,
+    html: `${rows.length} รายการจะถูกย้อนกลับเป็น "รอยืนยัน"`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#dc3545'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error } = await _sb.from('issue_misc').update({ Delivered: false }).in('_row_id', ids);
+  if (error) { _hideLoader(); _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  for (const coRef of coRefs) {
+    const { data: coRows } = await _sb.from('customer_orders').select('_row_id,OrderQty,Status').eq('Order_ID', coRef);
+    const co = (coRows || [])[0];
+    if (!co || co.Status !== 'ส่งสำเร็จ') continue;
+    const { data: deliveredRows } = await _sb.from('issue_misc').select('IssuedQty').eq('CO_Ref', coRef).eq('Delivered', true);
+    const totalDelivered = (deliveredRows || []).reduce((s, r) => s + (parseFloat(r.IssuedQty) || 0), 0);
+    if (totalDelivered < (parseFloat(co.OrderQty) || 0)) {
+      await _sb.from('customer_orders').update({ Status: 'ส่งบางส่วน', CompletedAt: null }).eq('_row_id', co._row_id);
+    }
+  }
+
+  _logAudit('CANCEL', 'issue_misc', slipNo, `ยกเลิกส่งเสร็จ ${rows.length} รายการ (แอดมิน)`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ยกเลิกส่งเสร็จใบ ${slipNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  _hideLoader();
+  await loadMiscData();
+}
+
+// ยกเลิกเลขที่ใบส่งเบิกเบ็ดเตล็ด (กรณีออกเลขไปแล้วแต่มีเหตุให้ต้องยกเลิก/ออกใหม่ เช่นพิมพ์ผิด/ข้อมูลผิด หรือ
+// ลบรายการเบิกที่ผูกเลขนี้ทิ้งไปแล้ว) — mirror ของ fgoutCancelBill (เบิก FG) แบบเป๊ะ: แค่ล้าง issue_misc.SlipNo
+// ของทุกแถวในใบนี้กลับเป็น null (กลับไปเป็น "ยังไม่ออกใบส่ง" ในตารางเบิกเบ็ดเตล็ดปกติ ออกเลขใหม่ได้อีกครั้ง)
+// ไม่แตะ issue_misc.Delivered/สถานะ CO เลย เพราะการยกเลิก "เลขที่ใบ/เอกสาร" คนละเรื่องกับการยกเลิก "ยืนยันส่งเสร็จ"
+// (ดู miscBillUndoComplete) — ต่อให้ยืนยันส่งเสร็จไปแล้วก็ยกเลิกแค่เอกสารแล้วออกใบใหม่ได้ ไม่ลบทะเบียนเลขที่
+// (misc_issue_numbers) ทิ้ง แค่ stamp CancelledAt ไว้ (ต้องรัน alter_misc_issue_numbers_add_cancelled.sql ก่อน) —
+// สร้างขึ้นเพื่อแก้ช่องโหว่จริงที่พบ 2026-08-26: ก่อนหน้านี้ misc_issue_numbers ไม่มีทางยกเลิกเลย ลบ issue_misc
+// ทิ้งแล้วเลขที่ใบยังค้างกันไม่ให้ออกซ้ำอยู่ดี ต้องลบทะเบียนด้วยมือทุกครั้ง
+async function miscCancelSlip(slipNo) {
+  const rows = _miscData.filter(r => r.SlipNo === slipNo);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ยืนยันยกเลิกใบส่งเลขที่ ${slipNo}?`,
+    html: `${rows.length} รายการในใบนี้จะกลับไปเป็น "ยังไม่ออกใบส่ง" สามารถออกเลขใหม่ได้อีกครั้ง<br>` +
+          `<b class="text-danger">เลขที่ ${slipNo} จะถูกยกเลิก ไม่สามารถนำมาออกซ้ำได้จนกว่าจะยกเลิกก่อน</b>`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิกใบส่ง', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#dc3545'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const ids = rows.map(r => r._row_id);
+  const { error: clearErr } = await _sb.from('issue_misc').update({ SlipNo: null }).in('_row_id', ids);
+  if (clearErr) { _hideLoader(); _err('ยกเลิกใบส่งไม่สำเร็จ', clearErr.message); return; }
+
+  const { error: cancelErr } = await _sb.from('misc_issue_numbers').update({ CancelledAt: new Date().toISOString() }).eq('SlipNo', slipNo);
+  _hideLoader();
+  if (cancelErr) console.error('stamp CancelledAt ไม่สำเร็จ (ล้าง SlipNo ไปแล้ว)', cancelErr);
+
+  _logAudit('CANCEL', 'misc_issue_numbers', slipNo, `ยกเลิกใบส่ง ${rows.length} รายการ`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ยกเลิกใบส่ง ${slipNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  await loadMiscData();
+}
+
+// เช็คว่ายอด issue_misc.Delivered=true สะสมของ CO นี้ครบยอดสั่งหรือยัง ถ้าครบ → ปิดสถานะ CO เป็น "ส่งสำเร็จ" พร้อม
+// ลงเวลาที่ปิด — mirror ของ _deliveryCheckCOComplete (เบิก FG) ทุกประการ ต่างกันแค่แหล่งข้อมูล (issue_misc.Delivered
+// แทน delivery.Status='ส่งถึงแล้ว')
+async function _miscCheckCOComplete(coRef) {
+  if (!coRef) return;
+  const { data: coRows, error: coErr } = await _sb.from('customer_orders')
+    .select('_row_id,OrderQty,Status').eq('Order_ID', coRef);
+  if (coErr) { console.error('_miscCheckCOComplete: query CO failed', coErr); return; }
+  if (!coRows || !coRows.length) return;
+  if (coRows.length > 1) {
+    console.error(`_miscCheckCOComplete: พบ CO ซ้ำ Order_ID="${coRef}" จำนวน ${coRows.length} แถว — ข้ามการอัปเดตสถานะ (ต้องแก้ข้อมูลซ้ำก่อน)`, coRows);
+    return;
+  }
+  const co = coRows[0];
+  if (_coDoneStatuses.includes(co.Status)) return;   // ปิดงานไปแล้ว ไม่ต้องเช็คซ้ำ
+
+  const { data: deliveredRows, error: delErr } = await _sb.from('issue_misc')
+    .select('IssuedQty').eq('CO_Ref', coRef).eq('Delivered', true);
+  if (delErr) { console.error('_miscCheckCOComplete: query failed', delErr); return; }
+  const totalDelivered = (deliveredRows || []).reduce((s, r) => s + (parseFloat(r.IssuedQty) || 0), 0);
+  const orderQty = parseFloat(co.OrderQty) || 0;
+
+  if (orderQty > 0 && totalDelivered >= orderQty) {
+    await _sb.from('customer_orders')
+      .update({ Status: 'ส่งสำเร็จ', CompletedAt: new Date().toISOString() })
+      .eq('_row_id', co._row_id);
+  }
+}
+
 // ══════════════════════════════════════════════
 // เบิกเบ็ดเตล็ด: ออกใบส่ง (Misc Issue Slip Print) — mirror ของ dlvbill* (ออกใบส่งสินค้า FG) แบบเป๊ะ ตามที่ผู้ใช้
 // ขอ (2026-08-17): เอกสารพิมพ์ใช้เทมเพลต .dlvbill-page เดียวกัน (header บริษัท/กล่องลูกค้า-PO เมื่อมี CO_Ref/
@@ -19216,9 +19459,11 @@ let _miscSlipIds         = [];
 let _miscSlipConfirmed   = false;
 let _miscSlipConfirmedNo = '';
 
-function miscSlipOpenModal() {
-  _miscSlipIds = Array.from(document.querySelectorAll('.misc-row-check:checked'))
-    .map(c => parseInt(c.value)).filter(id => !isNaN(id));
+function miscSlipOpenModal(explicitIds) {
+  _miscSlipIds = (explicitIds && explicitIds.length)
+    ? explicitIds.slice()
+    : Array.from(document.querySelectorAll('.misc-row-check:checked'))
+        .map(c => parseInt(c.value)).filter(id => !isNaN(id));
   if (!_miscSlipIds.length) return;
   if (!_miscSlipModal) _miscSlipModal = new bootstrap.Modal(document.getElementById('miscSlipModal'));
   miscSlipOnScopeChange();
@@ -19284,14 +19529,21 @@ async function miscSlipConfirmNo() {
     return;
   }
 
-  const { error: insErr } = await _sb.from('misc_issue_numbers').insert({
-    SlipNo: val, Year: year, IssueRowIds: _miscSlipIds.join(','),
-  });
-  if (insErr) {
+  // เลขนี้เคย "ยกเลิก" ไปแล้ว (ไม่มีแถวที่ยัง active ชนอยู่) — นำเลขเดิมมาออกใบใหม่แทนได้ → UPDATE แถวเดิมทับ
+  // ไม่ INSERT ซ้ำ (เหมือน dlvbillConfirmNo ฝั่งใบส่ง FG ทุกประการ)
+  const cancelledRow = (clash.miscRows || []).find(r => r.CancelledAt);
+  const writeErr = cancelledRow
+    ? (await _sb.from('misc_issue_numbers').update({
+        Year: year, IssueRowIds: _miscSlipIds.join(','), CancelledAt: null, CreatedAt: new Date().toISOString(),
+      }).eq('_row_id', cancelledRow._row_id)).error
+    : (await _sb.from('misc_issue_numbers').insert({
+        SlipNo: val, Year: year, IssueRowIds: _miscSlipIds.join(','),
+      })).error;
+  if (writeErr) {
     _hideLoader();
     // 23505 = unique_violation ระดับ DB (กันชนกันตอนกดยืนยันพร้อมกันจากหลายเบราว์เซอร์ ซึ่งเช็คฝั่ง client ข้างบนอาจตามไม่ทัน)
-    if (insErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
-    _err('บันทึกเลขที่ใบส่งไม่สำเร็จ', insErr.message);
+    if (writeErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
+    _err('บันทึกเลขที่ใบส่งไม่สำเร็จ', writeErr.message);
     return;
   }
 
@@ -19322,10 +19574,10 @@ async function miscSlipRenderHistory() {
   if (error) { body.innerHTML = `<tr><td colspan="4" class="text-danger">โหลดประวัติไม่ได้ (${error.message})</td></tr>`; return; }
   if (!data.length) { body.innerHTML = `<tr><td colspan="4" class="text-muted">ยังไม่มีเลขที่ใบส่ง</td></tr>`; return; }
   body.innerHTML = data.map(r => `
-    <tr>
-      <td>${r.SlipNo}</td><td>${_fmtDate((r.CreatedAt||'').slice(0,10))}</td>
+    <tr${r.CancelledAt ? ' class="text-decoration-line-through text-muted"' : ''}>
+      <td>${r.SlipNo}${r.CancelledAt ? ' <span class="badge bg-danger">ยกเลิกแล้ว</span>' : ''}</td><td>${_fmtDate((r.CreatedAt||'').slice(0,10))}</td>
       <td>${(r.IssueRowIds||'').split(',').filter(Boolean).length}</td>
-      <td><button onclick="miscSlipEditNo(${r._row_id},'${r.SlipNo}')">แก้ไข</button></td>
+      <td>${r.CancelledAt ? '' : `<button onclick="miscSlipEditNo(${r._row_id},'${r.SlipNo}')">แก้ไข</button>`}</td>
     </tr>`).join('');
 }
 
