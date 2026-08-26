@@ -528,6 +528,14 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-stepbar{align-self:center;height:18px;border-radius:9px;display:flex;align-items:center;padding:0 8px;font-size:.63rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 #publicReportView .g-nodata{grid-column:1;position:sticky;left:0;background:#fff;padding:5px 10px 5px 30px;font-size:.68rem;color:#cbd5e1;font-style:italic}
 
+/* แผน "ยังไม่มี MO จริง" (production_plan.MO_Ref = null) — เพิ่ม 2026-08-25 ให้เจ้านายเห็นว่ามีแพลนไว้แล้ว
+   แม้ยังไม่สั่งผลิต ต่างจากแถว MO จริงด้วยพื้นหลังลายเส้นจางๆ + เส้นประ ไม่ใช่สีทึบเหมือนแท่ง MO ปกติ */
+#publicReportView .g-rowlabel-tentative{opacity:.85}
+#publicReportView .g-tentative-badge{display:inline-block;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:999px;
+  font-size:.6rem;font-weight:700;padding:1px 7px;margin-left:5px;vertical-align:middle}
+#publicReportView .g-planbar{align-self:center;height:20px;border-radius:10px;display:flex;align-items:center;padding:0 8px;font-size:.63rem;
+  font-weight:700;white-space:nowrap;overflow:hidden;border:1.5px dashed;background:repeating-linear-gradient(45deg,rgba(148,163,184,.12),rgba(148,163,184,.12) 5px,rgba(148,163,184,.22) 5px,rgba(148,163,184,.22) 10px);color:#475569}
+
 /* ── Issue Modal Card Styles ── */
 .issue-mat-card{border-radius:10px;overflow:hidden;margin-bottom:.7rem;box-shadow:0 2px 6px rgba(0,0,0,.07);border:1.5px solid #dee2e6;background:#fff}
 .issue-mat-card.ok  {border-color:#86efac}
@@ -11299,6 +11307,14 @@ function _pubGanttToggleMO(moId) {
   _pubGanttRenderGrid();
 }
 
+// แผน "ยังไม่มี MO จริง" (MO_Ref ว่าง — ยังไม่ได้กด "สั่งผลิต" ที่หน้าแผนผลิต) ของไลน์หนึ่งๆ — เพิ่ม 2026-08-25
+// ต่างจาก planStartByMO/lineByMO ด้านล่าง (ซึ่งอ่านจาก MO_Ref เป็นคีย์ จึงข้ามแถวไม่มี MO ไปเองอยู่แล้ว)
+// ฟังก์ชันนี้จงใจอ่านตรงข้าม — เอาเฉพาะแถวที่ "ไม่มี" MO_Ref เท่านั้น ให้เจ้านายเห็นว่ามีแพลนไว้แล้วแม้ยังไม่
+// สั่งผลิตจริง ใช้ร่วมกันทั้งเช็ค anyMo (_pubGanttBuildSection) และ render จริง (_pubGanttRenderGrid)
+function _pubGanttTentativePlansForLine(data, line) {
+  return (data.ganttPlanRows || []).filter(r => r.Line === line && !r.MO_Ref);
+}
+
 function _pubGanttDays(data) {
   const days = [];
   for (let d = data.ganttStartDate; ; d = _ganttAddDays(d, 1)) {
@@ -11322,7 +11338,9 @@ function _pubGanttBuildSection(data) {
 
   const planStartByMO = _prodStatusPlanStartByMO(data.ganttPlanRows);
   const lineByMO = _prodStatusLineByMO(data.ganttPlanRows);
-  const anyMo = PLAN_LINES.some(line => (data.moRows || []).some(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]));
+  const anyMo = PLAN_LINES.some(line =>
+    (data.moRows || []).some(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]) ||
+    _pubGanttTentativePlansForLine(data, line).length);
 
   const legend = PLAN_LINES.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('')
     + `<span><i style="background:rgba(244,63,94,.15);box-shadow:inset 0 0 0 1px #e11d48"></i>วันอาทิตย์</span>`
@@ -11383,11 +11401,25 @@ function _pubGanttRenderGrid() {
   let row = 3;
   PLAN_LINES.forEach(line => {
     const rows = (data.moRows || []).filter(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]);
-    if (!rows.length) return;
+    const tentativePlans = _pubGanttTentativePlansForLine(data, line);
+    if (!rows.length && !tentativePlans.length) return;
     const color = _planLineColor(line);
-    html += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO</span></div>`;
+    html += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO${tentativePlans.length ? ` · ${tentativePlans.length} รอยืนยัน` : ''}</span></div>`;
     days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
     row++;
+
+    tentativePlans.forEach(p => {
+      html += `<div class="g-rowlabel g-rowlabel-tentative" style="grid-row:${row};border-left-color:${color};cursor:default">
+        <div><div class="g-mo">${p.ProductName||''}<span class="g-tentative-badge">รอยืนยัน</span></div>
+        <div class="g-prod">${(parseFloat(p.PlanQty)||0).toLocaleString()} ${p.UOM||''}</div></div>
+      </div>`;
+      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+      const idx = days.indexOf(p.PlanDate);
+      if (idx >= 0) {
+        html += `<div class="g-planbar" style="grid-column:${idx+2} / ${idx+3};grid-row:${row};border-color:${color}">${p.ProductName||''}</div>`;
+      }
+      row++;
+    });
 
     rows.forEach(m => {
       const planStart = planStartByMO[m.MO_ID];
