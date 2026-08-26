@@ -10406,10 +10406,10 @@ async function dlvbillRenderPreview() {
         <div class="dlvbill-brand">
           <img class="dlvbill-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
           <div class="dlvbill-company">
-            <b>ที่อยู่:</b> บริษัท บลูมมิ่ง จำกัด (สำนักงานใหญ่)<br>
-            เลขที่ 959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3,7 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
+            <b>ที่อยู่:</b> บริษัท ไวส์ โนเวชั่น จำกัด (สำนักงานใหญ่)<br>
+            959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
             ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพมหานคร 10400<br>
-            TAX ID: 0105535064032 ติดต่อ: 086-355-0358, 02-056-1692-4
+            TAX ID: 0105544078636 ติดต่อ: 086-355-0358, 02-056-1692-4
           </div>
         </div>
         <div class="dlvbill-meta">
@@ -15757,12 +15757,22 @@ async function moReleasedOpenModal(rowId) {
 
   // Code No./Name/RC No.-Lot No. มาจาก MO เสมอ ไม่มีทางว่าง — ไม่มี element ให้ตั้งค่าแล้ว (ซ่อนออกจากฟอร์ม
   // ตามคำขอ ดูได้จากพรีวิวขวาแทน) — เหลือแค่ UOM ที่ต้องเช็คว่า MO มีให้หรือไม่
+  // จริงๆแล้ว manufacturing_orders.UOM ไม่เคยถูกเขียนจากที่ไหนเลยในทั้งไฟล์นี้ (เช็คแล้วทั้ง moSubmit และ
+  // planOrderProduction ไม่มี UOM ในฟอร์ม/payload) — MO เกือบทุกใบจะ UOM ว่างเสมอ ก่อนเปิดให้กรอกเองจึงลอง
+  // ดึงจาก bom.UOF (หน่วยสำเร็จรูป master ของ ProductCode นี้) เงียบๆก่อน เจอค่อยไม่โชว์ช่องกรอกเอง — เหมือน
+  // แนวทาง _morelLookupBulkExpiry ที่ auto ก่อน manual ทีหลังเฉพาะตอนหาไม่เจอจริงๆ
   const uomWrap = document.getElementById('morel-uom-manual-wrap');
   if (r.UOM) {
     uomWrap.style.display = 'none';
   } else {
-    uomWrap.style.display = '';
-    document.getElementById('morel-uom-input').value = '';
+    const bomUof = await _morelLookupProductUom(r.ProductCode);
+    if (bomUof) {
+      _morelManualUom = bomUof;
+      uomWrap.style.display = 'none';
+    } else {
+      uomWrap.style.display = '';
+      document.getElementById('morel-uom-input').value = '';
+    }
   }
   document.getElementById('morel-cRM').checked   = false;
   document.getElementById('morel-cPM').checked   = false;
@@ -15788,6 +15798,20 @@ function _morelUom() {
   return (_morelMO && _morelMO.UOM) || _morelManualUom || '';
 }
 
+// หน่วยสำเร็จรูป (UOF) จาก master bom สำหรับ ProductCode นี้ — ใช้เป็น fallback เงียบๆตอน manufacturing_orders.UOM
+// ว่าง (ซึ่งเกิดเกือบทุกครั้ง เพราะคอลัมน์นี้ไม่เคยถูกเขียนจากฟอร์ม MO เลย)
+async function _morelLookupProductUom(productCode) {
+  if (!productCode) return '';
+  try {
+    const { data, error } = await _sb.from('bom').select('UOF').eq('ProductCode', productCode).limit(1);
+    if (error) { console.error(error); return ''; }
+    return (data && data[0] && data[0].UOF) || '';
+  } catch (e) {
+    console.error(e);
+    return '';
+  }
+}
+
 function morelOnUomManualChange() {
   _morelManualUom = document.getElementById('morel-uom-input').value;
   morelRenderRemarkGroups();
@@ -15811,19 +15835,19 @@ async function _morelLookupBulkExpiry(r) {
     if (!issRows || !issRows.length) return _morelFallbackManual();
 
     // รวมจำนวนเบิกต่อ (MaterialCode, Lot) แล้วเลือก Lot ที่เบิกมากที่สุด (ตามที่ผู้ใช้ยืนยัน — ไม่ใช่ Lot หมดอายุเร็วสุด)
+    // ตัดช่องว่างหัวท้าย Lot ก่อนรวม/เทียบเสมอ — Lot จาก issue_production พิมพ์เองตอนเบิก เจอเคสมีช่องว่างเกินมาปน
+    // มาก่อนแล้ว (บั๊กเดียวกับที่เจอในหน้า Lot Scan 2026-08-14 — ดู _morelFindExpDate ด้านล่าง)
     const sums = {};
     issRows.forEach(x => {
-      const key = `${x.MaterialCode}|${x.Lot}`;
-      if (!sums[key]) sums[key] = { code: x.MaterialCode, lot: x.Lot, qty: 0 };
+      const lotTrim = (x.Lot || '').toString().trim();
+      const key = `${x.MaterialCode}|${lotTrim}`;
+      if (!sums[key]) sums[key] = { code: x.MaterialCode, lot: lotTrim, qty: 0 };
       sums[key].qty += Number(x.IssuedQty) || 0;
     });
     const best = Object.values(sums).sort((a, b) => b.qty - a.qty)[0];
     if (!best || !best.lot) return _morelFallbackManual();
 
-    const { data: sbRows, error: sbErr } = await _sb.from('stock_balance')
-      .select('ExpDate').eq('MaterialCode', best.code).eq('Lot', best.lot).limit(1);
-    if (sbErr) { console.error(sbErr); return _morelFallbackManual(); }
-    const expDate = sbRows && sbRows[0] ? sbRows[0].ExpDate : null;
+    const expDate = await _morelFindExpDate(best.code, best.lot);
     if (!expDate) return _morelFallbackManual();
 
     document.getElementById('morel-bulksource').innerHTML =
@@ -15832,6 +15856,27 @@ async function _morelLookupBulkExpiry(r) {
   } catch (e) {
     console.error(e);
     _morelFallbackManual();
+  }
+}
+
+// หา ExpDate ของ (MaterialCode, Lot) — เช็ค stock_balance ก่อนเสมอ (ยอดปัจจุบันจริง) แล้ว fallback ไป mr_receive
+// ถ้า stock_balance ไม่มี ExpDate ให้ Lot นั้น (Lot เก่าที่รับก่อนบั๊ก mrUpdateStock ไม่เขียน ExpDate ให้ Lot ที่มี
+// อยู่แล้วถูกแก้ 2026-08-25 — ของเก่ายังว่างอยู่) ใช้ ilike ไม่มี % (เทียบเท่า eq แต่ไม่สนตัวพิมพ์เล็ก-ใหญ่) กัน
+// Lot เพี้ยนจากตัวพิมพ์ — กติกาเดียวกับ _lotscanFetchMaterialData/misc slip's per-pair expiry lookup
+async function _morelFindExpDate(materialCode, lot) {
+  if (!materialCode || !lot) return null;
+  try {
+    const { data: sbRows } = await _sb.from('stock_balance')
+      .select('ExpDate').eq('MaterialCode', materialCode).ilike('Lot', lot);
+    const sbExp = (sbRows || []).find(x => x.ExpDate);
+    if (sbExp) return sbExp.ExpDate;
+    const { data: mrRows } = await _sb.from('mr_receive')
+      .select('ExpDate').eq('MaterialCode', materialCode).ilike('Lot', lot).order('Date', { ascending: false });
+    const mrExp = (mrRows || []).find(x => x.ExpDate);
+    return mrExp ? mrExp.ExpDate : null;
+  } catch (e) {
+    console.error(e);
+    return null;
   }
 }
 
@@ -20166,10 +20211,10 @@ async function miscSlipRenderPreview() {
         <div class="dlvbill-brand">
           <img class="dlvbill-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
           <div class="dlvbill-company">
-            <b>ที่อยู่:</b> บริษัท บลูมมิ่ง จำกัด (สำนักงานใหญ่)<br>
-            เลขที่ 959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3,7 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
+            <b>ที่อยู่:</b> บริษัท ไวส์ โนเวชั่น จำกัด (สำนักงานใหญ่)<br>
+            959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
             ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพมหานคร 10400<br>
-            TAX ID: 0105535064032 ติดต่อ: 086-355-0358, 02-056-1692-4
+            TAX ID: 0105544078636 ติดต่อ: 086-355-0358, 02-056-1692-4
           </div>
         </div>
         <div class="dlvbill-meta">
