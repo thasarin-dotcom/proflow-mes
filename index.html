@@ -665,6 +665,15 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
 #bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root{display:none}
 @media print{
+  /* body ถูกตั้ง display:flex/overflow:hidden/height:100vh + พื้นหลังไล่สีน้ำเงิน ไว้สำหรับ layout หน้าจอ
+     (sidebar + main-content) เท่านั้น — ไม่เคยมีการ reset ค่าพวกนี้สำหรับตอนพิมพ์มาก่อนเลยตั้งแต่สร้าง print
+     root แรก ทำให้พื้นหลังไล่สีของ body เอง (ซึ่งไม่ถูกซ่อนเพราะ selector ด้านล่างซ่อนแค่ "ลูกของ body" ไม่ใช่
+     body เอง) เล็ดลอดออกมาปนกับหน้าที่พิมพ์จริง และ flex/overflow:hidden เดิมอาจบีบ/ตัด print-root ที่เป็น flex
+     item โดยไม่ตั้งใจ — ไม่เคยโผล่ตอนดูตัวอย่างบนจอ (โมดัลพรีวิวเป็นคนละ context) ปนออกมาเฉพาะตอน
+     window.print()/พิมพ์จริงเท่านั้น จึงหลุดรอดการทดสอบด้วย screenshot บนจอมาตลอดทุก print root ที่ผ่านมา —
+     บั๊กจริงที่ผู้ใช้เจอ 2026-08-26 บนใบส่งสินค้า FG (เห็นแถบพื้นหลังสีน้ำเงินปนบนกระดาษที่พิมพ์จริง) ต้อง reset
+     ให้ผืนกระดาษเป็นพื้นขาวล้วนและไม่ยึด flex layout เดิมของหน้าจอ ก่อน selector อื่นด้านล่างเสมอ */
+  html, body{background:#fff !important;display:block !important;height:auto !important;min-height:0 !important;overflow:visible !important}
   body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
