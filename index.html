@@ -513,6 +513,19 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-daycell{position:sticky;top:24px;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:8px 2px 6px;border-left:1px solid #eef2f7}
 #publicReportView .g-daycell .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
 #publicReportView .g-daycell .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
+/* สีพื้นหลังแยกตามเดือน (เพิ่ม 2026-08-26 ตามคำขอผู้ใช้) — ไล่สีพื้นหลังคอลัมน์วันทั้งคอลัมน์ ไม่ใช่แค่หัวเดือน
+   ด้านบน ครอบทุกแถว (หัวเดือน/หัวข้อวัน/พื้นหลังแถว MO+แถวรอยืนยัน) ยกเว้นแถวขั้นตอนย่อยที่กางออก (.stepbg
+   ตั้งใจให้ขาวเสมอ แยกชั้นสายตาจากแถวสรุป ไม่ให้สีเดือนมากลบความหมายนั้น) วนสีตาม (index เดือน) % 4 — ต้อง
+   ประกาศ "ก่อน" กฎ .weekend/.today ด้านล่าง (specificity เท่ากันทั้งคู่ 2 classes ตัวที่มาทีหลังใน source
+   order จะชนะ) ให้วันหยุด/วันนี้ยังเด่นชัดกว่าสีเดือนเสมอ ไม่ถูกสีเดือนกลบ */
+#publicReportView .g-monthhead.g-month-0{background:#dbeafe}
+#publicReportView .g-monthhead.g-month-1{background:#fef3c7}
+#publicReportView .g-monthhead.g-month-2{background:#dcfce7}
+#publicReportView .g-monthhead.g-month-3{background:#f3e8ff}
+#publicReportView .g-daycell.g-month-0,#publicReportView .g-bgcell.g-month-0{background:#eff6ff}
+#publicReportView .g-daycell.g-month-1,#publicReportView .g-bgcell.g-month-1{background:#fffbeb}
+#publicReportView .g-daycell.g-month-2,#publicReportView .g-bgcell.g-month-2{background:#f0fdf4}
+#publicReportView .g-daycell.g-month-3,#publicReportView .g-bgcell.g-month-3{background:#faf5ff}
 #publicReportView .g-daycell.weekend{background:rgba(244,63,94,.07)}
 #publicReportView .g-daycell.weekend .dow,#publicReportView .g-daycell.weekend .dnum{color:#e11d48}
 #publicReportView .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
@@ -523,15 +536,23 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
    — ต่างจาก #page-prodstatus (มี toolbar/nav ต้องอยู่นิ่ง จึง scroll แค่ในการ์ดเอง ไม่ต้องมี leapfrog แบบนี้) */
 #publicReportView .g-rail{grid-column:1;position:sticky;left:0;z-index:4}
 #publicReportView .g-linehead-wrap{grid-column:2}
-#publicReportView .g-linehead{position:sticky;top:75px;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
-#publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85}
+/* ความสูงคงที่ + บรรทัดเดียวห้ามตัดขึ้นบรรทัดใหม่ (เพิ่ม 2026-08-26 แก้บั๊กหัวไลน์ทับแถวข้างล่าง — เดิม
+   .g-linehead-wrap span หลายแถว แต่แถวแรก (.g-bgcell ที่ไม่มี class ใหม่ด้านล่าง) สูงเท่าพื้นหลังธรรมดา
+   ~20px เฉยๆ ไม่รู้ว่าต้องเผื่อที่ให้ label ข้างในสูงเท่าไหร่ ถ้าชื่อไลน์+จำนวนยาวจนตัดบรรทัด label ก็ล้นทับ
+   แถวถัดไป) .g-bgcell-head (ตั้ง class เฉพาะแถวหัวไลน์) ให้ min-height เท่ากันไว้คู่กัน บังคับให้แถวนั้นสูง
+   พอเสมอไม่ว่าเนื้อหาอื่นในแถวจะสูงแค่ไหน */
+#publicReportView .g-linehead{position:sticky;top:75px;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:0 12px;height:34px;font-weight:700;font-size:.74rem;color:#fff}
+#publicReportView .g-linehead span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85;white-space:nowrap;flex-shrink:0}
+#publicReportView .g-bgcell-head{min-height:34px}
 #publicReportView .g-rowlabel{grid-column:2;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent;cursor:pointer;user-select:none}
 #publicReportView .g-rowlabel:hover{background:#f8fafc}
 #publicReportView .g-rowlabel .chev{font-size:.62rem;color:#94a3b8;transition:transform .15s;flex-shrink:0;width:10px}
 #publicReportView .g-rowlabel.open .chev{transform:rotate(90deg)}
-#publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem}
-#publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b}
+#publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#publicReportView .g-rowlabel .g-qty-emph{font-weight:700;color:#0f172a;font-size:.78rem}
 #publicReportView .g-steplabel{grid-column:2;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:5px 10px 5px 30px;font-size:.68rem;color:#64748b;display:flex;align-items:center;gap:5px}
 #publicReportView .g-steplabel .stepord{width:15px;height:15px;border-radius:50%;background:#94a3b8;color:#fff;font-size:.55rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -11534,7 +11555,7 @@ function _pubGanttBuildSection(data) {
   const body = anyMo ? `
     <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
     <div class="note-box mb-2" style="font-size:.72rem">คลิกที่แถว MO เพื่อดู/ซ่อน 3 ขั้นตอนย่อย (บรรจุ / ยิง Lot / ตรวจสอบ-แพ็ค) — แท่งลายเส้นจางๆ ป้าย "รอยืนยัน" คือแผนที่ยังไม่ได้สั่งผลิตเป็น MO จริง ระยะเวลา "~N วัน" เป็นการประมาณคร่าวๆ จากกำลังผลิตต่อวัน อาจเปลี่ยนแปลงได้</div>
-    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:8px 230px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
+    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:8px 300px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
     : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
 
   return `<div class="glass-card mb-3">
@@ -11564,24 +11585,29 @@ function _pubGanttRenderGrid() {
   const lineByMO = _prodStatusLineByMO(data.ganttPlanRows);
 
   // ป้ายเดือนแถวบนสุด (แถวที่ 1) — กันปัญหา "วันที่เรียงยาว 2 เดือนแล้วไม่รู้ว่าอยู่เดือนไหน" ที่ผู้ใช้เจอจริง
-  // แถววันที่ (dow+dnum เดิม) ขยับลงมาเป็นแถวที่ 2 แทน แถว MO/ไลน์ทั้งหมดขยับลงมาเริ่มที่แถว 3
+  // แถววันที่ (dow+dnum เดิม) ขยับลงมาเป็นแถวที่ 2 แทน แถว MO/ไลน์ทั้งหมดขยับลงมาเริ่มที่แถว 3 — colorIdx
+  // (เพิ่ม 2026-08-26) วนสี 0-3 ตามลำดับเดือน ใช้ทั้งหัวเดือนและพื้นหลังคอลัมน์วันทั้งคอลัมน์ (ดู dayColorIdx)
   const monthSpans = [];
   days.forEach((d, i) => {
     const [y, m] = d.split('-').map(Number);
     const key = y + '-' + m;
     const last = monthSpans[monthSpans.length - 1];
-    if (last && last.key === key) last.end = i; else monthSpans.push({ key, y, m, start: i, end: i });
+    if (last && last.key === key) last.end = i;
+    else monthSpans.push({ key, y, m, start: i, end: i, colorIdx: monthSpans.length % 4 });
   });
+  const dayColorIdx = new Array(days.length);
+  monthSpans.forEach(sp => { for (let i = sp.start; i <= sp.end; i++) dayColorIdx[i] = sp.colorIdx; });
+  const monthCls = (i) => ' g-month-' + dayColorIdx[i];
 
   // คอลัมน์วันเลื่อนไป +1 ทั้งหมด (i+3 แทน i+2 เดิม) เพราะเพิ่มคอลัมน์ที่ 1 เป็น "ราง" สีของไลน์ (.g-rail,
-  // เพิ่ม 2026-08-26) — คอลัมน์ 2 คือคอลัมน์ป้ายชื่อ (230px) เดิม, คอลัมน์วันเริ่มที่ 3 เป็นต้นไป
+  // เพิ่ม 2026-08-26) — คอลัมน์ 2 คือคอลัมน์ป้ายชื่อ (300px) เดิม, คอลัมน์วันเริ่มที่ 3 เป็นต้นไป
   let html = `<div class="g-corner" style="grid-row:1 / 3;grid-column:1 / 3"></div>`;
   monthSpans.forEach(sp => {
-    html += `<div class="g-monthhead" style="grid-column:${sp.start+3} / ${sp.end+4};grid-row:1">${monthsTh[sp.m-1]} ${sp.y+543}</div>`;
+    html += `<div class="g-monthhead g-month-${sp.colorIdx}" style="grid-column:${sp.start+3} / ${sp.end+4};grid-row:1">${monthsTh[sp.m-1]} ${sp.y+543}</div>`;
   });
   days.forEach((d, i) => {
     const w = _ganttDow(d) === 0, t = d === todayStr;
-    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+3};grid-row:2">
+    html += `<div class="g-daycell${monthCls(i)}${w?' weekend':''}${t?' today':''}" style="grid-column:${i+3};grid-row:2">
       <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
   });
 
@@ -11610,15 +11636,15 @@ function _pubGanttRenderGrid() {
     html += `<div class="g-linehead-wrap" style="grid-row:${headerRow} / ${headerRow + 1 + totalRows}">
       <div class="g-linehead" style="background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO${tentativePlans.length ? ` · ${tentativePlans.length} รอยืนยัน` : ''}</span></div>
     </div>`;
-    days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
+    days.forEach((d, i) => { html += `<div class="g-bgcell g-bgcell-head${monthCls(i)}${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
     row++;
 
     tentativePlans.forEach(p => {
       html += `<div class="g-rowlabel g-rowlabel-tentative" style="grid-row:${row};cursor:default">
         <div><div class="g-mo">${p.ProductName||''}<span class="g-tentative-badge">รอยืนยัน</span></div>
-        <div class="g-prod">${(parseFloat(p.PlanQty)||0).toLocaleString()} ${p.UOM||''}</div></div>
+        <div class="g-prod"><span class="g-qty-emph">${(parseFloat(p.PlanQty)||0).toLocaleString()} ${p.UOM||''}</span></div></div>
       </div>`;
-      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
+      days.forEach((d, i) => { html += `<div class="g-bgcell${monthCls(i)}${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
 
       // ประมาณระยะเวลาคร่าวๆ จากกำลังผลิตต่อวันของสินค้านั้น (bom.CapacityXxxPerDay) เทียบกับ PlanQty —
       // สูตร/ฟังก์ชันเดียวกับที่ใช้คำนวณแท่งของ MO จริงทุกอย่าง (prodStatusComputeMOSteps) แค่สร้าง MO
@@ -11649,9 +11675,9 @@ function _pubGanttRenderGrid() {
       html += `<div class="g-rowlabel${isOpen?' open':''}" onclick="_pubGanttToggleMO('${m.MO_ID}')" style="grid-row:${row}">
         <span class="chev">▶</span>
         <div><div class="g-mo">${m.MO_ID}${m.LOT ? ` <span class="text-muted fw-normal">· Lot ${m.LOT}</span>` : ''}</div>
-        <div class="g-prod">${m.ProductName||''} · ${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</div></div>
+        <div class="g-prod">${m.ProductName||''} · <span class="g-qty-emph">${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</span></div></div>
       </div>`;
-      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
+      days.forEach((d, i) => { html += `<div class="g-bgcell${monthCls(i)}${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
 
       if (!steps.length) {
         // ไม่มีข้อมูลกำลังผลิตของสินค้านี้ใน BOM เลย — แสดงแท่งเดียวใช้ช่วงวันที่จาก production_plan จริงแทน
