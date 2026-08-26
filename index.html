@@ -117,6 +117,8 @@ body {
 }
 .kpi-card .kpi-num { font-size: 1.6rem; font-weight: 700; color: #1e3a8a; }
 .kpi-card .kpi-label { font-size: .74rem; color: #64748b; }
+/* การ์ด KPI ที่คลิกได้เพื่อกรองรายการ (เช่น bom-kpi-incompletecap-card) — ไฮไลต์ตอนกำลังกรองอยู่ */
+.kpi-card.bom-kpi-active { background: #fffbeb; box-shadow: 0 0 0 2px #f59e0b, 0 2px 8px rgba(0,0,0,.06); }
 /* หัวข้อหมวด (เช่น "ภาพรวมวันนี้") วางอยู่บนพื้นหลังไล่สีน้ำเงินของ body ตรงๆ ไม่มีการ์ดสีขาวรองอยู่ข้างหลัง
    ไม่เคยมี base rule กำหนดสีมาก่อน (พึ่งค่า default ของเบราว์เซอร์ ซึ่งเป็นสีเข้มอ่านยากมากบนพื้นน้ำเงิน) */
 .kpi-section-label { font-weight: 700; color: #fff; font-size: .82rem; letter-spacing: .01em; margin-bottom: 6px; }
@@ -474,10 +476,12 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #page-prodstatus .g-bgcell.stepbg.weekend{background:rgba(244,63,94,.07)}
 #page-prodstatus .g-bar{align-self:center;height:22px;border-radius:11px;display:flex;align-items:center;padding:0 9px;font-size:.66rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 #page-prodstatus .g-bar .g-qty{margin-left:6px;font-weight:600;opacity:.9;font-variant-numeric:tabular-nums}
-#page-prodstatus .g-stepbar{align-self:center;height:18px;border-radius:9px;display:flex;align-items:center;padding:0 8px;font-size:.63rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;gap:5px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+#page-prodstatus .g-stepbar{align-self:center;height:18px;border-radius:9px;display:flex;align-items:center;padding:0 8px;font-size:.63rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;gap:5px;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.15);touch-action:none;user-select:none}
 #page-prodstatus .g-stepbar:hover .g-pencil{opacity:1}
 #page-prodstatus .g-stepbar.pinned{box-shadow:0 0 0 2px #fff,0 0 0 3px #1e3a8a}
+#page-prodstatus .g-stepbar.dragging{cursor:grabbing;opacity:.85;z-index:6;box-shadow:0 6px 16px rgba(0,0,0,.35)}
 #page-prodstatus .g-pencil{opacity:0;transition:.15s;font-size:.7rem;margin-left:auto}
+#page-prodstatus .g-drag-tooltip{position:absolute;z-index:21;background:#0f172a;color:#fff;font-size:.66rem;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;box-shadow:0 4px 10px rgba(0,0,0,.25);display:none}
 #page-prodstatus .g-nodata{grid-column:1;position:sticky;left:0;background:#fff;padding:5px 10px 5px 30px;font-size:.68rem;color:#cbd5e1;font-style:italic}
 #page-prodstatus .g-popover{position:absolute;z-index:20;background:#fff;border:1px solid #dde3ee;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.22);padding:12px 14px;width:230px;font-size:.76rem}
 #page-prodstatus .g-popover h4{margin:0 0 8px;font-size:.8rem}
@@ -3739,6 +3743,11 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
         <div class="col-6 col-md-3">
           <div class="kpi-card" style="border-color:#64748b">
             <div class="kpi-num text-secondary" id="bom-kpi-lines">—</div><div class="kpi-label">รายการวัตถุดิบทั้งหมด</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" id="bom-kpi-incompletecap-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterIncompleteCap()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ครบ">
+            <div class="kpi-num text-warning" id="bom-kpi-incompletecap">—</div><div class="kpi-label">ยังไม่ครบกำลังการผลิต/วัน</div>
           </div>
         </div>
       </div>
@@ -12296,6 +12305,11 @@ function _ganttDow(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d).getDay();
 }
+// จำนวนวัน (b - a) แบบ local date ล้วนๆ ไม่ผ่าน UTC — ใช้ตอนลากแท่งขั้นตอนเพื่อรู้ว่าลากไปกี่วันจากจุดเริ่ม
+function _ganttDaysBetween(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number), [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000);
+}
 
 async function prodStatusSetView(view) {
   _prodStatusView = view;
@@ -12487,17 +12501,102 @@ function prodStatusRenderGantt() {
     });
   });
   gt.querySelectorAll('.g-stepbar').forEach(el => {
-    el.addEventListener('click', ev => { ev.stopPropagation(); prodStatusOpenStepPopover(el); });
+    el.addEventListener('pointerdown', ev => { ev.stopPropagation(); _prodStatusStepPointerDown(ev, el); });
   });
+}
+
+// หาแท่งขั้นตอนหนึ่งแท่งจาก MO+key เดียวกัน ใช้ทั้ง popover เดิมและตอนลาก — คำนวณ steps ใหม่สดทุกครั้ง
+// ไม่ cache เพราะ overrides อาจเพิ่งเปลี่ยนจากการลากแท่งอื่นในแถวเดียวกัน (ขั้นถัดไปขยับตามอัตโนมัติ)
+function _prodStatusGanttGetStep(moId, stepKey) {
+  const m = _prodStatusMOData.find(x => x.MO_ID === moId);
+  const planStart = _prodStatusPlanStartByMO()[moId];
+  const steps = prodStatusComputeMOSteps(m, planStart);
+  const st = steps.find(s => s.key === stepKey);
+  return { m, planStart, steps, st };
+}
+
+// ── ลากแท่งขั้นตอนย่อยเพื่อเลื่อนวันเริ่ม ──
+// กันไม่ให้ลากไปก่อน "วันแรกที่บรรจุ": ขั้น บรรจุ เอง ห้ามลากไปก่อนวันที่วางแผนไว้จริง (planStart, จุดเริ่ม
+// ตามแผนที่ยืนยันไว้), ส่วนขั้นถัดๆไป (ยิง Lot / ตรวจสอบ-แพ็ค) ห้ามลากไปก่อนวันที่ขั้น บรรจุ เริ่มอยู่ ณ ตอนนี้
+// (จะปรับเองหรือคำนวณอัตโนมัติก็ตาม) — เพราะบรรจุต้องเกิดขึ้นก่อนเสมอตามลำดับงานจริง
+let _prodStatusDrag = null;
+
+function _prodStatusStepPointerDown(ev, el) {
+  if (ev.button != null && ev.button !== 0) return; // ปุ่มซ้ายเท่านั้น
+  const moId = el.dataset.mo, stepKey = el.dataset.key;
+  const { steps, st } = _prodStatusGanttGetStep(moId, stepKey);
+  if (!st) return;
+  const gt = document.getElementById('prodstatus-gtable');
+  const dayCell = gt.querySelector('.g-daycell');
+  if (!dayCell) return;
+  const dayWidth = dayCell.getBoundingClientRect().width;
+  const planStart = _prodStatusPlanStartByMO()[moId];
+  const floor = (stepKey === steps[0].key) ? _ganttNextWorkDay(planStart) : steps[0].start;
+
+  _prodStatusDrag = { el, moId, stepKey, startClientX: ev.clientX, dayWidth, originalStart: st.start, floor, moved: false, targetStart: st.start };
+  document.addEventListener('pointermove', _prodStatusStepPointerMove);
+  document.addEventListener('pointerup', _prodStatusStepPointerUp, { once: true });
+}
+
+function _prodStatusStepPointerMove(ev) {
+  const d = _prodStatusDrag;
+  if (!d) return;
+  const dx = ev.clientX - d.startClientX;
+  if (!d.moved) {
+    if (Math.abs(dx) < 4) return; // ยังไม่ถึง threshold — ถือว่ายังเป็นแค่คลิก ไม่ใช่การลาก
+    d.moved = true;
+    d.el.classList.add('dragging');
+    _prodStatusGanttClosePopover();
+  }
+  const dayDelta = Math.round(dx / d.dayWidth);
+  let target = _ganttAddDays(d.originalStart, dayDelta);
+  if (target < d.floor) target = d.floor;
+  d.targetStart = target;
+  const visualDelta = _ganttDaysBetween(d.originalStart, target);
+  d.el.style.transform = `translateX(${visualDelta * d.dayWidth}px)`;
+  _prodStatusShowDragTooltip(d);
+}
+
+function _prodStatusStepPointerUp() {
+  document.removeEventListener('pointermove', _prodStatusStepPointerMove);
+  const d = _prodStatusDrag;
+  _prodStatusDrag = null;
+  if (!d) return;
+  d.el.classList.remove('dragging');
+  d.el.style.transform = '';
+  _prodStatusHideDragTooltip();
+  if (d.moved) {
+    if (d.targetStart !== d.originalStart) prodStatusSaveStepOverride(d.moId, d.stepKey, d.targetStart);
+  } else {
+    prodStatusOpenStepPopover(d.el);
+  }
+}
+
+function _prodStatusShowDragTooltip(d) {
+  const card = document.getElementById('prodstatus-gantt-card');
+  let tip = document.getElementById('g-drag-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'g-drag-tooltip';
+    tip.className = 'g-drag-tooltip';
+    card.appendChild(tip);
+  }
+  const clamped = d.targetStart === d.floor;
+  tip.textContent = _planFmtDateLabel(d.targetStart) + (clamped ? ' (ห้ามเกินวันแรกที่บรรจุ)' : '');
+  const rect = d.el.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
+  tip.style.left = Math.max(0, rect.left - cardRect.left) + 'px';
+  tip.style.top  = (rect.top - cardRect.top - 24) + 'px';
+  tip.style.display = 'block';
+}
+function _prodStatusHideDragTooltip() {
+  const tip = document.getElementById('g-drag-tooltip');
+  if (tip) tip.style.display = 'none';
 }
 
 function prodStatusOpenStepPopover(el) {
   _prodStatusGanttClosePopover();
   const moId = el.dataset.mo, stepKey = el.dataset.key;
-  const m = _prodStatusMOData.find(x => x.MO_ID === moId);
-  const planStart = _prodStatusPlanStartByMO()[moId];
-  const steps = prodStatusComputeMOSteps(m, planStart);
-  const st = steps.find(s => s.key === stepKey);
+  const { st } = _prodStatusGanttGetStep(moId, stepKey);
   if (!st) return;
 
   const card = document.getElementById('prodstatus-gantt-card');
@@ -12756,12 +12855,20 @@ async function _bomFetchAllRows() {
   return _bomFetchPaged('*', [{ col: 'ProductName' }, { col: '_row_id', ascending: true }]);
 }
 
+// สินค้าถือว่า "กำลังการผลิตต่อวันครบ" เมื่อกรอกครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — ขาดขั้นใด
+// ขั้นหนึ่งก็ถือว่ายังไม่ครบ เพราะ Gantt ของหน้าภาพรวมการผลิต (prodStatusComputeMOSteps) ข้ามขั้นที่ไม่มีข้อมูลไปเงียบๆ
+function _bomHasFullCapacity(g) {
+  return g.CapacityFillPerDay != null && g.CapacityLotPerDay != null && g.CapacityInspectPackPerDay != null;
+}
+
 function bomUpdateKPIs() {
   const products = new Set(_bomData.map(r => r.ProductCode));
   const el = id => document.getElementById(id);
   if (el('bom-kpi-products')) el('bom-kpi-products').textContent = products.size.toLocaleString();
   if (el('bom-kpi-lines'))    el('bom-kpi-lines').textContent    = _bomGroupByProduct(_bomData)
     .reduce((s, g) => s + g.lines.length, 0).toLocaleString();
+  const incompleteCount = _bomGroupByProduct(_bomData).filter(g => !_bomHasFullCapacity(g)).length;
+  if (el('bom-kpi-incompletecap')) el('bom-kpi-incompletecap').textContent = incompleteCount.toLocaleString();
 }
 
 // จัดกลุ่มตามสินค้า แล้ว dedupe รายการวัตถุดิบซ้ำ (ข้อมูลจริงบางสินค้าถูก import ซ้ำหลายรอบ)
@@ -12806,9 +12913,18 @@ function bomToggleExpand(gi) {
   bomRenderCards();
 }
 
+// คลิกที่การ์ด KPI "ยังไม่ครบกำลังการผลิต/วัน" เพื่อกรองรายการให้เห็นเฉพาะสินค้าที่ขาดข้อมูล — คลิกซ้ำเพื่อล้างตัวกรอง
+let _bomFilterIncompleteCap = false;
+function bomToggleFilterIncompleteCap() {
+  _bomFilterIncompleteCap = !_bomFilterIncompleteCap;
+  document.getElementById('bom-kpi-incompletecap-card')?.classList.toggle('bom-kpi-active', _bomFilterIncompleteCap);
+  bomRenderCards();
+}
+
 function bomRenderCards() {
   const q = (document.getElementById('bom-search')?.value || '').toLowerCase();
   const groups = _bomGroupByProduct(_bomData).filter(g => {
+    if (_bomFilterIncompleteCap && _bomHasFullCapacity(g)) return false;
     if (!q) return true;
     const prodHay = [g.ProductCode, g.ProductName].join(' ').toLowerCase();
     if (prodHay.includes(q)) return true;
@@ -12853,6 +12969,7 @@ function bomRenderCards() {
           <b>${g.ProductName || '—'}</b>
           <span class="badge bg-light text-dark border ms-2">UOF: ${g.UOF || '—'}</span>
           ${g.SellingPrice != null ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">ราคาขาย ฿${parseFloat(g.SellingPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
+          ${!_bomHasFullCapacity(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
         </div>
         <div class="d-flex gap-1">
