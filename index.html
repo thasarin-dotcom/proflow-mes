@@ -496,6 +496,12 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 
 /* ── รายงานแผนผลิตสาธารณะ (_pubGanttBuildSection): Gantt เดียวกันกับ #page-prodstatus ทุกกฎ —
    ก๊อปเฉพาะ selector prefix มาเป็น #publicReportView ไม่แก้ค่าใดๆ เพื่อให้หน้าตาเหมือนกันเป๊ะ ── */
+/* ปิด backdrop-filter ของ .glass-card ในรายงานสาธารณะทั้งหมด (เพิ่ม 2026-08-26 ผู้ใช้รายงาน "โปร่งแสง" หลัง
+   เปลี่ยนคอลัมน์ราง+ป้ายชื่อของ Gantt จาก position:sticky มาเป็น transform:translateX — บั๊กคอมโพสิเตอร์
+   เดียวกับที่เจอมาแล้วที่ #page-stockcard (ดูคอมเมนต์ตรงนั้น): backdrop-filter:blur() ของ .glass-card วาด
+   ทับ/ผสมกับ element ที่ compositing ต่างจากปกติ (transform สร้าง layer ใหม่) จนดูโปร่งแสงเห็นเนื้อหาข้างหลัง
+   ทะลุ — พื้นหลัง .glass-card ทึบ ~95% อยู่แล้ว (--glass-bg) เอา blur ออกแทบไม่ต่างภาพในทางปฏิบัติ */
+#publicReportView .glass-card { backdrop-filter: none; }
 /* กลับมามี scroll ภายในกล่อง .gantt-card เอง (overflow:auto ทั้ง 2 แกน + max-height) อีกครั้ง 2026-08-26 —
    เคยตัด max-height ออกไปให้ทั้งหน้า scroll แทน (เพื่อไม่ให้มี scrollbar ซ้อน) แต่พบว่า position:sticky
    อ้างอิง "nearest scrolling ancestor" ได้แค่ตัวเดียวต่อ element ไม่แยกแกนได้ — ถ้า .gantt-card ไม่ใช่ตัวที่
