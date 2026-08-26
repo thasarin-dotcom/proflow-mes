@@ -496,7 +496,16 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 
 /* ── รายงานแผนผลิตสาธารณะ (_pubGanttBuildSection): Gantt เดียวกันกับ #page-prodstatus ทุกกฎ —
    ก๊อปเฉพาะ selector prefix มาเป็น #publicReportView ไม่แก้ค่าใดๆ เพื่อให้หน้าตาเหมือนกันเป๊ะ ── */
-#publicReportView .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow-x:auto;overflow-y:visible;position:relative}
+/* กลับมามี scroll ภายในกล่อง .gantt-card เอง (overflow:auto ทั้ง 2 แกน + max-height) อีกครั้ง 2026-08-26 —
+   เคยตัด max-height ออกไปให้ทั้งหน้า scroll แทน (เพื่อไม่ให้มี scrollbar ซ้อน) แต่พบว่า position:sticky
+   อ้างอิง "nearest scrolling ancestor" ได้แค่ตัวเดียวต่อ element ไม่แยกแกนได้ — ถ้า .gantt-card ไม่ใช่ตัวที่
+   สกอลแนวตั้งจริง (ไม่มี max-height) หัวเดือน/วันที่ + หัวไลน์ที่ตั้งใจให้ตรึง (position:sticky) จะใช้ไม่ได้
+   เลยแม้แต่น้อย ไม่ว่า overflow-y จะตั้งเป็นค่าไหนก็ตาม (ลองมาหมดแล้ว visible/auto/hidden/clip) เพราะตาราง
+   จำเป็นต้อง overflow-x:auto อยู่แล้ว (กว้างเกินจอ 2 เดือน) ทำให้ตัวมันเองกลายเป็น scroll container ของทั้ง
+   2 แกนไปโดยปริยาย — ทางแก้ที่ถูกต้องจริงๆ (แยก pane ซ้าย/ขวา ไม่ใช้ grid เดียว) ใหญ่เกินความคุ้มค่า ผู้ใช้เลย
+   เลือกทางนี้แทน: ให้ .gantt-card กลับมาเป็น scroll container จริง (max-height สูงมาก 85vh แทน 64vh เดิม
+   กันเจอ scrollbar บ่อยเกินไปสำหรับข้อมูลทั่วไป) sticky ทุกจุดก็เลยอ้างอิงกับมันได้ถูกต้องเหมือนก่อนหน้านี้ */
+#publicReportView .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow:auto;max-height:85vh;position:relative}
 #publicReportView .gtable{display:grid;font-size:.74rem}
 #publicReportView .g-corner{grid-column:1;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
 #publicReportView .g-monthhead{grid-row:1;position:sticky;top:0;z-index:4;background:#eef2f7;border-bottom:1px solid #dbe3ee;border-left:1px solid #eef2f7;
@@ -507,16 +516,23 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-daycell.weekend{background:rgba(244,63,94,.07)}
 #publicReportView .g-daycell.weekend .dow,#publicReportView .g-daycell.weekend .dnum{color:#e11d48}
 #publicReportView .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
-#publicReportView .g-linehead{grid-column:1;position:sticky;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
+/* หัวข้อไลน์ "ลอยตรึง" ขณะเลื่อนผ่านแถว MO ของไลน์นั้น (เพิ่ม 2026-08-26 ตามคำขอผู้ใช้) — เทคนิค nested-sticky
+   มาตรฐาน: .g-linehead-wrap เป็น grid item ที่ span หลายแถวครอบทั้งไลน์ (พื้นหลังโปร่งใส ไม่บังแถว MO ข้างใต้)
+   ส่วน .g-linehead (ลูกข้างใน) เป็น position:sticky;top จริง — ลอยอยู่ที่ขอบบนของ wrap ตราบใดที่ยังอยู่ในช่วง
+   แถวของไลน์นั้น แล้ว "หลุด" ไปพร้อม wrap เมื่อเลื่อนพ้นแถวสุดท้ายของไลน์นั้นแล้ว ให้หัวข้อไลน์ถัดไปขึ้นแทน
+   — ต่างจาก #page-prodstatus (มี toolbar/nav ต้องอยู่นิ่ง จึง scroll แค่ในการ์ดเอง ไม่ต้องมี leapfrog แบบนี้) */
+#publicReportView .g-rail{grid-column:1;position:sticky;left:0;z-index:4}
+#publicReportView .g-linehead-wrap{grid-column:2}
+#publicReportView .g-linehead{position:sticky;top:75px;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
 #publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85}
-#publicReportView .g-rowlabel{grid-column:1;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-rowlabel{grid-column:2;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent;cursor:pointer;user-select:none}
 #publicReportView .g-rowlabel:hover{background:#f8fafc}
 #publicReportView .g-rowlabel .chev{font-size:.62rem;color:#94a3b8;transition:transform .15s;flex-shrink:0;width:10px}
 #publicReportView .g-rowlabel.open .chev{transform:rotate(90deg)}
 #publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem}
 #publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b}
-#publicReportView .g-steplabel{grid-column:1;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-steplabel{grid-column:2;position:sticky;left:0;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:5px 10px 5px 30px;font-size:.68rem;color:#64748b;display:flex;align-items:center;gap:5px}
 #publicReportView .g-steplabel .stepord{width:15px;height:15px;border-radius:50%;background:#94a3b8;color:#fff;font-size:.55rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 #publicReportView .g-bgcell{border-left:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#f8fafc}
@@ -11518,7 +11534,7 @@ function _pubGanttBuildSection(data) {
   const body = anyMo ? `
     <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">${legend}</div>
     <div class="note-box mb-2" style="font-size:.72rem">คลิกที่แถว MO เพื่อดู/ซ่อน 3 ขั้นตอนย่อย (บรรจุ / ยิง Lot / ตรวจสอบ-แพ็ค) — แท่งลายเส้นจางๆ ป้าย "รอยืนยัน" คือแผนที่ยังไม่ได้สั่งผลิตเป็น MO จริง ระยะเวลา "~N วัน" เป็นการประมาณคร่าวๆ จากกำลังผลิตต่อวัน อาจเปลี่ยนแปลงได้</div>
-    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:230px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
+    <div class="gantt-card"><div class="gtable" id="pubgantt-gtable" style="grid-template-columns:8px 230px repeat(${days.length}, minmax(46px,1fr))"></div></div>`
     : `<div class="text-center text-muted py-4">ไม่มี MO ที่กำลังดำเนินการอยู่ในช่วงนี้</div>`;
 
   return `<div class="glass-card mb-3">
@@ -11557,13 +11573,15 @@ function _pubGanttRenderGrid() {
     if (last && last.key === key) last.end = i; else monthSpans.push({ key, y, m, start: i, end: i });
   });
 
-  let html = `<div class="g-corner" style="grid-row:1 / 3"></div>`;
+  // คอลัมน์วันเลื่อนไป +1 ทั้งหมด (i+3 แทน i+2 เดิม) เพราะเพิ่มคอลัมน์ที่ 1 เป็น "ราง" สีของไลน์ (.g-rail,
+  // เพิ่ม 2026-08-26) — คอลัมน์ 2 คือคอลัมน์ป้ายชื่อ (230px) เดิม, คอลัมน์วันเริ่มที่ 3 เป็นต้นไป
+  let html = `<div class="g-corner" style="grid-row:1 / 3;grid-column:1 / 3"></div>`;
   monthSpans.forEach(sp => {
-    html += `<div class="g-monthhead" style="grid-column:${sp.start+2} / ${sp.end+3};grid-row:1">${monthsTh[sp.m-1]} ${sp.y+543}</div>`;
+    html += `<div class="g-monthhead" style="grid-column:${sp.start+3} / ${sp.end+4};grid-row:1">${monthsTh[sp.m-1]} ${sp.y+543}</div>`;
   });
   days.forEach((d, i) => {
     const w = _ganttDow(d) === 0, t = d === todayStr;
-    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:2">
+    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+3};grid-row:2">
       <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
   });
 
@@ -11573,16 +11591,34 @@ function _pubGanttRenderGrid() {
     const tentativePlans = _pubGanttTentativePlansForLine(data, line);
     if (!rows.length && !tentativePlans.length) return;
     const color = _planLineColor(line);
-    html += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO${tentativePlans.length ? ` · ${tentativePlans.length} รอยืนยัน` : ''}</span></div>`;
-    days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+
+    // คำนวณ steps/isOpen ของแต่ละ MO ล่วงหน้าครั้งเดียว — ใช้ทั้งนับจำนวนแถวรวมของไลน์นี้ (ต้องรู้ก่อนวาด
+    // .g-rail/.g-linehead-wrap ที่ต้อง span ให้พอดีกับทุกแถวข้างใต้) และตอนวาดแถว MO จริงด้านล่าง ไม่คำนวณซ้ำ
+    const moEntries = rows.map(m => {
+      const planStart = planStartByMO[m.MO_ID];
+      const steps = prodStatusComputeMOSteps(m, planStart, capByCode, overridesMap);
+      const isOpen = _pubGanttOpenMO.has(m.MO_ID);
+      return { m, steps, isOpen, rowCount: 1 + (isOpen && steps.length ? steps.length : 0) };
+    });
+    const totalRows = tentativePlans.length + moEntries.reduce((a, e) => a + e.rowCount, 0);
+    const headerRow = row;
+
+    // .g-rail (แถบสีเต็มความสูงของไลน์นี้) + .g-linehead-wrap (กล่องโปร่งใส span เท่ากัน ครอบ .g-linehead
+    // ที่ลอยตรึงอยู่ข้างใน) — ทั้งคู่ span ตั้งแต่แถวหัวข้อไปจนถึงแถวสุดท้ายของไลน์นี้ ดูคอมเมนต์ CSS
+    // #publicReportView .g-linehead ด้านบนสำหรับกลไก nested-sticky แบบเต็มๆ
+    html += `<div class="g-rail" style="grid-row:${headerRow} / ${headerRow + 1 + totalRows};background:${color}"></div>`;
+    html += `<div class="g-linehead-wrap" style="grid-row:${headerRow} / ${headerRow + 1 + totalRows}">
+      <div class="g-linehead" style="background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO${tentativePlans.length ? ` · ${tentativePlans.length} รอยืนยัน` : ''}</span></div>
+    </div>`;
+    days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
     row++;
 
     tentativePlans.forEach(p => {
-      html += `<div class="g-rowlabel g-rowlabel-tentative" style="grid-row:${row};border-left-color:${color};cursor:default">
+      html += `<div class="g-rowlabel g-rowlabel-tentative" style="grid-row:${row};cursor:default">
         <div><div class="g-mo">${p.ProductName||''}<span class="g-tentative-badge">รอยืนยัน</span></div>
         <div class="g-prod">${(parseFloat(p.PlanQty)||0).toLocaleString()} ${p.UOM||''}</div></div>
       </div>`;
-      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
 
       // ประมาณระยะเวลาคร่าวๆ จากกำลังผลิตต่อวันของสินค้านั้น (bom.CapacityXxxPerDay) เทียบกับ PlanQty —
       // สูตร/ฟังก์ชันเดียวกับที่ใช้คำนวณแท่งของ MO จริงทุกอย่าง (prodStatusComputeMOSteps) แค่สร้าง MO
@@ -11598,28 +11634,24 @@ function _pubGanttRenderGrid() {
         if (!(s1 < days[0] || s0 > days[days.length - 1])) {
           let s = days.indexOf(s0), e = days.indexOf(s1);
           if (s < 0) s = 0; if (e < 0) e = days.length - 1;
-          html += `<div class="g-planbar" style="grid-column:${s+2} / ${e+3};grid-row:${row};border-color:${color}">${p.ProductName||''} · ~${totalDays} วัน</div>`;
+          html += `<div class="g-planbar" style="grid-column:${s+3} / ${e+4};grid-row:${row};border-color:${color}">${p.ProductName||''} · ~${totalDays} วัน</div>`;
         }
       } else {
         const idx = days.indexOf(p.PlanDate);
         if (idx >= 0) {
-          html += `<div class="g-planbar" style="grid-column:${idx+2} / ${idx+3};grid-row:${row};border-color:${color}">${p.ProductName||''}</div>`;
+          html += `<div class="g-planbar" style="grid-column:${idx+3} / ${idx+4};grid-row:${row};border-color:${color}">${p.ProductName||''}</div>`;
         }
       }
       row++;
     });
 
-    rows.forEach(m => {
-      const planStart = planStartByMO[m.MO_ID];
-      const steps = prodStatusComputeMOSteps(m, planStart, capByCode, overridesMap);
-      const isOpen = _pubGanttOpenMO.has(m.MO_ID);
-
-      html += `<div class="g-rowlabel${isOpen?' open':''}" onclick="_pubGanttToggleMO('${m.MO_ID}')" style="grid-row:${row};border-left-color:${color}">
+    moEntries.forEach(({ m, steps, isOpen }) => {
+      html += `<div class="g-rowlabel${isOpen?' open':''}" onclick="_pubGanttToggleMO('${m.MO_ID}')" style="grid-row:${row}">
         <span class="chev">▶</span>
         <div><div class="g-mo">${m.MO_ID}${m.LOT ? ` <span class="text-muted fw-normal">· Lot ${m.LOT}</span>` : ''}</div>
         <div class="g-prod">${m.ProductName||''} · ${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</div></div>
       </div>`;
-      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
 
       if (!steps.length) {
         // ไม่มีข้อมูลกำลังผลิตของสินค้านี้ใน BOM เลย — แสดงแท่งเดียวใช้ช่วงวันที่จาก production_plan จริงแทน
@@ -11627,7 +11659,7 @@ function _pubGanttRenderGrid() {
         if (moDates.length && !(moDates[moDates.length-1] < days[0] || moDates[0] > days[days.length-1])) {
           let s = days.indexOf(moDates[0]), e = days.indexOf(moDates[moDates.length-1]);
           if (s < 0) s = 0; if (e < 0) e = days.length - 1;
-          html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+          html += `<div class="g-bar" style="grid-column:${s+3} / ${e+4};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
         }
         row++;
       } else if (!isOpen) {
@@ -11635,7 +11667,7 @@ function _pubGanttRenderGrid() {
         if (!(totalEnd < days[0] || totalStart > days[days.length-1])) {
           let s = days.indexOf(totalStart), e = days.indexOf(totalEnd);
           if (s < 0) s = 0; if (e < 0) e = days.length - 1;
-          html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">
+          html += `<div class="g-bar" style="grid-column:${s+3} / ${e+4};grid-row:${row};background:${color}">
             รวม ${steps.reduce((a,s)=>a+s.days,0)} วัน · ${steps.length} ขั้นตอน</div>`;
         }
         row++;
@@ -11643,12 +11675,12 @@ function _pubGanttRenderGrid() {
         row++;
         steps.forEach((st, si) => {
           html += `<div class="g-steplabel" style="grid-row:${row}"><span class="stepord">${si+1}</span>${st.label}</div>`;
-          days.forEach((d, i) => { html += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+          days.forEach((d, i) => { html += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+3};grid-row:${row}"></div>`; });
           if (!(st.end < days[0] || st.start > days[days.length-1])) {
             let s = days.indexOf(st.start), e = days.indexOf(st.end);
             if (s < 0) s = 0; if (e < 0) e = days.length - 1;
             const shade = (0.55 + si / Math.max(1, steps.length - 1) * 0.45).toFixed(2);
-            html += `<div class="g-stepbar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color};opacity:${shade}">
+            html += `<div class="g-stepbar" style="grid-column:${s+3} / ${e+4};grid-row:${row};background:${color};opacity:${shade}">
               ${st.label} · ${st.days}ว.</div>`;
           }
           row++;
