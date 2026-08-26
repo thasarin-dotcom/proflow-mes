@@ -425,6 +425,62 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 }
 .planweek-day-edit-btn:hover { color: #1e3a8a; background: #eef2f7; border-radius: 6px; }
 
+/* ── หน้าคิวห้องยิง Lot (nav-lotqueue) — เครื่อง/สถานียิง Lot ตัวเดียวใช้ร่วมกันทุกไลน์ ── */
+.lotq-current-card {
+  background: #fff; border-radius: 16px; padding: 1.1rem 1.3rem;
+  box-shadow: 0 4px 18px rgba(30,58,138,.08); border: 1px solid #eef2f7;
+}
+.lotq-current-card.is-running { border: 1.5px solid #1e3a8a; background: linear-gradient(160deg,#eff6ff 0%,#f8fafc 100%); }
+
+/* กริดลากปรับวัน — คัดลอกโครงสร้าง/คลาสจาก #page-prodstatus .g-* ทุกตัวอักษร (สแกนแค่คนละ #page-xxx)
+   เพื่อให้หน้าตา+กลไกลากเหมือนหน้า ภาพรวมการผลิต/Gantt เป๊ะ ตามที่ผู้ใช้ขอ ("เหมือนในหน้าเกรน") — ตัด
+   เฉพาะส่วนที่ไม่มีในหน้านี้ออก (g-linehead กลุ่มตามไลน์, g-steplabel/chevron ขยาย เพราะที่นี่มีแท่งเดียวต่อแถว) */
+#page-lotqueue .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow:auto;max-height:64vh;position:relative}
+#page-lotqueue .gtable{display:grid;font-size:.74rem}
+#page-lotqueue .g-corner{grid-column:1;grid-row:1 / 3;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
+/* แถวหัววันที่ (row 1, ครอบ 2 คอลัมน์กะ) + แถวป้ายกะเช้า/บ่าย (row 2) — เพิ่ม 2026-08-26 คู่กับหน้า Gantt
+   ทุกประการ (ดูคอมเมนต์ที่ #page-prodstatus .g-daterow) top:38px ต้องตรงกับความสูง .g-daterow เป๊ะ */
+#page-lotqueue .g-daterow{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:6px 2px 4px;border-left:1px solid #eef2f7;height:38px;box-sizing:border-box}
+#page-lotqueue .g-daterow .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
+#page-lotqueue .g-daterow .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
+#page-lotqueue .g-daterow.weekend{background:rgba(244,63,94,.07)}
+#page-lotqueue .g-daterow.weekend .dow,#page-lotqueue .g-daterow.weekend .dnum{color:#e11d48}
+#page-lotqueue .g-daterow.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
+#page-lotqueue .g-daycell{position:sticky;top:38px;z-index:3;background:#f8fafc;border-bottom:1px solid #eef2f7;text-align:center;border-left:1px solid #eef2f7;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+#page-lotqueue .g-daycell .half{font-size:.58rem;font-weight:600;color:#94a3b8}
+#page-lotqueue .g-daycell.weekend{background:rgba(244,63,94,.12)}
+#page-lotqueue .g-daycell.weekend .half{color:#e11d48}
+#page-lotqueue .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb}
+#page-lotqueue .g-rowlabel{grid-column:1;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+  padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent}
+#page-lotqueue .g-rowlabel .g-mo{font-weight:700;font-size:.75rem}
+#page-lotqueue .g-rowlabel .g-prod{font-size:.68rem;color:#64748b}
+#page-lotqueue .g-bgcell{border-left:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#f8fafc}
+#page-lotqueue .g-bgcell.weekend{background:rgba(244,63,94,.07)}
+#page-lotqueue .g-bgcell.today{box-shadow:inset 0 0 0 2px #2563eb}
+#page-lotqueue .g-stepbar{align-self:center;height:22px;border-radius:11px;display:flex;align-items:center;padding:0 9px;font-size:.66rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;gap:5px;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.15);touch-action:none;user-select:none}
+#page-lotqueue .g-stepbar:hover .g-pencil{opacity:1}
+#page-lotqueue .g-stepbar.pinned{box-shadow:0 0 0 2px #fff,0 0 0 3px #1e3a8a}
+#page-lotqueue .g-stepbar.running{box-shadow:0 0 0 2px #fff,0 0 0 3px #16a34a}
+#page-lotqueue .g-stepbar.dragging{cursor:grabbing;opacity:.85;z-index:6;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+#page-lotqueue .g-pencil{opacity:0;transition:.15s;font-size:.7rem;margin-left:auto}
+#page-lotqueue .g-drag-tooltip{position:absolute;z-index:21;background:#0f172a;color:#fff;font-size:.66rem;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;box-shadow:0 4px 10px rgba(0,0,0,.25);display:none}
+#page-lotqueue .g-nodata{grid-column:1 / -1;text-align:center;padding:2rem;font-size:.8rem;color:#cbd5e1;font-style:italic}
+#page-lotqueue .g-popover{position:absolute;z-index:20;background:#fff;border:1px solid #dde3ee;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.22);padding:12px 14px;width:230px;font-size:.76rem}
+#page-lotqueue .g-popover h4{margin:0 0 8px;font-size:.8rem}
+#page-lotqueue .g-popover label{font-size:.68rem;color:#64748b;font-weight:600;display:block;margin-bottom:3px}
+#page-lotqueue .g-popover input[type=date]{width:100%;border:1px solid #dde3ee;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:.78rem;margin-bottom:8px}
+#page-lotqueue .g-popover .row2{display:flex;gap:6px}
+#page-lotqueue .g-popover .row2 button{flex:1;font-size:.72rem;padding:6px;border-radius:7px;border:1px solid #dde3ee;cursor:pointer;background:#fff}
+#page-lotqueue .g-popover .row2 button.save{background:#1e3a8a;color:#fff;border-color:#1e3a8a}
+#page-lotqueue .g-popover .cascade-note{font-size:.62rem;color:#94a3b8;margin-top:6px;line-height:1.4}
+#page-lotqueue .g-popover .reset-row{margin-top:6px;text-align:center}
+#page-lotqueue .g-popover .reset-row button{border:none;background:none;color:#dc2626;font-size:.68rem;cursor:pointer;text-decoration:underline}
+/* ตัวเลือกเช้า/บ่ายใน popover — เพิ่ม 2026-08-26 */
+#page-lotqueue .g-popover .g-half-toggle{display:flex;gap:6px;margin-bottom:8px}
+#page-lotqueue .g-popover .g-half-toggle button{flex:1;font-size:.72rem;padding:5px;border-radius:7px;border:1px solid #dde3ee;cursor:pointer;background:#fff;color:#64748b}
+#page-lotqueue .g-popover .g-half-toggle button.active{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:700}
+
 .planweek-today-head {
   font-weight: 700; font-size: .95rem; color: #1e293b; margin-bottom: .8rem;
   padding-left: .7rem; border-left: 4px solid #3b82f6;
@@ -450,13 +506,22 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #page-prodstatus .gantt-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
 #page-prodstatus .gantt-card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);overflow:auto;max-height:64vh;position:relative}
 #page-prodstatus .gtable{display:grid;font-size:.74rem}
-#page-prodstatus .g-corner{grid-column:1;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
-#page-prodstatus .g-daycell{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:8px 2px 6px;border-left:1px solid #eef2f7}
-#page-prodstatus .g-daycell .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
-#page-prodstatus .g-daycell .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
-#page-prodstatus .g-daycell.weekend{background:rgba(244,63,94,.07)}
-#page-prodstatus .g-daycell.weekend .dow,#page-prodstatus .g-daycell.weekend .dnum{color:#e11d48}
-#page-prodstatus .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
+#page-prodstatus .g-corner{grid-column:1;grid-row:1 / 3;position:sticky;top:0;left:0;z-index:5;background:#fff;border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7}
+/* แถวหัววันที่ (row 1) — ครอบ 2 คอลัมน์กะ (เช้า+บ่าย) ของวันนั้น เพิ่ม 2026-08-26 คู่กับ .g-daycell ที่กลาย
+   เป็นแถวป้ายกะ (row 2) แทน — เทคนิคเดียวกับ .g-monthhead ของรายงานสาธารณะที่ครอบหลายคอลัมน์วันเช่นกัน */
+#page-prodstatus .g-daterow{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid #eef2f7;text-align:center;padding:6px 2px 4px;border-left:1px solid #eef2f7;height:38px;box-sizing:border-box}
+#page-prodstatus .g-daterow .dow{font-size:.64rem;font-weight:700;color:#94a3b8;letter-spacing:.02em}
+#page-prodstatus .g-daterow .dnum{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
+#page-prodstatus .g-daterow.weekend{background:rgba(244,63,94,.07)}
+#page-prodstatus .g-daterow.weekend .dow,#page-prodstatus .g-daterow.weekend .dnum{color:#e11d48}
+#page-prodstatus .g-daterow.today{box-shadow:inset 0 0 0 2px #2563eb;border-radius:6px 6px 0 0}
+/* แถวป้ายกะ เช้า/บ่าย (row 2, 1 คอลัมน์ = 1 กะ) — top ต้องเท่ากับความสูงจริงของ .g-daterow (38px) เป๊ะ
+   ไม่งั้นจะเหลื่อมกันตอนเลื่อนแนวตั้ง (ค่านี้ hardcode ไว้คู่กัน แก้ความสูง .g-daterow แล้วต้องแก้ที่นี่ด้วย) */
+#page-prodstatus .g-daycell{position:sticky;top:38px;z-index:3;background:#f8fafc;border-bottom:1px solid #eef2f7;text-align:center;border-left:1px solid #eef2f7;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+#page-prodstatus .g-daycell .half{font-size:.58rem;font-weight:600;color:#94a3b8}
+#page-prodstatus .g-daycell.weekend{background:rgba(244,63,94,.12)}
+#page-prodstatus .g-daycell.weekend .half{color:#e11d48}
+#page-prodstatus .g-daycell.today{box-shadow:inset 0 0 0 2px #2563eb}
 #page-prodstatus .g-linehead{grid-column:1;position:sticky;left:0;z-index:4;display:flex;align-items:center;gap:8px;padding:7px 12px;font-weight:700;font-size:.74rem;color:#fff}
 #page-prodstatus .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85}
 #page-prodstatus .g-rowlabel{grid-column:1;position:sticky;left:0;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
@@ -493,6 +558,10 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #page-prodstatus .g-popover .cascade-note{font-size:.62rem;color:#94a3b8;margin-top:6px;line-height:1.4}
 #page-prodstatus .g-popover .reset-row{margin-top:6px;text-align:center}
 #page-prodstatus .g-popover .reset-row button{border:none;background:none;color:#dc2626;font-size:.68rem;cursor:pointer;text-decoration:underline}
+/* ตัวเลือกเช้า/บ่ายใน popover — เพิ่ม 2026-08-26 */
+#page-prodstatus .g-popover .g-half-toggle{display:flex;gap:6px;margin-bottom:8px}
+#page-prodstatus .g-popover .g-half-toggle button{flex:1;font-size:.72rem;padding:5px;border-radius:7px;border:1px solid #dde3ee;cursor:pointer;background:#fff;color:#64748b}
+#page-prodstatus .g-popover .g-half-toggle button.active{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:700}
 
 /* ── รายงานแผนผลิตสาธารณะ (_pubGanttBuildSection): Gantt เดียวกันกับ #page-prodstatus ทุกกฎ —
    ก๊อปเฉพาะ selector prefix มาเป็น #publicReportView ไม่แก้ค่าใดๆ เพื่อให้หน้าตาเหมือนกันเป๊ะ ── */
@@ -1388,6 +1457,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
       <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-lotqueue" onclick="showPage('lotqueue',this)" title="คิวห้องยิง Lot">
+      <i class="fas fa-barcode me-2"></i><span>คิวห้องยิง Lot</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-weeklyreport" onclick="showPage('weeklyreport',this)" title="รายงานรายสัปดาห์">
       <i class="fas fa-paper-plane me-2"></i><span>รายงานรายสัปดาห์</span>
@@ -4343,6 +4415,105 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
   </div>
 
   <!-- ════════════════════════════════════ -->
+  <!-- PAGE: คิวห้องยิง Lot — เครื่อง/สถานียิง Lot ตัวเดียวใช้ร่วมกันทุกไลน์ผลิต (nav-lotqueue) -->
+  <!-- คำนวณจาก bom.CapacityFillPerDay/CapacityLotPerDay เหมือนภาพรวมการผลิต/Gantt แต่จำลองเป็น -->
+  <!-- ทรัพยากรเดียว เรียงคิวแบบ FCFS ตามวันที่ "บรรจุ" เสร็จของแต่ละ MO ไม่ใช่ต่างไลน์ต่างขนานกันแบบ Gantt เดิม -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-lotqueue">
+    <div class="page-header planweek-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-barcode me-2"></i>คิวห้องยิง Lot</h4>
+        <button class="btn btn-sm btn-light fw-bold text-primary" onclick="loadLotQueueData()">
+          <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+        </button>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div id="lotqueue-warnings"></div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="planweek-kpi">
+            <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6)"><i class="fas fa-list-ol"></i></div>
+            <div><div class="planweek-kpi-num" id="lotqueue-kpi-total">—</div><div class="planweek-kpi-label">งานที่ต้องยิง Lot ทั้งหมด</div></div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="planweek-kpi">
+            <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#0ea5e9,#38bdf8)"><i class="fas fa-bolt"></i></div>
+            <div><div class="planweek-kpi-num" id="lotqueue-kpi-running">—</div><div class="planweek-kpi-label">กำลังยิง Lot วันนี้</div></div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="planweek-kpi">
+            <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#d97706,#fbbf24)"><i class="fas fa-hourglass-half"></i></div>
+            <div><div class="planweek-kpi-num" id="lotqueue-kpi-waiting">—</div><div class="planweek-kpi-label">รอคิว</div></div>
+          </div>
+        </div>
+        <div class="col-6" style="flex:0 0 25%;max-width:25%">
+          <div class="planweek-kpi">
+            <div class="planweek-kpi-icon" style="background:linear-gradient(135deg,#0d9488,#2dd4bf)"><i class="fas fa-flag-checkered"></i></div>
+            <div><div class="planweek-kpi-num" id="lotqueue-kpi-last">—</div><div class="planweek-kpi-label">คาดว่ายิงเสร็จงานสุดท้ายวันที่</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card mb-4">
+        <h6 class="fw-bold mb-3"><i class="fas fa-crosshairs me-1"></i>สถานะห้องยิง Lot ตอนนี้</h6>
+        <div id="lotqueue-current-card"></div>
+      </div>
+
+      <div class="glass-card mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <h6 class="fw-bold mb-0"><i class="fas fa-calendar-days me-1"></i>คิวยิง Lot (ลากแท่งเพื่อปรับวัน)</h6>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(-7)"><i class="fas fa-chevron-left me-1"></i>7 วันก่อนหน้า</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttGoToday()">วันนี้</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(7)">7 วันถัดไป<i class="fas fa-chevron-right ms-1"></i></button>
+            <span class="fw-bold" id="lotqueue-gantt-range" style="font-size:.9rem"></span>
+          </div>
+        </div>
+        <div class="note-box mb-3">
+          แต่ละแท่งคือคิวยิง Lot ของ MO นั้น (เรียงอัตโนมัติแบบ FCFS จากวันที่บรรจุเสร็จ) — <b>ลากแท่งซ้าย/ขวาเพื่อปรับวันเริ่มเอง</b> ได้เหมือนหน้า
+          ภาพรวมการผลิต/Gantt (ปรับที่นี่จะไปอัพเดตที่หน้านั้นให้อัตโนมัติ เพราะบันทึกร่วมตารางเดียวกัน) งานอื่นที่ยังไม่เคยปรับเองจะเรียงคิวหลบช่วงที่ปักไว้ให้เอง
+          — ห้ามลากไปก่อนวันที่บรรจุเสร็จจริงของงานนั้น
+        </div>
+        <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:.72rem;color:#64748b">
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:rgba(244,63,94,.15);box-shadow:inset 0 0 0 1px #e11d48;margin-right:4px;vertical-align:middle"></i>วันอาทิตย์</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;box-shadow:inset 0 0 0 2px #2563eb;margin-right:4px;vertical-align:middle"></i>วันนี้</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;box-shadow:0 0 0 2px #fff,0 0 0 3px #16a34a;background:#94a3b8;margin-right:4px;vertical-align:middle"></i>กำลังยิง Lot</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;box-shadow:0 0 0 2px #fff,0 0 0 3px #1e3a8a;background:#94a3b8;margin-right:4px;vertical-align:middle"></i>ปรับวันเองแล้ว</span>
+        </div>
+        <div class="gantt-card" id="lotqueue-gantt-card">
+          <div class="gtable" id="lotqueue-gtable"></div>
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <h6 class="fw-bold mb-3"><i class="fas fa-list-check me-1"></i>คิวงานที่รอยิง Lot ทั้งหมด</h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th class="text-center" style="width:40px">ลำดับ</th>
+                <th>MO / LOT</th>
+                <th>สินค้า</th>
+                <th>ไลน์ผลิต</th>
+                <th class="text-end">จำนวน</th>
+                <th>กำหนดยิง Lot</th>
+                <th>สถานะ</th>
+              </tr>
+            </thead>
+            <tbody id="lotqueue-tbody">
+              <tr><td colspan="7" class="text-center text-muted py-4">กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
   <!-- PAGE: รายงานผลิต-จัดส่งรายสัปดาห์ (สรุป + ร่างอีเมลส่งเจ้านาย) -->
   <!-- ════════════════════════════════════ -->
   <div class="page-view" id="page-weeklyreport">
@@ -6400,6 +6571,7 @@ function showPage(page, navEl) {
     'stockcard' : stockcardLoadData,
     'codash'    : codashLoadData,
     'prodstatus': loadProdStatusData,
+    'lotqueue'  : loadLotQueueData,
     'weeklyreport': weeklyreportLoadData,
     'admindash' : admindashLoadData,
     'auditlog'  : auditlogLoadData,
@@ -11871,13 +12043,421 @@ async function _renderPublicReport(token) {
   const ganttSection = _pubGanttBuildSection(data);
 
   bodyEl.innerHTML = `
-    <div class="glass-card mb-3"><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
+    <div class="glass-card mb-3 d-flex align-items-center gap-3">
+      <img src="wisenovation_LOGO%20-Cut.png" alt="Wise Novation" style="height:40px;width:auto;flex-shrink:0" onerror="this.style.display='none'">
+      <div><h5 class="fw-bold mb-1">📋 รายงานแผนผลิต (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
+    </div>
     ${ganttSection}
     ${weeklyReportSection}
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
 
   _pubGanttRenderGrid(); // ต้องเรียกหลัง bodyEl.innerHTML เซ็ตเสร็จ — #pubgantt-gtable เพิ่งถูกสร้างขึ้นตอนนี้เอง
+}
+
+// ══════════════════════════════════════════════
+// PAGE: คิวห้องยิง Lot (nav-lotqueue) — เครื่อง/สถานียิง Lot ตัวเดียวใช้ร่วมกันทุกไลน์ผลิต
+// ต่างจาก "ภาพรวมการผลิต"/Gantt (nav-prodstatus) ตรงที่ขั้นตอน "ยิง Lot" ของแต่ละ MO ที่นั่นถูกคำนวณ
+// แบบต่างคนต่างขนานกัน (ไม่มีการแย่งทรัพยากรข้ามไลน์) — หน้านี้จำลองเป็นทรัพยากรเดียวจริงๆ เรียงคิวแบบ
+// FCFS ตามวันที่ "บรรจุ" ของแต่ละ MO เสร็จ (พร้อมเข้าคิวยิง Lot) โดยใช้ capacity/step logic ชุดเดียวกับ
+// prodStatusComputeMOSteps (ไม่สร้างสูตรคำนวณ Fill step ซ้ำอีกชุด) แค่แทนที่ส่วน "ยิง Lot" ด้วยการจำลอง
+// คิวเดี่ยวของตัวเอง เป็นหน้า read-only (ประมาณการจากแผน ไม่ใช่การจองคิวจริง) สำหรับหัวหน้าไลน์/ผู้วางแผนผลิต
+// ══════════════════════════════════════════════
+let _lotqMOData        = [];
+let _lotqPlanAllData   = [];
+let _lotqBomCapByCode  = {};
+let _lotqStepOverrides = {};
+let _lotqQueue         = [];  // คิวที่จำลองแล้ว เรียงตามลำดับที่จะยิง Lot จริง (schedStart ไม่ลดลงตลอดทั้ง array)
+let _lotqNoCapCount    = 0;   // MO ที่ active แต่ไม่มีข้อมูล BOM เลย (นับแยกไว้เตือน ไม่รวมในคิว)
+let _lotqNoPlanCount   = 0;   // MO ที่ active แต่ยังไม่มีแผนวันที่ (แผนผลิต) จึงคำนวณคิวไม่ได้
+let _lotqPinnedConflict = false; // ผู้ใช้ปักวันของ 2 งานเองจนวันทับกันเอง (ระบบไม่ auto-fix ให้ ต้องแก้เอง)
+let _lotqGanttWindowStart = null; // yyyy-mm-dd — null จนกว่าจะโหลดข้อมูลครั้งแรก (เหมือน _prodStatusGanttWindowStart)
+
+async function loadLotQueueData() {
+  _showLoader();
+  const moRes = await _sb.from('manufacturing_orders').select('*').order('DeliveryDate', { ascending: true });
+  if (moRes.error) { _hideLoader(); _err('โหลดข้อมูล MO ไม่ได้', moRes.error.message); return; }
+  _lotqMOData = (moRes.data || []).filter(r => _prodStatusActiveMOStatuses.includes(r.Status));
+  const moIds = _lotqMOData.map(r => r.MO_ID).filter(Boolean);
+  const codes = [...new Set(_lotqMOData.map(r => r.ProductCode).filter(Boolean))];
+
+  const [planRes, capRes, ovrRes] = await Promise.all([
+    moIds.length ? _sb.from('production_plan').select('MO_Ref,PlanDate,Line').in('MO_Ref', moIds) : Promise.resolve({ data: [], error: null }),
+    codes.length ? _sb.from('bom').select('ProductCode,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay').in('ProductCode', codes) : Promise.resolve({ data: [], error: null }),
+    moIds.length ? _sb.from('production_plan_step_overrides').select('*').in('MO_Ref', moIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  _hideLoader();
+  if (planRes.error) { _err('โหลดแผนผลิตไม่ได้', planRes.error.message); return; }
+  if (capRes.error) { _err('โหลดข้อมูลกำลังผลิตไม่ได้', capRes.error.message); return; }
+
+  _lotqPlanAllData = planRes.data || [];
+  _lotqBomCapByCode = {};
+  (capRes.data || []).forEach(r => { if (r.ProductCode && !_lotqBomCapByCode[r.ProductCode]) _lotqBomCapByCode[r.ProductCode] = r; });
+  _lotqStepOverrides = {};
+  // เก็บเป็น {date, half} เสมอ — r.StartHalf เป็น undefined ถ้ายังไม่ได้รัน
+  // alter_production_plan_step_overrides_add_starthalf.sql, ตกกลับเป็น 'AM' อัตโนมัติ (พฤติกรรมเดิม)
+  (ovrRes.data || []).forEach(r => { _lotqStepOverrides[r.MO_Ref + '|' + r.StepKey] = { date: r.StartDate, half: r.StartHalf || 'AM' }; });
+  if (!_lotqGanttWindowStart) _lotqGanttWindowStart = _ganttAddDays(_planWeekLocalDateStr(new Date()), -3);
+
+  _lotqueueBuildQueue();
+  _lotqueueRender();
+}
+
+// จำลองคิวเดี่ยวของสถานียิง Lot: เรียงทุก MO ที่ต้องยิง Lot ตามวันที่ "พร้อมเข้าคิว" (=วันที่บรรจุเสร็จ,
+// อ่านจาก prodStatusComputeMOSteps ชุดเดียวกับ Gantt) แบบ FCFS แล้วเดินคิวไปทีละงานบนทรัพยากรเดียว
+// (ไม่ขนานกันข้ามไลน์เหมือน Gantt เดิม) งานที่พร้อมพร้อมกันเรียงตามกำหนดส่ง (DeliveryDate) ก่อน
+//
+// รองรับการ "ลากปักวันเอง" ต่องาน (เก็บใน production_plan_step_overrides คีย์ StepKey='Lot' — ตารางเดียวกับ
+// ที่หน้า Gantt ใช้ ทำให้ปรับที่นี่แล้วหน้า Gantt เห็นการเปลี่ยนแปลงเองอัตโนมัติ โดยไม่ต้องเขียน sync แยก)
+//
+// ตัวอัลกอริทึมจริง (pinned/auto/placeAvoidingPinned) ย้ายไปอยู่ที่ computeLotQueueSchedule() ตัวเดียวที่ใช้
+// ร่วมกับแท่ง "ยิง Lot" ในหน้า nav-prodstatus/Gantt แล้ว (เพิ่ม 2026-08-26) — เดิมหน้านี้คำนวณเองแยกชุด ทำให้
+// เมื่อลากงานหนึ่งแซงคิว งานอื่นที่ถูกเบียดออกไปเห็นแค่ในหน้านี้ หน้า Gantt ไม่รู้เรื่องเลย (เห็นแค่งานที่ถูก
+// ปักเองโดยตรงเพราะงานนั้นอย่างเดียวถูกเขียนเป็น override จริง) — ผู้ใช้รายงานเป็นบั๊กจริง แก้โดยรวมเป็น
+// ฟังก์ชันเดียว ไม่ให้คำนวณอิสระคนละชุดอีกต่อไป ที่นี่แค่เรียกแล้วประกอบข้อมูลแสดงผล (ชื่อ/ไลน์/badge ปักเอง)
+function _lotqueueBuildQueue() {
+  const planStartMap = _prodStatusPlanStartByMO(_lotqPlanAllData);
+  const lineMap = _prodStatusLineByMO(_lotqPlanAllData);
+  const todayStr = _planWeekLocalDateStr(new Date());
+
+  const schedule = computeLotQueueSchedule(_lotqMOData, planStartMap, _lotqBomCapByCode, _lotqStepOverrides);
+
+  // นับ MO ที่ active แต่เข้าคิวยิง Lot ไม่ได้ (ไม่มี BOM เลย / มี BOM+ต้องยิง Lot แต่ยังไม่มีแผนวันที่) แยกไว้
+  // เตือน — สินค้าที่ไม่มีขั้นยิง Lot เลย (CapacityLotPerDay=0) ก็ไม่มีใน schedule เหมือนกันแต่ไม่ต้องเตือน
+  let noCapCount = 0, noPlanCount = 0;
+  _lotqMOData.forEach(mo => {
+    const cap = _lotqBomCapByCode[mo.ProductCode];
+    if (!cap) { noCapCount++; return; }
+    if (!(parseFloat(cap.CapacityLotPerDay) || 0)) return;
+    if (!planStartMap[mo.MO_ID]) noPlanCount++;
+  });
+
+  const merged = _lotqMOData
+    .filter(mo => schedule[mo.MO_ID])
+    .map(mo => {
+      const s = schedule[mo.MO_ID];
+      return {
+        mo, qty: parseFloat(mo.OrderQty) || 0, line: lineMap[mo.MO_ID] || '',
+        readyDate: s.readyDate, readyHalf: s.readyHalf, lotDays: s.days, lotShifts: s.shifts,
+        schedStart: s.start, schedStartHalf: s.startHalf, schedEnd: s.end, schedEndHalf: s.endHalf,
+        manual: s.manual,
+        isCurrent: s.start <= todayStr && todayStr <= s.end,
+      };
+    })
+    .sort((a, b) => {
+      const sa = _shiftSlot(a.schedStart, a.schedStartHalf), sb = _shiftSlot(b.schedStart, b.schedStartHalf);
+      return sa < sb ? -1 : sa > sb ? 1 : 0;
+    });
+
+  // เช็คการทับกันระดับ "กะ" (ไม่ใช่แค่ระดับวัน) — งาน 2 ชิ้นปักคนละครึ่งของวันเดียวกันไม่ถือว่าทับกัน
+  let pinnedConflict = false;
+  const pinnedList = merged.filter(x => x.manual);
+  for (let i = 0; i < pinnedList.length - 1; i++) {
+    const endSlot = _shiftSlot(pinnedList[i].schedEnd, pinnedList[i].schedEndHalf);
+    const nextStartSlot = _shiftSlot(pinnedList[i + 1].schedStart, pinnedList[i + 1].schedStartHalf);
+    if (endSlot >= nextStartSlot) { pinnedConflict = true; break; }
+  }
+
+  _lotqQueue = merged;
+  _lotqNoCapCount = noCapCount;
+  _lotqNoPlanCount = noPlanCount;
+  _lotqPinnedConflict = pinnedConflict;
+}
+
+function _lotqueueRender() {
+  const running = _lotqQueue.find(x => x.isCurrent);
+  document.getElementById('lotqueue-kpi-total').textContent = _lotqQueue.length;
+  document.getElementById('lotqueue-kpi-running').textContent = running ? '1' : '0';
+  document.getElementById('lotqueue-kpi-waiting').textContent = _lotqQueue.length - (running ? 1 : 0);
+  document.getElementById('lotqueue-kpi-last').textContent = _lotqQueue.length
+    ? _shiftFmtSlotLabel(_lotqQueue[_lotqQueue.length - 1].schedEnd, _lotqQueue[_lotqQueue.length - 1].schedEndHalf)
+    : '—';
+
+  _lotqueueRenderWarnings();
+  _lotqueueRenderCurrentCard(running);
+  _lotqueueRenderGrid();
+  _lotqueueRenderQueueTable();
+}
+
+function _lotqueueRenderWarnings() {
+  const el = document.getElementById('lotqueue-warnings');
+  const msgs = [];
+  if (_lotqNoPlanCount) msgs.push(`${_lotqNoPlanCount} MO ยังไม่มีแผนวันที่ (แผนผลิต) จึงคำนวณคิวไม่ได้`);
+  if (_lotqNoCapCount) msgs.push(`${_lotqNoCapCount} MO ไม่มีข้อมูลกำลังผลิต (BOM)`);
+  if (_lotqPinnedConflict) msgs.push(`งานที่ปรับวันเองมีช่วงทับกันอยู่ — กรุณาปรับวันใหม่ให้ไม่ชนกัน`);
+  el.innerHTML = msgs.length
+    ? `<div class="alert alert-warning py-2 px-3 small mb-3"><i class="fas fa-triangle-exclamation me-1"></i>${msgs.join(' · ')}</div>`
+    : '';
+}
+
+function _lotqueueRenderCurrentCard(running) {
+  const el = document.getElementById('lotqueue-current-card');
+  if (!running) {
+    el.innerHTML = `<div class="text-center text-muted py-4"><i class="fas fa-mug-hot fa-2x mb-2 d-block"></i>วันนี้ห้องยิง Lot ว่าง — ยังไม่มีงานพร้อมเข้าคิว</div>`;
+    return;
+  }
+  const idx = _lotqQueue.indexOf(running);
+  const next = _lotqQueue[idx + 1];
+  el.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div>
+        <span class="badge bg-primary mb-2"><i class="fas fa-bolt me-1"></i>กำลังยิง Lot</span>
+        <div class="fw-bold fs-5">${running.mo.MO_ID} <span class="text-muted fw-normal">· LOT ${running.mo.LOT || '—'}</span></div>
+        <div class="text-muted">${running.mo.ProductName || ''} (${running.mo.ProductCode || ''})</div>
+        <div class="mt-1">
+          <span class="planweek-line-dot d-inline-block" style="background:${_planLineColor(running.line)}"></span>
+          <span class="small">${running.line || 'ไม่ทราบไลน์'} · จำนวน ${running.qty.toLocaleString()}</span>
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="small text-muted">กำหนดยิง Lot</div>
+        <div class="fw-bold">${_shiftFmtSlotLabel(running.schedStart, running.schedStartHalf)} – ${_shiftFmtSlotLabel(running.schedEnd, running.schedEndHalf)}</div>
+      </div>
+    </div>
+    ${next ? `<hr class="my-2"><div class="small text-muted">งานถัดไป: <b>${next.mo.MO_ID}</b> · ${next.mo.ProductName || ''} — เริ่ม ${_shiftFmtSlotLabel(next.schedStart, next.schedStartHalf)}</div>` : ''}
+  `;
+}
+
+// ── หน้าต่างวันของกริดลาก (14 วัน, เหมือน PROD_STATUS_GANTT_WINDOW_LEN ของหน้า Gantt) ──
+function lotqueueGanttShiftWindow(n) { _lotqGanttWindowStart = _ganttAddDays(_lotqGanttWindowStart, n); _lotqueueRenderGrid(); }
+function lotqueueGanttGoToday() { _lotqGanttWindowStart = _ganttAddDays(_planWeekLocalDateStr(new Date()), -3); _lotqueueRenderGrid(); }
+
+// วาดกริดลากปรับวัน — เพิ่ม 2026-08-26: ละเอียดถึงระดับ "กะ" (เช้า/บ่าย) ด้วยหัวตาราง 2 ชั้นและคอลัมน์ต่อกะ
+// เหมือน prodStatusRenderGantt เป๊ะ (ดูคอมเมนต์ที่นั่นสำหรับรายละเอียดเทคนิค) แต่มีแท่งเดียวต่อแถว (ไม่มีขยาย
+// ดู 3 ขั้นตอนย่อยแบบ Gantt เพราะหน้านี้สนใจแค่ขั้น "ยิง Lot" ขั้นเดียว) เรียงแถวตามลำดับคิวจริงใน _lotqQueue
+function _lotqueueRenderGrid() {
+  const days = Array.from({ length: PROD_STATUS_GANTT_WINDOW_LEN }, (_, i) => _ganttAddDays(_lotqGanttWindowStart, i));
+  const slots = [];
+  days.forEach(d => SHIFT_HALVES.forEach(h => slots.push(_shiftSlot(d, h))));
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const s0 = days[0].split('-'), s1 = days[days.length - 1].split('-');
+  const monthsTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  document.getElementById('lotqueue-gantt-range').textContent =
+    `${+s0[2]} ${monthsTh[+s0[1] - 1]} – ${+s1[2]} ${monthsTh[+s1[1] - 1]} ${+s1[0] + 543}`;
+
+  const gt = document.getElementById('lotqueue-gtable');
+  gt.style.gridTemplateColumns = `230px repeat(${slots.length}, minmax(26px,1fr))`;
+
+  let html = `<div class="g-corner"></div>`;
+  days.forEach((d, di) => {
+    const w = _ganttDow(d) === 0, t = d === todayStr;
+    const c = di * 2 + 2;
+    html += `<div class="g-daterow${w ? ' weekend' : ''}${t ? ' today' : ''}" style="grid-column:${c} / ${c + 2};grid-row:1">
+      <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
+  });
+  slots.forEach((slot, i) => {
+    const d = _shiftSlotDate(slot), half = _shiftSlotHalf(slot);
+    const w = _ganttDow(d) === 0, t = d === todayStr;
+    html += `<div class="g-daycell${w ? ' weekend' : ''}${t ? ' today' : ''}" style="grid-column:${i + 2};grid-row:2"><div class="half">${SHIFT_HALF_LABEL[half]}</div></div>`;
+  });
+
+  let row = 3;
+  if (!_lotqQueue.length) {
+    html += `<div class="g-nodata" style="grid-row:${row}">ไม่มีงานที่ต้องยิง Lot ในขณะนี้</div>`;
+    slots.forEach((slot, i) => { const d = _shiftSlotDate(slot); html += `<div class="g-bgcell${_ganttDow(d) === 0 ? ' weekend' : ''}${d === todayStr ? ' today' : ''}" style="grid-column:${i + 2};grid-row:${row}"></div>`; });
+  } else {
+    _lotqQueue.forEach((x, idx) => {
+      const color = _planLineColor(x.line);
+      html += `<div class="g-rowlabel" style="grid-row:${row};border-left-color:${color}">
+        <div><div class="g-mo">${idx + 1}. ${x.mo.MO_ID}${x.mo.LOT ? ` <span class="text-muted fw-normal">· Lot ${x.mo.LOT}</span>` : ''}</div>
+        <div class="g-prod">${x.mo.ProductName || ''} · ${x.qty.toLocaleString()}</div></div>
+      </div>`;
+      slots.forEach((slot, i) => { const d = _shiftSlotDate(slot); html += `<div class="g-bgcell${_ganttDow(d) === 0 ? ' weekend' : ''}${d === todayStr ? ' today' : ''}" style="grid-column:${i + 2};grid-row:${row}"></div>`; });
+
+      const xStartSlot = _shiftSlot(x.schedStart, x.schedStartHalf), xEndSlot = _shiftSlot(x.schedEnd, x.schedEndHalf);
+      if (!(xEndSlot < slots[0] || xStartSlot > slots[slots.length - 1])) {
+        let s = slots.indexOf(xStartSlot), e = slots.indexOf(xEndSlot);
+        if (s < 0) s = 0; if (e < 0) e = slots.length - 1;
+        html += `<div class="g-stepbar${x.manual ? ' pinned' : ''}${x.isCurrent ? ' running' : ''}" data-mo="${x.mo.MO_ID}"
+          style="grid-column:${s + 2} / ${e + 3};grid-row:${row};background:${color}">
+          ${x.mo.MO_ID} · ${x.lotShifts}กะ<span class="g-pencil">✎</span></div>`;
+      }
+      row++;
+    });
+  }
+
+  gt.innerHTML = html;
+  gt.querySelectorAll('.g-stepbar').forEach(el => {
+    el.addEventListener('pointerdown', ev => { ev.stopPropagation(); _lotqStepPointerDown(ev, el); });
+  });
+}
+
+// ── ลากแท่งเพื่อเลื่อนวันเริ่มยิง Lot — กลไกเดียวกับ _prodStatusStepPointerDown/Move/Up ของหน้า Gantt
+// (pointer events + translateX preview ระหว่างลาก, commit เป็น grid-column ใหม่ตอนโหลดข้อมูลใหม่หลังบันทึก)
+// เพิ่ม 2026-08-26: ละเอียดถึงระดับ "กะ" (เช้า/บ่าย) — halfWidth คือความกว้าง 1 คอลัมน์กะ (ไม่ใช่ 1 วัน)
+// floor = กะแรกที่บรรจุเสร็จจริงของงานนั้น (readySlot) เข้มกว่า floor ของหน้า Gantt เล็กน้อย (ที่นั่นใช้กะเริ่ม
+// ขั้นบรรจุ ไม่ใช่กะจบ) เพราะที่นี่คิวยิง Lot เป็นทรัพยากรเดียวรวมทุกไลน์ ปักไปก่อนบรรจุเสร็จจริงไม่ได้เลย
+let _lotqDrag = null;
+
+function _lotqStepPointerDown(ev, el) {
+  if (ev.button != null && ev.button !== 0) return;
+  const moId = el.dataset.mo;
+  const item = _lotqQueue.find(x => x.mo.MO_ID === moId);
+  if (!item) return;
+  const gt = document.getElementById('lotqueue-gtable');
+  const halfCell = gt.querySelector('.g-daycell');
+  if (!halfCell) return;
+  const halfWidth = halfCell.getBoundingClientRect().width;
+  const floorSlot = _shiftSlot(item.readyDate, item.readyHalf);
+  const originalSlot = _shiftSlot(item.schedStart, item.schedStartHalf);
+
+  _lotqDrag = { el, moId, startClientX: ev.clientX, halfWidth, originalSlot, floorSlot, moved: false, targetSlot: originalSlot };
+  document.addEventListener('pointermove', _lotqStepPointerMove);
+  document.addEventListener('pointerup', _lotqStepPointerUp, { once: true });
+}
+
+function _lotqStepPointerMove(ev) {
+  const d = _lotqDrag;
+  if (!d) return;
+  const dx = ev.clientX - d.startClientX;
+  if (!d.moved) {
+    if (Math.abs(dx) < 4) return;
+    d.moved = true;
+    d.el.classList.add('dragging');
+    _lotqClosePopover();
+  }
+  const halfDelta = Math.round(dx / d.halfWidth);
+  let target = _shiftAddRaw(d.originalSlot, halfDelta);
+  if (target < d.floorSlot) target = d.floorSlot;
+  d.targetSlot = target;
+  const visualDelta = _shiftRawHalvesBetween(d.originalSlot, target);
+  d.el.style.transform = `translateX(${visualDelta * d.halfWidth}px)`;
+  _lotqShowDragTooltip(d);
+}
+
+function _lotqStepPointerUp() {
+  document.removeEventListener('pointermove', _lotqStepPointerMove);
+  const d = _lotqDrag;
+  _lotqDrag = null;
+  if (!d) return;
+  d.el.classList.remove('dragging');
+  d.el.style.transform = '';
+  _lotqHideDragTooltip();
+  if (d.moved) {
+    if (d.targetSlot !== d.originalSlot) _lotqueueSaveOverride(d.moId, _shiftSlotDate(d.targetSlot), _shiftSlotHalf(d.targetSlot));
+  } else {
+    _lotqueueOpenPopover(d.el);
+  }
+}
+
+function _lotqShowDragTooltip(d) {
+  const card = document.getElementById('lotqueue-gantt-card');
+  let tip = document.getElementById('lotq-drag-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'lotq-drag-tooltip';
+    tip.className = 'g-drag-tooltip';
+    card.appendChild(tip);
+  }
+  const clamped = d.targetSlot === d.floorSlot;
+  tip.textContent = _shiftFmtSlotLabel(_shiftSlotDate(d.targetSlot), _shiftSlotHalf(d.targetSlot)) + (clamped ? ' (ห้ามเกินกะที่บรรจุเสร็จ)' : '');
+  const rect = d.el.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
+  tip.style.left = Math.max(0, rect.left - cardRect.left) + 'px';
+  tip.style.top = (rect.top - cardRect.top - 24) + 'px';
+  tip.style.display = 'block';
+}
+function _lotqHideDragTooltip() {
+  const tip = document.getElementById('lotq-drag-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+let _lotqPopoverEl = null;
+function _lotqClosePopover() { if (_lotqPopoverEl) { _lotqPopoverEl.remove(); _lotqPopoverEl = null; } }
+
+function _lotqueueOpenPopover(el) {
+  _lotqClosePopover();
+  const moId = el.dataset.mo;
+  const item = _lotqQueue.find(x => x.mo.MO_ID === moId);
+  if (!item) return;
+
+  const card = document.getElementById('lotqueue-gantt-card');
+  const rect = el.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
+
+  const pop = document.createElement('div');
+  pop.className = 'g-popover';
+  pop.style.top = (rect.bottom - cardRect.top + card.scrollTop + 6) + 'px';
+  pop.style.left = Math.max(4, Math.min(rect.left - cardRect.left, card.clientWidth - 236)) + 'px';
+  let selectedHalf = item.schedStartHalf === 'PM' ? 'PM' : 'AM';
+  pop.innerHTML = `
+    <h4>ปรับวันเริ่มยิง Lot</h4>
+    <label>${moId} — ใช้เวลา ${item.lotShifts} กะ (${item.lotDays} วัน, คำนวณจากกำลังผลิต)</label>
+    <input type="date" value="${item.schedStart}" min="${item.readyDate}" id="lotq-pop-date">
+    <div class="g-half-toggle" id="lotq-pop-half">
+      <button type="button" data-half="AM" class="${selectedHalf === 'AM' ? 'active' : ''}">เช้า</button>
+      <button type="button" data-half="PM" class="${selectedHalf === 'PM' ? 'active' : ''}">บ่าย</button>
+    </div>
+    <div class="row2">
+      <button type="button" id="lotq-pop-cancel">ยกเลิก</button>
+      <button type="button" class="save" id="lotq-pop-save">บันทึก</button>
+    </div>
+    <div class="cascade-note">งานอื่นที่ยังไม่เคยปรับเองจะเรียงคิวหลบช่วงนี้ให้อัตโนมัติ</div>
+    ${item.manual ? `<div class="reset-row"><button type="button" id="lotq-pop-reset">ล้างค่าที่ปรับเอง กลับไปเรียงคิวอัตโนมัติ</button></div>` : ''}
+  `;
+  card.appendChild(pop);
+  _lotqPopoverEl = pop;
+  pop.querySelectorAll('#lotq-pop-half button').forEach(b => {
+    b.onclick = () => { selectedHalf = b.dataset.half; pop.querySelectorAll('#lotq-pop-half button').forEach(x => x.classList.toggle('active', x === b)); };
+  });
+  pop.querySelector('#lotq-pop-cancel').onclick = _lotqClosePopover;
+  pop.querySelector('#lotq-pop-save').onclick = () => _lotqueueSaveOverride(moId, pop.querySelector('#lotq-pop-date').value, selectedHalf);
+  const resetBtn = pop.querySelector('#lotq-pop-reset');
+  if (resetBtn) resetBtn.onclick = () => _lotqueueResetOverride(moId);
+}
+document.addEventListener('click', e => {
+  if (_lotqPopoverEl && !_lotqPopoverEl.contains(e.target) && !e.target.closest('.g-stepbar[data-mo]')) _lotqClosePopover();
+});
+
+// บันทึก/ล้างค่าที่ปักเอง — เขียนตาราง production_plan_step_overrides ตัวเดียวกับหน้า Gantt (StepKey='Lot')
+// จึงทำให้แท่ง "ยิง Lot" ของ MO นี้ในหน้า Gantt เปลี่ยนตามอัตโนมัติในครั้งถัดไปที่โหลดหน้านั้น ไม่ต้องเขียน
+// โค้ด sync แยกอีกชุด — เหมือนกับที่ prodStatusSaveStepOverride/prodStatusResetStepOverride ทำกับขั้นอื่นๆ
+// half (เพิ่ม 2026-08-26, default 'AM') — เก็บว่าปักไว้ที่ครึ่งเช้าหรือบ่ายของวันนั้น
+async function _lotqueueSaveOverride(moId, dateStr, half = 'AM') {
+  if (!dateStr) return;
+  const slot = _shiftClampToWorkSlot(dateStr, half);
+  const finalDate = _shiftSlotDate(slot), finalHalf = _shiftSlotHalf(slot);
+  _showLoader();
+  const { error } = await _sb.from('production_plan_step_overrides')
+    .upsert({ MO_Ref: moId, StepKey: 'Lot', StartDate: finalDate, StartHalf: finalHalf }, { onConflict: 'MO_Ref,StepKey' });
+  _hideLoader();
+  if (error) { _err('บันทึกวันเริ่มไม่ได้', error.message); return; }
+  _lotqStepOverrides[moId + '|Lot'] = { date: finalDate, half: finalHalf };
+  _lotqClosePopover();
+  _lotqueueBuildQueue();
+  _lotqueueRender();
+}
+
+async function _lotqueueResetOverride(moId) {
+  _showLoader();
+  const { error } = await _sb.from('production_plan_step_overrides').delete().eq('MO_Ref', moId).eq('StepKey', 'Lot');
+  _hideLoader();
+  if (error) { _err('ล้างค่าที่ปรับเองไม่ได้', error.message); return; }
+  delete _lotqStepOverrides[moId + '|Lot'];
+  _lotqClosePopover();
+  _lotqueueBuildQueue();
+  _lotqueueRender();
+}
+
+function _lotqueueRenderQueueTable() {
+  const tbody = document.getElementById('lotqueue-tbody');
+  if (!_lotqQueue.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">ไม่มีงานที่ต้องยิง Lot ในขณะนี้</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _lotqQueue.map((x, i) => {
+    const badge = x.isCurrent ? `<span class="badge bg-primary">กำลังยิง Lot</span>` : `<span class="badge bg-secondary">รอคิว</span>`;
+    const pinBadge = x.manual
+      ? `<button type="button" class="badge bg-dark border-0" style="cursor:pointer" title="ปรับวันเอง — คลิกเพื่อล้างค่า กลับไปเรียงคิวอัตโนมัติ" onclick="_lotqueueResetOverride('${x.mo.MO_ID}')"><i class="fas fa-thumbtack me-1"></i>ปรับเอง</button>`
+      : '';
+    return `<tr class="${x.isCurrent ? 'table-primary' : ''}">
+      <td class="text-center">${i + 1}</td>
+      <td><b>${x.mo.MO_ID}</b><div class="small text-muted">LOT ${x.mo.LOT || '—'}</div></td>
+      <td>${x.mo.ProductName || ''}<div class="small text-muted">${x.mo.ProductCode || ''}</div></td>
+      <td><span class="planweek-line-dot d-inline-block" style="background:${_planLineColor(x.line)}"></span> ${x.line || '—'}</td>
+      <td class="text-end">${x.qty.toLocaleString()}</td>
+      <td>${_shiftFmtSlotLabel(x.schedStart, x.schedStartHalf)} – ${_shiftFmtSlotLabel(x.schedEnd, x.schedEndHalf)} ${pinBadge}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════
@@ -12679,7 +13259,9 @@ async function prodStatusLoadGanttExtras() {
   if (moIds.length) {
     const { data, error } = await _sb.from('production_plan_step_overrides').select('*').in('MO_Ref', moIds);
     if (error) { _err('โหลดค่าที่ปรับเองไม่ได้', error.message); }
-    else (data || []).forEach(r => { _prodStatusStepOverrides[r.MO_Ref + '|' + r.StepKey] = r.StartDate; });
+    // เก็บเป็น {date, half} เสมอ — r.StartHalf จะเป็น undefined ถ้ายังไม่ได้รัน
+    // alter_production_plan_step_overrides_add_starthalf.sql, ตกกลับเป็น 'AM' อัตโนมัติ (พฤติกรรมเดิม)
+    else (data || []).forEach(r => { _prodStatusStepOverrides[r.MO_Ref + '|' + r.StepKey] = { date: r.StartDate, half: r.StartHalf || 'AM' }; });
   }
   _prodStatusGanttExtrasLoaded = true;
 }
@@ -12695,29 +13277,205 @@ function _ganttAddWorkDays(start, days) {
   return d;
 }
 
+// ── ระบบ "กะ" เช้า/บ่าย (เพิ่ม 2026-08-26) — หน่วยคำนวณตารางขั้นตอนทั้ง 3 (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) ใน
+// nav-prodstatus + nav-lotqueue ละเอียดขึ้นจาก "วันทำงาน" เป็น "กะทำงาน" (วันทำงาน 1 วัน = 2 กะ เช้า+บ่าย)
+// ตามคำขอผู้ใช้ — Capacity ต่อวันเดิม (เช่น CapacityLotPerDay) แบ่งครึ่งเท่ากันสมมติเป็น Capacity ต่อกะ ไม่ได้
+// ตั้งกำลังผลิตแยกกะจริงใน BOM (ผู้ใช้ยืนยันแล้วว่าประมาณจากค่าเดิมพอ ไม่ต้องเพิ่มคอลัมน์ BOM ใหม่)
+//
+// เก็บ 1 "กะ" เป็น string `"yyyy-mm-dd:AM"`/`"yyyy-mm-dd:PM"` เทียบลำดับก่อน-หลังกันได้ตรงๆด้วย string
+// comparison ธรรมดา (AM < PM ตามตัวอักษร ส่วนวันที่เทียบถูกต้องอยู่แล้วเพราะ format ความยาวคงที่) — เหมือนที่
+// ทั้งไฟล์นี้เทียบวันที่แบบ string 'yyyy-mm-dd' กันอยู่แล้วทุกจุด ไม่ต้องแปลงเป็น Date object มาเทียบใหม่
+const SHIFT_HALVES = ['AM', 'PM'];
+const SHIFT_HALF_LABEL = { AM: 'เช้า', PM: 'บ่าย' };
+function _shiftSlot(dateStr, half) { return dateStr + ':' + (half === 'PM' ? 'PM' : 'AM'); }
+function _shiftSlotDate(slot) { return slot.slice(0, 10); }
+function _shiftSlotHalf(slot) { return slot.slice(11); }
+// กะเช้าแรกของวันทำงาน (ข้ามวันอาทิตย์ทั้งวัน) ที่ >= dateStr — ใช้แปลง planStart (วันเฉยๆ) ให้เป็นกะเริ่มต้น
+function _shiftFirstWorkSlot(dateStr) {
+  let d = dateStr;
+  while (_ganttDow(d) === 0) d = _ganttAddDays(d, 1);
+  return _shiftSlot(d, 'AM');
+}
+// กะทำงานถัดไปจาก slot ที่ให้มา (เช้า→บ่ายวันเดียวกัน, บ่าย→เช้าวันทำงานถัดไป ข้ามอาทิตย์ทั้งวัน)
+function _shiftNextWorkSlot(slot) {
+  const d = _shiftSlotDate(slot), half = _shiftSlotHalf(slot);
+  if (half === 'AM') return _shiftSlot(d, 'PM');
+  let nd = _ganttAddDays(d, 1);
+  while (_ganttDow(nd) === 0) nd = _ganttAddDays(nd, 1);
+  return _shiftSlot(nd, 'AM');
+}
+// เดิน n กะทำงานถัดจาก startSlot (รวม startSlot เป็นกะแรก, n=1 คือ slot เดิม) — คู่กับ _ganttAddWorkDays เดิม
+function _shiftAddWorkSlots(startSlot, n) {
+  let s = startSlot;
+  for (let i = 1; i < n; i++) s = _shiftNextWorkSlot(s);
+  return s;
+}
+// ปัดวันที่+ครึ่งที่ผู้ใช้เลือกเอง (จาก popover/ลาก) ให้ตกกะทำงานจริงเสมอ — กันเลือกวันอาทิตย์หลุดมา
+function _shiftClampToWorkSlot(dateStr, half) {
+  if (_ganttDow(dateStr) === 0) return _shiftFirstWorkSlot(_ganttAddDays(dateStr, 1));
+  return _shiftSlot(dateStr, half);
+}
+// ค่าที่เก็บใน overridesMap เดิมเป็น string วันที่เฉยๆ (ยุคก่อนมีกะ, เช่นจาก Edge Function ของรายงานสาธารณะ
+// ที่ยังไม่รู้จักคอลัมน์ StartHalf) — แปลงให้เป็นรูปแบบ {date, half} เดียวกันเสมอ ไม่ว่าจะมาจากยุคไหนก็ตาม
+function _shiftNormalizeOverride(v) {
+  if (!v) return null;
+  return typeof v === 'string' ? { date: v, half: 'AM' } : v;
+}
+// รูปแบบวันที่+กะสำหรับแสดงผล เช่น "26/08 เช้า"
+function _shiftFmtSlotLabel(dateStr, half) {
+  return _fmtDate(dateStr).slice(0, 5) + ' ' + SHIFT_HALF_LABEL[half === 'PM' ? 'PM' : 'AM'];
+}
+// เลื่อน slot ไป n "ครึ่งวัน" แบบดิบ (ไม่ข้ามวันอาทิตย์ — ใช้ตอนพรีวิวระหว่างลากเท่านั้น เหมือน _ganttAddDays
+// เดิมที่ก็ไม่ข้ามอาทิตย์เหมือนกัน ค่อยไปข้ามวันอาทิตย์ตอน commit ผ่าน _shiftClampToWorkSlot)
+function _shiftAddRaw(slot, n) {
+  const d = _shiftSlotDate(slot), half = _shiftSlotHalf(slot);
+  const dayDelta = Math.floor(n / 2);
+  const rem = n - dayDelta * 2; // 0 หรือ 1 เสมอ (Math.floor จัดการเครื่องหมายลบให้ถูกต้องแล้ว)
+  let newDate = _ganttAddDays(d, dayDelta), newHalf = half;
+  if (rem === 1) {
+    if (half === 'AM') newHalf = 'PM';
+    else { newDate = _ganttAddDays(newDate, 1); newHalf = 'AM'; }
+  }
+  return _shiftSlot(newDate, newHalf);
+}
+// จำนวน "ครึ่งวัน" ระหว่าง 2 slot แบบดิบ (คู่กับ _shiftAddRaw ด้านบน — ใช้คำนวณ pixel offset ตอนลากเท่านั้น)
+function _shiftRawHalvesBetween(a, b) {
+  const dayDiff = _ganttDaysBetween(_shiftSlotDate(a), _shiftSlotDate(b));
+  const halfDiff = (_shiftSlotHalf(b) === 'PM' ? 1 : 0) - (_shiftSlotHalf(a) === 'PM' ? 1 : 0);
+  return dayDiff * 2 + halfDiff;
+}
+
 // คำนวณตารางขั้นตอนของ MO หนึ่งตัว — ไล่ต่อกันตามลำดับ ข้ามขั้นที่ไม่มีข้อมูลกำลังผลิตของสินค้านั้น
 // ขั้นที่เคยถูกปรับเอง (มีใน overrides) จะ "ปัก" วันเริ่มไว้ตายตัว ขั้นถัดไปที่ยังไม่เคยปรับจะขยับตามให้อัตโนมัติ
 // capMap/overridesMap รับพารามิเตอร์ได้ (default = state ของหน้า nav-prodstatus เอง) — เพิ่มเข้ามาเพื่อให้
 // รายงานสาธารณะ (_pubGanttBuildSection) เรียกใช้ฟังก์ชันเดียวกันนี้ได้โดยส่ง map ของตัวเองเข้ามาแทน ไม่ต้อง
 // คำนวณ logic ซ้ำอีกชุด — หน้า nav-prodstatus เดิมไม่ต้องเปลี่ยนอะไร เพราะ default ตรงกับพฤติกรรมเดิมทุกจุด
-function prodStatusComputeMOSteps(mo, planStart, capMap = _prodStatusBomCapByCode, overridesMap = _prodStatusStepOverrides) {
+// lotQueueMap (เพิ่ม 2026-08-26, optional, default null = พฤติกรรมเดิม 100% สำหรับทุกจุดที่เรียกแบบเดิม)
+// — เมื่อส่งเข้ามา (จาก prodStatusRenderGantt/_prodStatusGanttGetStep เท่านั้น) จะใช้ตำแหน่งขั้น "ยิง Lot"
+// จาก computeLotQueueSchedule() แทนการคำนวณอิสระแบบต่างไลน์ขนานกันแบบเดิม เพื่อให้แท่ง "ยิง Lot" ในหน้านี้
+// ตรงกับคิวจริงที่หน้า nav-lotqueue จำลองไว้ (รวมถึงงานที่ถูกเบียดออกไปเพราะงานอื่นถูกปักคิวแซงหน้า) — ขั้น
+// ถัดไป (ตรวจสอบ-แพ็ค) ยัง cascade ต่อจาก cursor ตามปกติ ไม่ต้องแก้ตรงนั้นเพิ่ม เพราะ cursor รับค่า end ของ
+// ขั้นก่อนหน้ามาตรงๆอยู่แล้วไม่ว่า end นั้นจะมาจากไหน
+// เพิ่ม 2026-08-26: คำนวณเป็น "กะ" (เช้า/บ่าย) แทนวันเต็ม ด้วยระบบ shift-slot ด้านบน — Capacity ต่อวันเดิม
+// แบ่งครึ่งเป็น Capacity ต่อกะ (halfRate) แทนคำนวณเป็นวันเต็มแบบเดิม คืนค่าเพิ่ม startHalf/endHalf/shifts
+// (ใหม่) ควบคู่กับ start/end/days (คงชื่อ/ความหมายเดิมไว้ — days ตอนนี้เป็นทศนิยมได้ เช่น 1.5 วัน — เพื่อไม่ให้
+// จุดเรียกเก่าที่ไม่รู้จักกะ เช่น รายงานสาธารณะ _pubGanttBuildSection ซึ่งยังส่ง overridesMap แบบ string วันที่
+// เฉยๆ ต้องแก้โค้ดตาม — _shiftNormalizeOverride() ด้านบนรองรับทั้ง 2 รูปแบบให้อัตโนมัติ)
+function prodStatusComputeMOSteps(mo, planStart, capMap = _prodStatusBomCapByCode, overridesMap = _prodStatusStepOverrides, lotQueueMap = null) {
   const cap = capMap[mo.ProductCode];
   if (!cap || !planStart) return [];
   const qty = parseFloat(mo.OrderQty) || 0;
-  let cursor = _ganttNextWorkDay(planStart);
+  let cursor = _shiftFirstWorkSlot(planStart);
   const out = [];
   PROD_STEP_DEFS.forEach(def => {
     const rate = parseFloat(cap[def.capField]) || 0;
     if (!rate) return; // ไม่มีข้อมูลกำลังผลิตของขั้นนี้ ข้ามไป ไม่แสดงเป็นแท่ง
-    const overrideKey = mo.MO_ID + '|' + def.key;
-    const manual = overridesMap[overrideKey];
-    const start = _ganttNextWorkDay(manual || cursor);
-    const days = Math.max(1, Math.ceil(qty / rate));
-    const end = _ganttAddWorkDays(start, days);
-    cursor = _ganttNextWorkDay(_ganttAddDays(end, 1));
-    out.push({ ...def, start, end, days, manual: !!manual });
+    if (def.key === 'Lot' && lotQueueMap && lotQueueMap[mo.MO_ID]) {
+      const q = lotQueueMap[mo.MO_ID];
+      cursor = _shiftNextWorkSlot(_shiftSlot(q.end, q.endHalf));
+      out.push({ ...def, start: q.start, startHalf: q.startHalf, end: q.end, endHalf: q.endHalf, days: q.shifts / 2, shifts: q.shifts, manual: q.manual });
+      return;
+    }
+    const manual = _shiftNormalizeOverride(overridesMap[mo.MO_ID + '|' + def.key]);
+    const startSlot = manual ? _shiftClampToWorkSlot(manual.date, manual.half) : cursor;
+    const halfRate = rate / 2;
+    const shifts = Math.max(1, Math.ceil(qty / halfRate));
+    const endSlot = _shiftAddWorkSlots(startSlot, shifts);
+    cursor = _shiftNextWorkSlot(endSlot);
+    out.push({
+      ...def,
+      start: _shiftSlotDate(startSlot), startHalf: _shiftSlotHalf(startSlot),
+      end: _shiftSlotDate(endSlot), endHalf: _shiftSlotHalf(endSlot),
+      days: shifts / 2, shifts, manual: !!manual,
+    });
   });
   return out;
+}
+
+// คำนวณคิว "ยิง Lot" แบบทรัพยากรเดียวรวมทุกไลน์ (ใช้ร่วมกันโดยหน้า nav-lotqueue และแท่ง "ยิง Lot" ของหน้านี้
+// เอง ผ่าน lotQueueMap ด้านบน) — สร้างแยกเป็นฟังก์ชันกลาง ไม่ผูกกับ module state ของหน้าใดหน้าหนึ่ง (รับ
+// moList/planStartMap/capMap/overridesMap ตรงๆ) เพื่อให้ทั้ง 2 หน้าเห็นคิวเดียวกันเป๊ะ — ก่อนหน้านี้หน้านี้
+// (Gantt) คำนวณขั้น "ยิง Lot" อิสระต่อ MO (ต่างไลน์ขนานกัน ไม่รู้เรื่องคิว) ทำให้เมื่อ nav-lotqueue เลื่อนงาน
+// ที่ถูกเบียดออกไปเพราะมีงานอื่นถูกปักคิวแซงหน้า หน้า Gantt ไม่เห็นการเลื่อนของงานที่ถูกเบียดนั้นเลย (เห็นแค่
+// งานที่ถูกปักเองโดยตรง เพราะงานนั้นอย่างเดียวถูกเขียนเป็น override จริง) — ผู้ใช้รายงานเป็นบั๊กจริง แก้โดย
+// ให้ทั้ง 2 หน้าเรียกใช้ตรรกะเดียวกันนี้แทนที่จะคำนวณอิสระคนละชุด คืนค่าเป็น { MO_ID: {start,end,days,manual,
+// readyDate} } เฉพาะ MO ที่ต้องผ่านขั้นยิง Lot จริง (มี CapacityLotPerDay > 0 และมีวันที่แผนแล้ว)
+// เพิ่ม 2026-08-26: คำนวณเป็น "กะ" (เช้า/บ่าย) แทนวันเต็ม — readySlot/schedStartSlot/schedEndSlot ทุกตัวเป็น
+// shift-slot (ดูระบบด้านบน) แทนวันที่เฉยๆ คืนค่า map เพิ่ม startHalf/endHalf/shifts/readyHalf ควบคู่กับ
+// start/end/days/manual/readyDate เดิม (ให้ prodStatusComputeMOSteps's Lot-branch อ่านได้ตรงๆ)
+function computeLotQueueSchedule(moList, planStartMap, capMap, overridesMap) {
+  const todaySlot = _shiftFirstWorkSlot(_planWeekLocalDateStr(new Date()));
+  const ready = [];
+  moList.forEach(mo => {
+    const cap = capMap[mo.ProductCode];
+    if (!cap) return;
+    const lotRate = parseFloat(cap.CapacityLotPerDay) || 0;
+    if (!lotRate) return; // สินค้านี้ไม่มีขั้นตอนยิง Lot เลย ไม่ต้องเข้าคิวสถานีนี้
+    const planStart = planStartMap[mo.MO_ID];
+    if (!planStart) return;
+
+    // reuse ฟังก์ชันเดิมเพื่อหาว่าขั้น "บรรจุ" เสร็จกะไหน (=พร้อมเข้าคิวยิง Lot) — ไม่ส่ง lotQueueMap เข้าไป
+    // (ไม่เกี่ยวกับขั้น Fill อยู่แล้ว) เลี่ยงเรียกซ้อนตัวเองไม่จบด้วย
+    const steps = prodStatusComputeMOSteps(mo, planStart, capMap, overridesMap);
+    const fillStep = steps.find(s => s.key === 'Fill');
+    const readySlot = fillStep ? _shiftNextWorkSlot(_shiftSlot(fillStep.end, fillStep.endHalf)) : _shiftFirstWorkSlot(planStart);
+    const qty = parseFloat(mo.OrderQty) || 0;
+    const halfRate = lotRate / 2;
+    const lotShifts = Math.max(1, Math.ceil(qty / halfRate));
+    const manual = _shiftNormalizeOverride(overridesMap[mo.MO_ID + '|Lot']);
+    const manualSlot = manual ? _shiftClampToWorkSlot(manual.date, manual.half) : null;
+    ready.push({ mo, readySlot, lotShifts, manual: !!manual, manualSlot });
+  });
+
+  const pinned = [], autoItems = [];
+  ready.forEach(item => {
+    if (item.manual) {
+      // ห้ามปักก่อนกะที่บรรจุเสร็จจริงของงานนั้น (ป้องกันข้อมูลเก่าที่ readySlot ขยับมาทีหลังจนกะปักผิดพลาด)
+      item.schedStartSlot = item.manualSlot < item.readySlot ? item.readySlot : item.manualSlot;
+      item.schedEndSlot = _shiftAddWorkSlots(item.schedStartSlot, item.lotShifts);
+      pinned.push(item);
+    } else {
+      autoItems.push(item);
+    }
+  });
+  pinned.sort((a, b) => a.schedStartSlot < b.schedStartSlot ? -1 : a.schedStartSlot > b.schedStartSlot ? 1 : 0);
+  autoItems.sort((a, b) => {
+    if (a.readySlot !== b.readySlot) return a.readySlot < b.readySlot ? -1 : 1;
+    const da = a.mo.DeliveryDate || '9999-99-99', db = b.mo.DeliveryDate || '9999-99-99';
+    if (da !== db) return da < db ? -1 : 1;
+    return String(a.mo.MO_ID || '').localeCompare(String(b.mo.MO_ID || ''));
+  });
+
+  // หากะว่างถัดไปตั้งแต่ floorSlot เป็นต้นไป ยาว shifts กะทำงาน โดยไม่ทับช่วงที่ถูกปักไว้แม้แต่กะเดียว
+  function placeAvoidingPinned(floorSlot, shifts) {
+    let start = floorSlot;
+    for (;;) {
+      const end = _shiftAddWorkSlots(start, shifts);
+      const conflict = pinned.find(p => !(end < p.schedStartSlot || start > p.schedEndSlot));
+      if (!conflict) return { start, end };
+      start = _shiftNextWorkSlot(conflict.schedEndSlot);
+    }
+  }
+
+  let cursor = todaySlot;
+  autoItems.forEach(item => {
+    const floor = cursor > item.readySlot ? cursor : item.readySlot;
+    const { start, end } = placeAvoidingPinned(floor, item.lotShifts);
+    item.schedStartSlot = start;
+    item.schedEndSlot = end;
+    cursor = _shiftNextWorkSlot(end);
+  });
+
+  const map = {};
+  pinned.concat(autoItems).forEach(x => {
+    map[x.mo.MO_ID] = {
+      start: _shiftSlotDate(x.schedStartSlot), startHalf: _shiftSlotHalf(x.schedStartSlot),
+      end: _shiftSlotDate(x.schedEndSlot), endHalf: _shiftSlotHalf(x.schedEndSlot),
+      days: x.lotShifts / 2, shifts: x.lotShifts, manual: x.manual,
+      readyDate: _shiftSlotDate(x.readySlot), readyHalf: _shiftSlotHalf(x.readySlot),
+    };
+  });
+  return map;
 }
 
 function prodStatusGanttShiftWindow(n) { _prodStatusGanttWindowStart = _ganttAddDays(_prodStatusGanttWindowStart, n); prodStatusRenderGantt(); }
@@ -12744,8 +13502,15 @@ function _prodStatusLineByMO(planRows = _prodStatusPlanAllData) {
   return map;
 }
 
+// เพิ่ม 2026-08-26: กริดละเอียดถึงระดับ "กะ" (เช้า/บ่าย) — แทนที่คอลัมน์ต่อวัน (14 คอลัมน์) ด้วยคอลัมน์ต่อกะ
+// (28 คอลัมน์ = 14 วัน×2 กะ) แต่ยังใช้เทคนิค CSS Grid line-number เดิมทุกจุด (grid-column: start/end แบบ
+// จำนวนเต็ม ไม่ใช่ pixel-based) มีหัวตาราง 2 ชั้น: แถวบน (.g-daterow) โชว์วันที่ ครอบ 2 คอลัมน์กะของวันนั้น
+// (เทคนิคเดียวกับ .g-monthhead ของรายงานสาธารณะที่ครอบหลายคอลัมน์วัน), แถวล่าง (.g-daycell) โชว์ป้ายเช้า/บ่าย
+// ทีละคอลัมน์ — ทำให้ label แถว MO (row=3 เป็นต้นไป แต่เดิม row=2) ต้องขยับลง 1 แถวเพราะมีหัวตารางเพิ่มมา 1 ชั้น
 function prodStatusRenderGantt() {
   const days = Array.from({ length: PROD_STATUS_GANTT_WINDOW_LEN }, (_, i) => _ganttAddDays(_prodStatusGanttWindowStart, i));
+  const slots = [];
+  days.forEach(d => SHIFT_HALVES.forEach(h => slots.push(_shiftSlot(d, h))));
   const todayStr = _planWeekLocalDateStr(new Date());
   const s0 = days[0].split('-'), s1 = days[days.length - 1].split('-');
   const monthsTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -12761,52 +13526,68 @@ function prodStatusRenderGantt() {
 
   const planStartByMO = _prodStatusPlanStartByMO();
   const lineByMO = _prodStatusLineByMO();
+  // คิว "ยิง Lot" แบบทรัพยากรเดียวรวมทุกไลน์ (คำนวณครั้งเดียวจาก MO ที่ active ทั้งหมด ไม่ใช่แค่ไลน์เดียว) —
+  // ให้แท่ง "ยิง Lot" ของทุก MO ในหน้านี้ตรงกับคิวจริงที่หน้า nav-lotqueue จำลองไว้ รวมถึงงานที่ถูกเบียดออกไป
+  // เพราะมีงานอื่นถูกปักคิวแซงหน้า ดูรายละเอียดที่คอมเมนต์ของ computeLotQueueSchedule เอง
+  const lotQueueMap = computeLotQueueSchedule(_prodStatusMOData, planStartByMO, _prodStatusBomCapByCode, _prodStatusStepOverrides);
 
   const gt = document.getElementById('prodstatus-gtable');
-  gt.style.gridTemplateColumns = `230px repeat(${days.length}, minmax(46px,1fr))`;
+  gt.style.gridTemplateColumns = `230px repeat(${slots.length}, minmax(26px,1fr))`;
 
   let html = `<div class="g-corner"></div>`;
-  days.forEach((d, i) => {
+  days.forEach((d, di) => {
     const w = _ganttDow(d) === 0, t = d === todayStr;
-    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:1">
+    const c = di * 2 + 2;
+    html += `<div class="g-daterow${w?' weekend':''}${t?' today':''}" style="grid-column:${c} / ${c+2};grid-row:1">
       <div class="dow">${_planWeekDowThai[_ganttDow(d)]}</div><div class="dnum">${+d.split('-')[2]}</div></div>`;
   });
+  slots.forEach((slot, i) => {
+    const d = _shiftSlotDate(slot), half = _shiftSlotHalf(slot);
+    const w = _ganttDow(d) === 0, t = d === todayStr;
+    html += `<div class="g-daycell${w?' weekend':''}${t?' today':''}" style="grid-column:${i+2};grid-row:2"><div class="half">${SHIFT_HALF_LABEL[half]}</div></div>`;
+  });
 
-  let row = 2;
+  let row = 3;
   PLAN_LINES.forEach(line => {
     const rows = _prodStatusMOData.filter(m => lineByMO[m.MO_ID] === line && planStartByMO[m.MO_ID]);
     if (!rows.length) return;
     const color = _planLineColor(line);
     html += `<div class="g-linehead" style="grid-row:${row};background:${color}"><span>${line}</span><span class="cnt">${rows.length} MO</span></div>`;
-    days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+    slots.forEach((slot, i) => { const d = _shiftSlotDate(slot); html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
     row++;
 
     rows.forEach(m => {
       const planStart = planStartByMO[m.MO_ID];
-      const steps = prodStatusComputeMOSteps(m, planStart);
+      const steps = prodStatusComputeMOSteps(m, planStart, undefined, undefined, lotQueueMap);
       const isOpen = _prodStatusGanttOpenMO.has(m.MO_ID);
 
       html += `<div class="g-rowlabel${isOpen?' open':''}" data-mo="${m.MO_ID}" style="grid-row:${row};border-left-color:${color}">
         <span class="chev">▶</span>
         <div><div class="g-mo">${m.MO_ID}${m.LOT ? ` <span class="text-muted fw-normal">· Lot ${m.LOT}</span>` : ''}</div><div class="g-prod">${m.ProductName||''} · ${(parseFloat(m.OrderQty)||0).toLocaleString()} ${m.UOM||''}</div></div>
       </div>`;
-      days.forEach((d, i) => { html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+      slots.forEach((slot, i) => { const d = _shiftSlotDate(slot); html += `<div class="g-bgcell${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
 
       if (!steps.length) {
         // ไม่มีข้อมูลกำลังผลิตของสินค้านี้ใน BOM เลย — แสดงแท่งเดียวใช้ช่วงวันที่จาก production_plan จริงแทน
+        // (เต็มวัน เช้าถึงบ่าย เพราะไม่มีข้อมูลกำลังผลิตให้คำนวณละเอียดกว่านี้)
         const moDates = _prodStatusPlanAllData.filter(r => r.MO_Ref === m.MO_ID).map(r => r.PlanDate).sort();
-        if (moDates.length && !(moDates[moDates.length-1] < days[0] || moDates[0] > days[days.length-1])) {
-          let s = days.indexOf(moDates[0]), e = days.indexOf(moDates[moDates.length-1]);
-          if (s < 0) s = 0; if (e < 0) e = days.length - 1;
-          html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+        if (moDates.length) {
+          const startSlot = _shiftSlot(moDates[0], 'AM'), endSlot = _shiftSlot(moDates[moDates.length-1], 'PM');
+          if (!(endSlot < slots[0] || startSlot > slots[slots.length-1])) {
+            let s = slots.indexOf(startSlot), e = slots.indexOf(endSlot);
+            if (s < 0) s = 0; if (e < 0) e = slots.length - 1;
+            html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">ไม่มีข้อมูลกำลังผลิต (BOM)</div>`;
+          }
         }
       } else if (!isOpen) {
-        const totalStart = steps[0].start, totalEnd = steps[steps.length-1].end;
-        if (!(totalEnd < days[0] || totalStart > days[days.length-1])) {
-          let s = days.indexOf(totalStart), e = days.indexOf(totalEnd);
-          if (s < 0) s = 0; if (e < 0) e = days.length - 1;
+        const totalStartSlot = _shiftSlot(steps[0].start, steps[0].startHalf);
+        const totalEndSlot = _shiftSlot(steps[steps.length-1].end, steps[steps.length-1].endHalf);
+        if (!(totalEndSlot < slots[0] || totalStartSlot > slots[slots.length-1])) {
+          let s = slots.indexOf(totalStartSlot), e = slots.indexOf(totalEndSlot);
+          if (s < 0) s = 0; if (e < 0) e = slots.length - 1;
+          const totalDays = steps.reduce((a,s)=>a+s.days,0);
           html += `<div class="g-bar" style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color}">
-            รวม ${steps.reduce((a,s)=>a+s.days,0)} วัน · ${steps.length} ขั้นตอน</div>`;
+            รวม ${totalDays} วัน · ${steps.length} ขั้นตอน</div>`;
         }
       }
       row++;
@@ -12814,14 +13595,15 @@ function prodStatusRenderGantt() {
       if (isOpen) {
         steps.forEach((st, si) => {
           html += `<div class="g-steplabel" style="grid-row:${row}"><span class="stepord">${si+1}</span>${st.label}</div>`;
-          days.forEach((d, i) => { html += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
-          if (!(st.end < days[0] || st.start > days[days.length-1])) {
-            let s = days.indexOf(st.start), e = days.indexOf(st.end);
-            if (s < 0) s = 0; if (e < 0) e = days.length - 1;
+          slots.forEach((slot, i) => { const d = _shiftSlotDate(slot); html += `<div class="g-bgcell stepbg${_ganttDow(d)===0?' weekend':''}${d===todayStr?' today':''}" style="grid-column:${i+2};grid-row:${row}"></div>`; });
+          const stStartSlot = _shiftSlot(st.start, st.startHalf), stEndSlot = _shiftSlot(st.end, st.endHalf);
+          if (!(stEndSlot < slots[0] || stStartSlot > slots[slots.length-1])) {
+            let s = slots.indexOf(stStartSlot), e = slots.indexOf(stEndSlot);
+            if (s < 0) s = 0; if (e < 0) e = slots.length - 1;
             const shade = (0.55 + si / Math.max(1, steps.length - 1) * 0.45).toFixed(2);
             html += `<div class="g-stepbar${st.manual?' pinned':''}" data-mo="${m.MO_ID}" data-key="${st.key}"
               style="grid-column:${s+2} / ${e+3};grid-row:${row};background:${color};opacity:${shade}">
-              ${st.label} · ${st.days}ว.<span class="g-pencil">✎</span></div>`;
+              ${st.label} · ${st.shifts}กะ<span class="g-pencil">✎</span></div>`;
           }
           row++;
         });
@@ -12848,8 +13630,12 @@ function prodStatusRenderGantt() {
 // ไม่ cache เพราะ overrides อาจเพิ่งเปลี่ยนจากการลากแท่งอื่นในแถวเดียวกัน (ขั้นถัดไปขยับตามอัตโนมัติ)
 function _prodStatusGanttGetStep(moId, stepKey) {
   const m = _prodStatusMOData.find(x => x.MO_ID === moId);
-  const planStart = _prodStatusPlanStartByMO()[moId];
-  const steps = prodStatusComputeMOSteps(m, planStart);
+  const planStartMap = _prodStatusPlanStartByMO();
+  const planStart = planStartMap[moId];
+  // ส่ง lotQueueMap เข้าไปด้วยเสมอ (เหตุผลเดียวกับ prodStatusRenderGantt) เพื่อให้ค่า originalStart ที่ใช้คำนวณ
+  // ระยะลาก (และ floor ของขั้นถัดจาก Lot) ตรงกับตำแหน่งจริงที่กำลังแสดงบนจอ ไม่งั้นลากแล้วจะกระโดดผิดตำแหน่ง
+  const lotQueueMap = computeLotQueueSchedule(_prodStatusMOData, planStartMap, _prodStatusBomCapByCode, _prodStatusStepOverrides);
+  const steps = prodStatusComputeMOSteps(m, planStart, undefined, undefined, lotQueueMap);
   const st = steps.find(s => s.key === stepKey);
   return { m, planStart, steps, st };
 }
@@ -12860,19 +13646,23 @@ function _prodStatusGanttGetStep(moId, stepKey) {
 // (จะปรับเองหรือคำนวณอัตโนมัติก็ตาม) — เพราะบรรจุต้องเกิดขึ้นก่อนเสมอตามลำดับงานจริง
 let _prodStatusDrag = null;
 
+// เพิ่ม 2026-08-26: ลากละเอียดถึงระดับ "กะ" (เช้า/บ่าย) — dayWidth เดิมกลายเป็น halfWidth (ความกว้าง 1
+// คอลัมน์กะ, ตอนนี้กริดแยกคอลัมน์ต่อกะแล้ว ไม่ใช่ต่อวัน ดู prodStatusRenderGantt) originalStart/target
+// เดิม (เป็นวันเฉยๆ) กลายเป็น slot (`yyyy-mm-dd:AM/PM`)
 function _prodStatusStepPointerDown(ev, el) {
   if (ev.button != null && ev.button !== 0) return; // ปุ่มซ้ายเท่านั้น
   const moId = el.dataset.mo, stepKey = el.dataset.key;
   const { steps, st } = _prodStatusGanttGetStep(moId, stepKey);
   if (!st) return;
   const gt = document.getElementById('prodstatus-gtable');
-  const dayCell = gt.querySelector('.g-daycell');
-  if (!dayCell) return;
-  const dayWidth = dayCell.getBoundingClientRect().width;
+  const halfCell = gt.querySelector('.g-daycell');
+  if (!halfCell) return;
+  const halfWidth = halfCell.getBoundingClientRect().width;
   const planStart = _prodStatusPlanStartByMO()[moId];
-  const floor = (stepKey === steps[0].key) ? _ganttNextWorkDay(planStart) : steps[0].start;
+  const floorSlot = (stepKey === steps[0].key) ? _shiftFirstWorkSlot(planStart) : _shiftSlot(steps[0].start, steps[0].startHalf);
+  const originalSlot = _shiftSlot(st.start, st.startHalf);
 
-  _prodStatusDrag = { el, moId, stepKey, startClientX: ev.clientX, dayWidth, originalStart: st.start, floor, moved: false, targetStart: st.start };
+  _prodStatusDrag = { el, moId, stepKey, startClientX: ev.clientX, halfWidth, originalSlot, floorSlot, moved: false, targetSlot: originalSlot };
   document.addEventListener('pointermove', _prodStatusStepPointerMove);
   document.addEventListener('pointerup', _prodStatusStepPointerUp, { once: true });
 }
@@ -12887,12 +13677,12 @@ function _prodStatusStepPointerMove(ev) {
     d.el.classList.add('dragging');
     _prodStatusGanttClosePopover();
   }
-  const dayDelta = Math.round(dx / d.dayWidth);
-  let target = _ganttAddDays(d.originalStart, dayDelta);
-  if (target < d.floor) target = d.floor;
-  d.targetStart = target;
-  const visualDelta = _ganttDaysBetween(d.originalStart, target);
-  d.el.style.transform = `translateX(${visualDelta * d.dayWidth}px)`;
+  const halfDelta = Math.round(dx / d.halfWidth);
+  let target = _shiftAddRaw(d.originalSlot, halfDelta);
+  if (target < d.floorSlot) target = d.floorSlot;
+  d.targetSlot = target;
+  const visualDelta = _shiftRawHalvesBetween(d.originalSlot, target);
+  d.el.style.transform = `translateX(${visualDelta * d.halfWidth}px)`;
   _prodStatusShowDragTooltip(d);
 }
 
@@ -12905,7 +13695,7 @@ function _prodStatusStepPointerUp() {
   d.el.style.transform = '';
   _prodStatusHideDragTooltip();
   if (d.moved) {
-    if (d.targetStart !== d.originalStart) prodStatusSaveStepOverride(d.moId, d.stepKey, d.targetStart);
+    if (d.targetSlot !== d.originalSlot) prodStatusSaveStepOverride(d.moId, d.stepKey, _shiftSlotDate(d.targetSlot), _shiftSlotHalf(d.targetSlot));
   } else {
     prodStatusOpenStepPopover(d.el);
   }
@@ -12920,8 +13710,8 @@ function _prodStatusShowDragTooltip(d) {
     tip.className = 'g-drag-tooltip';
     card.appendChild(tip);
   }
-  const clamped = d.targetStart === d.floor;
-  tip.textContent = _planFmtDateLabel(d.targetStart) + (clamped ? ' (ห้ามเกินวันแรกที่บรรจุ)' : '');
+  const clamped = d.targetSlot === d.floorSlot;
+  tip.textContent = _shiftFmtSlotLabel(_shiftSlotDate(d.targetSlot), _shiftSlotHalf(d.targetSlot)) + (clamped ? ' (ห้ามเกินช่วงแรกที่บรรจุ)' : '');
   const rect = d.el.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
   tip.style.left = Math.max(0, rect.left - cardRect.left) + 'px';
   tip.style.top  = (rect.top - cardRect.top - 24) + 'px';
@@ -12945,10 +13735,15 @@ function prodStatusOpenStepPopover(el) {
   pop.className = 'g-popover';
   pop.style.top  = (rect.bottom - cardRect.top + card.scrollTop + 6) + 'px';
   pop.style.left = Math.max(4, Math.min(rect.left - cardRect.left, card.clientWidth - 236)) + 'px';
+  let selectedHalf = st.startHalf === 'PM' ? 'PM' : 'AM';
   pop.innerHTML = `
     <h4>ปรับวันเริ่ม: ${st.label}</h4>
-    <label>${moId} — ใช้เวลา ${st.days} วัน (คำนวณจากกำลังผลิต)</label>
+    <label>${moId} — ใช้เวลา ${st.shifts} กะ (${st.days} วัน, คำนวณจากกำลังผลิต)</label>
     <input type="date" value="${st.start}" id="g-pop-date">
+    <div class="g-half-toggle" id="g-pop-half">
+      <button type="button" data-half="AM" class="${selectedHalf === 'AM' ? 'active' : ''}">เช้า</button>
+      <button type="button" data-half="PM" class="${selectedHalf === 'PM' ? 'active' : ''}">บ่าย</button>
+    </div>
     <div class="row2">
       <button type="button" id="g-pop-cancel">ยกเลิก</button>
       <button type="button" class="save" id="g-pop-save">บันทึก</button>
@@ -12958,8 +13753,11 @@ function prodStatusOpenStepPopover(el) {
   `;
   card.appendChild(pop);
   _prodStatusGanttPopoverEl = pop;
+  pop.querySelectorAll('#g-pop-half button').forEach(b => {
+    b.onclick = () => { selectedHalf = b.dataset.half; pop.querySelectorAll('#g-pop-half button').forEach(x => x.classList.toggle('active', x === b)); };
+  });
   pop.querySelector('#g-pop-cancel').onclick = _prodStatusGanttClosePopover;
-  pop.querySelector('#g-pop-save').onclick = () => prodStatusSaveStepOverride(moId, stepKey, pop.querySelector('#g-pop-date').value);
+  pop.querySelector('#g-pop-save').onclick = () => prodStatusSaveStepOverride(moId, stepKey, pop.querySelector('#g-pop-date').value, selectedHalf);
   const resetBtn = pop.querySelector('#g-pop-reset');
   if (resetBtn) resetBtn.onclick = () => prodStatusResetStepOverride(moId, stepKey);
 }
@@ -12967,15 +13765,18 @@ document.addEventListener('click', e => {
   if (_prodStatusGanttPopoverEl && !_prodStatusGanttPopoverEl.contains(e.target) && !e.target.closest('.g-stepbar')) _prodStatusGanttClosePopover();
 });
 
-async function prodStatusSaveStepOverride(moId, stepKey, dateStr) {
+// half (เพิ่ม 2026-08-26, default 'AM') — เก็บว่าปักไว้ที่ครึ่งเช้าหรือบ่ายของวันนั้น ใช้
+// _shiftClampToWorkSlot กันวันอาทิตย์แบบเดียวกับ _ganttNextWorkDay เดิม (ปัดไปกะเช้าของวันทำงานถัดไป)
+async function prodStatusSaveStepOverride(moId, stepKey, dateStr, half = 'AM') {
   if (!dateStr) return;
-  dateStr = _ganttNextWorkDay(dateStr); // ไม่ให้ปักวันเริ่มเป็นวันอาทิตย์ แม้จะเลือกเองจากปฏิทินก็ตาม
+  const slot = _shiftClampToWorkSlot(dateStr, half);
+  const finalDate = _shiftSlotDate(slot), finalHalf = _shiftSlotHalf(slot);
   _showLoader();
   const { error } = await _sb.from('production_plan_step_overrides')
-    .upsert({ MO_Ref: moId, StepKey: stepKey, StartDate: dateStr }, { onConflict: 'MO_Ref,StepKey' });
+    .upsert({ MO_Ref: moId, StepKey: stepKey, StartDate: finalDate, StartHalf: finalHalf }, { onConflict: 'MO_Ref,StepKey' });
   _hideLoader();
   if (error) { _err('บันทึกวันเริ่มไม่ได้', error.message); return; }
-  _prodStatusStepOverrides[moId + '|' + stepKey] = dateStr;
+  _prodStatusStepOverrides[moId + '|' + stepKey] = { date: finalDate, half: finalHalf };
   _prodStatusGanttClosePopover();
   prodStatusRenderGantt();
 }
@@ -14473,12 +15274,13 @@ async function prodrecordOpenEntryModal(gi) {
   _prodrecordRecalcBulkActual();
 
   _showLoader();
-  const [issueRes, siblingRes, existingDetailRes, stockRes, bomRemarkRes] = await Promise.all([
+  const [issueRes, siblingRes, existingDetailRes, stockRes, bomRemarkRes, materialsRes] = await Promise.all([
     r.MO_Ref ? _sb.from('issue_production').select('MaterialCode,MaterialName,Lot,IssuedQty,UOM').eq('MO_ID', r.MO_Ref) : Promise.resolve({ data: [] }),
     r.MO_Ref ? _sb.from('production_records').select('ProdRecord_ID').eq('MO_Ref', r.MO_Ref).neq('ProdRecord_ID', r.ProdRecord_ID) : Promise.resolve({ data: [] }),
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
     _sb.from('stock_balance').select('MaterialCode,Lot,UnitCost'),
     _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', r.ProductCode),
+    _sb.from('materials').select('MaterialCode,UOM'),
   ]);
 
   // Bulk = ทุกวัตถุดิบใน BOM ของสินค้านี้ที่ Remark ไม่ใช่ "pac" (ตรงกับวิธีแยก Bulk/Pac ที่หน้า Issue ใช้อยู่
@@ -14501,33 +15303,43 @@ async function prodrecordOpenEntryModal(gi) {
   const stockMap = {};
   (stockRes.data || []).forEach(s => { stockMap[(s.MaterialCode||'') + '|' + (s.Lot||'')] = parseFloat(s.UnitCost) || 0; });
 
+  // UOM auto-sync จาก materials master สดๆ ทุกครั้งที่เปิด modal นี้ (2026-08-21 ตามคำขอผู้ใช้ — เจอ
+  // UOM ผิดที่แช่แข็งไว้ตั้งแต่กรอกครั้งแรก คล้ายบั๊ก UnitCost วันก่อนหน้าเป๊ะ ต้นเหตุจริงคือพิมพ์ผิดไว้ที่
+  // materials.UOM ตอนแรก ผู้ใช้แก้ที่ต้นทางแล้วแต่บันทึกที่เคยกรอกไปแล้วไม่รู้ด้วย เพราะแช่แข็งไว้เหมือนกัน)
+  // ต่างจาก UnitCost ตรงที่คีย์แค่ MaterialCode เดียว (ไม่ผูกกับ Lot — UOM เป็นคุณสมบัติของวัตถุดิบเอง
+  // ไม่ควรต่างกันไปตาม Lot ที่รับเข้าแต่ละรอบเหมือนราคา)
+  const materialUomMap = {};
+  (materialsRes.data || []).forEach(m => { if (m.MaterialCode) materialUomMap[m.MaterialCode] = m.UOM; });
+
   _prodrecordEntryMatSeq = 0;
   document.getElementById('prodrecord-entry-materials').innerHTML = '';
   const existingDetails = existingDetailRes.data || [];
   if (existingDetails.length) {
     // เคยกรอกไว้แล้ว (แก้ไขผลผลิต) — ใช้ค่าที่บันทึกไว้เดิมเป็นหลัก (เบิกไป/ของเสีย/ของคืน ไม่ดึงจาก
-    // issue_production ใหม่) **ยกเว้นต้นทุน/หน่วย** ซึ่ง auto-sync จาก stock_balance สดๆ ทุกครั้งที่เปิด
-    // modal นี้ (2026-08-20 ตามคำขอผู้ใช้ — เดิมเคยแช่แข็ง d.UnitCost_MR ไว้ตลอดไปจนกว่าจะกดปุ่มรีเฟรชเอง
-    // ต่อแถว ตอนนี้ไม่ต้องกดเองแล้ว เปิดหน้าทีไรได้ราคาล่าสุดเสมอ) ใช้ค่าเก่าที่แช่แข็งไว้เป็น fallback
-    // เฉพาะกรณีหา MaterialCode+Lot นี้ใน stock_balance ตอนนี้ไม่เจอเลย (เช่น Lot ถูกลบไปแล้ว) กันไม่ให้
-    // เผลอรีเซ็ตเป็น 0 ทั้งที่เคยมีค่าจริงบันทึกไว้
+    // issue_production ใหม่) **ยกเว้นต้นทุน/หน่วยและ UOM** ซึ่ง auto-sync สดๆ ทุกครั้งที่เปิด modal นี้
+    // (2026-08-20/21 ตามคำขอผู้ใช้ — เดิมเคยแช่แข็งค่าไว้ตลอดไปจนกว่าจะกดปุ่มรีเฟรชเอง/แก้เอง ตอนนี้ไม่ต้อง
+    // แล้ว เปิดหน้าทีไรได้ค่าล่าสุดเสมอ) ใช้ค่าเก่าที่แช่แข็งไว้เป็น fallback เฉพาะกรณีหาไม่เจอในตารางต้นทาง
+    // ตอนนี้เลย (เช่น Lot ถูกลบไปแล้ว หรือ MaterialCode ไม่มีใน materials อีกต่อไป) กันไม่ให้เผลอรีเซ็ตค่า
+    // ที่เคยมีจริงบันทึกไว้ให้หายไปเฉยๆ
     existingDetails.forEach(d => {
       const key = (d.MaterialCode||'') + '|' + (d.LotMaterial||'');
       const liveCost = stockMap[key];
+      const liveUom  = materialUomMap[d.MaterialCode];
       _prodrecordAddMaterialRow({
         MaterialCode: d.MaterialCode, MaterialName: d.MaterialName, Lot: d.LotMaterial,
         IssuedQty: d.IssuedQty, ActualUsedQty: d.ActualUsedQty, ScrapQty: d.ScrapQty, ReturnedQty: d.ReturnedQty,
-        UOM: d.UOM, UnitCost: liveCost != null ? liveCost : (d.UnitCost_MR ?? 0),
+        UOM: liveUom != null ? liveUom : d.UOM, UnitCost: liveCost != null ? liveCost : (d.UnitCost_MR ?? 0),
       });
     });
   } else {
     (issueRes.data || []).forEach(ip => {
       const key = (ip.MaterialCode||'') + '|' + (ip.Lot||'');
       if (claimed.has(key)) return;
+      const liveUom = materialUomMap[ip.MaterialCode];
       _prodrecordAddMaterialRow({
         MaterialCode: ip.MaterialCode, MaterialName: ip.MaterialName, Lot: ip.Lot,
         IssuedQty: ip.IssuedQty, ActualUsedQty: ip.IssuedQty, ScrapQty: 0, ReturnedQty: 0,
-        UOM: ip.UOM, UnitCost: stockMap[key] || 0,
+        UOM: liveUom != null ? liveUom : ip.UOM, UnitCost: stockMap[key] || 0,
       });
     });
   }
