@@ -558,18 +558,31 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
    ⚠️ .g-corner (มุมซ้ายบน, ยังใช้ position:sticky;top+left แบบเดิม) ยังไม่ได้แก้บั๊กนี้ — เป็นกล่องขาวเปล่าไว้
    บังมุม ผลกระทบต่ำ (ไม่ใช่ข้อมูล แค่พื้นหลัง) เลือกไม่แก้รอบนี้เพื่อจำกัดขอบเขตการเปลี่ยนแปลง ถ้าจะแก้ ต้องแยก
    เป็น wrap+inner แบบเดียวกันนี้ */
-#publicReportView .g-rail{grid-column:1;z-index:4}
+/* position:relative (เพิ่ม 2026-08-26 แก้บั๊กที่ 3 ของวันเดียวกัน — ผู้ใช้รายงาน "ยังโปร่งใสอยู่" +
+   "รอยืนยันยัง 2 บรรทัด" แม้ปิด backdrop-filter ไปแล้ว) สาเหตุจริง: z-index ของ element **มีผลก็ต่อเมื่อ
+   position ไม่ใช่ static เท่านั้น** (ปกติของ CSS spec ไม่ใช่บั๊ก) — ตอนเปลี่ยนจาก position:sticky;left มาใช้
+   transform:translateX ล้วนๆ (ดูคอมเมนต์ก้อนบนสุดของบล็อกนี้) องค์ประกอบพวกนี้กลายเป็น position:static
+   (ค่า default) ไปด้วย ทำให้ z-index:2/4 ที่ตั้งไว้ **ไม่มีผลอะไรเลย** ปกติไม่มีปัญหาเพราะ column 2
+   (ป้ายชื่อ) ไม่เคยไปทับซ้อนกับ column 3+ (วัน) ในตำแหน่งธรรมชาติ — แต่พอ transform ขยับกล่องไปทางขวา
+   ตามระยะสกอล กล่องจะเข้าไปทับซ้อนกับพื้นหลัง/แท่งของคอลัมน์วันที่อยู่ตรงนั้นจริงๆ แล้ว browser ใช้ลำดับ
+   DOM ธรรมดา (ไม่ใช่ z-index) ตัดสินว่าใครวาดทับใคร — แถวป้ายชื่อ (มาก่อนในโค้ด HTML ของแถวนั้น) เลยแพ้
+   วาดอยู่ข้างล่าง พื้นหลัง/แท่งสีของคอลัมน์วันที่ทับซ้อนอยู่ข้างบนเลยทะลุขึ้นมาให้เห็น (ทั้งที่พื้นหลังทึบทุก
+   ตัวอยู่แล้ว ไม่เกี่ยวกับ backdrop-filter เลย) — นี่คือสาเหตุที่แท้จริงของทั้ง "โปร่งใส" และ "รอยืนยัน 2
+   บรรทัด" (แถวป้ายชื่อจริงๆ มีแค่ 2 บรรทัดอยู่แล้วโดยดีไซน์ [ชื่อ+ป้าย / จำนวน] แต่ถูกเนื้อหาคอลัมน์วันที่ที่
+   ทับอยู่ข้างบนบังบางส่วนจนดูเหมือนเป็น 3 บรรทัดเพี้ยนๆ) ให้ position:relative (ไม่กระทบ layout เลย แค่ทำให้
+   z-index มีผล) แก้ปัญหานี้ตรงจุด */
+#publicReportView .g-rail{grid-column:1;position:relative;z-index:4}
 #publicReportView .g-linehead-wrap{grid-column:2;position:sticky;top:75px;z-index:4}
 /* ความสูงคงที่ + บรรทัดเดียวห้ามตัดขึ้นบรรทัดใหม่ (เพิ่ม 2026-08-26 แก้บั๊กหัวไลน์ทับแถวข้างล่าง — เดิม
    .g-linehead-wrap span หลายแถว แต่แถวแรก (.g-bgcell ที่ไม่มี class ใหม่ด้านล่าง) สูงเท่าพื้นหลังธรรมดา
    ~20px เฉยๆ ไม่รู้ว่าต้องเผื่อที่ให้ label ข้างในสูงเท่าไหร่ ถ้าชื่อไลน์+จำนวนยาวจนตัดบรรทัด label ก็ล้นทับ
    แถวถัดไป) .g-bgcell-head (ตั้ง class เฉพาะแถวหัวไลน์) ให้ min-height เท่ากันไว้คู่กัน บังคับให้แถวนั้นสูง
    พอเสมอไม่ว่าเนื้อหาอื่นในแถวจะสูงแค่ไหน */
-#publicReportView .g-linehead{display:flex;align-items:center;gap:8px;padding:0 12px;height:34px;font-weight:700;font-size:.74rem;color:#fff}
+#publicReportView .g-linehead{position:relative;z-index:1;display:flex;align-items:center;gap:8px;padding:0 12px;height:34px;font-weight:700;font-size:.74rem;color:#fff}
 #publicReportView .g-linehead span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-linehead .cnt{margin-left:auto;font-weight:600;font-size:.66rem;opacity:.85;white-space:nowrap;flex-shrink:0}
 #publicReportView .g-bgcell-head{min-height:34px}
-#publicReportView .g-rowlabel{grid-column:2;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-rowlabel{grid-column:2;position:relative;z-index:2;background:#fff;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:6px 10px 6px 8px;display:flex;align-items:center;gap:6px;border-left:3px solid transparent;cursor:pointer;user-select:none}
 #publicReportView .g-rowlabel:hover{background:#f8fafc}
 #publicReportView .g-rowlabel .chev{font-size:.62rem;color:#94a3b8;transition:transform .15s;flex-shrink:0;width:10px}
@@ -577,7 +590,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #publicReportView .g-rowlabel .g-mo{font-weight:700;font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-rowlabel .g-prod{font-size:.68rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #publicReportView .g-rowlabel .g-qty-emph{font-weight:700;color:#0f172a;font-size:.78rem}
-#publicReportView .g-steplabel{grid-column:2;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
+#publicReportView .g-steplabel{grid-column:2;position:relative;z-index:2;background:#f8fafc;border-right:1px solid #eef2f7;border-bottom:1px solid #eef2f7;
   padding:5px 10px 5px 30px;font-size:.68rem;color:#64748b;display:flex;align-items:center;gap:5px}
 #publicReportView .g-steplabel .stepord{width:15px;height:15px;border-radius:50%;background:#94a3b8;color:#fff;font-size:.55rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 #publicReportView .g-bgcell{border-left:1px solid #eef2f7;border-bottom:1px solid #eef2f7;background:#f8fafc}
