@@ -630,12 +630,20 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   /* ใบ Released (สติกเกอร์เขียว) แนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมได้เลย (ไม่ต้อง named page) —
      .morel-sheet เป็น grid ตายตัว 2×5 ต่อแผ่น ไม่มีการวัดความสูงอัตโนมัติเหมือน BPR เลยไม่ต้องกัน min-height */
   #mo-released-print-root .morel-sheet{box-shadow:none !important;margin:0 !important}
-  /* ป้าย Lot QR — ตารางป้ายเล็กๆ ต่อแผ่น A4 ไม่ต้อง page-break-after เพราะปกติพิมพ์แค่ 1 แผ่น (เผื่อล้นก็ปล่อยให้ไหลต่อแผ่น 2 ได้เอง) */
+  /* ป้าย Lot QR — ตารางป้ายเล็กๆ ต่อแผ่น A4 — เดิมปล่อยให้เนื้อหาล้นแผ่นเดียวไหลไปแผ่น 2/3/... เองตาม flex-wrap
+     ธรรมดา แต่ padding ของ .lotlabel-sheet ถูกใส่ "รอบตัว div เดียว" ไม่ใช่รอบทุกแผ่นพิมพ์จริง — รอยต่อระหว่างแผ่น
+     (ก้นแผ่น 1 ต่อกับหัวแผ่น 2) จึงไม่มี margin เลย ดูเหมือนป้ายชิดขอบกระดาษ (บั๊กจริง พบ 2026-08-26) ตอนนี้ JS
+     (_labelPaginate ใน _lotlabelRenderPreview/_dlvlabelRenderPreview) แบ่งป้ายเป็นชุดๆ ออกเป็น .lotlabel-sheet
+     หลายก้อนเอง (ก้อนละไม่เกินที่คำนวณว่าพอดี 1 แผ่น) ให้แต่ละก้อน = 1 แผ่นจริงที่มี padding รอบตัวครบ จึงต้องบังคับ
+     page-break-after ระหว่างก้อนที่นี่ (ทุกก้อนยกเว้นก้อนสุดท้าย) แทน */
   #lotlabel-print-root .lotlabel-sheet{box-shadow:none !important;margin:0 !important}
+  #lotlabel-print-root .lotlabel-sheet:not(:last-child){page-break-after:always;break-after:page}
   #lotscan-print-root .lotreport-page{box-shadow:none !important;margin:0 !important}
   /* ป้ายกล่องต่อใบส่ง (DeliveryBillNo) — ใช้เลย์เอาต์ .lotlabel-sheet/.lotlabel-item ชุดเดียวกับป้าย Lot
-     (หน้าตาเหมือนกัน ต่างแค่ข้อมูลในป้าย) แค่คนละ print-root กันชนกับป้าย Lot ตาม pattern ที่ตั้งไว้ */
+     (หน้าตาเหมือนกัน ต่างแค่ข้อมูลในป้าย) แค่คนละ print-root กันชนกับป้าย Lot ตาม pattern ที่ตั้งไว้ —
+     เหตุผล page-break-after เดียวกับป้าย Lot ข้างบน */
   #dlvlabel-print-root .lotlabel-sheet{box-shadow:none !important;margin:0 !important}
+  #dlvlabel-print-root .lotlabel-sheet:not(:last-child){page-break-after:always;break-after:page}
   @page{size:A4;margin:0}
   /* หน้ารายงาน MR ต้องพิมพ์แนวนอน — @page ไม่รองรับการ scope ด้วย selector/body class ตรงๆ (คุมได้แค่ทั้งเอกสาร)
      ต้องใช้ named page แทน (ประกาศ @page ชื่อ mrreport แล้วผูกกับ .mrrpt-page ด้วย CSS property "page:")
@@ -981,9 +989,11 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
   margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
   display:flex;flex-wrap:wrap;gap:3mm;align-content:flex-start;
 }
+.lotlabel-sheet + .lotlabel-sheet{margin-top:10mm} /* เผื่อพรีวิวจอมีหลายแผ่น ให้เห็นรอยต่อชัด ไม่กระทบตอนพิมพ์จริง (margin:0!important) */
 .lotlabel-item{
   width:62mm;min-height:28mm;border:1px solid #94a3b8;border-radius:2px;padding:2mm;box-sizing:border-box;
   display:flex;align-items:center;gap:2mm;font-family:Sarabun,sans-serif;color:#000;background:#fff;
+  page-break-inside:avoid;break-inside:avoid; /* กันป้ายถูกตัดครึ่งคาบเขตรอยต่อหน้ากระดาษ (ดูหมายเหตุ page-break-after ด้านบน) */
 }
 .lotlabel-item .lotlabel-qr svg{width:22mm;height:22mm;display:block}
 .lotlabel-item .lotlabel-text{flex:1;min-width:0;overflow:hidden}
@@ -997,6 +1007,7 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 .dlvlabel-item{
   width:62mm;min-height:30mm;border:1px solid #94a3b8;border-radius:2px;padding:2mm;box-sizing:border-box;
   display:flex;align-items:center;gap:2mm;font-family:Sarabun,sans-serif;color:#000;background:#fff;
+  page-break-inside:avoid;break-inside:avoid;
 }
 .dlvlabel-item .dlvlabel-qr svg{width:20mm;height:20mm;display:block;flex-shrink:0}
 .dlvlabel-item .dlvlabel-text{flex:1;min-width:0;overflow:hidden}
@@ -20731,11 +20742,27 @@ function _lotlabelBuildItemHTML(d) {
   </div>`;
 }
 
+// ── ตัดป้าย (ทั้งป้าย Lot และป้ายกล่องต่อใบส่ง) เป็นชุดๆ ต่อแผ่น A4 จริง ไม่ปล่อยให้ .lotlabel-sheet เดียวยาวเกิน
+// 297mm แล้วให้เบราว์เซอร์ตัดหน้าเอง (บั๊กเดิม: รอยต่อหน้าไม่มี margin เพราะ padding ของ div ใส่รอบตัวทั้งก้อน ไม่ใช่
+// รอบทุกแผ่น — ดูหมายเหตุ 2026-08-26 บน #lotlabel-print-root .lotlabel-sheet) — คำนวณจากพื้นที่จริง: เนื้อที่กว้าง
+// 210mm - padding 8mm×2 = 194mm พอดี 3 คอลัมน์ (62mm×3 + gap 3mm×2 = 192mm); เนื้อที่สูง 297mm - padding 8mm×2 =
+// 281mm พอดี 8 แถว (min-height 30mm×8 + gap 3mm×7 = 261mm ยังมีเผื่อ) → 3×8 = 24 ป้ายต่อแผ่น เผื่อระยะขอบไว้แน่นอน
+// ไม่จำเป็นต้องวัด DOM จริงเพราะขนาดป้ายเป็นค่าคงที่ตายตัวอยู่แล้ว (ไม่ใช่ความสูงตามเนื้อหาแบบ BPR)
+const LABEL_SHEET_PER_PAGE = 24;
+function _labelPaginate(itemHtmlArr) {
+  const items = itemHtmlArr.length ? itemHtmlArr : [''];
+  const pages = [];
+  for (let i = 0; i < items.length; i += LABEL_SHEET_PER_PAGE) {
+    pages.push(items.slice(i, i + LABEL_SHEET_PER_PAGE).join(''));
+  }
+  return pages.map(p => `<div class="lotlabel-sheet">${p}</div>`).join('');
+}
+
 function _lotlabelRenderPreview() {
   if (!_lotlabelCurrent) return;
   const qty = Math.max(1, parseInt(document.getElementById('lotlabel-qty').value, 10) || 1);
-  const items = Array.from({ length: qty }, () => _lotlabelBuildItemHTML(_lotlabelCurrent)).join('');
-  const html = `<div class="lotlabel-sheet">${items}</div>`;
+  const items = Array.from({ length: qty }, () => _lotlabelBuildItemHTML(_lotlabelCurrent));
+  const html = _labelPaginate(items);
   document.getElementById('lotlabel-preview-body').innerHTML = html;
   document.getElementById('lotlabel-print-root').innerHTML   = html;
 }
@@ -20840,8 +20867,8 @@ function _dlvlabelRenderPreview() {
     const qty = _dlvlabelQtyByGroup[key] || 1;
     const g = _dlvlabelGroups[key];
     return Array.from({ length: qty }, () => _dlvlabelBuildItemHTML(_dlvlabelBillNo, g));
-  }).join('');
-  const html = `<div class="lotlabel-sheet">${items}</div>`;
+  });
+  const html = _labelPaginate(items);
   document.getElementById('dlvlabel-preview-body').innerHTML = html;
   document.getElementById('dlvlabel-print-root').innerHTML   = html;
 }
