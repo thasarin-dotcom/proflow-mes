@@ -18520,7 +18520,11 @@ async function _admindashComputeDrillRows(code) {
   const computedRows = rows.map(r => {
     const qty = parseFloat(r.FG_Actual) || 0;
     const p = partsByRecord[r.ProdRecord_ID] || { material: parseFloat(r.MaterialCost) || 0, packaging: 0 };
-    const cost = parseFloat(r.CostPerUnit) || 0;
+    const rawCost = parseFloat(r.CostPerUnit) || 0;
+    // ต้นทุนรวม/หน่วยที่ใช้คำนวณกำไรตรงนี้ ต้องเป็นต้นทุนจริงที่รวม Scrap % แล้ว (÷(1-Scrap%)) ไม่ใช่ต้นทุนดิบ
+    // ก่อนหักของเสีย — สูตรเดียวกับที่ใช้ในหน้าอนุมัติต้นทุน/รายงานพิมพ์ (2026-08-27 ตามคำขอผู้ใช้ "จะได้เห็นกำไรจริงๆ")
+    const scrapPct = r.ScrapPct != null ? parseFloat(r.ScrapPct) : null;
+    const cost = (scrapPct != null && scrapPct < 100) ? rawCost / (1 - scrapPct / 100) : rawCost;
     const profitPerUnit = price != null ? price - cost : null;
     return {
       lot: r.Lot_FG || '', month: _admindashMonthKey(r) || '', qty, uom: r.UOM || '',
@@ -18571,7 +18575,7 @@ async function admindashRenderDrilldown() {
       tableEl.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
         <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th>
           <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ/หน่วย</th>
-          <th class="text-end">ต้นทุนรวม/หน่วย</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
+          <th class="text-end">ต้นทุนรวม/หน่วย (รวม Scrap)</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
         <tbody>${computedRows.map(c => {
           const pClass = c.profitPerUnit == null ? '' : (c.profitPerUnit >= 0 ? 'text-success' : 'text-danger');
           const fmtB = v => v == null ? '—' : '฿' + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -18609,12 +18613,19 @@ async function admindashRenderDrilldown() {
     if (!totalQty) return { material: null, packaging: null, labor: null, utility: null, cost: null };
     const sumField = f => monthRows.reduce((s, r) => s + (parseFloat(r[f]) || 0), 0);
     const sumSplit = key => monthRows.reduce((s, r) => s + ((partsByRecord[r.ProdRecord_ID]?.[key]) || 0), 0);
+    // ต้นทุนรวมที่ใช้คิดกำไร% ในกราฟ ต้องรวม Scrap % ต่อบันทึกก่อนถ่วงน้ำหนักรวมเดือน (สอดคล้องกับตารางด้านล่าง
+    // ที่ปรับเป็นต้นทุนจริงแล้ว — 2026-08-27)
+    const sumScrapAdjCost = monthRows.reduce((s, r) => {
+      const tc = parseFloat(r.TotalCost) || 0;
+      const sp = r.ScrapPct != null ? parseFloat(r.ScrapPct) : null;
+      return s + ((sp != null && sp < 100) ? tc / (1 - sp / 100) : tc);
+    }, 0);
     return {
       material: sumSplit('material') / totalQty,
       packaging: sumSplit('packaging') / totalQty,
       labor: sumField('LaborCost') / totalQty,
       utility: sumField('Overhead') / totalQty,
-      cost: sumField('TotalCost') / totalQty,
+      cost: sumScrapAdjCost / totalQty,
     };
   });
   const marginByMonth = byMonth.map(m => (price == null || m.cost == null) ? null : Math.round((price - m.cost) / price * 1000) / 10);
@@ -18800,7 +18811,7 @@ function admindashExportDrillCSV() {
 
   const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
   const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
-    'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+    'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
   const lines = [headers.join(',')];
   exp.rows.forEach(c => {
     lines.push([
