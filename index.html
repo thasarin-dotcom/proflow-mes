@@ -5840,8 +5840,10 @@ async function loadHomeData() {
     _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
     _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
     // ดึงย้อนหลัง 12 เดือนเหมือน issue_production ด้านล่าง — ใช้ทั้งกับกราฟ Top 5 (กรองเอาแค่ไตรมาสนี้ทีหลัง) และเช็ค "ไม่เคลื่อนไหว 3 เดือน"
-    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
-    _sb.from('issue_production').select('MaterialCode,IssuedQty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
+    // ใช้ _fetchAllPagedRange ไม่ใช่ .select() ตรงๆ — ช่วง 12 เดือนของทั้งโรงงานมีโอกาสเกิน 1000 แถว (PostgREST cap)
+    // ได้จริง ถ้าไม่วน .range() แถวที่เกินจะถูกตัดทิ้งเงียบๆ ทำให้บางวัตถุดิบหายไปจากพยากรณ์ทั้งที่มีประวัติเบิกจริง
+    _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', trendStartStr, qEndStr),
+    _fetchAllPagedRange('issue_production', 'MaterialCode,IssuedQty,Date', 'Date', trendStartStr, qEndStr),
     // issue_misc: คอลัมน์จริงในฐานข้อมูลเป็นตัวพิมพ์เล็กทั้งหมด (materialcode/issuedqty/date) ไม่ตรงกับที่โค้ดทั้งแอปสมมติไว้
     // (PascalCase เหมือนตารางอื่น) — ยืนยันแล้วว่า select('MaterialCode') จริงจะพัง 42703 "column does not exist"
     // ดึงด้วย select('*') แล้ว normalize เคสเอาเอง กันพังไว้ก่อน ไม่กรองวันที่ฝั่ง server เพราะชื่อคอลัมน์ไม่ตรงกับที่คิดไว้เหมือนกัน
@@ -6012,7 +6014,9 @@ async function loadHomeData() {
     if (!dataMonthKeys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
     const series = _monthsBetween(dataMonthKeys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
     const n = series.length;
-    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2) };
+    // n===1: มีข้อมูลเดือนเดียว คำนวณแนวโน้ม (slope) จริงไม่ได้ — ใช้ค่าเดือนนั้นเป็นเส้นพยากรณ์แบบคงที่ (flat)
+    // ทั้ง 2 เดือนข้างหน้าแทน (เหมือน series[0]*2 เดิม แค่แตก f1/f2 ออกมาด้วย) เพื่อให้กราฟเส้นเล็กวาดได้
+    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2), predicted: [series[0], series[0]] };
     const { slope, intercept } = _linearFit(series);
     const predAt = x => Math.max(0, intercept + slope * x);
     const f1 = predAt(n), f2 = predAt(n + 1);
@@ -6033,9 +6037,9 @@ async function loadHomeData() {
           : short
             ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined,{maximumFractionDigits:1})}</span>`
             : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
-        const chartArea = c.monthsWithData >= 2
+        const chartArea = c.monthsWithData >= 1
           ? `<div style="position:relative;height:20px"><canvas id="home-forecast-chart-${i}"></canvas></div>`
-          : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:20px;font-size:.55rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
+          : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:20px;font-size:.55rem">ยังไม่มีข้อมูล</div>`;
         return `<div class="home-forecast-card">
             <div class="home-forecast-code">${c.code}</div>
             <div class="home-forecast-name">${c.name || ''}</div>
@@ -6051,7 +6055,7 @@ async function loadHomeData() {
       }).join('');
 
       forecastCards.forEach((c, i) => {
-        if (c.monthsWithData < 2) return;
+        if (c.monthsWithData < 1) return;
         const canvas = el(`home-forecast-chart-${i}`);
         if (!canvas) return;
         const n = c.series.length;
@@ -6380,11 +6384,13 @@ async function _whComputeBulkForecast() {
   const qStartStr = _ymd(new Date(now.getFullYear(), qStartMonth, 1));
   const trendStartStr = _ymd(new Date(now.getFullYear(), now.getMonth() - 11, 1));
 
+  // mr_receive/issue_production ใช้ _fetchAllPagedRange ไม่ใช่ .select() ตรงๆ — เหตุผลเดียวกับ loadHomeData()
+  // ด้านบน (ช่วง 12 เดือนมีโอกาสเกิน PostgREST cap 1000 แถว ทำให้บางวัตถุดิบหายไปจากพยากรณ์เงียบๆ)
   const [matRes, stockRes, mrRes, issueRes, miscRes] = await Promise.all([
     _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
     _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
-    _sb.from('mr_receive').select('MaterialCode,Qty,Date').gte('Date', qStartStr).lte('Date', qEndStr),
-    _sb.from('issue_production').select('MaterialCode,IssuedQty,Date').gte('Date', trendStartStr).lte('Date', qEndStr),
+    _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', qStartStr, qEndStr),
+    _fetchAllPagedRange('issue_production', 'MaterialCode,IssuedQty,Date', 'Date', trendStartStr, qEndStr),
     _sb.from('issue_misc').select('*'),
   ]);
   if (matRes.error || stockRes.error || mrRes.error || issueRes.error || miscRes.error) { _whForecastCards = []; return; }
@@ -6453,7 +6459,8 @@ async function _whComputeBulkForecast() {
     if (!keys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
     const series = monthsBetween(keys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
     const n = series.length;
-    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2) };
+    // n===1: หาแนวโน้มจริงไม่ได้ ใช้ค่าเดือนนั้นเป็นเส้นพยากรณ์คงที่ (flat) 2 เดือน — เหมือน loadHomeData()
+    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2), predicted: [series[0], series[0]] };
     const { slope, intercept } = linearFit(series);
     const predAt = x => Math.max(0, intercept + slope * x);
     const f1 = predAt(n), f2 = predAt(n + 1);
@@ -6484,9 +6491,9 @@ function _whRenderForecast() {
       : short
         ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>`
         : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
-    const chartArea = c.monthsWithData >= 2
+    const chartArea = c.monthsWithData >= 1
       ? `<div style="position:relative;height:28px"><canvas id="wh-forecast-chart-${i}"></canvas></div>`
-      : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:28px;font-size:.6rem">${c.monthsWithData === 1 ? 'ข้อมูล 1 เดือน' : 'ยังไม่มีข้อมูล'}</div>`;
+      : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:28px;font-size:.6rem">ยังไม่มีข้อมูล</div>`;
     return `<div class="home-forecast-card">
         <div class="home-forecast-code">${c.code}</div>
         <div class="home-forecast-name">${c.name || ''}</div>
@@ -6502,7 +6509,7 @@ function _whRenderForecast() {
   }).join('');
 
   _whForecastCards.forEach((c, i) => {
-    if (c.monthsWithData < 2) return;
+    if (c.monthsWithData < 1) return;
     const canvas = document.getElementById(`wh-forecast-chart-${i}`);
     if (!canvas) return;
     const n = c.series.length;
@@ -7247,6 +7254,22 @@ async function _fetchAllPaged(table, selectCols) {
   let from = 0, all = [];
   while (true) {
     const { data, error } = await _sb.from(table).select(selectCols).range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
+
+// เหมือน _fetchAllPaged แต่กรองช่วงวันที่ (gte/lte บนคอลัมน์เดียว) ก่อนวน .range() — ใช้กับ mr_receive/
+// issue_production ในหน้าแรก/แดชบอร์ดคลัง ที่ดึงย้อนหลัง 12 เดือนทั้งตาราง ซึ่งมีโอกาสเกิน 1000 แถวจริงได้
+// (พบเป็นสาเหตุจริงที่การ์ดพยากรณ์ BULK บางตัวไม่มีข้อมูลทั้งที่มีประวัติเบิกจริง — แถวที่เกิน 1000 ถูกตัดทิ้งไปเงียบๆ)
+async function _fetchAllPagedRange(table, selectCols, dateCol, startStr, endStr) {
+  const pageSize = 1000;
+  let from = 0, all = [];
+  while (true) {
+    const { data, error } = await _sb.from(table).select(selectCols).gte(dateCol, startStr).lte(dateCol, endStr).range(from, from + pageSize - 1);
     if (error) return { data: all, error };
     all = all.concat(data || []);
     if (!data || data.length < pageSize) break;
@@ -12332,8 +12355,9 @@ function _lotqueueRenderGrid() {
 // ── ลากแท่งเพื่อเลื่อนวันเริ่มยิง Lot — กลไกเดียวกับ _prodStatusStepPointerDown/Move/Up ของหน้า Gantt
 // (pointer events + translateX preview ระหว่างลาก, commit เป็น grid-column ใหม่ตอนโหลดข้อมูลใหม่หลังบันทึก)
 // เพิ่ม 2026-08-26: ละเอียดถึงระดับ "กะ" (เช้า/บ่าย) — halfWidth คือความกว้าง 1 คอลัมน์กะ (ไม่ใช่ 1 วัน)
-// floor = กะแรกที่บรรจุเสร็จจริงของงานนั้น (readySlot) เข้มกว่า floor ของหน้า Gantt เล็กน้อย (ที่นั่นใช้กะเริ่ม
-// ขั้นบรรจุ ไม่ใช่กะจบ) เพราะที่นี่คิวยิง Lot เป็นทรัพยากรเดียวรวมทุกไลน์ ปักไปก่อนบรรจุเสร็จจริงไม่ได้เลย
+// floor = กะแรกที่บรรจุ "เริ่ม" ของงานนั้น (readySlot, แก้ 2026-08-27 ตามที่ผู้ใช้ยืนยัน — เดิมเคยเข้มกว่านี้คือ
+// ต้องรอบรรจุเสร็จก่อน) เหมือนกับ floor ของหน้า Gantt เป๊ะ เพราะทั้ง 2 หน้าใช้ readySlot จาก
+// computeLotQueueSchedule() ฟังก์ชันเดียวกัน (ดูคอมเมนต์ที่นั่น) จึงตรงกันเสมอ ไม่มีจุดไหนเข้มกว่ากันแล้ว
 let _lotqDrag = null;
 
 function _lotqStepPointerDown(ev, el) {
@@ -13461,11 +13485,16 @@ function computeLotQueueSchedule(moList, planStartMap, capMap, overridesMap) {
     const planStart = planStartMap[mo.MO_ID];
     if (!planStart) return;
 
-    // reuse ฟังก์ชันเดิมเพื่อหาว่าขั้น "บรรจุ" เสร็จกะไหน (=พร้อมเข้าคิวยิง Lot) — ไม่ส่ง lotQueueMap เข้าไป
+    // reuse ฟังก์ชันเดิมเพื่อหาว่าขั้น "บรรจุ" เริ่มกะไหน (=พร้อมเข้าคิวยิง Lot เร็วสุด) — ไม่ส่ง lotQueueMap เข้าไป
     // (ไม่เกี่ยวกับขั้น Fill อยู่แล้ว) เลี่ยงเรียกซ้อนตัวเองไม่จบด้วย
+    // แก้ 2026-08-27 ตามที่ผู้ใช้ยืนยัน: ยิง Lot ห้ามเริ่มก่อนวันที่บรรจุเริ่ม แต่เริ่ม "วันเดียวกะเดียวกัน"
+    // กับบรรจุได้เลย (ไม่ต้องรอบรรจุเสร็จก่อนเหมือนเดิม) — readySlot เดิมเคยใช้กะหลังบรรจุ "จบ" ทำให้ยิง Lot
+    // ต้องรอบรรจุเสร็จทั้งหมดก่อนเสมอ เข้มเกินจริง เปลี่ยนมาใช้กะที่บรรจุ "เริ่ม" แทน — ค่านี้ใช้ร่วมกันทั้ง
+    // หน้า Gantt (nav-prodstatus) และหน้าคิวยิง Lot (nav-lotqueue) ผ่านฟังก์ชันนี้ฟังก์ชันเดียว (ดูคอมเมนต์ด้านบน
+    // ที่อธิบายการรวมเป็นฟังก์ชันเดียวเมื่อ 2026-08-26) จึงยังคงตรงกันทั้ง 2 หน้าเหมือนเดิม แค่กฎเปลี่ยนไป
     const steps = prodStatusComputeMOSteps(mo, planStart, capMap, overridesMap);
     const fillStep = steps.find(s => s.key === 'Fill');
-    const readySlot = fillStep ? _shiftNextWorkSlot(_shiftSlot(fillStep.end, fillStep.endHalf)) : _shiftFirstWorkSlot(planStart);
+    const readySlot = fillStep ? _shiftSlot(fillStep.start, fillStep.startHalf) : _shiftFirstWorkSlot(planStart);
     const qty = parseFloat(mo.OrderQty) || 0;
     const halfRate = lotRate / 2;
     const lotShifts = Math.max(1, Math.ceil(qty / halfRate));
@@ -13477,7 +13506,8 @@ function computeLotQueueSchedule(moList, planStartMap, capMap, overridesMap) {
   const pinned = [], autoItems = [];
   ready.forEach(item => {
     if (item.manual) {
-      // ห้ามปักก่อนกะที่บรรจุเสร็จจริงของงานนั้น (ป้องกันข้อมูลเก่าที่ readySlot ขยับมาทีหลังจนกะปักผิดพลาด)
+      // ห้ามปักก่อนกะที่บรรจุเริ่มของงานนั้น (ป้องกันข้อมูลเก่าที่ readySlot ขยับมาทีหลังจนกะปักผิดพลาด) —
+      // ปักเป็นกะเดียวกับที่บรรจุเริ่มพอดีได้ (readySlot เอง) ไม่ได้บังคับให้ต้องหลังกว่าเท่านั้น
       item.schedStartSlot = item.manualSlot < item.readySlot ? item.readySlot : item.manualSlot;
       item.schedEndSlot = _shiftAddWorkSlots(item.schedStartSlot, item.lotShifts);
       pinned.push(item);
@@ -18264,7 +18294,7 @@ async function admindashLoadData() {
   _showLoader();
   const [prodRes, bomRes, dlvRes, stockFgRes] = await Promise.all([
     _sb.from('production_records')
-      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status')
+      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,ScrapPct,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status')
       .order('_row_id', { ascending: false }),
     // bom มีหลักหมื่นแถว (ซ้ำ/ขยะปนอยู่ — ดู SKILL.md) ใช้ _bomFetchPaged วน .range() เอง เพราะ PostgREST
     // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่ — SellingPrice2/SellingPrice2_CustomerName
@@ -18674,7 +18704,10 @@ async function _admindashComputeDrillRows(code) {
     const profitPerUnit = price != null ? price - cost : null;
     return {
       lot: r.Lot_FG || '', month: _admindashMonthKey(r) || '', qty, uom: r.UOM || '',
-      lossPct: r.YieldOverall != null ? Math.round((100 - parseFloat(r.YieldOverall)) * 10) / 10 : null,
+      // ทุกตัวเลข % ปัดเหลือทศนิยม 2 ตำแหน่งเสมอ (ตามคำขอผู้ใช้ 2026-08-27) — scrapPct ที่แสดงตรงนี้ปัดแล้ว
+      // แต่ค่า scrapPct ดิบด้านบน (ยังไม่ปัด) ยังใช้คำนวณ cost ต่อเนื่องตามปกติ ไม่กระทบความแม่นยำของสูตร
+      lossPct: r.YieldOverall != null ? Math.round((100 - parseFloat(r.YieldOverall)) * 100) / 100 : null,
+      scrapPct: scrapPct != null ? Math.round(scrapPct * 100) / 100 : null,
       materialPerUnit: qty ? p.material / qty : null,
       packagingPerUnit: qty ? p.packaging / qty : null,
       laborPerUnit: qty ? (parseFloat(r.LaborCost) || 0) / qty : null,
@@ -18682,7 +18715,7 @@ async function _admindashComputeDrillRows(code) {
       costPerUnit: cost,
       sellingPrice: price,
       profitPerUnit,
-      marginPct: (price != null && price > 0) ? Math.round(profitPerUnit / price * 1000) / 10 : null,
+      marginPct: (price != null && price > 0) ? Math.round(profitPerUnit / price * 10000) / 100 : null,
     };
   });
   return { price, rows, partsByRecord, computedRows };
@@ -18719,7 +18752,7 @@ async function admindashRenderDrilldown() {
       tableEl.innerHTML = '<div class="text-center text-muted py-4">ไม่มีบันทึกผลิตที่อนุมัติต้นทุนแล้วของสินค้านี้ใน 6 เดือนล่าสุด</div>';
     } else {
       tableEl.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
-        <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th>
+        <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th><th class="text-end">Scrap%</th>
           <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ/หน่วย</th>
           <th class="text-end">ต้นทุนรวม/หน่วย (รวม Scrap)</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
         <tbody>${computedRows.map(c => {
@@ -18730,6 +18763,7 @@ async function admindashRenderDrilldown() {
             <td>${c.month || '—'}</td>
             <td class="text-end">${c.qty.toLocaleString()} ${c.uom}</td>
             <td class="text-end">${c.lossPct != null ? c.lossPct + '%' : '—'}</td>
+            <td class="text-end">${c.scrapPct != null ? c.scrapPct + '%' : '—'}</td>
             <td class="text-end">${fmtB(c.materialPerUnit)}</td>
             <td class="text-end">${fmtB(c.packagingPerUnit)}</td>
             <td class="text-end">${fmtB(c.laborPerUnit)}</td>
@@ -18956,13 +18990,13 @@ function admindashExportDrillCSV() {
   if (!exp || !exp.rows.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'เลือกสินค้าที่มีข้อมูลในช่วง 6 เดือนก่อน'); return; }
 
   const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
-  const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
+  const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'Scrap%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
     'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
   const lines = [headers.join(',')];
   exp.rows.forEach(c => {
     lines.push([
       `"${(c.lot || '').replace(/"/g, '""')}"`, c.month, c.qty, `"${c.uom}"`,
-      c.lossPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit), round2(c.laborPerUnit),
+      c.lossPct ?? '', c.scrapPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit), round2(c.laborPerUnit),
       round2(c.utilityPerUnit), round2(c.costPerUnit), c.sellingPrice ?? '', round2(c.profitPerUnit), c.marginPct ?? '',
     ].join(','));
   });
@@ -19010,8 +19044,8 @@ async function admindashExportAllProductsXLSX() {
   try {
     const results = await Promise.all(codes.map(code => _admindashComputeDrillRows(code).then(res => ({ code, ...res }))));
 
-    const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
-      'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+    const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'Scrap%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
+      'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
     const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
 
     const wb = XLSX.utils.book_new();
@@ -19019,7 +19053,7 @@ async function admindashExportAllProductsXLSX() {
     results.forEach(({ code, computedRows }) => {
       if (!computedRows.length) return; // ข้ามสินค้าที่ไม่มีบันทึกผลิตในช่วง 6 เดือนนี้ ไม่ต้องสร้างชีทเปล่า
       const aoa = [headers, ...computedRows.map(c => [
-        c.lot, c.month, c.qty, c.uom, c.lossPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit),
+        c.lot, c.month, c.qty, c.uom, c.lossPct ?? '', c.scrapPct ?? '', round2(c.materialPerUnit), round2(c.packagingPerUnit),
         round2(c.laborPerUnit), round2(c.utilityPerUnit), round2(c.costPerUnit), c.sellingPrice ?? '',
         round2(c.profitPerUnit), c.marginPct ?? '',
       ])];
