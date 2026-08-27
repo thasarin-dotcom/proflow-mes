@@ -15947,12 +15947,10 @@ function _pcostHalfHTML(d, copyLabel) {
           <td class="lbl">ค่าแรง</td><td class="val">฿${d.laborCost.toLocaleString(undefined, {maximumFractionDigits: 2})}</td></tr>
       <tr><td class="lbl">Overhead</td><td class="val">฿${d.overhead.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
           <td class="lbl">รวมต้นทุนสุทธิ</td><td class="val">${d.netTotalCost != null ? '฿' + d.netTotalCost.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
-      <tr><td class="lbl">Yield รวม</td><td class="val">${d.yieldOverall != null ? d.yieldOverall.toFixed(1) + '%' : '—'}</td>
+      <tr><td class="lbl">Yield รวม / Scrap %</td><td class="val">${d.yieldOverall != null ? d.yieldOverall.toFixed(1) + '%' : '—'} / ${d.scrapPct != null ? d.scrapPct.toFixed(1) + '%' : '—'}</td>
           <td class="lbl">ต้นทุนจริง (÷Yield)</td><td class="val emph">${d.totalCostActual != null ? '฿' + d.totalCostActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
       <tr><td class="lbl">ต้นทุนต่อหน่วย+ยีลด์</td><td class="val emph">${d.costPerUnitActual != null ? '฿' + d.costPerUnitActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
-          <td class="lbl">Scrap %</td><td class="val">${d.scrapPct != null ? d.scrapPct.toFixed(1) + '%' : '—'}</td></tr>
-      <tr><td class="lbl">ต้นทุนต่อหน่วยจริง (÷Scrap)</td><td class="val emph">${d.costPerUnitScrapAdj != null ? '฿' + d.costPerUnitScrapAdj.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
-          <td class="lbl"></td><td class="val"></td></tr>
+          <td class="lbl">ต้นทุนต่อหน่วยจริง (÷Scrap)</td><td class="val emph">${d.costPerUnitScrapAdj != null ? '฿' + d.costPerUnitScrapAdj.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
     </table>
     <div class="pcost-footer">
       <div class="pcost-sign"><div class="line">ผู้จัดทำ</div></div>
@@ -15986,6 +15984,15 @@ async function prodrecordReportPrint(gi) {
     usedQty: parseFloat(dt.ActualUsedQty) || 0, uom: dt.UOM,
     unitCost: parseFloat(dt.UnitCost_MR) || 0, totalCost: parseFloat(dt.TotalCost) || 0,
   }));
+  // เรียงเหมือนหน้ากรอกผลผลิต (_prodrecordSortMatRowsDOM) — วัตถุดิบเดียวกันหลาย Lot อยู่ติดกัน เรียง Lot
+  // น้อย→มาก ไม่ใช่ order ดิบจาก production_record_details (2026-08-27 ผู้ใช้ทักว่าใบพิมพ์ยังไม่เรียงตาม)
+  const _lotNum = v => { const digits = String(v || '').replace(/\D/g, ''); return digits ? parseInt(digits, 10) : Number.MAX_SAFE_INTEGER; };
+  materials.sort((a, b) => {
+    const ca = a.code || '', cb = b.code || '';
+    if (ca !== cb) return ca.localeCompare(cb, 'th');
+    const diff = _lotNum(a.lot) - _lotNum(b.lot);
+    return diff !== 0 ? diff : String(a.lot || '').localeCompare(String(b.lot || ''));
+  });
 
   const totalCost    = parseFloat(r.TotalCost) || 0;
   const yieldOverall = r.YieldOverall != null ? parseFloat(r.YieldOverall) : null;
