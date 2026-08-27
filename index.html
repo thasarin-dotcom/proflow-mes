@@ -19553,6 +19553,7 @@ async function issueSubmit(e) {
   let error, savedCount = 0;
   let oldRow, editPayload;
   let isPendingRequest = false;
+  let prodSync = null; // ผลการ sync ยอดไปที่ production_record_details ตอนหัวหน้างานแก้ยอดเบิกทันที (ไม่ผ่านคิวขออนุมัติ) — ดู _issueSyncProdRecordDetail
 
   if (isEdit) {
     const qty     = parseFloat(document.getElementById('issue-f-qty').value) || 0;
@@ -19576,6 +19577,11 @@ async function issueSubmit(e) {
         // เปลี่ยนวัตถุดิบ/lot (ไม่ใช่แค่ตอนลบ)
         if (oldRow?.MaterialCode && oldRow?.Lot) await _issueRestoreStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.IssuedQty) || 0);
         await issueUpdateStock(matCode, lot, qty);
+        // sync ยอด "เบิกไป" ไปที่หน้าบันทึกผลิตด้วย (2026-08-21 — เดิมมีแค่ตอนอนุมัติคำขอผ่านคิว
+        // (issueApproveRequest) จุดเดียว แต่หัวหน้างานแก้ยอดเบิกทันทีตรงนี้ไม่เคย sync เลย ทำให้หน้ากรอก
+        // ผลผลิตค้างยอดเก่าอยู่ ทั้งที่บันทึกยังไม่อนุมัติต้นทุน/เปิดกลับมาแก้ก็ตาม — ใช้ฟังก์ชันเดียวกันเป๊ะ
+        // ไม่สร้างสูตร sync คู่ขนานที่สอง)
+        if (moId) prodSync = await _issueSyncProdRecordDetail(moId, matCode, lot, qty);
       }
     } else {
       // ผู้ใช้ทั่วไปแก้ไขรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอรออนุมัติแทน ไม่แตะ issue_production/stock_balance
@@ -19681,9 +19687,20 @@ async function issueSubmit(e) {
 
   if (isEdit && !isPendingRequest) _logAudit('EDIT', 'issue_production', editPayload.MO_ID || editPayload.MaterialCode, _diffFields(oldRow, editPayload));
   _issueModal.hide();
-  Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
-    title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ' : (isEdit ? 'แก้ไขสำเร็จ' : `เบิกสำเร็จ ${savedCount} รายการ`),
-    showConfirmButton:false, timer:2000, timerProgressBar:true });
+  if (prodSync?.blockedApproved?.length) {
+    // ใบบันทึกผลิตที่ผูกอยู่อนุมัติต้นทุนไปแล้ว — ไม่แก้ยอดให้เงียบๆ (เหมือน issueApproveRequest ด้านล่าง)
+    Swal.fire({
+      icon: 'info', title: 'แก้ไขยอดเบิกสำเร็จ',
+      html: `แก้ยอดเบิกเรียบร้อย แต่ใบบันทึกผลิต <b>${prodSync.blockedApproved.join(', ')}</b> อนุมัติต้นทุนไปแล้ว
+        ยอด "เบิกไป" ที่หน้าบันทึกผลิตจึง<b>ยังไม่ถูกแก้ให้อัตโนมัติ</b> — ถ้าต้องการให้ตรงกัน กด "เปิดกลับ" ที่
+        หน้าบันทึกผลิตก่อน แล้วแก้ไขผลผลิต/อนุมัติต้นทุนใหม่`,
+    });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
+      title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ'
+        : (isEdit ? (prodSync?.touched ? 'แก้ไขสำเร็จ — อัปเดตยอดที่หน้าบันทึกผลิตด้วยแล้ว' : 'แก้ไขสำเร็จ') : `เบิกสำเร็จ ${savedCount} รายการ`),
+      showConfirmButton:false, timer: prodSync?.touched ? 2500 : 2000, timerProgressBar:true });
+  }
   loadIssueData();
   loadStockData();
 }
