@@ -4319,7 +4319,12 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             </div>
 
             <hr>
-            <h6 class="fw-bold"><i class="fas fa-boxes me-1 text-primary"></i>วัตถุดิบที่ใช้จริง</h6>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <h6 class="fw-bold mb-0"><i class="fas fa-boxes me-1 text-primary"></i>วัตถุดิบที่ใช้จริง</h6>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="prodrecordPullMissingMaterials()" title="เช็ครายการที่เบิกจริงของ MO นี้ทั้งหมด แล้วเพิ่มรายการที่ยังไม่มีในฟอร์มนี้ให้อัตโนมัติ">
+                <i class="fas fa-sync-alt me-1"></i>ดึงรายการที่ขาดหายมาเพิ่ม
+              </button>
+            </div>
             <div class="small text-muted mb-2">ดึงจากรายการที่เบิกจริงของ MO นี้มาให้อัตโนมัติ (ตัดรายการที่ล็อตอื่นของ MO เดียวกันใช้ไปแล้ว) — แก้ไข/ลบแถวได้ก่อนบันทึก</div>
             <div id="prodrecord-entry-materials"></div>
 
@@ -14918,6 +14923,16 @@ let _prodrecordEntryRowId = null;
 let _prodrecordEntryMatSeq = 0;
 let _prodrecordEntryBulkCodes = new Set(); // MaterialCode ที่เป็น Bulk (ไม่ใช่ Pac) ของสินค้าใน record ที่เปิดอยู่ — ใช้คำนวณ % ยีลด์
 
+// แคชข้อมูลที่ prodrecordOpenEntryModal ดึงมาแล้ว (issue_production ของ MO นี้ + ตัวกรอง claimed + ราคา/
+// หน่วยสด + UOM สด) ให้ prodrecordPullMissingMaterials() เรียกซ้ำได้โดยไม่ต้อง query ใหม่ — ใช้แก้เคสที่
+// วัตถุดิบที่เบิกจริงแล้วหายไปจากรายการในฟอร์ม (2026-08-21, พบจาก PROD-2608-020 ที่ "ขวดแก้ว" หายไปเฉยๆ
+// ทั้งที่มีอยู่จริงใน issue_production ไม่ได้ถูกจับจองโดยบันทึกพี่น้องเลย — สาเหตุจริงไม่ทราบแน่ชัด อาจมาจาก
+// การบันทึกทับกันคนละช่วงเวลาในอดีต แต่ไม่มีทางแก้จากหน้าฟอร์มเดิมเพราะไม่เคยมีปุ่มเพิ่มรายการเอง)
+let _prodrecordEntryIssueRows = [];
+let _prodrecordEntryClaimed   = new Set();
+let _prodrecordEntryUomMap    = {};
+let _prodrecordEntryStockMap  = {};
+
 function _prodrecordMatRowHTML(seq) {
   return `<div class="prodrecord-mat-row border rounded p-2 mb-2" data-seq="${seq}">
     <div class="row g-2 align-items-end">
@@ -14984,6 +14999,43 @@ function _prodrecordRemoveMaterialRow(seq) {
   const el = document.querySelector(`.prodrecord-mat-row[data-seq="${seq}"]`);
   if (el) el.remove();
   _prodrecordRecalcBulkActual(); // ลบแถว Bulk ออกกระทบตัวหารของ % ยีลด์ ต้องคำนวณใหม่
+}
+
+// เทียบรายการที่เบิกจริงของ MO นี้ทั้งหมด (issue_production, แคชไว้ตอนเปิด modal) กับแถวที่มีอยู่ในฟอร์ม
+// ตอนนี้ แล้วเพิ่มเฉพาะรายการที่ "ขาดหายไป" (เบิกจริงแล้วแต่ไม่มีแถวในฟอร์มเลย ไม่ได้ถูกจับจองโดยบันทึก
+// พี่น้องของ MO เดียวกันด้วย) — เพิ่มปุ่มนี้ 2026-08-21 หลังพบว่า PROD-2608-020 มี "ขวดแก้ว" หายไปจาก
+// รายการทั้งที่เบิกจริงแล้วและไม่ได้ถูกจับจองที่ไหนเลย (ยืนยันกับผู้ใช้แล้วว่า MO นี้มีบันทึกผลิตใบเดียว ไม่มี
+// บันทึกพี่น้องที่จะจับจองได้) สาเหตุที่แท้จริงว่าทำไมหายไปตั้งแต่แรกไม่ทราบแน่ชัด — เดิมไม่มีทางแก้จากหน้า
+// ฟอร์มเลยเพราะไม่เคยมีปุ่มเพิ่มรายการเองมาก่อน ใช้ข้อมูลที่แคชไว้ตอนเปิด modal ไม่ query ซ้ำ
+function prodrecordPullMissingMaterials() {
+  const existingKeys = new Set();
+  document.querySelectorAll('.prodrecord-mat-row').forEach(rowEl => {
+    const seq = rowEl.dataset.seq;
+    const code = document.getElementById(`prodrecord-mat-code-${seq}`)?.value || '';
+    const lot  = document.getElementById(`prodrecord-mat-lot-${seq}`)?.value || '';
+    existingKeys.add(code + '|' + lot);
+  });
+
+  let addedCount = 0;
+  _prodrecordEntryIssueRows.forEach(ip => {
+    const key = (ip.MaterialCode||'') + '|' + (ip.Lot||'');
+    if (_prodrecordEntryClaimed.has(key)) return; // ล็อตอื่นของ MO เดียวกันใช้ไปแล้ว ยังคงกันซ้ำเหมือนเดิม
+    if (existingKeys.has(key)) return; // มีแถวอยู่แล้วในฟอร์ม ไม่ต้องเพิ่มซ้ำ
+    const liveUom = _prodrecordEntryUomMap[ip.MaterialCode];
+    _prodrecordAddMaterialRow({
+      MaterialCode: ip.MaterialCode, MaterialName: ip.MaterialName, Lot: ip.Lot,
+      IssuedQty: ip.IssuedQty, ActualUsedQty: ip.IssuedQty, ScrapQty: 0, ReturnedQty: 0,
+      UOM: liveUom != null ? liveUom : ip.UOM, UnitCost: _prodrecordEntryStockMap[key] || 0,
+    });
+    existingKeys.add(key);
+    addedCount++;
+  });
+
+  Swal.fire({
+    icon: addedCount ? 'success' : 'info',
+    title: addedCount ? `เพิ่ม ${addedCount} รายการที่ขาดหายไป` : 'ไม่มีรายการที่ขาดหาย ครบแล้ว',
+    toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, timerProgressBar: true,
+  });
 }
 
 // ดึงต้นทุน/หน่วยล่าสุดจาก stock_balance มาแทนค่าเดิมที่แช่แข็งไว้ตั้งแต่กรอกผลผลิตครั้งแรก (ปุ่มต่อแถว,
@@ -15310,6 +15362,12 @@ async function prodrecordOpenEntryModal(gi) {
   // ไม่ควรต่างกันไปตาม Lot ที่รับเข้าแต่ละรอบเหมือนราคา)
   const materialUomMap = {};
   (materialsRes.data || []).forEach(m => { if (m.MaterialCode) materialUomMap[m.MaterialCode] = m.UOM; });
+
+  // เก็บไว้ให้ prodrecordPullMissingMaterials() เรียกซ้ำได้ (ปุ่ม "ดึงรายการที่ขาดหายมาเพิ่ม" ในฟอร์ม)
+  _prodrecordEntryIssueRows = issueRes.data || [];
+  _prodrecordEntryClaimed   = claimed;
+  _prodrecordEntryUomMap    = materialUomMap;
+  _prodrecordEntryStockMap  = stockMap;
 
   _prodrecordEntryMatSeq = 0;
   document.getElementById('prodrecord-entry-materials').innerHTML = '';
