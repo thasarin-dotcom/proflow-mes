@@ -3913,6 +3913,25 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                 <input type="text" id="misc-f-remark" class="form-control" placeholder="หมายเหตุ">
               </div>
               <div class="col-12">
+                <label class="form-label d-block">การเบิก</label>
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="misc-mode" id="misc-f-mode-internal" value="" checked onchange="miscToggleCustomerFields()">
+                  <label class="btn btn-outline-secondary btn-sm" for="misc-f-mode-internal"><i class="fas fa-warehouse me-1"></i>เบิกเฉยๆ</label>
+                  <input type="radio" class="btn-check" name="misc-mode" id="misc-f-mode-customer" value="customer" onchange="miscToggleCustomerFields()">
+                  <label class="btn btn-outline-primary btn-sm" for="misc-f-mode-customer"><i class="fas fa-user me-1"></i>เบิกให้ลูกค้า</label>
+                </div>
+              </div>
+              <div class="col-md-6 misc-customer-field" style="display:none">
+                <label class="form-label">ชื่อลูกค้า <span class="text-danger">*</span></label>
+                <input type="text" id="misc-f-customer-name" class="form-control" list="misc-customer-datalist"
+                  autocomplete="off" placeholder="พิมพ์หรือเลือกลูกค้าที่เคยส่งมาก่อน..." oninput="miscCustomerNameInput(this.value)">
+                <datalist id="misc-customer-datalist"></datalist>
+              </div>
+              <div class="col-md-6 misc-customer-field" style="display:none">
+                <label class="form-label">ที่อยู่บริษัทลูกค้า</label>
+                <input type="text" id="misc-f-customer-address" class="form-control" placeholder="ที่อยู่สำหรับพิมพ์ใบส่ง">
+              </div>
+              <div class="col-12">
                 <div class="alert alert-warning py-2 mb-0" style="font-size:.82rem">
                   <i class="fas fa-exclamation-triangle me-1"></i>
                   เมื่อบันทึก — ระบบจะ <strong>ลด QtyBalance ใน Stock วัตถุดิบ</strong> อัตโนมัติ
@@ -15698,12 +15717,20 @@ function _prodrecordRecalcApprove() {
   const netIssued = totalIssued - totalReturned;
   const scrapPct = netIssued > 0 ? (totalScrap / netIssued) * 100 : null;
 
+  // ต้นทุน/หน่วยจริง (รวมผลของ Scrap) = ต้นทุน/หน่วยปกติ ÷ (1 − Scrap%/100) — สูตรมาตรฐานอุตสาหกรรม
+  // (ผู้ใช้ยืนยันแล้ว 2026-08-21) เพิ่มเพราะ "ต้นทุน/หน่วย" ปกติคำนวณจากยอด "ใช้จริง" (เบิกไป−ของเสีย−ของคืน)
+  // ซึ่งตัดของเสียออกไปแล้ว ทำให้ต้นทุนของวัตถุดิบที่เสียไปไม่เคยถูกคิดรวมอยู่ในต้นทุน/หน่วยเลย — ตัวเลขนี้
+  // กระจายต้นทุนของเสียนั้นกลับเข้าไปในหน่วยที่ผลิตได้จริงที่เหลือแทน ยิ่ง Scrap % สูง ค่านี้ยิ่งสูงกว่าต้นทุน/
+  // หน่วยปกติ คนละตัวหารกับ "ต้นทุนต่อหน่วย+ยีลด์" (÷Yield) ที่มีอยู่แล้วในรายงานพิมพ์ — Yield คิดจากอัตราส่วน
+  // Bulk/FG, Scrap คิดจากอัตราของเสียวัตถุดิบ คนละมิติกัน ไม่ได้ทดแทนกัน แสดงคู่กันได้
+  const costPerUnitScrapAdj = (scrapPct != null && scrapPct < 100) ? costPerUnit / (1 - scrapPct / 100) : null;
+
   // ราคาขาย/หน่วย มาจาก bom.SellingPrice ของ ProductCode นี้ (ตั้งค่าที่หน้า BOM — "แก้ไขข้อมูลสินค้า")
   // เทียบกับต้นทุน/หน่วยที่เพิ่งคำนวณ ให้เห็นกำไร/หน่วยตอนอนุมัติต้นทุนเลย ไม่ต้องไปเปิดหน้า BOM เทียบเอง
   const sellingPrice = window._prodrecordApproveSellingPrice != null ? parseFloat(window._prodrecordApproveSellingPrice) : null;
   const profitPerUnit = sellingPrice != null ? sellingPrice - costPerUnit : null;
 
-  window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, sellingPrice, profitPerUnit };
+  window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
 
   document.getElementById('prodrecord-ap-preview').innerHTML = `
     <div class="row g-2 text-center">
@@ -15713,6 +15740,9 @@ function _prodrecordRecalcApprove() {
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วย</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${yieldOverall!=null?yieldOverall.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Yield รวม</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${scrapPct!=null?scrapPct.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Scrap %</div></div></div>
+    </div>
+    <div class="row g-2 text-center mt-1">
+      <div class="col-12"><div class="p-2 rounded" style="background:#fff7ed"><div class="fw-bold text-warning">${costPerUnitScrapAdj!=null?'฿'+costPerUnitScrapAdj.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วยจริง (รวม Scrap) — ต้นทุน/หน่วย ÷ (1 − Scrap%)</div></div></div>
     </div>
     <div class="row g-2 text-center mt-1">
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${sellingPrice!=null?'฿'+sellingPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ราคาขาย/หน่วย</div></div></div>
@@ -15821,6 +15851,8 @@ function _pcostHalfHTML(d, copyLabel) {
       <tr><td class="lbl">Yield รวม</td><td class="val">${d.yieldOverall != null ? d.yieldOverall.toFixed(1) + '%' : '—'}</td>
           <td class="lbl">ต้นทุนจริง (÷Yield)</td><td class="val emph">${d.totalCostActual != null ? '฿' + d.totalCostActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
       <tr><td class="lbl">ต้นทุนต่อหน่วย+ยีลด์</td><td class="val emph">${d.costPerUnitActual != null ? '฿' + d.costPerUnitActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
+          <td class="lbl">Scrap %</td><td class="val">${d.scrapPct != null ? d.scrapPct.toFixed(1) + '%' : '—'}</td></tr>
+      <tr><td class="lbl">ต้นทุนต่อหน่วยจริง (÷Scrap)</td><td class="val emph">${d.costPerUnitScrapAdj != null ? '฿' + d.costPerUnitScrapAdj.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
           <td class="lbl"></td><td class="val"></td></tr>
     </table>
     <div class="pcost-footer">
@@ -15883,6 +15915,11 @@ async function prodrecordReportPrint(gi) {
     costPerUnitActual: (yieldOverall != null && yieldOverall > 0) ? (parseFloat(r.CostPerUnit) || 0) / (yieldOverall / 100) : null,
     yieldOverall,
     scrapPct      : r.ScrapPct != null ? parseFloat(r.ScrapPct) : null,
+    // ต้นทุนต่อหน่วยจริง (รวม Scrap) = ต้นทุนต่อหน่วยปกติ ÷ (1 − Scrap%) — สูตรเดียวกับที่โชว์ในหน้าอนุมัติ
+    // ต้นทุน (2026-08-21) คำนวณจาก CostPerUnit/ScrapPct ที่บันทึกไว้แล้วตอนอนุมัติ ไม่คำนวณซ้ำจากรายละเอียด
+    // วัตถุดิบใหม่ กัน scrapPct ที่นี่กับตอนอนุมัติเพี้ยนไม่ตรงกัน
+    costPerUnitScrapAdj: (r.ScrapPct != null && parseFloat(r.ScrapPct) < 100)
+      ? (parseFloat(r.CostPerUnit) || 0) / (1 - parseFloat(r.ScrapPct) / 100) : null,
     printedAt     : _planWeekLocalDateStr(new Date()),
   };
 
@@ -20236,14 +20273,16 @@ async function issueAddLineSubmit(e) {
 let _miscData    = [];
 let _miscMatList = [];   // stock_balance rows for autocomplete
 let _miscModal   = null;
+let _miscCustomerHistory = [];   // ลูกค้าที่เคยเบิกให้ (จาก customer_orders + issue_misc.CustomerName เอง) สำหรับ datalist "เบิกให้ลูกค้า"
 
 async function loadMiscData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('misc-tbody', '<tr><td colspan="11" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
-  const [miscRes, matRes] = await Promise.all([
+  const [miscRes, matRes, coRes] = await Promise.all([
     _sb.from('issue_misc').select('*').order('_row_id', { ascending: false }),
     _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate').order('MaterialName'),
+    _sb.from('customer_orders').select('CustomerName,CustomerAddress').order('_row_id', { ascending: false }),
   ]);
 
   _cancelPlaceholder();
@@ -20252,8 +20291,31 @@ async function loadMiscData() {
 
   _miscData    = miscRes.data || [];
   _miscMatList = matRes.data  || [];
+  // ประวัติลูกค้าสำหรับ datalist "เบิกให้ลูกค้า" — รวมทั้งจาก customer_orders (CO จริง) และจาก issue_misc เอง
+  // (พิมพ์ชื่อลูกค้าใหม่ครั้งแรกที่นี่ ครั้งต่อไปก็เลือกจาก dropdown ได้เลย ไม่ต้องมี CO จริงมาก่อน)
+  const localCustomers = _miscData.filter(r => r.CustomerName).map(r => ({ CustomerName: r.CustomerName, CustomerAddress: r.CustomerAddress || '' }));
+  _miscCustomerHistory = _miscDedupeCustomers([...localCustomers, ...(coRes.data || [])]);
+  _miscPopulateCustomerDatalist();
   miscUpdateKPIs();
   miscRenderTable();
+}
+
+function _miscDedupeCustomers(rows) {
+  const seen = new Set();
+  const out = [];
+  (rows || []).forEach(r => {
+    const name = (r.CustomerName || '').trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    out.push({ CustomerName: name, CustomerAddress: r.CustomerAddress || '' });
+  });
+  return out;
+}
+
+function _miscPopulateCustomerDatalist() {
+  const dl = document.getElementById('misc-customer-datalist');
+  if (!dl) return;
+  dl.innerHTML = _miscCustomerHistory.map(c => `<option value="${(c.CustomerName || '').replace(/"/g, '&quot;')}">`).join('');
 }
 
 function miscUpdateKPIs() {
@@ -20280,7 +20342,7 @@ function miscRenderTable() {
     if (from && d < from) return false;
     if (to   && d > to)   return false;
     if (q) {
-      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Category, r.Remark, r.CO_Ref].join(' ').toLowerCase();
+      const hay = [r.MaterialName, r.MaterialCode, r.Lot, r.Category, r.Remark, r.CO_Ref, r.CustomerName].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     // มีเลขที่ใบส่งแล้ว → ย้ายไปรวมเป็นการ์ดใน #misc-bill-groups ข้างล่างแทน ไม่ต้องซ้ำในตารางนี้อีก
@@ -20298,7 +20360,7 @@ function miscRenderTable() {
   tbody.innerHTML = rows.map(r => `<tr>
     <td><input type="checkbox" class="misc-row-check" value="${r._row_id}" onchange="miscCheckState()"></td>
     <td>${_fmtDate(r.Date)}</td>
-    <td>${r.MaterialName||'—'}${r.CO_Ref ? `<br><span class="badge bg-warning text-dark" title="เบิกส่ง Bulk ผูกกับ CO นี้"><i class="fas fa-link me-1"></i>${r.CO_Ref}</span>` : ''}</td>
+    <td>${r.MaterialName||'—'}${r.CO_Ref ? `<br><span class="badge bg-warning text-dark" title="เบิกส่ง Bulk ผูกกับ CO นี้"><i class="fas fa-link me-1"></i>${r.CO_Ref}</span>` : ''}${!r.CO_Ref && r.CustomerName ? `<br><span class="badge bg-info text-dark" title="เบิกให้ลูกค้า: ${r.CustomerName}"><i class="fas fa-user me-1"></i>${r.CustomerName}</span>` : ''}</td>
     <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
     <td><span class="badge bg-light text-dark border">${r.Lot||'—'}</span></td>
     <td class="text-end fw-bold text-danger">${(parseFloat(r.IssuedQty)||0).toLocaleString()}</td>
@@ -20396,6 +20458,22 @@ document.addEventListener('click', function(e) {
   if (dd && !dd.contains(e.target) && e.target.id !== 'misc-f-mat-search') dd.style.display = 'none';
 });
 
+function miscToggleCustomerFields() {
+  const isCustomer = document.getElementById('misc-f-mode-customer').checked;
+  document.querySelectorAll('.misc-customer-field').forEach(el => el.style.display = isCustomer ? '' : 'none');
+  document.getElementById('misc-f-customer-name').required = isCustomer;
+  if (!isCustomer) {
+    document.getElementById('misc-f-customer-name').value = '';
+    document.getElementById('misc-f-customer-address').value = '';
+  }
+}
+
+function miscCustomerNameInput(val) {
+  // ชื่อพิมพ์ตรงกับลูกค้าเดิม (เลือกจาก datalist หรือพิมพ์ซ้ำเป๊ะ) → เติมที่อยู่ให้อัตโนมัติ ยังแก้ไขเองได้อยู่
+  const hit = _miscCustomerHistory.find(c => c.CustomerName === val);
+  if (hit) document.getElementById('misc-f-customer-address').value = hit.CustomerAddress || '';
+}
+
 function miscOpenModal(rowId = null) {
   if (!_miscModal) _miscModal = new bootstrap.Modal(document.getElementById('miscModal'));
   document.getElementById('miscForm').reset();
@@ -20405,6 +20483,8 @@ function miscOpenModal(rowId = null) {
   document.getElementById('misc-f-lot').innerHTML = '<option value="">— เลือก Lot —</option>';
   document.getElementById('misc-f-lot').onchange  = null;
   document.getElementById('misc-f-co-hint').innerHTML = '';   // ล้างป้าย "อ้างอิง CO" ทุกครั้งที่เปิด — ตั้งใหม่เฉพาะตอนเปิดจาก coWithdrawBulkFromStock หรือแก้ไขแถวที่มี CO_Ref เท่านั้น
+  document.getElementById('misc-f-mode-internal').checked = true;
+  miscToggleCustomerFields();   // ล้าง/ซ่อนช่องลูกค้าเป็นค่าเริ่มต้นทุกครั้งที่เปิด — ตั้งใหม่เฉพาะตอนแก้ไขแถวที่มี CustomerName เท่านั้น
 
   const title  = document.getElementById('miscModalTitle');
   const editId = document.getElementById('misc-edit-id');
@@ -20449,6 +20529,12 @@ function miscOpenModal(rowId = null) {
       document.getElementById('misc-f-co-hint').innerHTML =
         `<span class="badge bg-warning text-dark"><i class="fas fa-link me-1"></i>อ้างอิง CO: ${r.CO_Ref}</span>`;
     }
+    if (r.CustomerName) {
+      document.getElementById('misc-f-mode-customer').checked  = true;
+      document.getElementById('misc-f-customer-name').value    = r.CustomerName;
+      document.getElementById('misc-f-customer-address').value = r.CustomerAddress||'';
+      miscToggleCustomerFields();
+    }
   } else {
     editId.value = '';
     title.innerHTML = '<i class="fas fa-box-open me-2"></i>เพิ่มรายการเบิกเบ็ดเตล็ด';
@@ -20464,6 +20550,14 @@ async function miscSubmit(e) {
   const qty      = parseFloat(document.getElementById('misc-f-qty').value) || 0;
   const matCode  = document.getElementById('misc-f-mat-code').value;
   const lot      = document.getElementById('misc-f-lot').value;
+  const isForCustomer   = document.getElementById('misc-f-mode-customer').checked;
+  const customerName    = document.getElementById('misc-f-customer-name').value.trim();
+  const customerAddress = document.getElementById('misc-f-customer-address').value.trim();
+
+  if (isForCustomer && !customerName) {
+    Swal.fire({ icon:'warning', title:'กรุณาระบุชื่อลูกค้า', text:'เลือก "เบิกให้ลูกค้า" แล้วต้องกรอกชื่อลูกค้าด้วย' });
+    return;
+  }
 
   if (!isEdit && matCode && lot) {
     const stockRow = _miscMatList.find(m => m.MaterialCode === matCode && m.Lot === lot);
@@ -20487,6 +20581,8 @@ async function miscSubmit(e) {
     Category     : document.getElementById('misc-f-category').value,
     Remark       : document.getElementById('misc-f-remark').value,
     CO_Ref       : document.getElementById('misc-f-co-ref').value || null,
+    CustomerName    : isForCustomer ? (customerName || null) : null,
+    CustomerAddress : isForCustomer ? (customerAddress || null) : null,
   };
 
   const saveBtn = document.getElementById('misc-save-btn');
@@ -21038,9 +21134,11 @@ async function miscSlipRenderPreview() {
     return;
   }
 
-  // กล่องลูกค้า/ที่อยู่/ผู้ติดต่อ/PO — โชว์เฉพาะตอนมี CO_Ref ผูกอยู่ (เบิกส่ง Bulk ให้ CO ผ่าน coWithdrawBulkFromStock)
-  // เบิกเบ็ดเตล็ดทั่วไปไม่มีลูกค้า ไม่ต้องมีกล่องนี้ (ยืนยันกับผู้ใช้แล้ว) — คิวรีเหมือน dlvbillRenderPreview ทุกอย่าง
-  // ต่างแค่ต้องดึง CustomerName เพิ่มเอง เพราะ issue_misc ไม่มีคอลัมน์นี้ (delivery ของ FG มีอยู่แล้วในแถวตัวเอง)
+  // กล่องลูกค้า/ที่อยู่/ผู้ติดต่อ/PO — โชว์เมื่อมี CO_Ref ผูกอยู่ (เบิกส่ง Bulk ให้ CO ผ่าน coWithdrawBulkFromStock,
+  // มี PO/ผู้ติดต่อ/เบอร์โทรจริงจาก customer_orders) หรือมีการแท็กชื่อลูกค้าตรงๆ ผ่านตัวเลือก "เบิกให้ลูกค้า" ในฟอร์ม
+  // เบิกเบ็ดเตล็ด (ไม่มี PO/ผู้ติดต่อ/เบอร์โทร เพราะเป็นแค่แท็กชื่อ+ที่อยู่ ไม่ผูกกับ CO จริง) — ถ้ามีทั้งคู่ ให้ข้อมูลจาก
+  // CO_Ref ที่สมบูรณ์กว่าชนะ. คิวรี CO เหมือน dlvbillRenderPreview ทุกอย่าง ต่างแค่ต้องดึง CustomerName เพิ่มเอง เพราะ
+  // issue_misc ไม่มีคอลัมน์นี้แต่เดิม (delivery ของ FG มีอยู่แล้วในแถวตัวเอง)
   const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
   let coRows = [];
   if (coRefs.length) {
@@ -21048,12 +21146,13 @@ async function miscSlipRenderPreview() {
       .select('Order_ID,CustomerName,PO_No,CustomerAddress,ContactPerson,ContactTel').in('Order_ID', coRefs);
     if (!error) coRows = data || [];
   }
-  const hasCustomer = coRefs.length > 0;
-  const customer = coRows.find(c => c.CustomerName)?.CustomerName || '';
-  const poNos    = [...new Set(coRows.map(c => c.PO_No).filter(Boolean))];
-  const address  = coRows.find(c => c.CustomerAddress)?.CustomerAddress || '';
-  const contact  = coRows.find(c => c.ContactPerson)?.ContactPerson || '';
-  const tel      = coRows.find(c => c.ContactTel)?.ContactTel || '';
+  const directCustomerRow = rows.find(r => r.CustomerName);
+  const hasCustomer = coRefs.length > 0 || !!directCustomerRow;
+  const customer = coRefs.length ? (coRows.find(c => c.CustomerName)?.CustomerName || '') : (directCustomerRow?.CustomerName || '');
+  const poNos    = coRefs.length ? [...new Set(coRows.map(c => c.PO_No).filter(Boolean))] : [];
+  const address  = coRefs.length ? (coRows.find(c => c.CustomerAddress)?.CustomerAddress || '') : (directCustomerRow?.CustomerAddress || '');
+  const contact  = coRefs.length ? (coRows.find(c => c.ContactPerson)?.ContactPerson || '') : '';
+  const tel      = coRefs.length ? (coRows.find(c => c.ContactTel)?.ContactTel || '') : '';
 
   // วันหมดอายุต่อ Lot — ลอง _miscMatList (stock_balance ที่โหลดไว้แล้วตอนเปิดหน้า ไม่ต้อง query ซ้ำ) ก่อน
   // ตกไป mr_receive ทีละคู่ (MaterialCode,Lot) เฉพาะคู่ที่หาไม่เจอ (Lot เบิกหมดแล้วอาจไม่เหลือแถว stock_balance)
@@ -21142,7 +21241,7 @@ async function miscSlipRenderPreview() {
         <tbody>${groupHtml}</tbody>
       </table>
 
-      ${hasCustomer ? `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>` : ''}
+      ${coRefs.length ? `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>` : ''}
 
       <div class="dlvbill-notes">
         <div>หมายเหตุ: 1. กรุณาตรวจเช็คสินค้า ไม่เกิน 3-5 วัน</div>
