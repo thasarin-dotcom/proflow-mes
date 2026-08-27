@@ -1327,13 +1327,20 @@ table.pcost-table td.text-end{text-align:right;font-variant-numeric:tabular-nums
 table.pcost-table td.text-center{text-align:center}
 table.pcost-table td.nowrap{white-space:nowrap}
 tr.pcost-total-row td{font-weight:800;background:#eff6ff;border-top:1.3px solid #1e3a8a}
-table.pcost-cost-table{width:44%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;margin:3px 0;font-size:9px}
+/* เหลือแถวเดียว 5 คู่ label/value (2026-08-27, ผู้ใช้ขอย่อจาก 4 แถวเหลือแถวเดียวเพราะช่องเซ็นชื่อ
+   (.pcost-footer) หายไปหมด — พื้นที่ .pcost-half แน่นเกินจน flex ไม่เหลือที่ให้ margin-top:auto ดัน
+   ช่องเซ็นชื่อลงมาแสดง) ตัดฟิลด์ที่ไม่ใช่ตัวเลขหลักออก (รวมต้นทุนสุทธิ/ต้นทุนจริง(÷Yield)/ต้นทุนต่อหน่วย+
+   ยีลด์ — คำนวณยังอยู่ที่อื่นถ้าจำเป็นต้องดึงกลับมาโชว์ทีหลัง) เหลือ 5 อย่างที่ผู้ใช้ระบุตรงๆ: ต้นทุนต่อหน่วย
+   (ปกติ)/ค่าแรง/Overhead/Yield รวม+Scrap%/ต้นทุนต่อหน่วยจริง(÷Scrap) — ไม่ตั้ง width % ตายตัวแบบเดิม
+   (ออกแบบไว้สำหรับ 2 คู่ต่อแถว รวม 100% พอดี) เพราะตอนนี้มีแค่แถวเดียวไม่ต้องจัดคอลัมน์ให้ตรงกันข้ามแถวอีก
+   ต่อไป ปล่อยให้ browser จัดความกว้างตามเนื้อหาแทน */
+table.pcost-cost-table{width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;margin:3px 0;font-size:9px}
 table.pcost-cost-table tr{border-bottom:1px solid #e2e8f0}
 table.pcost-cost-table tr:last-child{border-bottom:none}
-table.pcost-cost-table td{padding:3px 6px}
-table.pcost-cost-table td.lbl{color:#64748b;width:30%}
-table.pcost-cost-table td.val{width:20%;font-weight:700;text-align:right}
-table.pcost-cost-table td:nth-child(3){padding-left:14px}
+table.pcost-cost-table td{padding:5px 4px;white-space:nowrap}
+table.pcost-cost-table td.lbl{color:#64748b}
+table.pcost-cost-table td.lbl:not(:first-child){padding-left:12px}
+table.pcost-cost-table td.val{font-weight:700;text-align:right;padding-right:10px}
 table.pcost-cost-table td.val.emph{color:#1e3a8a;font-weight:800}
 .pcost-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:8px;font-size:8.5px;color:#64748b}
 .pcost-sign{text-align:center;width:32%}
@@ -15054,20 +15061,29 @@ function _prodrecordMatRowHTML(seq) {
   </div>`;
 }
 
-// เรียงแถววัตถุดิบให้กลุ่มเดียวกัน (MaterialCode เดียวกัน หลาย Lot) อยู่ติดกันเสมอ ไม่กระโดดสลับกับวัตถุดิบ
-// อื่น — เรียงตามรหัสวัตถุดิบก่อน แล้วค่อยเรียง Lot จากเลขน้อยไปมากภายในกลุ่มเดียวกัน (2026-08-27 ตามคำขอ
-// ผู้ใช้ "ถ้ามีรายการซ้ำกัน ให้ Sort จัดต่อกัน ไม่ข้ามไปมา") จัดเรียง DOM element ที่มีอยู่แล้วใหม่ (ไม่สร้าง
-// แถวใหม่/ไม่กระทบ seq เดิม — appendChild ย้าย node เดิม ไม่ clone) เรียกได้ทุกจุดที่เพิ่มแถวเสร็จแล้ว (โหลด
-// ครั้งแรก + ปุ่มดึงรายการที่ขาดหายมาเพิ่ม) กันโค้ด 2 จุดเรียงไม่ตรงกัน
+// เรียง 3 กลุ่ม: Bulk ก่อนเสมอ (ใช้ _prodrecordEntryBulkCodes ที่แคชไว้ตอนเปิด modal ตัวเดียวกับที่คำนวณ %
+// ยีลด์ กันเกณฑ์ Bulk/Pac 2 จุดไม่ตรงกัน) → บรรจุภัณฑ์ → สติ๊กเกอร์ท้ายสุดเสมอ (ตรวจจากชื่อวัตถุดิบมีคำว่า
+// "สติ๊กเกอร์" — override เฉพาะการเรียงหน้านี้ ไม่แตะ bom.Remark จริง เหตุผลเดียวกับที่ทำใน
+// prodrecordReportPrint 2026-08-27 หลัง bom.Remark ของ CMSK008 ตั้งเป็น Bulk ไว้ไม่ใช่ Pac ทำให้ปนกับ Bulk
+// จริงถ้าไม่เช็คชื่อแยกอีกชั้น) แล้วค่อยจัดกลุ่มเดียวกัน (MaterialCode เดียวกัน หลาย Lot) ให้อยู่ติดกันเสมอ
+// ไม่กระโดดสลับกับวัตถุดิบอื่น — เรียงตามรหัสวัตถุดิบก่อน แล้วค่อยเรียง Lot จากเลขน้อยไปมากภายในกลุ่มเดียวกัน
+// (2026-08-27 ตามคำขอผู้ใช้ "ถ้ามีรายการซ้ำกัน ให้ Sort จัดต่อกัน ไม่ข้ามไปมา") จัดเรียง DOM element ที่มีอยู่
+// แล้วใหม่ (ไม่สร้างแถวใหม่/ไม่กระทบ seq เดิม — appendChild ย้าย node เดิม ไม่ clone) เรียกได้ทุกจุดที่เพิ่ม
+// แถวเสร็จแล้ว (โหลดครั้งแรก + ปุ่มดึงรายการที่ขาดหายมาเพิ่ม) กันโค้ด 2 จุดเรียงไม่ตรงกัน
 function _prodrecordSortMatRowsDOM() {
   const container = document.getElementById('prodrecord-entry-materials');
   if (!container) return;
   const lotNum = v => { const d = String(v || '').replace(/\D/g, ''); return d ? parseInt(d, 10) : Number.MAX_SAFE_INTEGER; };
+  const matRank = (code, name) => (name || '').includes('สติ๊กเกอร์') ? 2 : (_prodrecordEntryBulkCodes.has(code) ? 0 : 1);
   const rows = Array.from(container.querySelectorAll('.prodrecord-mat-row'));
   rows.sort((a, b) => {
     const seqA = a.dataset.seq, seqB = b.dataset.seq;
     const codeA = document.getElementById(`prodrecord-mat-code-${seqA}`)?.value || '';
     const codeB = document.getElementById(`prodrecord-mat-code-${seqB}`)?.value || '';
+    const nameA = document.getElementById(`prodrecord-mat-name-${seqA}`)?.value || '';
+    const nameB = document.getElementById(`prodrecord-mat-name-${seqB}`)?.value || '';
+    const rankDiff = matRank(codeA, nameA) - matRank(codeB, nameB);
+    if (rankDiff !== 0) return rankDiff;
     if (codeA !== codeB) return codeA.localeCompare(codeB, 'th');
     const lotA = document.getElementById(`prodrecord-mat-lot-${seqA}`)?.value || '';
     const lotB = document.getElementById(`prodrecord-mat-lot-${seqB}`)?.value || '';
@@ -15935,7 +15951,7 @@ function _pcostHalfHTML(d, copyLabel) {
     <table class="pcost-table">
       <thead><tr>
         <th style="width:4%">ลำดับ</th><th style="width:9%">รหัส</th><th style="width:33%">ชื่อวัตถุดิบ</th><th style="width:13%">Lot</th>
-        <th style="width:10%">ใช้จริง</th><th style="width:13%">หน่วย</th><th style="width:6%">ต้นทุน/หน่วย</th><th style="width:12%">ต้นทุนรวม</th>
+        <th style="width:10%">ใช้จริง</th><th style="width:9%">หน่วย</th><th style="width:10%">ต้นทุน/หน่วย</th><th style="width:12%">ต้นทุนรวม</th>
       </tr></thead>
       <tbody>
         ${matRows || '<tr><td colspan="8" class="text-center" style="color:#94a3b8">ไม่มีข้อมูลวัตถุดิบ</td></tr>'}
@@ -15943,14 +15959,14 @@ function _pcostHalfHTML(d, copyLabel) {
       </tbody>
     </table>
     <table class="pcost-cost-table">
-      <tr><td class="lbl">ต้นทุนต่อหน่วย (ปกติ)</td><td class="val">฿${d.costPerUnit.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
-          <td class="lbl">ค่าแรง</td><td class="val">฿${d.laborCost.toLocaleString(undefined, {maximumFractionDigits: 2})}</td></tr>
-      <tr><td class="lbl">Overhead</td><td class="val">฿${d.overhead.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
-          <td class="lbl">รวมต้นทุนสุทธิ</td><td class="val">${d.netTotalCost != null ? '฿' + d.netTotalCost.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
-      <tr><td class="lbl">Yield รวม / Scrap %</td><td class="val">${d.yieldOverall != null ? d.yieldOverall.toFixed(1) + '%' : '—'} / ${d.scrapPct != null ? d.scrapPct.toFixed(1) + '%' : '—'}</td>
-          <td class="lbl">ต้นทุนจริง (÷Yield)</td><td class="val emph">${d.totalCostActual != null ? '฿' + d.totalCostActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
-      <tr><td class="lbl">ต้นทุนต่อหน่วย+ยีลด์</td><td class="val emph">${d.costPerUnitActual != null ? '฿' + d.costPerUnitActual.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
-          <td class="lbl">ต้นทุนต่อหน่วยจริง (÷Scrap)</td><td class="val emph">${d.costPerUnitScrapAdj != null ? '฿' + d.costPerUnitScrapAdj.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td></tr>
+      <tr>
+        <td class="lbl">ต้นทุน B/P</td><td class="val">${d.materialCostPerUnit != null ? '฿' + d.materialCostPerUnit.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
+        <td class="lbl">ค่าแรง</td><td class="val">฿${d.laborCost.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+        <td class="lbl">Overhead</td><td class="val">฿${d.overhead.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+        <td class="lbl">Yield รวม / Scrap %</td><td class="val">${d.yieldOverall != null ? d.yieldOverall.toFixed(1) + '%' : '—'} / ${d.scrapPct != null ? d.scrapPct.toFixed(1) + '%' : '—'}</td>
+        <td class="lbl">ต้นทุน/หน่วยปกติ</td><td class="val">฿${d.costPerUnit.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+        <td class="lbl">ต้นทุน/หน่วยจริง</td><td class="val emph">${d.costPerUnitScrapAdj != null ? '฿' + d.costPerUnitScrapAdj.toLocaleString(undefined, {maximumFractionDigits: 2}) : '—'}</td>
+      </tr>
     </table>
     <div class="pcost-footer">
       <div class="pcost-sign"><div class="line">ผู้จัดทำ</div></div>
@@ -15971,54 +15987,62 @@ async function prodrecordReportPrint(gi) {
 
   _showLoader();
   let details = _prodrecordDetailsByRecord[r.ProdRecord_ID];
-  if (!details) {
-    const { data, error } = await _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id');
-    if (error) { _hideLoader(); _err('โหลดรายละเอียดวัตถุดิบไม่ได้', error.message); return; }
-    details = data || [];
-    _prodrecordDetailsByRecord[r.ProdRecord_ID] = details;
-  }
+  const [detailsFetch, bomRes] = await Promise.all([
+    details ? Promise.resolve({ data: details, error: null }) : _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
+    _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', r.ProductCode),
+  ]);
+  if (detailsFetch.error) { _hideLoader(); _err('โหลดรายละเอียดวัตถุดิบไม่ได้', detailsFetch.error.message); return; }
+  details = detailsFetch.data || [];
+  _prodrecordDetailsByRecord[r.ProdRecord_ID] = details;
   _hideLoader();
+
+  // Bulk/บรรจุภัณฑ์ แยกจาก bom.Remark เดียวกับ convention ที่ใช้ทั้งแอป ('pac' = บรรจุภัณฑ์ อย่างอื่นถือเป็น
+  // Bulk) — ใช้จัดลำดับให้ Bulk ขึ้นก่อนเสมอ ตามคำขอผู้ใช้ 2026-08-27 ("รายการ Bulk ให้อยู่ลำดับบนเสมอ")
+  const pacSet = new Set((bomRes.data || []).filter(b => (b.Remark || '').toLowerCase() === 'pac').map(b => b.MaterialCode));
 
   const materials = details.map(dt => ({
     code: dt.MaterialCode, name: dt.MaterialName, lot: dt.LotMaterial,
     usedQty: parseFloat(dt.ActualUsedQty) || 0, uom: dt.UOM,
     unitCost: parseFloat(dt.UnitCost_MR) || 0, totalCost: parseFloat(dt.TotalCost) || 0,
   }));
-  // เรียงเหมือนหน้ากรอกผลผลิต (_prodrecordSortMatRowsDOM) — วัตถุดิบเดียวกันหลาย Lot อยู่ติดกัน เรียง Lot
-  // น้อย→มาก ไม่ใช่ order ดิบจาก production_record_details (2026-08-27 ผู้ใช้ทักว่าใบพิมพ์ยังไม่เรียงตาม)
+  // เรียง 3 กลุ่ม: Bulk ก่อนเสมอ → บรรจุภัณฑ์ → สติ๊กเกอร์ท้ายสุดเสมอ (2026-08-27, ผู้ใช้ทักว่า CMSK008
+  // "สติ๊กเกอร์คาดขวด" ถูกจัดเข้ากลุ่ม Bulk ไปด้วยเพราะ bom.Remark ของแถวนี้ไม่ได้ตั้งเป็น 'pac' ไว้ (data
+  // master ตั้งไม่ครบ ไม่ใช่บั๊กโค้ด — bom.Remark ทั้งแอปมีแค่ 2 ค่า Bulk/Pac ไม่มีหมวดสติ๊กเกอร์แยก) กันไป
+  // แก้ที่ต้นทาง (จะกระทบ % ยีลด์/การคำนวณอื่นที่อิง Remark นี้อยู่) ใช้ตรวจจับจากชื่อวัตถุดิบแทน (มีคำว่า
+  // "สติ๊กเกอร์") เป็น override เฉพาะการเรียงลำดับหน้านี้เท่านั้น ไม่แตะ bom.Remark จริง — ถ้าสินค้าอื่นมี
+  // สติ๊กเกอร์ชื่อเรียกไม่เหมือนกัน (เช่น "ป้าย"/"Label") จะไม่ถูกจับ ต้องเพิ่มคำค้นถ้าเจอเคสแบบนั้น
+  const _isSticker = m => (m.name || '').includes('สติ๊กเกอร์');
+  const _matRank = m => _isSticker(m) ? 2 : (pacSet.has(m.code) ? 1 : 0);
+  // แล้วค่อยเรียงเหมือนหน้ากรอกผลผลิต (_prodrecordSortMatRowsDOM) ภายในกลุ่มเดียวกัน — วัตถุดิบเดียวกันหลาย
+  // Lot อยู่ติดกัน เรียง Lot น้อย→มาก ไม่ใช่ order ดิบจาก production_record_details (2026-08-27 ผู้ใช้ทักว่า
+  // ใบพิมพ์ยังไม่เรียงตาม)
   const _lotNum = v => { const digits = String(v || '').replace(/\D/g, ''); return digits ? parseInt(digits, 10) : Number.MAX_SAFE_INTEGER; };
   materials.sort((a, b) => {
+    const rankDiff = _matRank(a) - _matRank(b);
+    if (rankDiff !== 0) return rankDiff;
     const ca = a.code || '', cb = b.code || '';
     if (ca !== cb) return ca.localeCompare(cb, 'th');
     const diff = _lotNum(a.lot) - _lotNum(b.lot);
     return diff !== 0 ? diff : String(a.lot || '').localeCompare(String(b.lot || ''));
   });
 
-  const totalCost    = parseFloat(r.TotalCost) || 0;
   const yieldOverall = r.YieldOverall != null ? parseFloat(r.YieldOverall) : null;
   const materialCost = parseFloat(r.MaterialCost) || 0;
   const laborCost    = parseFloat(r.LaborCost) || 0;
   const overhead     = parseFloat(r.Overhead) || 0;
   const fgActualNum  = parseFloat(r.FG_Actual) || 0;
-  // ต้นทุนวัตถุดิบ+บรรจุภัณฑ์ ต่อหน่วย = รวมต้นทุนวัตถุดิบ+บรรจุภัณฑ์ ÷ จำนวน FG (ตามที่ผู้ใช้ระบุสูตรตรงๆ)
+  // ต้นทุน B/P ต่อหน่วย = เฉพาะ Bulk+บรรจุภัณฑ์ (materialCost ก้อนเดียวกับที่ผ่าน production_record_details
+  // แล้ว ไม่รวมค่าแรง/Overhead) ÷ FG จริง — ผู้ใช้ขอเพิ่ม 2026-08-27 แยกจาก "ต้นทุนต่อหน่วย (ปกติ)" ที่รวม
+  // ค่าแรง+Overhead ด้วย
   const materialCostPerUnit = fgActualNum > 0 ? materialCost / fgActualNum : null;
-  // รวมต้นทุนสุทธิ = ต้นทุนวัตถุดิบ+บรรจุภัณฑ์ต่อหน่วย + ค่าแรง(ยอดรวม) + Overhead(ยอดรวม) — สูตรตามที่ผู้ใช้ระบุ
-  // (ผสมหน่วยต่อหน่วย+ยอดรวมโดยตั้งใจ ไม่ใช่ต้นทุนต่อหน่วยแบบมาตรฐาน — ยืนยันกับผู้ใช้แล้ว 2 ครั้งก่อนใช้สูตรนี้)
-  const netTotalCost = materialCostPerUnit != null ? materialCostPerUnit + laborCost + overhead : null;
 
   const data = {
     prodId: r.ProdRecord_ID, moRef: r.MO_Ref, productCode: r.ProductCode, productName: r.ProductName,
     lotFg: r.Lot_FG, dateStart: r.Date_Start, dateEnd: r.Date_End, approvedAt: r.ApprovedAt,
     fgActual: fgActualNum, uom: r.UOM,
     materials,
-    materialCost, laborCost, overhead, totalCost,
-    materialCostPerUnit, netTotalCost,
-    // ต้นทุนจริง = ต้นทุนรวม ÷ %Yield — ยิ่ง Yield ต่ำ (ของเสีย/สูญเสียมาก) ต้นทุนจริงต่อรอบผลิตยิ่งสูงกว่าต้นทุนรวมตามบัญชี
-    // (สูตรก่อนหน้านี้เคยเป็นคูณ ผู้ใช้ขอเปลี่ยนเป็นหารหลังทบทวนแล้วว่าหารสะท้อนความจริงทางบัญชีมากกว่า)
-    totalCostActual: (yieldOverall != null && yieldOverall > 0) ? totalCost / (yieldOverall / 100) : null,
+    materialCost, laborCost, overhead, materialCostPerUnit,
     costPerUnit   : parseFloat(r.CostPerUnit) || 0,
-    // ต้นทุนต่อหน่วย+ยีลด์ = ต้นทุนต่อหน่วยปกติ ÷ %Yield (สัดส่วนเดียวกับต้นทุนจริง แค่หารต่อหน่วยแทนหารทั้งก้อน)
-    costPerUnitActual: (yieldOverall != null && yieldOverall > 0) ? (parseFloat(r.CostPerUnit) || 0) / (yieldOverall / 100) : null,
     yieldOverall,
     scrapPct      : r.ScrapPct != null ? parseFloat(r.ScrapPct) : null,
     // ต้นทุนต่อหน่วยจริง (รวม Scrap) = ต้นทุนต่อหน่วยปกติ ÷ (1 − Scrap%) — สูตรเดียวกับที่โชว์ในหน้าอนุมัติ
