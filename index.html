@@ -4025,8 +4025,21 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                 <input type="text" id="bomprod-f-uof" class="form-control" placeholder="เช่น ชิ้น / ขวด">
               </div>
               <div class="col-md-6">
-                <label class="form-label">ราคาขาย/หน่วย (บาท)</label>
+                <label class="form-label">ราคาขายทั่วไป/หน่วย (บาท)</label>
                 <input type="number" id="bomprod-f-sellprice" class="form-control" min="0" step="0.01" placeholder="เช่น 120.00">
+              </div>
+              <div class="col-12"><hr class="my-1"></div>
+              <div class="col-12">
+                <div class="fw-bold small text-muted mb-1"><i class="fas fa-user-tag me-1"></i>ราคาขายพิเศษสำหรับลูกค้าเจาะจง (ไม่บังคับ)</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">ลูกค้า</label>
+                <input type="text" id="bomprod-f-sellprice2-customer" class="form-control" list="bomprod-customer-datalist" placeholder="เลือก/พิมพ์ชื่อลูกค้า">
+                <datalist id="bomprod-customer-datalist"></datalist>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">ราคาขายสำหรับลูกค้านี้/หน่วย (บาท)</label>
+                <input type="number" id="bomprod-f-sellprice2" class="form-control" min="0" step="0.01" placeholder="เช่น 110.00">
               </div>
               <div class="col-12"><hr class="my-1"></div>
               <div class="col-12">
@@ -9775,10 +9788,13 @@ async function deliveryAutoCreate(wdRowId, wd) {
   // alter_delivery_add_selling_price_snapshot.sql) เพื่อให้แดชบอร์ดต้นทุน & กำไรคำนวณกำไรจากราคาขาย ณ วันขายจริง
   // แทนราคาปัจจุบันของสินค้าที่อาจเปลี่ยนไปแล้ว — ถ้า query ไม่เจอราคา (สินค้ายังไม่ตั้งราคาขายในหน้า BOM) จะได้
   // null ไปเก็บตรงๆ ไม่ throw error กันการเบิก/สร้างใบส่งของหยุดชะงักเพราะเรื่องนี้
+  // ถ้า wd (fg_withdraw) ผูกกับลูกค้าที่ bom ตั้งราคาพิเศษไว้ (SellingPrice2_CustomerName ตรงกับ
+  // wd.CustomerName) จะ snapshot ราคาพิเศษนั้นแทนราคาทั่วไป ผ่าน _bomResolveSellingPrice() ตัวเดียวกับที่
+  // Stage B/แดชบอร์ดใช้ กันตรรกะเทียบชื่อลูกค้าหลุดไม่ตรงกันระหว่างจุด
   let sellingPrice = null;
   try {
-    const { data } = await _sb.from('bom').select('SellingPrice').eq('ProductCode', wd.ProductCode).limit(1).maybeSingle();
-    sellingPrice = data?.SellingPrice ?? null;
+    const { data } = await _sb.from('bom').select('SellingPrice,SellingPrice2,SellingPrice2_CustomerName').eq('ProductCode', wd.ProductCode).limit(1).maybeSingle();
+    sellingPrice = _bomResolveSellingPrice(data, wd.CustomerName)?.price ?? null;
   } catch (e) { console.error('deliveryAutoCreate: ดึงราคาขายจาก bom ไม่สำเร็จ (ไม่กระทบการสร้างใบส่งของ)', e); }
 
   const payload = {
@@ -13972,6 +13988,7 @@ async function materialSubmit(e) {
 // ══════════════════════════════════════════════
 let _bomData      = [];
 let _bomMaterials = [];   // materials master สำหรับ autocomplete
+let _bomCustomerNames = [];   // ชื่อลูกค้า distinct จาก customer_orders สำหรับ datalist ราคาขายพิเศษ
 let _bomLineModal = null;
 let _bomProductModal = null;
 let _bomRowSeq       = 0;     // running counter สำหรับ id ของแต่ละแถววัตถุดิบในโมดัล (ไม่ reuse กันชนกันตอนลบแถวกลาง)
@@ -13984,9 +14001,12 @@ async function bomLoadData() {
   // หมายเหตุ: ตาราง bom จริงมีแถวขยะ (ProductCode/ทุกคอลัมน์เป็น null, เหลือจากไฟล์ export เดิม) อยู่หลายหมื่นแถว
   // กรองด้วย .not('ProductCode','is',null) ตัดแถวขยะทิ้งตั้งแต่ query — แต่ตัวเซิร์ฟเวอร์ PostgREST เองก็ยัง cap
   // ผลลัพธ์ต่อ 1 request ไว้ที่ 1000 แถวเสมอ (ไม่ว่าจะขอ .limit() มากกว่านั้นแค่ไหน) จึงต้องวน .range() ทีละหน้า
-  const [bomRows, matRes] = await Promise.all([
+  const [bomRows, matRes, coRes] = await Promise.all([
     _bomFetchAllRows(),
     _sb.from('materials').select('MaterialCode,MaterialName,UOM,TYPE').order('MaterialName'),
+    // ชื่อลูกค้า distinct จาก customer_orders — ใช้ป้อน datalist ตอนตั้ง "ราคาขายพิเศษสำหรับลูกค้าเจาะจง"
+    // กันพิมพ์ชื่อเพี้ยนไม่ตรงกับที่ MO/CO จริงใช้ (ดู _bomResolveSellingPrice ที่เทียบชื่อแบบ trim+lowercase)
+    _sb.from('customer_orders').select('CustomerName'),
   ]);
 
   _cancelPlaceholder();
@@ -13995,8 +14015,16 @@ async function bomLoadData() {
 
   _bomData      = bomRows.data;
   _bomMaterials = matRes.data || [];
+  _bomCustomerNames = [...new Set((coRes.data || []).map(r => (r.CustomerName || '').trim()).filter(Boolean))].sort();
+  _bomPopulateCustomerDatalist();
   bomUpdateKPIs();
   bomRenderCards();
+}
+
+function _bomPopulateCustomerDatalist() {
+  const dl = document.getElementById('bomprod-customer-datalist');
+  if (!dl) return;
+  dl.innerHTML = _bomCustomerNames.map(c => `<option value="${c.replace(/"/g, '&quot;')}">`).join('');
 }
 
 // เพจผ่านข้อมูล bom ทั้งหมด (PostgREST จำกัด 1000 แถว/request) พร้อมกรองแถวขยะ (ProductCode ว่างจากไฟล์ import เก่า)
@@ -14017,6 +14045,23 @@ async function _bomFetchPaged(selectCols, orderBy) {
 
 async function _bomFetchAllRows() {
   return _bomFetchPaged('*', [{ col: 'ProductName' }, { col: '_row_id', ascending: true }]);
+}
+
+// จุดตัดสินใจ "ควรใช้ราคาขายไหน" จุดเดียวของทั้งแอป — ใช้ร่วมกันทั้ง Stage B (อนุมัติต้นทุน),
+// deliveryAutoCreate (SellingPriceSnapshot), และแดชบอร์ดต้นทุน & กำไร กันไม่ให้ตรรกะเทียบชื่อลูกค้าหลุด
+// ไม่ตรงกันระหว่าง 3 จุด (บั๊กคลาสนี้เจอบ่อยในโปรเจกต์นี้ — ดู SKILL.md เรื่อง status-vocab sync)
+// bomRow ต้องมี SellingPrice/SellingPrice2/SellingPrice2_CustomerName (จาก bom, ตั้งค่าที่หน้า BOM)
+// เทียบชื่อลูกค้าแบบ trim+lowercase ตรงตัว ไม่ fuzzy — แอปนี้ไม่มีตาราง Customer master ให้ผูกคีย์แน่นกว่านี้
+// คืนค่า null ถ้าไม่มีราคาเลย (ทั้ง 2 ช่องว่าง), หรือ {price, tier:'customer'|'default'}
+function _bomResolveSellingPrice(bomRow, customerName) {
+  if (!bomRow) return null;
+  const cust = (customerName || '').trim().toLowerCase();
+  if (cust && bomRow.SellingPrice2 != null &&
+      (bomRow.SellingPrice2_CustomerName || '').trim().toLowerCase() === cust) {
+    return { price: parseFloat(bomRow.SellingPrice2), tier: 'customer', customerName: bomRow.SellingPrice2_CustomerName };
+  }
+  if (bomRow.SellingPrice != null) return { price: parseFloat(bomRow.SellingPrice), tier: 'default', customerName: null };
+  return null;
 }
 
 // สินค้าถือว่า "กำลังการผลิตต่อวันครบ" เมื่อกรอกครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — ขาดขั้นใด
@@ -14047,6 +14092,8 @@ function _bomGroupByProduct(rows) {
         CapacityFillPerDay: r.CapacityFillPerDay, CapacityLotPerDay: r.CapacityLotPerDay,
         CapacityInspectPackPerDay: r.CapacityInspectPackPerDay,
         SellingPrice: r.SellingPrice,
+        SellingPrice2: r.SellingPrice2,
+        SellingPrice2_CustomerName: r.SellingPrice2_CustomerName,
         lineMap: new Map(),
       });
     }
@@ -14063,6 +14110,8 @@ function _bomGroupByProduct(rows) {
     CapacityFillPerDay: p.CapacityFillPerDay, CapacityLotPerDay: p.CapacityLotPerDay,
     CapacityInspectPackPerDay: p.CapacityInspectPackPerDay,
     SellingPrice: p.SellingPrice,
+    SellingPrice2: p.SellingPrice2,
+    SellingPrice2_CustomerName: p.SellingPrice2_CustomerName,
     lines: Array.from(p.lineMap.values()),
   }));
 }
@@ -14133,6 +14182,7 @@ function bomRenderCards() {
           <b>${g.ProductName || '—'}</b>
           <span class="badge bg-light text-dark border ms-2">UOF: ${g.UOF || '—'}</span>
           ${g.SellingPrice != null ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">ราคาขาย ฿${parseFloat(g.SellingPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
+          ${g.SellingPrice2 != null && g.SellingPrice2_CustomerName ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="ราคาขายพิเศษสำหรับลูกค้านี้เท่านั้น"><i class="fas fa-user-tag me-1"></i>${g.SellingPrice2_CustomerName} ฿${parseFloat(g.SellingPrice2).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           ${!_bomHasFullCapacity(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
         </div>
@@ -14529,6 +14579,8 @@ function bomOpenProductModal(groupIdx) {
   document.getElementById('bomprod-f-cap-lot').value     = group.CapacityLotPerDay ?? '';
   document.getElementById('bomprod-f-cap-inspect').value = group.CapacityInspectPackPerDay ?? '';
   document.getElementById('bomprod-f-sellprice').value   = group.SellingPrice ?? '';
+  document.getElementById('bomprod-f-sellprice2').value  = group.SellingPrice2 ?? '';
+  document.getElementById('bomprod-f-sellprice2-customer').value = group.SellingPrice2_CustomerName ?? '';
   _bomProductModal.show();
 }
 
@@ -14539,6 +14591,8 @@ async function bomProductSubmit(e) {
   const capLot     = document.getElementById('bomprod-f-cap-lot').value;
   const capInspect = document.getElementById('bomprod-f-cap-inspect').value;
   const sellPrice  = document.getElementById('bomprod-f-sellprice').value;
+  const sellPrice2 = document.getElementById('bomprod-f-sellprice2').value;
+  const sellPrice2Customer = document.getElementById('bomprod-f-sellprice2-customer').value.trim();
   const payload = {
     ProductCode : document.getElementById('bomprod-f-code').value.trim(),
     ProductName : document.getElementById('bomprod-f-name').value.trim(),
@@ -14547,6 +14601,10 @@ async function bomProductSubmit(e) {
     CapacityLotPerDay         : capLot     !== '' ? parseFloat(capLot)     : null,
     CapacityInspectPackPerDay : capInspect !== '' ? parseFloat(capInspect) : null,
     SellingPrice              : sellPrice  !== '' ? parseFloat(sellPrice)  : null,
+    // ราคาขายพิเศษต้องมีทั้งราคาและชื่อลูกค้าคู่กันเสมอ — มีแค่ฝั่งเดียวถือว่ายังไม่สมบูรณ์ ไม่บันทึก (กัน
+    // _bomResolveSellingPrice เจอราคาไม่มีชื่อลูกค้า หรือชื่อลูกค้าไม่มีราคาไปคิดผิดที่หน้าอื่น)
+    SellingPrice2              : (sellPrice2 !== '' && sellPrice2Customer) ? parseFloat(sellPrice2) : null,
+    SellingPrice2_CustomerName : (sellPrice2 !== '' && sellPrice2Customer) ? sellPrice2Customer : null,
   };
 
   const saveBtn = document.getElementById('bomprod-save-btn');
@@ -15617,13 +15675,26 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
     _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
-    _sb.from('bom').select('SellingPrice').eq('ProductCode', r.ProductCode).limit(1),
+    _sb.from('bom').select('SellingPrice,SellingPrice2,SellingPrice2_CustomerName').eq('ProductCode', r.ProductCode).limit(1),
   ]);
+
+  // หาลูกค้าของบันทึกนี้ (ถ้ามี) ตามสาย MO_Ref → manufacturing_orders.CO_Ref → customer_orders.CustomerName
+  // — จุดเดียวกับที่ bprPrint() ใช้ดึงชื่อลูกค้ามาพิมพ์อยู่แล้ว ไม่ผูก CO ก็ได้ (ผลิตเข้าสต็อกทั่วไป) แล้วจะ
+  // ใช้ราคาขายทั่วไปเป็นค่าเริ่มต้นตามปกติ (ดู _bomResolveSellingPrice)
+  let customerName = null;
+  if (r.MO_Ref) {
+    const { data: mo } = await _sb.from('manufacturing_orders').select('CO_Ref').eq('MO_ID', r.MO_Ref).maybeSingle();
+    if (mo?.CO_Ref) {
+      const { data: co } = await _sb.from('customer_orders').select('CustomerName').eq('Order_ID', mo.CO_Ref).maybeSingle();
+      customerName = co?.CustomerName || null;
+    }
+  }
   _hideLoader();
 
   window._prodrecordApproveDetails = detailsRes.data || [];
   window._prodrecordApproveRecord  = r;
-  window._prodrecordApproveSellingPrice = (bomRes.data || [])[0]?.SellingPrice ?? null;
+  window._prodrecordApproveBomRow  = (bomRes.data || [])[0] || null;
+  window._prodrecordApproveCustomerName = customerName;
   const last = (lastApprovedRes.data || [])[0] || {};
 
   document.getElementById('prodrecord-ap-ft-rate').value = r.FT_LaborRate ?? last.FT_LaborRate ?? '';
@@ -15725,9 +15796,12 @@ function _prodrecordRecalcApprove() {
   // Bulk/FG, Scrap คิดจากอัตราของเสียวัตถุดิบ คนละมิติกัน ไม่ได้ทดแทนกัน แสดงคู่กันได้
   const costPerUnitScrapAdj = (scrapPct != null && scrapPct < 100) ? costPerUnit / (1 - scrapPct / 100) : null;
 
-  // ราคาขาย/หน่วย มาจาก bom.SellingPrice ของ ProductCode นี้ (ตั้งค่าที่หน้า BOM — "แก้ไขข้อมูลสินค้า")
-  // เทียบกับต้นทุน/หน่วยที่เพิ่งคำนวณ ให้เห็นกำไร/หน่วยตอนอนุมัติต้นทุนเลย ไม่ต้องไปเปิดหน้า BOM เทียบเอง
-  const sellingPrice = window._prodrecordApproveSellingPrice != null ? parseFloat(window._prodrecordApproveSellingPrice) : null;
+  // ราคาขาย/หน่วย มาจาก bom.SellingPrice(2) ของ ProductCode นี้ (ตั้งค่าที่หน้า BOM — "แก้ไขข้อมูลสินค้า")
+  // — ถ้าบันทึกนี้ผูกกับ MO ที่มาจาก CO ของลูกค้าที่ตั้งราคาพิเศษไว้ (SellingPrice2_CustomerName ตรงกัน) ใช้
+  // ราคาพิเศษนั้นแทนราคาทั่วไป ผ่าน _bomResolveSellingPrice() ตัวเดียว (ดูคอมเมนต์ตรงนิยามฟังก์ชัน) เทียบกับ
+  // ต้นทุน/หน่วยที่เพิ่งคำนวณ ให้เห็นกำไร/หน่วยตอนอนุมัติต้นทุนเลย ไม่ต้องไปเปิดหน้า BOM เทียบเอง
+  const priceResolved = _bomResolveSellingPrice(window._prodrecordApproveBomRow, window._prodrecordApproveCustomerName);
+  const sellingPrice = priceResolved ? priceResolved.price : null;
   const profitPerUnit = sellingPrice != null ? sellingPrice - costPerUnit : null;
 
   window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
@@ -15745,7 +15819,7 @@ function _prodrecordRecalcApprove() {
       <div class="col-12"><div class="p-2 rounded" style="background:#fff7ed"><div class="fw-bold text-warning">${costPerUnitScrapAdj!=null?'฿'+costPerUnitScrapAdj.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วยจริง (รวม Scrap) — ต้นทุน/หน่วย ÷ (1 − Scrap%)</div></div></div>
     </div>
     <div class="row g-2 text-center mt-1">
-      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${sellingPrice!=null?'฿'+sellingPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ราคาขาย/หน่วย</div></div></div>
+      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${sellingPrice!=null?'฿'+sellingPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ราคาขาย/หน่วย${priceResolved?.tier==='customer'?` <span class="badge bg-info-subtle text-info border border-info-subtle">ลูกค้า: ${priceResolved.customerName}</span>`:''}</div></div></div>
       <div class="col-8"><div class="p-2 rounded" style="background:${profitPerUnit==null?'#f8fafc':(profitPerUnit>=0?'#ecfdf5':'#fef2f2')}">
         <div class="fw-bold ${profitPerUnit==null?'':(profitPerUnit>=0?'text-success':'text-danger')}">${profitPerUnit!=null?(profitPerUnit>=0?'+':'')+'฿'+profitPerUnit.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div>
         <div class="text-muted" style="font-size:.7rem">กำไร/หน่วย (ราคาขาย − ต้นทุน/หน่วย)${sellingPrice==null?' — ยังไม่ได้ตั้งราคาขายที่หน้า BOM':''}</div>
@@ -18111,8 +18185,14 @@ function _admindashLotKey(code, lot) { return (code || '') + '|' + (lot || ''); 
 // จะไม่มีค่านี้ เลย fallback ไปที่ Date (วันที่สร้างใบส่งของ) เหมือนเดิมโดยอัตโนมัติ
 function _admindashDlvMonthKey(r) { return (r.ArrivedDate || r.Date || '').slice(0, 7); }
 // ราคาขายของ 1 แถว delivery — ใช้ SellingPriceSnapshot (ราคา ณ วันที่ส่ง ถ้ามีการบันทึกไว้ตอนสร้างใบส่งของ
-// หลังเพิ่มคอลัมน์นี้) ก่อนเสมอ ไม่มีค่อยย้อนไปใช้ราคาปัจจุบันจาก bom.SellingPrice เหมือนพฤติกรรมเดิม
-function _admindashDlvPrice(r, priceMap) { return r.SellingPriceSnapshot ?? priceMap[r.ProductCode] ?? null; }
+// หลังเพิ่มคอลัมน์นี้ — ถ้า deliveryAutoCreate ตอนนั้นแก้ resolve ราคาลูกค้าให้แล้ว snapshot นี้จะเป็นราคาที่
+// ถูกต้องอยู่แล้ว) ก่อนเสมอ ไม่มีค่อย resolve จาก bom.SellingPrice(2) ปัจจุบันตามลูกค้าของแถวนี้ (r.CustomerName
+// — delivery มีคอลัมน์นี้ตรงๆ ไม่ต้อง join) ผ่าน _bomResolveSellingPrice() ตัวเดียวกับ Stage B/deliveryAutoCreate
+// priceMap ตอนนี้คือ ProductCode → แถว bom ดิบ (SellingPrice/SellingPrice2/SellingPrice2_CustomerName) ไม่ใช่
+// ตัวเลขเดียวเหมือนก่อนหน้านี้
+function _admindashDlvPrice(r, priceMap) {
+  return r.SellingPriceSnapshot ?? _bomResolveSellingPrice(priceMap[r.ProductCode], r.CustomerName)?.price ?? null;
+}
 
 function _admindashLast6Months() {
   const months = [];
@@ -18131,8 +18211,9 @@ async function admindashLoadData() {
       .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status')
       .order('_row_id', { ascending: false }),
     // bom มีหลักหมื่นแถว (ซ้ำ/ขยะปนอยู่ — ดู SKILL.md) ใช้ _bomFetchPaged วน .range() เอง เพราะ PostgREST
-    // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่
-    _bomFetchPaged('ProductCode,SellingPrice', [{ col: 'ProductCode' }]),
+    // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่ — SellingPrice2/SellingPrice2_CustomerName
+    // เพิ่มมาให้ _admindashDlvPrice() resolve ราคาตามลูกค้าจริงของแต่ละแถว delivery ได้ (ดู _bomResolveSellingPrice)
+    _bomFetchPaged('ProductCode,SellingPrice,SellingPrice2,SellingPrice2_CustomerName', [{ col: 'ProductCode' }]),
     // ส่งถึงลูกค้าจริงเท่านั้น (ไม่ใช่แค่ "จัดส่งแล้ว"/"รอจัดส่ง") — นี่คือจุดที่รับรู้กำไรได้ตามที่ผู้ใช้ตัดสินใจ
     // ArrivedDate/SellingPriceSnapshot เป็นคอลัมน์ใหม่ (ดู alter_delivery_add_arrived_date.sql,
     // alter_delivery_add_selling_price_snapshot.sql — ต้องรันใน Supabase SQL Editor ก่อนถึงจะมีค่า) ใช้
@@ -18149,8 +18230,11 @@ async function admindashLoadData() {
   if (dlvRes.error)     { _err('โหลดข้อมูลจัดส่งไม่ได้', dlvRes.error.message); return; }
   if (stockFgRes.error) { _err('โหลด Stock FG ไม่ได้', stockFgRes.error.message); return; }
 
+  // priceMap: ProductCode → แถว bom ดิบ {SellingPrice, SellingPrice2, SellingPrice2_CustomerName} (ไม่ใช่
+  // ตัวเลขราคาเดียวเหมือนก่อนหน้านี้) เก็บทั้งแถวไว้ให้ _admindashDlvPrice()/_bomResolveSellingPrice() เลือก
+  // ราคาตามลูกค้าของแต่ละแถว delivery ได้ — เก็บเฉพาะแถวที่มีราคาทั่วไปอย่างน้อย (กันแถวว่างเปล่าทั้งคู่)
   const priceMap = {};
-  (bomRes.data || []).forEach(r => { if (r.SellingPrice != null) priceMap[r.ProductCode] = parseFloat(r.SellingPrice); });
+  (bomRes.data || []).forEach(r => { if (r.SellingPrice != null) priceMap[r.ProductCode] = r; });
   _admindashPriceMap = priceMap;
 
   const allRecs      = prodRes.data || [];
@@ -18425,7 +18509,9 @@ function admindashRenderVolatilityAlerts(approvedRecs, priceMap, months6) {
     const lastIdx  = monthCosts.length - 1 - [...monthCosts].reverse().findIndex(v => v != null);
     const baselineCost = monthCosts[firstIdx];
     const currentCost  = monthCosts[lastIdx];
-    const price = priceMap[code];
+    // การแจ้งเตือนนี้เป็นระดับสินค้า ไม่ผูกกับลูกค้ารายใดรายหนึ่ง — ใช้ราคาขายทั่วไป (SellingPrice) เสมอ
+    // ไม่ resolve ราคาพิเศษต่อลูกค้า (priceMap[code] ตอนนี้คือแถว bom ดิบ ไม่ใช่ตัวเลขราคาเดียวแล้ว)
+    const price = priceMap[code]?.SellingPrice != null ? parseFloat(priceMap[code].SellingPrice) : null;
 
     let suggestedPrice = null, originalMarginPct = null, marginNow = null;
     if (price != null && price > 0) {
@@ -18512,7 +18598,11 @@ async function _admindashFetchMaterialSplit(code, rows) {
 // บนจอ (admindashRenderDrilldown) และตอน export ทุกสินค้าเป็น Excel หลายชีท (admindashExportAllProductsXLSX)
 // กันโค้ด 2 จุดคำนวณไม่ตรงกัน
 async function _admindashComputeDrillRows(code) {
-  const price = _admindashPriceMap[code];
+  // ตารางนี้เจาะลึกเป็นระดับ Lot การผลิต ไม่ใช่ระดับการขายให้ลูกค้ารายใดรายหนึ่ง (1 Lot อาจถูกแบ่งส่งหลายลูกค้า
+  // ได้) จึงใช้ราคาขายทั่วไป (SellingPrice) เสมอ ไม่ resolve ราคาพิเศษต่อลูกค้า — ต่างจาก _admindashDlvPrice()
+  // ที่ผูกกับแถว delivery จริงซึ่งรู้ลูกค้าแน่ชัด (_admindashPriceMap[code] ตอนนี้คือแถว bom ดิบ ไม่ใช่ตัวเลข
+  // ราคาเดียวแล้ว)
+  const price = _admindashPriceMap[code]?.SellingPrice != null ? parseFloat(_admindashPriceMap[code].SellingPrice) : null;
   const rows = _admindashLastProd.filter(r => r.ProductCode === code)
     .sort((a, b) => (_admindashMonthKey(b) || '').localeCompare(_admindashMonthKey(a) || ''));
   const partsByRecord = await _admindashFetchMaterialSplit(code, rows);
