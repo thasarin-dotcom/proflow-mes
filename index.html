@@ -15054,6 +15054,29 @@ function _prodrecordMatRowHTML(seq) {
   </div>`;
 }
 
+// เรียงแถววัตถุดิบให้กลุ่มเดียวกัน (MaterialCode เดียวกัน หลาย Lot) อยู่ติดกันเสมอ ไม่กระโดดสลับกับวัตถุดิบ
+// อื่น — เรียงตามรหัสวัตถุดิบก่อน แล้วค่อยเรียง Lot จากเลขน้อยไปมากภายในกลุ่มเดียวกัน (2026-08-27 ตามคำขอ
+// ผู้ใช้ "ถ้ามีรายการซ้ำกัน ให้ Sort จัดต่อกัน ไม่ข้ามไปมา") จัดเรียง DOM element ที่มีอยู่แล้วใหม่ (ไม่สร้าง
+// แถวใหม่/ไม่กระทบ seq เดิม — appendChild ย้าย node เดิม ไม่ clone) เรียกได้ทุกจุดที่เพิ่มแถวเสร็จแล้ว (โหลด
+// ครั้งแรก + ปุ่มดึงรายการที่ขาดหายมาเพิ่ม) กันโค้ด 2 จุดเรียงไม่ตรงกัน
+function _prodrecordSortMatRowsDOM() {
+  const container = document.getElementById('prodrecord-entry-materials');
+  if (!container) return;
+  const lotNum = v => { const d = String(v || '').replace(/\D/g, ''); return d ? parseInt(d, 10) : Number.MAX_SAFE_INTEGER; };
+  const rows = Array.from(container.querySelectorAll('.prodrecord-mat-row'));
+  rows.sort((a, b) => {
+    const seqA = a.dataset.seq, seqB = b.dataset.seq;
+    const codeA = document.getElementById(`prodrecord-mat-code-${seqA}`)?.value || '';
+    const codeB = document.getElementById(`prodrecord-mat-code-${seqB}`)?.value || '';
+    if (codeA !== codeB) return codeA.localeCompare(codeB, 'th');
+    const lotA = document.getElementById(`prodrecord-mat-lot-${seqA}`)?.value || '';
+    const lotB = document.getElementById(`prodrecord-mat-lot-${seqB}`)?.value || '';
+    const diff = lotNum(lotA) - lotNum(lotB);
+    return diff !== 0 ? diff : lotA.localeCompare(lotB);
+  });
+  rows.forEach(el => container.appendChild(el));
+}
+
 function _prodrecordAddMaterialRow(data) {
   const seq = _prodrecordEntryMatSeq++;
   const container = document.getElementById('prodrecord-entry-materials');
@@ -15107,6 +15130,7 @@ function prodrecordPullMissingMaterials() {
     existingKeys.add(key);
     addedCount++;
   });
+  if (addedCount) _prodrecordSortMatRowsDOM(); // ให้แถวที่ดึงมาเพิ่มไปอยู่ติดกลุ่มวัตถุดิบเดียวกัน ไม่ใช่ต่อท้ายลอยๆ
 
   Swal.fire({
     icon: addedCount ? 'success' : 'info',
@@ -15478,6 +15502,7 @@ async function prodrecordOpenEntryModal(gi) {
       });
     });
   }
+  _prodrecordSortMatRowsDOM(); // จัดกลุ่มวัตถุดิบเดียวกัน (หลาย Lot) ให้อยู่ติดกัน เรียง Lot น้อย→มาก
   _prodrecordRecalcBulkActual(); // คำนวณ % ยีลด์ จริงตอนนี้ที่ทั้งแถววัตถุดิบและ _prodrecordEntryBulkCodes พร้อมแล้ว
 
   // ── Stations: โชว์ครบทุกขั้นตอนเสมอ (2026-08-17 แก้บั๊ก — เดิมกรองตาม BOM Capacity ทำให้ขั้นตอนที่เคย
