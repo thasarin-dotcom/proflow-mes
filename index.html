@@ -1505,6 +1505,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-fgout" onclick="showPage('fgout',this)" title="เบิก FG / จัดส่ง">
       <i class="fas fa-truck me-2"></i><span>เบิก FG / จัดส่ง</span>
+      <span id="nav-fgout-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="รอจัดส่ง"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-misc" onclick="showPage('misc',this)" title="เบิกเบ็ดเตล็ด">
       <i class="fas fa-box-open me-2"></i><span>เบิกเบ็ดเตล็ด</span>
@@ -10004,6 +10005,39 @@ function deliveryUpdateKPIs() {
   if (el('delivery-kpi-pending')) el('delivery-kpi-pending').textContent = pending;
   if (el('delivery-kpi-shipped')) el('delivery-kpi-shipped').textContent = shipped;
   if (el('delivery-kpi-arrived')) el('delivery-kpi-arrived').textContent = arrived;
+  _fgoutUpdateWaitingBadge(false, pending); // เลี่ยง query ซ้ำ ใช้ตัวเลขที่เพิ่งคำนวณเลย (เหมือน _issueUpdateWaitingBadge)
+}
+
+// นับรายการเบิก FG ที่ยังรอจัดส่ง (delivery.Status='รอจัดส่ง') ขึ้นเป็นเลขแจ้งเตือนที่ nav-fgout —
+// เหมือน _issueUpdateWaitingBadge เป๊ะๆ เห็นได้ทุก role (ไม่ใช่ปุ่มอนุมัติ แค่แจ้งว่ามีของค้างจัดส่ง)
+// knownCount: ถ้า deliveryUpdateKPIs() เพิ่งคำนวณ pending มาแล้วให้ส่งเลขมาเลย กัน query ซ้ำ — ถ้าไม่ส่งมา
+// (เรียกตอน login bootstrap ก่อนเคยเข้าหน้านี้เลยในเซสชันนี้) จะคิวรีสดเอง
+// notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามีรายการค้างด้วย
+let _fgoutWaitingBadgeSeq = 0;
+
+async function _fgoutUpdateWaitingBadge(notifyIfPending = false, knownCount = null) {
+  const badge = document.getElementById('nav-fgout-badge');
+  const mySeq = ++_fgoutWaitingBadgeSeq;
+  let count = knownCount;
+  if (count == null) {
+    const { data: statusRows, error } = await _sb.from('delivery').select('Status');
+    if (mySeq !== _fgoutWaitingBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
+    if (error) return; // เงียบไว้ เป็นแค่ตัวเลขแจ้งเตือนเสริม ไม่ใช่ error ที่ต้องรบกวนผู้ใช้
+    count = (statusRows || []).filter(r => r.Status === 'รอจัดส่ง').length;
+  }
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `รายการเบิก FG รอจัดส่ง ${count} รายการ`,
+      html: `มีรายการเบิก FG ที่ยังไม่ได้จัดส่งอยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้าเบิก FG / จัดส่ง', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('fgout', document.getElementById('nav-fgout'));
+  }
 }
 
 function _deliveryStatusBadge(status) {
@@ -20958,11 +20992,15 @@ function miscRenderBillGroups() {
       const expanded  = _miscBillExpandedSet.has(g.slipNo);
       const coRefs    = [...new Set(g.rows.map(r => r.CO_Ref).filter(Boolean))];
       const hasCoRef  = coRefs.length > 0;
+      // "มีลูกค้าเกี่ยวข้อง" ไม่ได้แปลว่าต้องผูก CO จริงเสมอไปแล้ว — แถวที่แท็ก CustomerName ตรงๆ (ฟีเจอร์
+      // "เบิกให้ลูกค้า", ไม่มี CO_Ref) ก็ควรกดยืนยัน "ส่งเสร็จ" ได้เหมือนกัน แค่ไม่มี CO ให้ไปตัดยอดต่อเท่านั้น
+      const isBillable = r => !!(r.CO_Ref || r.CustomerName);
+      const hasCustomer = g.rows.some(isBillable);
       const itemCount = g.rows.length;
-      const allDelivered = hasCoRef && g.rows.every(r => !r.CO_Ref || r.Delivered);
+      const allDelivered = hasCustomer && g.rows.every(r => !isBillable(r) || r.Delivered);
 
-      const actionHtml = !hasCoRef
-        ? `<span class="badge bg-secondary" title="ไม่ได้ผูกกับ CO — ไม่ต้องตัดยอด"><i class="fas fa-box me-1"></i>เบิกภายใน</span>`
+      const actionHtml = !hasCustomer
+        ? `<span class="badge bg-secondary" title="ไม่ได้ผูกกับ CO/ลูกค้า — ไม่ต้องยืนยันส่งเสร็จ"><i class="fas fa-box me-1"></i>เบิกภายใน</span>`
         : allDelivered
           ? `<span class="badge bg-success" title="ยืนยันตัดยอด CO แล้ว"><i class="fas fa-check-circle me-1"></i>สำเร็จแล้ว</span>` +
             (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();miscBillUndoComplete('${g.slipNo}')" title="ยกเลิกส่งเสร็จ (แอดมินเท่านั้น) — ย้อนกลับเป็นรอยืนยัน">
@@ -20995,7 +21033,7 @@ function miscRenderBillGroups() {
             <div>${r.MaterialName || '—'} <span class="badge bg-light text-dark border ms-1">Lot ${r.Lot || '—'}</span></div>
             <div class="d-flex align-items-center gap-2">
               <span>${(parseFloat(r.IssuedQty) || 0).toLocaleString()} ${r.UOM || ''}</span>
-              ${r.CO_Ref ? (r.Delivered ? '<span class="badge bg-success">ยืนยันแล้ว</span>' : '<span class="badge bg-warning text-dark">รอยืนยัน</span>') : ''}
+              ${(r.CO_Ref || r.CustomerName) ? (r.Delivered ? '<span class="badge bg-success">ยืนยันแล้ว</span>' : '<span class="badge bg-warning text-dark">รอยืนยัน</span>') : ''}
             </div>
           </div>`).join('')}
         </div>`}
@@ -21008,11 +21046,13 @@ function miscRenderBillGroups() {
 // เดิม coUpdateStatusFromBulkWithdraw ปิดงาน CO เป็น "ส่งสำเร็จ" ทันทีที่เบิกครบยอด (ดูหมายเหตุที่ฟังก์ชันนั้น) แต่
 // ผู้ใช้ขอให้ต้องกดยืนยันที่นี่ก่อนถึงจะตัดยอดจริง เหมือนหน้าเบิก FG (fgoutBillAdvanceAll → _deliveryCheckCOComplete)
 async function miscBillConfirmComplete(slipNo) {
-  const rows = _miscData.filter(r => r.SlipNo === slipNo && r.CO_Ref && !r.Delivered);
+  // รวมทั้งแถวที่ผูก CO_Ref จริง (Bulk) และแถวที่แค่แท็ก CustomerName ตรงๆ (ฟีเจอร์ "เบิกให้ลูกค้า" ไม่มี CO
+  // ให้ตัดยอด) — ทั้งคู่กด "ส่งเสร็จ" ได้เหมือนกัน ต่างแค่แถวที่ไม่มี CO_Ref จะไม่ไปเข้า _miscCheckCOComplete ด้านล่าง
+  const rows = _miscData.filter(r => r.SlipNo === slipNo && (r.CO_Ref || r.CustomerName) && !r.Delivered);
   if (!rows.length) return;
   const res = await Swal.fire({
     title: `ยืนยันว่าส่งเสร็จใบ ${slipNo}?`,
-    html: `${rows.length} รายการจะถูกทำเครื่องหมาย "ส่งเสร็จ" แล้วตัดยอดใน CO ที่เกี่ยวข้อง`,
+    html: `${rows.length} รายการจะถูกทำเครื่องหมาย "ส่งเสร็จ"${rows.some(r=>r.CO_Ref) ? ' แล้วตัดยอดใน CO ที่เกี่ยวข้อง' : ''}`,
     icon: 'question', showCancelButton: true, confirmButtonText: 'ยืนยันส่งเสร็จ', cancelButtonText: 'ยกเลิก'
   });
   if (!res.isConfirmed) return;
@@ -21034,7 +21074,7 @@ async function miscBillConfirmComplete(slipNo) {
 // ยกเลิก "ส่งเสร็จ" ทั้งใบ (เผื่อกดพลาด) — ย้อน Delivered กลับเป็น false แล้วเปิด CO กลับเป็น "ส่งบางส่วน" ถ้าเคย
 // ถูกปิดเป็น "ส่งสำเร็จ" ไปแล้วจากใบนี้ — mirror ของ fgoutBillUndoAdvanceAll (แอดมินเท่านั้น, UI-only ไม่มี RLS บังคับ)
 async function miscBillUndoComplete(slipNo) {
-  const rows = _miscData.filter(r => r.SlipNo === slipNo && r.CO_Ref && r.Delivered);
+  const rows = _miscData.filter(r => r.SlipNo === slipNo && (r.CO_Ref || r.CustomerName) && r.Delivered);
   if (!rows.length) return;
   const res = await Swal.fire({
     title: `ยืนยันยกเลิก "ส่งเสร็จ" ใบ ${slipNo}?`,
@@ -23225,6 +23265,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _issueUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอค้างอนุมัติ (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO เสร็จแล้วยังไม่มีบันทึกผลิต (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
+          _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
         }
       }
     } else {
