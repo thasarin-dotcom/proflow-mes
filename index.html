@@ -4294,6 +4294,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             </div>
           </div>
           <div class="col-md-6 d-flex gap-2 justify-content-end">
+            <button class="btn btn-sm btn-outline-warning" id="prodrecord-recalc-oh-btn" style="display:none" onclick="prodrecordRecalcAllOverhead()" title="คำนวณ Overhead ของบันทึกที่อนุมัติต้นทุนแล้วทั้งหมดใหม่ ตามสูตรล่าสุด (ชม.ทำงานจริง แทนจำนวนวันปฏิทิน)">
+              <i class="fas fa-calculator me-1"></i>คำนวณ Overhead ใหม่ทั้งหมด
+            </button>
             <button class="btn btn-sm btn-primary" onclick="prodrecordLoadData()">
               <i class="fas fa-sync-alt me-1"></i>รีเฟรช
             </button>
@@ -4421,6 +4424,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             <div class="col-md-12">
               <label class="form-label">Overhead ค่าสาธารณูปโภค (฿/วัน)</label>
               <input type="number" id="prodrecord-ap-oh-util" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
+              <small class="text-muted" id="prodrecord-ap-oh-hourly">= ฿0.00/ชม. (1 วัน = 8 ชม.ปกติ — ถ้ามี OT คิดเพิ่มตามชั่วโมงจริง)</small>
             </div>
           </div>
           <div id="prodrecord-ap-preview" class="mt-3"></div>
@@ -15828,6 +15832,42 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   _prodrecordApproveModal.show();
 }
 
+// ชม.รวมสำหรับคิด Overhead (ค่าสาธารณูปโภค) จาก StationsData — แยกเป็นฟังก์ชันเดี่ยว (2026-08-27) ไม่ผูกกับ
+// _prodrecordRecalcApprove เพราะต้องเรียกซ้ำจาก prodrecordRecalcAllOverhead() (ปุ่ม admin คำนวณ Overhead
+// ใหม่ทั้งหมดของบันทึกที่อนุมัติไปแล้ว) ด้วย กันโค้ด 2 จุดคำนวณไม่ตรงกัน — ต่างจาก laborCost ตรงที่ "ไม่บวก
+// รวมทุกคน/ทุกขั้นตอน" (ไฟ/น้ำ ใช้ตามเวลาที่โรงงานเปิดดำเนินการจริงในวันนั้น ไม่ใช่ผลรวมชม.ของทุกคน/ทุกขั้นตอน
+// ที่อาจทำงานคาบเกี่ยวกัน) แก้ไข 2026-08-27 รอบ 2 — ผู้ใช้ทักกลับหลังลองรอบแรก (ที่บวกรวม FT+PT+OS ทุกขั้นตอน
+// ตรงๆ) ว่า "อาจจะคิดแค่ในหนึ่งวันทำกี่ชม. ไม่รวมทุกคน" เปลี่ยนเป็น: ต่อ 1 วันปฏิทิน เอาแค่ชม.สูงสุด (max) ที่มี
+// คนทำงานจริงในวันนั้น (ตัวแทนว่าวันนั้นโรงงาน "เปิด" นานแค่ไหน) ไม่ใช่ผลรวมของ FT+PT+OS หรือของหลายขั้นตอนที่
+// ตรงวันเดียวกัน แล้วค่อยรวมชม.สูงสุดของแต่ละวันเข้าด้วยกันอีกที (คนละวันจริง = เวลาที่ต่างกันจริง ต้องรวมกัน)
+// ปัดชม./วันเพื่อชดเชยเวลาเก็บล้างหลังงานหลักเสร็จ (2026-08-27 ปรึกษาผู้ใช้ก่อนใส่ — ตัวอย่างจริงที่ยกมา:
+// "งานรวม 7.3 ชม. แต่คนยังเก็บล้างไปจบครบ 8 ชม.") กติกาที่ยืนยัน: ใกล้ครบกะ (≥7 ชม.) ปัดขึ้นเป็นเต็มกะ 8 ชม.
+// ไปเลย, ถ้าน้อยกว่านั้นให้บวกคงที่ 20 นาที (ไม่ใช่ % ของชม. เพราะเก็บล้างเป็นเวลาคงที่ไม่ได้โตตามงานหลัก)
+// ไม่ปัด/ไม่บวกถ้าวันนั้นไม่มีคนทำงานเลย (h<=0 คือไม่มีใครทำงานวันนั้น ไม่ใช่กรณีที่ต้องชดเชยเก็บล้าง)
+function _prodrecordComputeOverheadHours(stations, workDays) {
+  const ohRoundDayHours = h => h <= 0 ? 0 : (h >= 7 ? 8 : h + 20 / 60);
+  const ohDateMax = {}; // date string -> ชม.สูงสุดของวันนั้น (ข้ามทุกขั้นตอน/ทุกประเภทพนักงานที่ตรงวันเดียวกัน)
+  let ohLegacyDayHours = 0; // บันทึกเก่าไม่มีวันที่ต่อแถว ถือว่าทุกวันในช่วง workDays มีรูปแบบเดียวกันซ้ำ
+  stations.forEach(s => {
+    if (Array.isArray(s.days)) {
+      s.days.forEach(d => {
+        let dayHours = 0;
+        if (d.ftWorkers) dayHours = Math.max(dayHours, (d.ftNormalHrs||0) + (d.ftOtHrs||0));
+        if (d.ptWorkers) dayHours = Math.max(dayHours, (d.ptNormalHrs||0) + (d.ptOtHrs||0));
+        if (d.osWorkers) dayHours = Math.max(dayHours, (d.osNormalHrs||0) + (d.osOtHrs||0));
+        dayHours = ohRoundDayHours(dayHours);
+        const dateKey = d.date || '';
+        if (dayHours > (ohDateMax[dateKey] || 0)) ohDateMax[dateKey] = dayHours;
+      });
+    } else {
+      if (s.ftWorkers) ohLegacyDayHours = Math.max(ohLegacyDayHours, (s.ftNormalHrs||0) + (s.ftOtHrs||0));
+      if (s.ptWorkers) ohLegacyDayHours = Math.max(ohLegacyDayHours, (s.ptNormalHrs||0) + (s.ptOtHrs||0));
+      if (s.osWorkers) ohLegacyDayHours = Math.max(ohLegacyDayHours, (s.osNormalHrs||0) + (s.osOtHrs||0));
+    }
+  });
+  return Object.values(ohDateMax).reduce((sum, h) => sum + h, 0) + ohRoundDayHours(ohLegacyDayHours) * workDays;
+}
+
 function _prodrecordRecalcApprove() {
   const r = window._prodrecordApproveRecord;
   if (!r) return;
@@ -15870,7 +15910,13 @@ function _prodrecordRecalcApprove() {
       laborCost += (s.osWorkers||0) * (s.osOtHrs||0) * workDays * osOt;
     }
   });
-  const overhead    = ohUtil * workDays;
+  const totalOhHours = _prodrecordComputeOverheadHours(stations, workDays);
+  // Overhead รวม เปลี่ยนจาก "อัตรา/วัน × จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.รวมที่ทำงานจริง" (2026-08-27
+  // ตามคำขอผู้ใช้ "ต้องคิดจากจำนวน ชม.ที่ทำงาน") — เดิมคิดตาม workDays (ช่วงวันที่เริ่ม-สิ้นสุดตามปฏิทิน)
+  // ล้วนๆ ไม่สนใจว่าวันนั้นทำงานกี่ชม.จริง ทำให้ Overhead ไม่ขยับตามชม.OT เลยทั้งที่ค่าแรงขยับตาม อัตรา/ชม. =
+  // อัตรา/วัน ÷ 8 (1 วันทำงาน = 8 ชม.ปกติ ตามที่ผู้ใช้ระบุ) แล้วคูณด้วย totalOhHours ที่รวม OT เข้าไปด้วยแล้ว
+  const ohHourlyRate = ohUtil / 8;
+  const overhead    = ohHourlyRate * totalOhHours;
   const materialCost = parseFloat(r.MaterialCost) || 0;
   const totalCost   = materialCost + laborCost + overhead;
   const fgActual    = parseFloat(r.FG_Actual) || 0;
@@ -15909,12 +15955,15 @@ function _prodrecordRecalcApprove() {
   const sellingPrice = priceResolved ? priceResolved.price : null;
   const profitPerUnit = sellingPrice != null ? sellingPrice - costPerUnit : null;
 
-  window._prodrecordApproveComputed = { workDays, laborCost, overhead, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
+  window._prodrecordApproveComputed = { workDays, laborCost, overhead, totalOhHours, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
+
+  const ohHourlyEl = document.getElementById('prodrecord-ap-oh-hourly');
+  if (ohHourlyEl) ohHourlyEl.textContent = `= ฿${ohHourlyRate.toLocaleString(undefined,{maximumFractionDigits:2})}/ชม. (1 วัน = 8 ชม.ปกติ — ถ้ามี OT คิดเพิ่มตามชั่วโมงจริง)`;
 
   document.getElementById('prodrecord-ap-preview').innerHTML = `
     <div class="row g-2 text-center">
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${laborCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ค่าแรงรวม (${workDays} วัน)</div></div></div>
-      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${overhead.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead รวม</div></div></div>
+      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${overhead.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead รวม (${totalOhHours.toLocaleString(undefined,{maximumFractionDigits:1})} ชม.)</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#eff6ff"><div class="fw-bold text-primary">฿${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุนรวม</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วย</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${yieldOverall!=null?yieldOverall.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Yield รวม</div></div></div>
@@ -15973,6 +16022,73 @@ async function prodrecordApproveSubmit() {
   _logAudit('APPROVE', 'production_records', r.ProdRecord_ID, `ต้นทุนรวม ฿${c.totalCost.toLocaleString(undefined,{maximumFractionDigits:2})} · ต้นทุน/หน่วย ฿${c.costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}`);
   _prodrecordApproveModal.hide();
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติต้นทุนสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
+// ── ปุ่ม admin "คำนวณ Overhead ใหม่ทั้งหมด" (หน้าบันทึกผลิต) — สูตร Overhead เปลี่ยนจาก "อัตรา/วัน ×
+// จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.ทำงานจริง" เมื่อ 2026-08-27 (ดู _prodrecordComputeOverheadHours) แต่
+// เปลี่ยนแค่สูตรไม่ได้ทำให้ตัวเลขที่ "อนุมัติไปแล้วก่อนหน้านี้" ในฐานข้อมูลขยับตาม (ค่าที่บันทึกไว้ตอนอนุมัติจริง
+// ยังเป็นของสูตรเก่าค้างอยู่) — ผู้ใช้ขอให้ไล่คำนวณใหม่ย้อนหลังทุกใบที่ Status='อนุมัติแล้ว' แทนที่จะต้อง
+// "เปิดกลับ" ทีละใบแล้วกดอนุมัติซ้ำเอง เขียนทับเฉพาะ Overhead/TotalCost/CostPerUnit เท่านั้น (MaterialCost,
+// LaborCost, YieldOverall, ScrapPct ไม่เกี่ยวกับสูตรนี้เลย ไม่แตะ) ข้ามใบที่ตัวเลขไม่เปลี่ยน (ต่างกัน <0.005
+// บาท ถือว่าปัดเศษเฉยๆ) กันเขียนทับ/ขึ้น audit log โดยไม่มีอะไรเปลี่ยนจริง
+async function prodrecordRecalcAllOverhead() {
+  if (!_hasRole('admin')) return;
+
+  _showLoader();
+  const { data: rows, error: fetchErr } = await _sb.from('production_records')
+    .select('_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit')
+    .eq('Status', 'อนุมัติแล้ว');
+  _hideLoader();
+  if (fetchErr) { _err('โหลดรายการไม่สำเร็จ', fetchErr.message); return; }
+  if (!rows || !rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีบันทึกที่อนุมัติต้นทุนแล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 }); return; }
+
+  const res = await Swal.fire({
+    title: 'คำนวณ Overhead ใหม่ทั้งหมด?',
+    html: `<div class="text-start">พบ <b>${rows.length}</b> บันทึกที่อนุมัติต้นทุนแล้ว จะคำนวณ Overhead/ต้นทุนรวม/ต้นทุนต่อหน่วยใหม่ตามสูตรล่าสุด (ชม.ทำงานจริง แทนจำนวนวันปฏิทิน) แล้วเขียนทับค่าเดิม<br>
+      <span class="text-muted">ใบที่ตัวเลขไม่เปลี่ยน (ผลลัพธ์เหมือนเดิม) จะไม่ถูกเขียนทับ</span></div>`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonText: `คำนวณใหม่ทั้ง ${rows.length} ใบ`, cancelButtonText: 'ยกเลิก', confirmButtonColor: '#b45309',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  let updated = 0, unchanged = 0, failed = 0, totalDelta = 0;
+  for (const r of rows) {
+    let stations = [];
+    try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { stations = []; }
+    const workDays = _prodrecordWorkDays(r);
+    const totalOhHours = _prodrecordComputeOverheadHours(stations, workDays);
+    const ohUtil = parseFloat(r.OverheadUtility) || 0;
+    const newOverhead = (ohUtil / 8) * totalOhHours;
+    const oldOverhead = parseFloat(r.Overhead) || 0;
+    if (Math.abs(newOverhead - oldOverhead) < 0.005) { unchanged++; continue; }
+
+    const materialCost = parseFloat(r.MaterialCost) || 0;
+    const laborCost    = parseFloat(r.LaborCost) || 0;
+    const newTotalCost = materialCost + laborCost + newOverhead;
+    const fgActual      = parseFloat(r.FG_Actual) || 0;
+    const newCostPerUnit = fgActual ? newTotalCost / fgActual : 0;
+
+    const { error } = await _sb.from('production_records').update({
+      Overhead: newOverhead, TotalCost: newTotalCost, CostPerUnit: newCostPerUnit,
+    }).eq('_row_id', r._row_id);
+    if (error) { failed++; continue; }
+    totalDelta += newOverhead - oldOverhead;
+    updated++;
+  }
+  _hideLoader();
+
+  if (updated) {
+    _logAudit('RECALC_OVERHEAD', 'production_records', 'BULK',
+      `คำนวณ Overhead ใหม่ ${updated} บันทึก (ไม่เปลี่ยน ${unchanged}, ล้มเหลว ${failed}) — Overhead รวมเปลี่ยน ${totalDelta >= 0 ? '+' : ''}฿${totalDelta.toLocaleString(undefined,{maximumFractionDigits:2})}`);
+  }
+  Swal.fire({
+    icon: failed ? 'warning' : 'success',
+    title: 'คำนวณ Overhead ใหม่เสร็จแล้ว',
+    html: `<div class="text-start">อัปเดต <b>${updated}</b> บันทึก · ไม่เปลี่ยนแปลง ${unchanged} บันทึก${failed ? ` · <span class="text-danger">ล้มเหลว ${failed} บันทึก</span>` : ''}<br>
+      Overhead รวมที่เปลี่ยน: <b>${totalDelta >= 0 ? '+' : ''}฿${totalDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b></div>`,
+  });
   prodrecordLoadData();
 }
 
@@ -23220,6 +23336,10 @@ function _renderCurrentUserBadge() {
   // เหมือน nav-weeklyreport: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navAdmindash = document.getElementById('nav-admindash');
   if (navAdmindash) navAdmindash.style.display = _currentUser.isAdmin ? '' : 'none';
+  // ปุ่ม "คำนวณ Overhead ใหม่ทั้งหมด" (หน้าบันทึกผลิต) — เขียนทับ Overhead/TotalCost/CostPerUnit ของบันทึก
+  // ที่อนุมัติต้นทุนไปแล้วทุกใบ admin เท่านั้น เหตุผลเดียวกับปุ่มอนุมัติต้นทุน/ดูต้นทุนที่อนุมัติ (2026-08-27)
+  const recalcOhBtn = document.getElementById('prodrecord-recalc-oh-btn');
+  if (recalcOhBtn) recalcOhBtn.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
