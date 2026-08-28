@@ -15810,7 +15810,10 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   document.getElementById('prodrecord-ap-ft-ot').value   = r.FT_OT_Rate ?? last.FT_OT_Rate ?? '';
   document.getElementById('prodrecord-ap-pt-rate').value = r.PT_LaborRate ?? last.PT_LaborRate ?? '';
   document.getElementById('prodrecord-ap-pt-ot').value   = r.PT_OT_Rate ?? last.PT_OT_Rate ?? '';
-  document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? '';
+  // ค่าเริ่มต้น ฿91.09/ชม. (2026-08-27 ตามคำขอผู้ใช้) — อัตราจริงที่จ้าง Out Source ประจำ 3 คน/เดือน คนละ
+  // 9.5 ชม./วัน ใช้เป็นค่า fallback สุดท้ายเมื่อบันทึกนี้ไม่มีค่าเดิม และไม่มีบันทึกก่อนหน้าที่อนุมัติไปแล้วให้ดึง
+  // (ต่างจาก FT/PT ที่ไม่มีอัตรามาตรฐานตายตัวแบบนี้ จึงยังปล่อยว่างเป็นค่าเริ่มต้นเหมือนเดิม)
+  document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? 91.09;
   document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
   document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? last.OverheadUtility ?? '';
 
