@@ -20816,38 +20816,50 @@ async function miscSubmit(e) {
   loadMiscData();
 }
 
+// เดิมอัปเดตแค่ QtyOut/QtyBalance ไม่แตะ TotalCost/StockValue เลย (มองว่า "issue_misc ไม่มี UnitCost
+// ของตัวเอง เลยไม่มีอะไรให้ย้อน") ซึ่งเป็นเหตุผลที่ผิด — stock_balance เองมี UnitCost ต่อ Lot อยู่แล้ว
+// (mr_receive/issueUpdateStock ใส่ไว้) ใช้คำนวณ qty×UnitCost หักออกได้เหมือน issueUpdateStock ทุกประการ
+// บั๊กจริง พบ 2026-08-27 (มูลค่าคงเหลือใน Stock วัตถุดิบ ค้างเป็นมูลค่าก่อนเบิก ทั้งที่ QtyBalance ลดถูกต้อง)
 async function miscUpdateStock(matCode, lot, qty) {
   if (!matCode || !lot || qty <= 0) return;
   const { data: existing } = await _sb
     .from('stock_balance')
-    .select('_row_id,QtyOut,QtyBalance')
+    .select('_row_id,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue')
     .eq('MaterialCode', matCode)
     .eq('Lot', lot)
     .maybeSingle();
 
   if (existing) {
+    const unitCost   = parseFloat(existing.UnitCost) || 0;
+    const deductCost = qty * unitCost;
     const newOut = (parseFloat(existing.QtyOut)||0) + qty;
     const newBal = (parseFloat(existing.QtyBalance)||0) - qty;
     await _sb.from('stock_balance').update({
       QtyOut     : newOut,
       QtyBalance : newBal,
+      TotalCost  : (parseFloat(existing.TotalCost)||0) - deductCost,
+      StockValue : (parseFloat(existing.StockValue)||0) - deductCost,
     }).eq('_row_id', existing._row_id);
   }
 }
 
 // กลับด้าน miscUpdateStock — เรียกตอนแก้ไข/ลบรายการเบิกเบ็ดเตล็ด เพื่อย้อนยอดที่เคยตัดออกจาก
-// stock_balance กลับเข้าไป (คืน QtyOut/QtyBalance) ก่อนค่อยตัดยอดใหม่ (ตอนแก้ไข) หรือไม่ตัดเลย (ตอนลบ)
-// — mirror ของ _mrReverseStock (nav-mr), บั๊กเดิมที่เจอจริง 2026-08-17: หน้านี้ไม่เคยย้อน stock เลย
+// stock_balance กลับเข้าไป (คืนทั้ง qty และมูลค่า — ดูหมายเหตุบั๊กที่ miscUpdateStock ด้านบน)
+// — mirror ของ _issueRestoreStock (nav-issue)/_mrReverseStock (nav-mr)
 async function _miscReverseStock(matCode, lot, qty) {
   if (!matCode || !lot || qty <= 0) return;
   const { data: existing } = await _sb
     .from('stock_balance')
-    .select('_row_id,QtyOut,QtyBalance')
+    .select('_row_id,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue')
     .eq('MaterialCode', matCode).eq('Lot', lot).maybeSingle();
   if (!existing) return;
+  const unitCost = parseFloat(existing.UnitCost) || 0;
+  const addCost  = qty * unitCost;
   await _sb.from('stock_balance').update({
     QtyOut     : (parseFloat(existing.QtyOut) || 0) - qty,
     QtyBalance : (parseFloat(existing.QtyBalance) || 0) + qty,
+    TotalCost  : (parseFloat(existing.TotalCost) || 0) + addCost,
+    StockValue : (parseFloat(existing.StockValue) || 0) + addCost,
   }).eq('_row_id', existing._row_id);
 }
 
@@ -21665,11 +21677,12 @@ async function stockcardRun() {
 }
 
 async function stockcardBuildMatTxns(code, lot) {
-  let mrQ  = _sb.from('mr_receive').select('*').eq('MaterialCode', code);
-  let issQ = _sb.from('issue_production').select('*').eq('MaterialCode', code);
-  let retQ = _sb.from('production_record_details').select('*').eq('MaterialCode', code).gt('ReturnedQty', 0);
-  if (lot) { mrQ = mrQ.eq('Lot', lot); issQ = issQ.eq('Lot', lot); retQ = retQ.eq('LotMaterial', lot); }
-  const [mrRes, issRes, retRes] = await Promise.all([mrQ, issQ, retQ]);
+  let mrQ   = _sb.from('mr_receive').select('*').eq('MaterialCode', code);
+  let issQ  = _sb.from('issue_production').select('*').eq('MaterialCode', code);
+  let retQ  = _sb.from('production_record_details').select('*').eq('MaterialCode', code).gt('ReturnedQty', 0);
+  let miscQ = _sb.from('issue_misc').select('*').eq('MaterialCode', code);
+  if (lot) { mrQ = mrQ.eq('Lot', lot); issQ = issQ.eq('Lot', lot); retQ = retQ.eq('LotMaterial', lot); miscQ = miscQ.eq('Lot', lot); }
+  const [mrRes, issRes, retRes, miscRes] = await Promise.all([mrQ, issQ, retQ, miscQ]);
 
   const txns = [];
   (mrRes.data||[]).forEach(r => {
@@ -21703,6 +21716,15 @@ async function stockcardBuildMatTxns(code, lot) {
       });
     });
   }
+  // เบิกเบ็ดเตล็ด (issue_misc) — ตัด stock_balance จริงตอนบันทึก (miscUpdateStock) แต่ไม่เคยถูกดึงมาสร้าง
+  // ธุรกรรมในการ์ดสต็อกเลย ทำให้ยอด "คงเหลือสะสม"/"จ่ายออกรวม" ในหน้านี้สูงกว่าความจริง (บั๊กจริง พบ 2026-08-27)
+  (miscRes.data||[]).forEach(r => {
+    txns.push({
+      date: String(r.Date||''), type: 'OUT', docId: r.SlipNo || '',
+      lot: r.Lot||'', qty: parseFloat(r.IssuedQty)||0, uom: r.UOM||'',
+      source: ['เบิกเบ็ดเตล็ด', r.Category, r.CustomerName].filter(Boolean).join(' — '),
+    });
+  });
   return txns;
 }
 
