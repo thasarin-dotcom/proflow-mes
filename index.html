@@ -2596,6 +2596,32 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
         <div class="text-muted small mb-1">แนวโน้มรายเดือน</div>
         <div style="position:relative;height:220px"><canvas id="admindash-chart-labor"></canvas></div>
       </div>
+
+      <div class="glass-card mt-3">
+        <div class="fw-bold small text-muted mb-2"><i class="fas fa-diagram-project me-1"></i>ต้นทุนค่าแรงแยกตามขั้นตอนการผลิต (ภาพรวมทั้งบริษัท 6 เดือนล่าสุด)</div>
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-stepring-Fill"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#1e3a8a">บรรจุ</div>
+            <div class="fw-bold" id="admindash-stepring-Fill-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-stepring-Fill-hours">—</div>
+          </div>
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-stepring-Lot"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#0f766e">ยิง Lot</div>
+            <div class="fw-bold" id="admindash-stepring-Lot-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-stepring-Lot-hours">—</div>
+          </div>
+          <div class="col-4">
+            <div style="position:relative;height:110px"><canvas id="admindash-chart-stepring-InspectPack"></canvas></div>
+            <div class="fw-bold small mt-1" style="color:#7c3aed">ตรวจสอบ/แพ็ค</div>
+            <div class="fw-bold" id="admindash-stepring-InspectPack-cost">—</div>
+            <div class="text-muted" style="font-size:.72rem" id="admindash-stepring-InspectPack-hours">—</div>
+          </div>
+        </div>
+        <div class="text-muted small mb-1">แนวโน้มรายเดือน</div>
+        <div style="position:relative;height:220px"><canvas id="admindash-chart-laborstep"></canvas></div>
+      </div>
     </div>
   </div>
 
@@ -15107,6 +15133,7 @@ async function prodrecordApproveDeleteRequest(gi) {
   if (!res.isConfirmed) return;
 
   _showLoader();
+  await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
   await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
   const { error } = await _sb.from('production_records').delete().eq('_row_id', r._row_id);
   _hideLoader();
@@ -15762,6 +15789,24 @@ async function _prodrecordAdjustStockTracking(matCode, lot, deltaReturnQty, delt
   }).eq('_row_id', existing._row_id);
 }
 
+// ── ย้อนคืนผลของ "ของคืน" (ReturnedQty) ที่เคยเข้าสต็อกไปแล้วผ่าน _issueRestoreStock ก่อนลบแถว
+// production_record_details ทิ้งถาวร — ต้องเรียกก่อนลบทุกครั้ง ไม่งั้นสต็อกจะค้างยอดคืนผีตลอดไป (ตาราง
+// นี้ไม่มี FK cascade ระดับ DB ที่จะย้อนให้อัตโนมัติ) บั๊กจริงพบ 2026-08-29: prodrecordEntrySubmit เอง
+// ทำ reverse-before-delete ถูกต้องอยู่แล้ว (ดูจุดเรียกด้านล่าง) แต่ moDelete/prodrecordApproveDeleteRequest/
+// _bprPurgeOld ลบ production_record_details ตรงๆ โดยไม่เคยย้อนคืนก่อนเลย ทำให้ stock_balance.QtyOut/
+// QtyBalance ผิดถาวรทุกครั้งที่ลบ MO/อนุมัติลบบันทึกผลิต/หรือ BPR auto-purge บันทึกที่มี "ของคืน" ค้างอยู่ —
+// ดึงมาเป็นฟังก์ชันกลางจุดเดียวให้ทั้ง 4 จุดเรียกใช้ร่วมกัน กันโค้ดแยกกันแก้แล้วเพี้ยนอีก
+async function _prodrecordReverseDetailsStockBeforeDelete(prodRecordIds) {
+  const ids = (Array.isArray(prodRecordIds) ? prodRecordIds : [prodRecordIds]).filter(Boolean);
+  if (!ids.length) return;
+  const { data: details } = await _sb.from('production_record_details').select('*').in('ProdRecord_ID', ids);
+  for (const d of (details || [])) {
+    if (!d.MaterialCode || !d.LotMaterial) continue;
+    if ((parseFloat(d.ReturnedQty) || 0) > 0) await issueUpdateStock(d.MaterialCode, d.LotMaterial, parseFloat(d.ReturnedQty));
+    await _prodrecordAdjustStockTracking(d.MaterialCode, d.LotMaterial, -(parseFloat(d.ReturnedQty)||0), -(parseFloat(d.ScrapQty)||0));
+  }
+}
+
 async function prodrecordEntrySubmit(e) {
   e.preventDefault();
   const r = _prodrecordData.find(d => d._row_id === _prodrecordEntryRowId);
@@ -15825,12 +15870,7 @@ async function prodrecordEntrySubmit(e) {
 
   // ── กันคืนสต็อกซ้ำซ้อนตอนแก้ไขผลผลิตซ้ำ: ย้อนคืน ReturnedQty เดิม (ถ้ามี) + ย้อนยอดสะสม ReturnQty/ScrapQty
   // เดิมออกจาก stock_balance ก่อนลบแถว detail เก่า แล้วค่อยใส่ค่าใหม่ทั้งหมดทีหลัง (idempotent-replace) ──
-  const { data: oldDetails } = await _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID);
-  for (const d of (oldDetails || [])) {
-    if (!d.MaterialCode || !d.LotMaterial) continue;
-    if ((parseFloat(d.ReturnedQty) || 0) > 0) await issueUpdateStock(d.MaterialCode, d.LotMaterial, parseFloat(d.ReturnedQty));
-    await _prodrecordAdjustStockTracking(d.MaterialCode, d.LotMaterial, -(parseFloat(d.ReturnedQty)||0), -(parseFloat(d.ScrapQty)||0));
-  }
+  await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
   await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
 
   let error;
@@ -16499,10 +16539,13 @@ async function _bprPurgeOld() {
   const cutoffStr = _planWeekLocalDateStr(cutoff);
   const oldFilter = q => q.or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`).neq('Status', 'อนุมัติแล้ว');
   // ต้องลบ production_record_details ที่ผูกกันด้วยเสมอ ไม่งั้นจะเหลือข้อมูลกำพร้าค้างตลอดไป (ไม่มี FK cascade
-  // ระดับ DB) — ดึง ProdRecord_ID ของแถวที่จะถูกลบก่อน แล้วลบ details ก่อนลบ header
+  // ระดับ DB) — ดึง ProdRecord_ID ของแถวที่จะถูกลบก่อน แล้วลบ details ก่อนลบ header ต้องย้อนคืน "ของคืน" ที่
+  // เคยเข้าสต็อกไปแล้วก่อนลบด้วยเสมอ (บั๊กจริงพบ 2026-08-29 — เดิมลบตรงๆ ทำให้ stock_balance ค้างยอดคืนผี
+  // ถาวรทุกครั้งที่ auto-purge ไปโดนบันทึกที่มีของคืน)
   const { data: toDelete } = await oldFilter(_sb.from('production_records').select('ProdRecord_ID'));
   const idsToDelete = (toDelete || []).map(r => r.ProdRecord_ID).filter(Boolean);
   if (idsToDelete.length) {
+    await _prodrecordReverseDetailsStockBeforeDelete(idsToDelete);
     await _sb.from('production_record_details').delete().in('ProdRecord_ID', idsToDelete);
   }
   await oldFilter(_sb.from('production_records').delete());
@@ -17048,11 +17091,14 @@ async function moDelete(rowId) {
 
   // ลบบันทึกผลิต (production_records) ที่ผูกกับ MO นี้ด้วย — เดิมไม่ลบ ทำให้กลายเป็นข้อมูลกำพร้าค้างอยู่ใน
   // หน้าบันทึกผลิตตลอดไปหลังลบ MO (บั๊กจริง พบและแก้ 2026-08-06, ผู้ใช้ยืนยันให้ลบอัตโนมัติไม่ต้องเตือนซ้ำ)
-  // ลบ production_record_details ก่อนเสมอ ไม่มี FK cascade ระดับ DB (pattern เดียวกับ _bprPurgeOld)
+  // ลบ production_record_details ก่อนเสมอ ไม่มี FK cascade ระดับ DB (pattern เดียวกับ _bprPurgeOld) — ต้อง
+  // ย้อนคืน "ของคืน" ที่เคยเข้าสต็อกไปแล้วก่อนลบด้วยเสมอ (บั๊กจริงพบ 2026-08-29 — เดิมลบตรงๆ ทำให้
+  // stock_balance ค้างยอดคืนผีถาวรทุกครั้งที่ลบ MO ที่มีบันทึกผลิตซึ่งเคยกรอกของคืนไว้)
   if (r?.MO_ID) {
     const { data: linkedRecords } = await _sb.from('production_records').select('ProdRecord_ID').eq('MO_Ref', r.MO_ID);
     const linkedIds = (linkedRecords || []).map(pr => pr.ProdRecord_ID).filter(Boolean);
     if (linkedIds.length) {
+      await _prodrecordReverseDetailsStockBeforeDelete(linkedIds);
       await _sb.from('production_record_details').delete().in('ProdRecord_ID', linkedIds);
     }
     await _sb.from('production_records').delete().eq('MO_Ref', r.MO_ID);
@@ -18659,6 +18705,7 @@ async function admindashLoadData() {
   admindashRenderStockValue(stockFgRes.data || [], costByLot);
   admindashRenderVolatilityAlerts(approvedRecs, priceMap, months);
   admindashRenderLaborChart(inRangeProd, months);
+  admindashRenderStepCostChart(inRangeProd, months);
   admindashPopulateDrillProducts(inRangeProd);
   admindashRenderDrilldown();
 }
@@ -19170,6 +19217,136 @@ function _admindashLaborByType(r) {
     }
   });
   return result;
+}
+
+// ต้นทุน+ชม.ทำงาน แยกตามขั้นตอนการผลิต (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค, ดู _prodrecordSteps) ของ 1 บันทึกผลิต —
+// สูตรต้นทุนเดียวกับ _admindashLaborByType/_prodrecordRecalcApprove เป๊ะ แค่สรุปยอดตาม s.key (ขั้นตอน)
+// แทนที่จะสรุปตามประเภทพนักงาน คืนทั้ง cost/normalHours/otHours ต่อขั้นตอน (รวมทุกประเภท FT/PT/OS เข้าด้วยกัน
+// ในแต่ละขั้นตอน) ให้ใช้แสดงผลแบบเดียวกับวงแหวน FT/PT/OS เดิม (2026-08-27 ตามคำขอผู้ใช้ "ให้เป็นเหมือนตาราง
+// ค่าแรง...มีกราฟแต่ละวง และกราฟเส้น")
+function _admindashLaborByStep(r) {
+  const result = {};
+  _prodrecordSteps.forEach(s => { result[s.key] = { cost: 0, normalHours: 0, otHours: 0 }; });
+  let stations = [];
+  try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { return result; }
+  const ftRate = parseFloat(r.FT_LaborRate) || 0, ftOt = parseFloat(r.FT_OT_Rate) || 0;
+  const ptRate = parseFloat(r.PT_LaborRate) || 0, ptOt = parseFloat(r.PT_OT_Rate) || 0;
+  const osRate = parseFloat(r.OS_LaborRate) || 0, osOt = parseFloat(r.OS_OT_Rate) || 0;
+  const workDays = _prodrecordWorkDays(r);
+
+  // ต้นทุน+ชม. ของ 1 วัน (รวมทุกประเภทพนักงานเข้าด้วยกัน) — ใช้ทั้งกับข้อมูลรูปแบบใหม่ (s.days[] ค่าจริงต่อวัน)
+  // และรูปแบบเก่า (s เป็นค่าเฉลี่ย/วันเดียว ไม่มี date จึงต้องคูณ workDays เพิ่มทีหลังแยกต่างหาก)
+  const dayDelta = d => {
+    const ftW = d.ftWorkers || 0, ptW = d.ptWorkers || 0, osW = d.osWorkers || 0;
+    const ftN = d.ftNormalHrs || 0, ftO = d.ftOtHrs || 0;
+    const ptN = d.ptNormalHrs || 0, ptO = d.ptOtHrs || 0;
+    const osN = d.osNormalHrs || 0, osO = d.osOtHrs || 0;
+    return {
+      cost: ftW * ftN * ftRate + ftW * ftO * ftOt + ptW * ptN * ptRate + ptW * ptO * ptOt + osW * osN * osRate + osW * osO * osOt,
+      normalHours: ftW * ftN + ptW * ptN + osW * osN,
+      otHours: ftW * ftO + ptW * ptO + osW * osO,
+    };
+  };
+
+  stations.forEach(s => {
+    if (!result[s.key]) result[s.key] = { cost: 0, normalHours: 0, otHours: 0 }; // เผื่อ key แปลกที่ไม่อยู่ใน _prodrecordSteps (ไม่ควรเกิดจริง แต่กันพลาด)
+    const acc = result[s.key];
+    if (Array.isArray(s.days)) {
+      s.days.forEach(d => {
+        const delta = dayDelta(d);
+        acc.cost += delta.cost; acc.normalHours += delta.normalHours; acc.otHours += delta.otHours;
+      });
+    } else {
+      const delta = dayDelta(s);
+      acc.cost += delta.cost * workDays; acc.normalHours += delta.normalHours * workDays; acc.otHours += delta.otHours * workDays;
+    }
+  });
+  return result;
+}
+
+const _ADMINDASH_STEP_COLORS = { Fill: '#1e3a8a', Lot: '#0f766e', InspectPack: '#7c3aed' };
+
+// วงกลม 3 วง สรุปยอดรวมทั้ง 6 เดือนต่อขั้นตอนการผลิต — รูปแบบเดียวกับ admindashRenderLaborRings เป๊ะ (โดนัท
+// แสดงสัดส่วนของขั้นตอนนั้นเทียบกับต้นทุนค่าแรงรวมทุกขั้นตอน) แค่กลุ่มเป็นขั้นตอนแทนประเภทพนักงาน
+function admindashRenderStepRings(inRangeProd) {
+  const totals = {};
+  _prodrecordSteps.forEach(s => { totals[s.key] = { cost: 0, normalHours: 0, otHours: 0 }; });
+  inRangeProd.forEach(r => {
+    const t = _admindashLaborByStep(r);
+    _prodrecordSteps.forEach(s => {
+      totals[s.key].cost += t[s.key]?.cost || 0;
+      totals[s.key].normalHours += t[s.key]?.normalHours || 0;
+      totals[s.key].otHours += t[s.key]?.otHours || 0;
+    });
+  });
+  const totalCost = _prodrecordSteps.reduce((sum, s) => sum + totals[s.key].cost, 0);
+
+  _prodrecordSteps.forEach(s => {
+    const { cost, normalHours, otHours } = totals[s.key];
+    const color = _ADMINDASH_STEP_COLORS[s.key] || '#64748b';
+    _admindashDestroy('stepring_' + s.key);
+    const canvasEl = document.getElementById(`admindash-chart-stepring-${s.key}`);
+    if (canvasEl) {
+      _admindashCharts['stepring_' + s.key] = new Chart(canvasEl, {
+        type: 'doughnut',
+        data: { datasets: [{ data: [cost, Math.max(0, totalCost - cost)], backgroundColor: [color, '#e5e7eb'], borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '72%',
+          plugins: { legend: { display: false }, tooltip: { enabled: false } } },
+      });
+    }
+    const elCost = document.getElementById(`admindash-stepring-${s.key}-cost`);
+    const elHours = document.getElementById(`admindash-stepring-${s.key}-hours`);
+    if (elCost) elCost.textContent = '฿' + Math.round(cost).toLocaleString();
+    if (elHours) elHours.textContent = `ปกติ ${Math.round(normalHours * 10) / 10} · OT ${Math.round(otHours * 10) / 10} ชม.`;
+  });
+}
+
+// ต้นทุนค่าแรงแยกตามขั้นตอนการผลิต รายเดือน — รูปแบบเดียวกับ admindashRenderLaborChart เป๊ะ (แท่งซ้อนตาม
+// ขั้นตอน + เส้นชม.ทำงานรวม) แค่กลุ่มเป็นขั้นตอนแทนประเภทพนักงาน รวมทุกสินค้าในช่วง 6 เดือนล่าสุด (ภาพรวมทั้ง
+// บริษัท ไม่กรองตามสินค้าที่เลือกในส่วน "เจาะลึกรายสินค้า" — ตามที่ผู้ใช้เลือกไว้ 2026-08-27)
+function admindashRenderStepCostChart(inRangeProd, months) {
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+  const round1 = v => Math.round(v * 10) / 10;
+  const byMonth = months.map(m => {
+    const monthRows = inRangeProd.filter(r => _admindashMonthKey(r) === m);
+    const acc = {};
+    _prodrecordSteps.forEach(s => { acc[s.key] = { cost: 0, normalHours: 0, otHours: 0 }; });
+    monthRows.forEach(r => {
+      const t = _admindashLaborByStep(r);
+      _prodrecordSteps.forEach(s => {
+        acc[s.key].cost += t[s.key]?.cost || 0;
+        acc[s.key].normalHours += t[s.key]?.normalHours || 0;
+        acc[s.key].otHours += t[s.key]?.otHours || 0;
+      });
+    });
+    const totalHours = _prodrecordSteps.reduce((sum, s) => sum + acc[s.key].normalHours + acc[s.key].otHours, 0);
+    return { acc, totalHours };
+  });
+
+  _admindashDestroy('laborstep');
+  _admindashCharts.laborstep = new Chart(document.getElementById('admindash-chart-laborstep'), {
+    data: {
+      labels,
+      datasets: [
+        ..._prodrecordSteps.map(s => ({
+          type: 'bar', label: s.label, data: byMonth.map(m => Math.round(m.acc[s.key].cost)),
+          backgroundColor: _ADMINDASH_STEP_COLORS[s.key] || '#64748b', yAxisID: 'y', stack: 'cost',
+        })),
+        { type: 'line', label: 'ชม.ทำงานรวม', data: byMonth.map(m => round1(m.totalHours)),
+          borderColor: '#f59e0b', backgroundColor: '#f59e0b', yAxisID: 'y1', tension: .3, borderWidth: 2, pointRadius: 3 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } },
+      scales: {
+        y:  { position: 'left', stacked: true, beginAtZero: true, ticks: { callback: v => '฿' + v.toLocaleString() } },
+        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { callback: v => v.toLocaleString() + ' ชม.' } },
+      },
+    },
+  });
+
+  admindashRenderStepRings(inRangeProd);
 }
 
 // ค่าแรง & ชม.ทำงาน ภาพรวมทั้งบริษัท รายเดือน — ค่าแรงเป็นแท่งซ้อน (stacked) ตามประเภทพนักงาน FT/PT/OS, ชม.ทำงาน
