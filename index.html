@@ -732,7 +732,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root, #purchasereq-print-root{display:none}
 @media print{
   /* body ถูกตั้ง display:flex/overflow:hidden/height:100vh + พื้นหลังไล่สีน้ำเงิน ไว้สำหรับ layout หน้าจอ
      (sidebar + main-content) เท่านั้น — ไม่เคยมีการ reset ค่าพวกนี้สำหรับตอนพิมพ์มาก่อนเลยตั้งแต่สร้าง print
@@ -743,7 +743,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      บั๊กจริงที่ผู้ใช้เจอ 2026-08-26 บนใบส่งสินค้า FG (เห็นแถบพื้นหลังสีน้ำเงินปนบนกระดาษที่พิมพ์จริง) ต้อง reset
      ให้ผืนกระดาษเป็นพื้นขาวล้วนและไม่ยึด flex layout เดิมของหน้าจอ ก่อน selector อื่นด้านล่างเสมอ */
   html, body{background:#fff !important;display:block !important;height:auto !important;min-height:0 !important;overflow:visible !important}
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root):not(#purchasereq-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -757,6 +757,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   #miscslip-print-root{display:none !important}
   #admindash-report-print-root{display:none !important}
   #planweek-print-root{display:none !important}
+  #purchasereq-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -770,6 +771,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   body.print-mode-miscslip #miscslip-print-root{display:block !important}
   body.print-mode-admindash #admindash-report-print-root{display:block !important}
   body.print-mode-planweek #planweek-print-root{display:block !important}
+  body.print-mode-purchasereq #purchasereq-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -810,6 +812,10 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      เหตุผล page-break-after เดียวกับป้าย Lot ข้างบน */
   #dlvlabel-print-root .lotlabel-sheet{box-shadow:none !important;margin:0 !important}
   #dlvlabel-print-root .lotlabel-sheet:not(:last-child){page-break-after:always;break-after:page}
+  /* ใบขอซื้อวัตถุดิบ แนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมด้านล่างได้เลย (ไม่ต้อง named page) —
+     .pr-print-page ใช้ height ตายตัว (ไม่ใช่ min-height) แบ่งครึ่งเป็นต้นฉบับ/สำเนาแบบเดียวกับ .pcost-page
+     เป๊ะ ไม่ต้องมี min-height:0 override เพราะไม่ได้ใช้ min-height ตั้งแต่แรก (เหตุผลเดียวกับ .pcost-page) */
+  #purchasereq-print-root .pr-print-page{box-shadow:none !important;margin:0 !important}
   @page{size:A4;margin:0}
   /* หน้ารายงาน MR ต้องพิมพ์แนวนอน — @page ไม่รองรับการ scope ด้วย selector/body class ตรงๆ (คุมได้แค่ทั้งเอกสาร)
      ต้องใช้ named page แทน (ประกาศ @page ชื่อ mrreport แล้วผูกกับ .mrrpt-page ด้วย CSS property "page:")
@@ -833,6 +839,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   table.stockcard-print-table tr{page-break-inside:avoid}
 }
 #bprPreviewModal .modal-dialog{max-width:900px}
+#purchasereqPrintModal .modal-dialog{max-width:900px}
 #stockcardPrintModal .modal-dialog{max-width:900px}
 #prodrecordReportModal .modal-dialog{max-width:900px}
 #stockcardPrintModal .modal-body{background:#525659;padding:24px;max-height:82vh;overflow:auto}
@@ -1077,6 +1084,19 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 .stocklot-grid { display:grid; gap:0; align-items:center; font-size:.8rem; padding:.35rem .75rem; border-bottom:1px solid #f1f5f9; }
 .stocklot-grid-header { background:#f1f5f9; font-weight:600; font-size:.75rem; color:#475569; }
 
+/* ── Stock วัตถุดิบ: โหมด "เลือกเพื่อขอซื้อ" — ปุ่มออกใบขอซื้อ (เพิ่ม 2026-08-29) ── */
+.stock-chk{display:none;width:18px;height:18px;flex:none;margin-right:.35rem}
+#stock-cards.select-mode .stock-chk{display:inline-block}
+.stock-card-picked{box-shadow:0 0 0 2px #2563eb inset}
+.stock-floatbar{position:sticky;bottom:12px;background:#1e3a8a;color:#fff;border-radius:12px;
+  padding:.7rem 1rem;display:none;align-items:center;justify-content:space-between;gap:.75rem;
+  box-shadow:0 8px 20px rgba(30,58,138,.35);margin-top:1rem}
+.stock-floatbar.show{display:flex}
+
+/* ── ใบขอซื้อวัตถุดิบ: การ์ดแบบ collapse (เหมือน Stock วัตถุดิบ) ── */
+.purchasereq-detail{display:none;border-top:1px solid #e5e7eb;padding:.6rem .9rem}
+.purchasereq-line-row{background:#fff}
+
 @media (max-width: 768px) {
   /* ── แปลงแถว Lot จากกริดหลายคอลัมน์ → การ์ด label:value ซ้อนกัน อ่านง่ายบนจอแคบ ── */
   #page-stock .stocklot-grid, #page-fgstock .stocklot-grid { display: flex; flex-wrap: wrap; padding: .6rem .75rem; gap: 6px 10px; }
@@ -1283,6 +1303,50 @@ table.mrrpt-summary tr.mrrpt-summary-total td{background:#1e3a8a;color:#fff;font
 .planweek-entry-workers{font-weight:700;font-size:10.8px;color:#0f172a;margin-top:.6mm}
 .planweek-empty{font-size:10px;color:#cbd5e1;text-align:center;padding-top:10mm}
 
+/* ── ใบขอซื้อวัตถุดิบ (Purchase Request) — เลียนแบบฟอร์มจริงของบริษัท FM-PU-01-03 Rev.00 ทุกกระเบียดนิ้ว
+   (ผู้ใช้ส่งไฟล์ PDF ต้นฉบับมาให้ 2026-08-29): A4 แนวตั้ง 1 แผ่น แบ่งครึ่งตายตัวเป็นต้นฉบับ/สำเนา คนละครึ่ง
+   บน-ล่าง (height คงที่ ไม่ใช้ min-height — เหตุผลเดียวกับ .pcost-page/.pcost-half ทุกประการ ห้ามตั้ง
+   override ใดๆ ที่มากระทบความสูงตอนพิมพ์) ── */
+.pr-print-page{
+  width:210mm;height:297mm;box-sizing:border-box;
+  background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  font-family:Sarabun,sans-serif;color:#1e293b;
+  display:flex;flex-direction:column;
+}
+.pr-print-half{height:148.5mm;box-sizing:border-box;padding:7mm 10mm;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.pr-print-half + .pr-print-half{border-top:1px dashed #94a3b8}
+.pr-print-half + .pr-print-half::before{
+  content:'✂ ตัดตามรอยประ';position:absolute;top:-8px;left:50%;transform:translateX(-50%);
+  background:#fff;padding:0 8px;font-size:8px;color:#94a3b8;
+}
+.pr-print-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.pr-print-header-left{display:flex;align-items:center;gap:8px}
+.pr-print-logo-img{height:28px;width:auto}
+.pr-print-formcode{font-size:8px;color:#94a3b8;text-align:right;line-height:1.4}
+.pr-print-title-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+.pr-print-title-block{flex:1;text-align:center}
+.pr-print-title{font-size:15px;font-weight:800;color:#1e293b}
+.pr-print-copylabel{flex:0 0 auto;font-size:11px;font-weight:700;color:#1e3a8a;white-space:nowrap}
+.pr-print-meta-row{display:flex;gap:24px;font-size:10.5px;margin-bottom:5px}
+.pr-print-meta-row b{border-bottom:1px solid #1e293b;padding:0 4px 1px;min-width:70px;display:inline-block}
+.pr-print-section-title{background:#f1f5f9;border:1px solid #cbd5e1;text-align:center;font-size:10.5px;font-weight:700;padding:2px 0}
+table.pr-print-table{width:100%;border-collapse:collapse;font-size:9px}
+table.pr-print-table th{border:1px solid #cbd5e1;background:#f8fafc;padding:2px 4px;text-align:center;font-weight:700}
+table.pr-print-table td{border:1px solid #e2e8f0;padding:2.5px 4px;height:15px}
+table.pr-print-table td.text-center{text-align:center}
+table.pr-print-table td.text-end{text-align:right;font-variant-numeric:tabular-nums}
+.pr-print-noterow{border:1px solid #cbd5e1;border-top:none;font-size:9px;padding:2px 5px;min-height:42px}
+.pr-print-noterow b{color:#475569}
+.pr-print-sign{display:flex;margin-top:auto;font-size:9px;text-align:center}
+.pr-print-sign > div{flex:1;border:1px solid #cbd5e1;border-top:none;padding:4px 4px 3px}
+.pr-print-sign .role{font-weight:700;padding-bottom:2px}
+.pr-print-sign .sigline{margin-top:8px;margin-bottom:22px;font-size:8.5px;color:#d1d5db}
+.pr-print-sign .sigimg{display:block;height:26px;width:auto;margin:0 auto}
+.pr-print-sign-requester .sigline{margin-bottom:2px}
+.pr-print-sign .signame{margin-top:1px}
+.pr-print-sign .deptline{text-align:left;font-size:8.5px}
+.pr-print-sign .dateline{margin-top:4px;font-size:8.5px}
+
 /* ── บันทึกผลิต: รายงานการผลิต และต้นทุน (ส่งบัญชี) — A4 แนวตั้ง 1 แผ่น แบ่งครึ่งตายตัวเป็นต้นฉบับ/สำเนา
    คนละครึ่งบน-ล่าง (height คงที่ ไม่ใช้ min-height กันโดน override ตอนพิมพ์ตามบั๊กที่เจอมาแล้วกับ .bpr-page) ── */
 .pcost-page{
@@ -1482,6 +1546,10 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
       <span>TRANSACTION</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-transaction"></i>
     </div>
     <div class="nav-group-body" id="navgroup-body-transaction">
+    <a href="#" class="nav-link mb-1" id="nav-purchasereq" onclick="showPage('purchasereq',this)" title="ใบขอซื้อวัตถุดิบ">
+      <i class="fas fa-cart-shopping me-2"></i><span>ใบขอซื้อ</span>
+      <span id="nav-purchasereq-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="ใบขอซื้อรออนุมัติ"></span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-mr" onclick="showPage('mr',this)" title="รับวัตถุดิบ (MR)">
       <i class="fas fa-truck-ramp-box me-2"></i><span>รับวัตถุดิบ (MR)</span>
     </a>
@@ -1812,6 +1880,12 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             <option value="out">หมดแล้ว 🔴</option>
             <option value="expiring">ใกล้หมดอายุ (≤20 เดือน)</option>
           </select>
+          <button class="btn btn-sm btn-outline-primary" id="stock-select-mode-btn" onclick="stockToggleSelectMode()">
+            <i class="fas fa-square-check me-1"></i>เลือกเพื่อขอซื้อ
+          </button>
+          <button class="btn btn-sm btn-outline-warning" id="stock-autopick-btn" style="display:none" onclick="stockAutoPickLow()">
+            เลือกทั้งหมดที่ต่ำกว่า Min
+          </button>
           <button class="btn btn-sm btn-primary ms-auto" onclick="loadStockData()">
             <i class="fas fa-sync-alt me-1"></i>รีเฟรช
           </button>
@@ -1862,6 +1936,15 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
       <div id="stock-cards">
         <div class="text-center text-muted py-5">
           <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
+        </div>
+      </div>
+      <div class="stock-floatbar" id="stock-floatbar">
+        <span>เลือกไว้ <b id="stock-pick-count">0</b> รายการ</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-light" onclick="stockClearPicks()">ล้างที่เลือก</button>
+          <button class="btn btn-sm btn-warning fw-bold" onclick="purchasereqOpenCreateModal()">
+            <i class="fas fa-cart-shopping me-1"></i>ออกใบขอซื้อ
+          </button>
         </div>
       </div>
     </div>
@@ -2738,6 +2821,83 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           <div class="gtable" id="prodstatus-gtable"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
+  <!-- PAGE: ใบขอซื้อวัตถุดิบ (Purchase Request) -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-purchasereq">
+    <div class="page-header">
+      <h4 class="fw-bold mb-1" style="color:white">
+        <i class="fas fa-cart-shopping me-2"></i>ใบขอซื้อวัตถุดิบ
+      </h4>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <span class="search-wrap">
+            <input type="text" id="purchasereq-search" class="form-control form-control-sm search-input" style="max-width:260px"
+              placeholder="🔍 ค้นหา เลขที่ / วัตถุดิบ / ซัพพลายเออร์..." oninput="purchasereqRenderCards()">
+            <i class="fas fa-times-circle search-clear-icon" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา"></i>
+          </span>
+          <select id="purchasereq-filter-status" class="form-select form-select-sm" style="max-width:170px" onchange="purchasereqRenderCards()">
+            <option value="">สถานะ: ทั้งหมด</option>
+            <option value="รออนุมัติ">รออนุมัติ</option>
+            <option value="อนุมัติแล้ว">อนุมัติแล้ว</option>
+            <option value="ปฏิเสธ">ปฏิเสธ</option>
+            <option value="ยกเลิก">ยกเลิก</option>
+          </select>
+          <select id="purchasereq-filter-supplier" class="form-select form-select-sm" style="max-width:200px" onchange="purchasereqRenderCards()">
+            <option value="">ซัพพลายเออร์: ทั้งหมด</option>
+          </select>
+          <button class="btn btn-sm btn-primary ms-auto" onclick="purchasereqLoadData()">
+            <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="cursor:pointer" onclick="purchasereqFilterStatus('')" title="กดเพื่อดูรายการทั้งหมด">
+            <div class="kpi-num" id="purchasereq-kpi-all">—</div>
+            <div class="kpi-label">ใบขอซื้อทั้งหมด</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="purchasereqFilterStatus('รออนุมัติ')" title="กดเพื่อกรองเฉพาะรออนุมัติ">
+            <div class="kpi-num text-warning" id="purchasereq-kpi-pending">—</div>
+            <div class="kpi-label">รออนุมัติ</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#22c55e;cursor:pointer" onclick="purchasereqFilterStatus('อนุมัติแล้ว')" title="กดเพื่อกรองเฉพาะอนุมัติแล้ว">
+            <div class="kpi-num text-success" id="purchasereq-kpi-approved">—</div>
+            <div class="kpi-label">อนุมัติแล้ว</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#94a3b8;cursor:pointer" onclick="purchasereqFilterStatus('ปฏิเสธ')" title="กดเพื่อกรองเฉพาะปฏิเสธ">
+            <div class="kpi-num" style="color:#64748b" id="purchasereq-kpi-rejected">—</div>
+            <div class="kpi-label">ปฏิเสธ</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#cbd5e1;cursor:pointer" onclick="purchasereqFilterStatus('ยกเลิก')" title="กดเพื่อกรองเฉพาะยกเลิก">
+            <div class="kpi-num" style="color:#94a3b8" id="purchasereq-kpi-cancelled">—</div>
+            <div class="kpi-label">ยกเลิก</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div class="kpi-card" style="border-color:#3b82f6">
+            <div class="kpi-num text-primary" id="purchasereq-kpi-value">—</div>
+            <div class="kpi-label">มูลค่ารออนุมัติ (฿)</div>
+          </div>
+        </div>
+      </div>
+      <div id="purchasereq-cards"></div>
+      <div class="text-muted small mt-2">คลิกที่การ์ดเพื่อดูรายการวัตถุดิบ · แก้ไขได้ตอนยัง "รออนุมัติ" เท่านั้น · พิมพ์ซ้ำได้หลังอนุมัติแล้ว · สิทธิ์แอดมินยกเลิกใบที่อนุมัติแล้วได้</div>
     </div>
   </div>
 
@@ -5664,6 +5824,59 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 <!-- Misc Issue Slip Print Template (แสดงบนหน้าจอในโมดัลด้านบน + ใช้พิมพ์จริงตอนกด Ctrl+P — มีเนื้อหาเฉพาะตอนยืนยันเลขที่แล้วเท่านั้น) -->
 <div id="miscslip-print-root"></div>
 
+<!-- ════════════ Purchase Request: Create/Edit Modal ════════════ -->
+<div class="modal fade" id="purchasereqModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title" id="purchasereqModalTitle">สร้างใบขอซื้อวัตถุดิบ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">เลขที่ใบ</label>
+          <input type="text" id="purchasereq-f-prno" class="form-control" style="max-width:220px" placeholder="เช่น PR-69/001">
+          <small class="text-muted">รันต่อจากเลขล่าสุดของปีให้อัตโนมัติ แก้ไขเองได้</small>
+        </div>
+        <div class="text-muted small mb-2">ต่ำกว่า Min → เติมถึง Min แล้วเผื่อเพิ่มอีก 1 เท่า ให้อัตโนมัติ แก้ไขได้ทุกช่อง</div>
+        <div id="purchasereq-lines-container"></div>
+        <div class="text-muted small mt-1">* ถ้าเลือกหลายซัพพลายเออร์ ฝ่ายจัดซื้อจะแยกออกเป็นใบสั่งซื้อ (PO) ต่อซัพพลายเออร์ตอนสั่งจริง</div>
+        <div class="mt-3">
+          <label class="form-label">หมายเหตุ (ถ้ามี)</label>
+          <textarea id="purchasereq-f-note" class="form-control" rows="2" placeholder="เช่น เร่งด่วน ใช้ผลิตล็อตหน้า"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="purchasereqSubmit()">
+          <i class="fas fa-save me-1"></i>บันทึก
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ Purchase Request: Print Preview Modal ════════════ -->
+<div class="modal fade" id="purchasereqPrintModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-print me-2"></i>ตัวอย่างใบขอซื้อ — ตรวจสอบก่อนพิมพ์</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="purchasereq-preview-body" style="background:#525659;padding:24px;max-height:82vh;overflow:auto"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="purchasereq-print-root"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <!-- SheetJS — ใช้สร้างไฟล์ .xlsx หลายชีทตอนกด "ดาวน์โหลดทั้งหมด" ที่หน้าแดชบอร์ดต้นทุน & กำไร (admindashExportAllProductsXLSX) -->
@@ -6637,6 +6850,7 @@ function showPage(page, navEl) {
   const loaders = {
     'home'     : loadHomeData,
     'stock'    : loadStockData,
+    'purchasereq': purchasereqLoadData,
     'fgstock'  : loadFGStockData,
     'mo'       : loadMOData,
     'mr'       : loadMRData,
@@ -6670,6 +6884,9 @@ function showPage(page, navEl) {
 let _stockData    = [];
 let _matMasterMap = {};  // MaterialCode → { TYPE, MinStock }
 let _stockReservedByMaterial = {};  // MaterialCode → { total, items:[{MO_Ref,ReservedQty,UOM}] } — จอง (WIP) จากหน้า MO
+// โหมด "เลือกเพื่อขอซื้อ" (เพิ่ม 2026-08-29) — เลือกได้หลายวัตถุดิบ รวมออกใบขอซื้อเดียว (ดู purchasereqOpenCreateModal)
+let _stockSelectMode = false;
+let _stockPicked = new Set();
 
 async function loadStockData() {
   _showLoader();
@@ -6775,6 +6992,48 @@ function stockFilterByStatus(status) {
   renderStockCards();
 }
 
+// ── โหมด "เลือกเพื่อขอซื้อ" — ติ๊กหลายวัตถุดิบ รวมออกใบขอซื้อเดียว (ดู purchasereqOpenCreateModal) ──
+function stockToggleSelectMode() {
+  _stockSelectMode = !_stockSelectMode;
+  document.getElementById('stock-select-mode-btn').classList.toggle('active', _stockSelectMode);
+  document.getElementById('stock-autopick-btn').style.display = _stockSelectMode ? 'inline-block' : 'none';
+  if (!_stockSelectMode) _stockPicked.clear();
+  renderStockCards();
+  _stockUpdateFloatbar();
+}
+function stockTogglePick(code) {
+  if (_stockPicked.has(code)) _stockPicked.delete(code); else _stockPicked.add(code);
+  renderStockCards();
+  _stockUpdateFloatbar();
+}
+// เลือกทุกวัตถุดิบที่ "ใกล้หมด"/"หมดแล้ว" (คงเหลือรวม < Min หรือ = 0) ให้อัตโนมัติ — ใช้สูตร/ที่มา Min เดียวกับ
+// updateStockKPIs()/renderStockCards() เป๊ะ (ไม่ทำสำเนาสูตรแยก เพื่อไม่ให้ผลลัพธ์เพี้ยนไปจากที่การ์ดโชว์จริง)
+function stockAutoPickLow() {
+  const totalByCode = {};
+  for (const r of _stockData) {
+    if (!r.MaterialCode) continue;
+    totalByCode[r.MaterialCode] = (totalByCode[r.MaterialCode] || 0) + r.QtyBalance;
+  }
+  Object.entries(totalByCode).forEach(([code, total]) => {
+    const master   = _matMasterMap[code] || {};
+    const minStock = master.minStock || 100;
+    if (total <= 0 || (total > 0 && total < minStock)) _stockPicked.add(code);
+  });
+  renderStockCards();
+  _stockUpdateFloatbar();
+}
+function stockClearPicks() {
+  _stockPicked.clear();
+  renderStockCards();
+  _stockUpdateFloatbar();
+}
+function _stockUpdateFloatbar() {
+  const bar = document.getElementById('stock-floatbar');
+  if (!bar) return;
+  bar.classList.toggle('show', _stockPicked.size > 0);
+  document.getElementById('stock-pick-count').textContent = _stockPicked.size;
+}
+
 function renderStockCards() {
   const q      = (document.getElementById('stock-search')?.value || '').toLowerCase();
   const status = document.getElementById('stock-filter-status')?.value || '';
@@ -6816,6 +7075,8 @@ function renderStockCards() {
     }
     return true;
   });
+
+  container.classList.toggle('select-mode', _stockSelectMode);
 
   if (!items.length) {
     container.innerHTML = '<div class="glass-card text-center text-muted py-5">ไม่พบข้อมูล</div>';
@@ -6885,10 +7146,13 @@ function renderStockCards() {
         <span data-label="จ่ายออก" style="text-align:right;color:#dc2626">${r.QtyOut.toLocaleString()}</span>
       </div>`).join('');
 
+    const isPicked = g.code && _stockPicked.has(g.code);
     return `
-    <div class="glass-card mb-2 p-0 overflow-hidden">
+    <div class="glass-card mb-2 p-0 overflow-hidden${isPicked ? ' stock-card-picked' : ''}">
       <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
            onclick="stockToggleLots(this)">
+        ${g.code ? `<input type="checkbox" class="stock-chk" ${isPicked?'checked':''}
+          onclick="event.stopPropagation();stockTogglePick('${g.code}')" title="เลือกเข้าใบขอซื้อ">` : ''}
         <span class="badge bg-secondary">${g.code||'—'}</span>
         ${typeBadge}
         <span class="fw-semibold" style="font-size:.9rem;flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name||'—'}</span>
@@ -7788,6 +8052,638 @@ async function moForceClose(rowId) {
   _logAudit('FORCE_CLOSE', 'manufacturing_orders', r.MO_ID, reason.trim());
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ตัดจบสำเร็จ', showConfirmButton:false, timer:2000 });
   loadMOData();
+}
+
+// ══════════════════════════════════════════════
+// PAGE: ใบขอซื้อวัตถุดิบ (Purchase Request)
+// ══════════════════════════════════════════════
+// สร้างจากหน้า Stock วัตถุดิบ (เลือกหลายวัตถุดิบ รวมเป็นใบเดียว) — อนุมัติโดยหัวหน้างานขึ้นไปก่อนถึงจะพิมพ์ได้
+// ตาราง: purchase_requests (หัวเอกสาร) + purchase_request_lines (รายการต่อวัตถุดิบ) — ดู create_purchase_requests.sql
+let _purchasereqData = [];        // header rows พร้อม .lines แนบมาด้วย (join ฝั่ง client)
+let _purchasereqExpandedSet = new Set();
+let _purchasereqEditingNo = null; // PR_No ที่กำลังแก้ไข — null = กำลังสร้างใหม่
+let _purchasereqRowSeq = 0;       // never-reused running counter (เหมือน _bomRowSeq) กันชน id ตอนลบแถวกลาง
+let _purchasereqModal = null;
+let _purchasereqPrintModal = null;
+
+async function purchasereqLoadData() {
+  _showLoader();
+  const _cancelPlaceholder = _deferLoadingPlaceholder('purchasereq-cards', '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
+
+  const [hdrRes, lineRes] = await Promise.all([
+    _sb.from('purchase_requests').select('*').order('_row_id', { ascending: false }),
+    _fetchAllPaged('purchase_request_lines', '*'),
+  ]);
+
+  _cancelPlaceholder();
+  _hideLoader();
+  if (hdrRes.error) { _err('โหลดใบขอซื้อไม่ได้', hdrRes.error.message); return; }
+  if (lineRes.error) { _err('โหลดรายการใบขอซื้อไม่ได้', lineRes.error.message); return; }
+
+  const linesByPR = {};
+  (lineRes.data || []).forEach(l => { (linesByPR[l.PR_Ref] ||= []).push(l); });
+  _purchasereqData = (hdrRes.data || []).map(h => ({ ...h, lines: linesByPR[h.PR_No] || [] }));
+
+  purchasereqRenderCards();
+  purchasereqUpdateNavBadge(false, _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length);
+}
+
+// เลขที่ใบขอซื้อ รูปแบบ PR-ปี(พ.ศ. 2 หลัก)/ลำดับ เช่น PR-69/001 (2026 → พ.ศ. 2569 → "69") ตามที่ผู้ใช้ยืนยัน
+// 2026-08-29 — เป็นแค่ "เลขแนะนำ" เท่านั้น ผู้ใช้แก้เองในช่อง #purchasereq-f-prno ได้เสมอก่อนบันทึกจริง
+// (purchasereqSubmit เป็นคนเช็คซ้ำ/บันทึกค่าจริงที่พิมพ์ ไม่ใช่ค่านี้ตรงๆ) รันแบบ max-based ไม่ใช่ count-based
+// (บทเรียนเดียวกับ _billNoNextSuggest ที่เจอมาแล้ว — count-based พังทันทีถ้าเลขจริงมีช่องว่าง/ไม่เริ่มที่ 1)
+// ทำเป็น async + query DB สดเสมอ เพราะปุ่ม "ออกใบขอซื้อ" ที่หน้า Stock อาจถูกกดก่อนหน้าใบขอซื้อจะเคยโหลดข้อมูล
+// เลยในเซสชันนี้ (_purchasereqData อาจว่างเปล่า) — เหมือน deliveryGenerateID
+async function purchasereqSuggestPRNo() {
+  const beYear2 = String(new Date().getFullYear() + 543).slice(-2);
+  const prefix = `PR-${beYear2}/`;
+  const { data } = await _sb.from('purchase_requests').select('PR_No').ilike('PR_No', prefix + '%');
+  let maxNum = 0;
+  (data || []).forEach(r => {
+    const m = /\/(\d+)$/.exec(r.PR_No || '');
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  });
+  return prefix + String(maxNum + 1).padStart(3, '0');
+}
+
+// ชื่อซัพพลายเออร์ที่เคยใช้จริงต่อวัตถุดิบ — ไม่มี master ซัพพลายเออร์แยกในระบบ (ซัพพลายเออร์เป็นแค่ช่อง Supplier
+// พิมพ์อิสระต่อครั้งที่หน้ารับวัตถุดิบ) จึงดึงจากประวัติ mr_receive จริงมาทำ dropdown ให้เลือกแทน
+async function _purchasereqBuildSupplierMap() {
+  const { data, error } = await _fetchAllPaged('mr_receive', 'MaterialCode,Supplier');
+  const map = {};
+  if (!error) {
+    (data || []).forEach(r => {
+      const sup = (r.Supplier || '').trim();
+      if (!sup || !r.MaterialCode) return;
+      (map[r.MaterialCode] ||= new Set()).add(sup);
+    });
+  }
+  const out = {};
+  Object.keys(map).forEach(k => { out[k] = [...map[k]]; });
+  return out;
+}
+
+// ต่ำกว่า Min → เติมถึง Min ก่อน แล้วเผื่อเพิ่มอีก 1 เท่า (สูตร = 2×Min − คงเหลือปัจจุบัน) ตามที่ผู้ใช้ยืนยัน 2026-08-29
+function _purchasereqSuggestQty(qty, min) {
+  if (!min || qty >= min) return 0;
+  return Math.max(0, Math.round((min * 2 - qty) * 100) / 100);
+}
+
+function _purchasereqSupplierCellHTML(supplier, options, seq) {
+  const opts = (options || []);
+  const inList = !!supplier && opts.includes(supplier);
+  const optsHtml = opts.map(s => `<option value="${s}"${s === supplier ? ' selected' : ''}>${s}</option>`).join('')
+    + `<option value="__other__"${inList ? '' : ' selected'}>ระบุเอง...</option>`;
+  return `<select class="form-select form-select-sm" id="purchasereq-f-sup-${seq}" onchange="_purchasereqOnSupplierChange(${seq})">${optsHtml}</select>
+    <input type="text" class="form-control form-control-sm mt-1" id="purchasereq-f-supother-${seq}"
+      placeholder="ระบุชื่อซัพพลายเออร์" value="${inList ? '' : (supplier || '')}" style="display:${inList ? 'none' : 'block'}">`;
+}
+function _purchasereqOnSupplierChange(seq) {
+  const sel = document.getElementById(`purchasereq-f-sup-${seq}`);
+  const other = document.getElementById(`purchasereq-f-supother-${seq}`);
+  if (sel && other) other.style.display = sel.value === '__other__' ? 'block' : 'none';
+}
+
+// r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions} — snapshot ทั้งหมดเก็บลง data-* ของ
+// แถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกันทั้งสร้างใหม่/แก้ไข)
+function _purchasereqLineRowHTML(r) {
+  const seq = _purchasereqRowSeq++;
+  const nameAttr = (r.name || '').replace(/"/g, '&quot;');
+  const uomAttr  = (r.uom || '').replace(/"/g, '&quot;');
+  return `<div class="purchasereq-line-row border rounded p-2 mb-2" data-seq="${seq}" data-code="${r.code}"
+      data-name="${nameAttr}" data-uom="${uomAttr}" data-qtyatrequest="${r.qtyAtRequest || 0}"
+      data-min="${r.min || 0}" data-unitcost="${r.unit || 0}">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-3">
+        <div class="fw-semibold" style="font-size:.85rem">${r.name || '—'}</div>
+        <small class="text-muted">${r.code} · ${r.uom || ''}</small>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1" style="font-size:.7rem">ซัพพลายเออร์</label>
+        ${_purchasereqSupplierCellHTML(r.supplier, r.suppliersOptions, seq)}
+      </div>
+      <div class="col-md-2 text-end">
+        <label class="form-label mb-1 d-block" style="font-size:.7rem">คงเหลือ / Min</label>
+        <span style="font-size:.82rem">${(r.qtyAtRequest || 0).toLocaleString()} / ${(r.min || 0).toLocaleString()}</span>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1" style="font-size:.7rem">จำนวนขอซื้อ</label>
+        <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-qty-${seq}"
+          min="0" step="0.01" value="${r.qty}" oninput="_purchasereqValidateRow(${seq})">
+      </div>
+      <div class="col-md-2 text-end">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="purchasereqRemoveLineRow(${seq})" title="เอาออกจากใบนี้">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+function _purchasereqValidateRow(seq) {
+  const inp = document.getElementById(`purchasereq-f-qty-${seq}`);
+  if (!inp) return;
+  inp.classList.toggle('is-invalid', inp.value === '' || parseFloat(inp.value) <= 0);
+}
+function purchasereqRemoveLineRow(seq) {
+  const container = document.getElementById('purchasereq-lines-container');
+  const el = container.querySelector(`.purchasereq-line-row[data-seq="${seq}"]`);
+  if (!el) return;
+  const code = el.dataset.code;
+  el.remove();
+  // ตอนสร้างใหม่ (ไม่ใช่แก้ไข) การลบแถวในโมดัลต้องเลิกติ๊กที่หน้า Stock ด้วย ไม่งั้นเปิดโมดัลใหม่จะโผล่ซ้ำ
+  if (!_purchasereqEditingNo) {
+    _stockPicked.delete(code);
+    renderStockCards();
+    _stockUpdateFloatbar();
+    if (!_stockPicked.size) purchasereqCloseModal();
+  }
+}
+
+// เรียกจากปุ่ม "ออกใบขอซื้อ" ที่หน้า Stock วัตถุดิบ — ใช้ _stockPicked/_stockData/_matMasterMap ที่โหลดไว้แล้ว
+async function purchasereqOpenCreateModal() {
+  if (!_stockPicked.size) return;
+  _purchasereqEditingNo = null;
+  document.getElementById('purchasereqModalTitle').textContent = 'สร้างใบขอซื้อวัตถุดิบ';
+  document.getElementById('purchasereq-f-note').value = '';
+  document.getElementById('purchasereq-f-prno').value = '';
+  document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
+
+  _showLoader();
+  const [supplierMap, suggestedPrNo] = await Promise.all([
+    _purchasereqBuildSupplierMap(),
+    purchasereqSuggestPRNo(),
+  ]);
+  _hideLoader();
+  document.getElementById('purchasereq-f-prno').value = suggestedPrNo;
+
+  const rows = [..._stockPicked].map(code => {
+    const master = _matMasterMap[code] || {};
+    const group  = _stockData.filter(r => r.MaterialCode === code);
+    const qty    = group.reduce((s, r) => s + (r.QtyBalance || 0), 0);
+    const min    = master.minStock || group[0]?.MinStock || 0;
+    const totalVal = group.reduce((s, r) => s + (r.StockValue || 0), 0);
+    const unitCost = qty > 0 ? totalVal / qty : (group[group.length - 1]?.UnitCost || 0);
+    const suppliers = supplierMap[code] || [];
+    return {
+      code, name: group[0]?.MaterialName || code, uom: group[0]?.UOM || '',
+      qtyAtRequest: qty, min, qty: _purchasereqSuggestQty(qty, min), unit: unitCost,
+      supplier: suppliers[0] || '', suppliersOptions: suppliers,
+    };
+  });
+  document.getElementById('purchasereq-lines-container').innerHTML = rows.map(_purchasereqLineRowHTML).join('');
+
+  if (!_purchasereqModal) _purchasereqModal = new bootstrap.Modal(document.getElementById('purchasereqModal'));
+  _purchasereqModal.show();
+}
+
+// แก้ไขใบขอซื้อที่ยัง "รออนุมัติ" อยู่เท่านั้น (ปุ่ม ✎ บนการ์ด) — ดึงค่า snapshot เดิมของแต่ละแถวกลับมา
+// ไม่ใช่ค่าจาก Stock สดๆ (คงเหลือ/Min ตอนขอซื้อ ควรคงที่ตามตอนที่ขอไว้จริง)
+async function purchasereqEditOpen(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr || pr.Status !== 'รออนุมัติ') return;
+  _purchasereqEditingNo = prNo;
+  document.getElementById('purchasereqModalTitle').textContent = 'แก้ไขใบขอซื้อ ' + prNo;
+  document.getElementById('purchasereq-f-note').value = pr.Note || '';
+  document.getElementById('purchasereq-f-prno').value = prNo;
+  document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
+
+  _showLoader();
+  const supplierMap = await _purchasereqBuildSupplierMap();
+  _hideLoader();
+
+  const rows = pr.lines.map(l => ({
+    code: l.MaterialCode, name: l.MaterialName, uom: l.UOM,
+    qtyAtRequest: parseFloat(l.QtyAtRequest) || 0, min: parseFloat(l.MinStock) || 0,
+    qty: parseFloat(l.RequestQty) || 0, unit: parseFloat(l.UnitCost) || 0,
+    supplier: l.Supplier || '', suppliersOptions: supplierMap[l.MaterialCode] || [],
+  }));
+  document.getElementById('purchasereq-lines-container').innerHTML = rows.map(_purchasereqLineRowHTML).join('');
+
+  if (!_purchasereqModal) _purchasereqModal = new bootstrap.Modal(document.getElementById('purchasereqModal'));
+  _purchasereqModal.show();
+}
+
+function purchasereqCloseModal() {
+  if (_purchasereqModal) _purchasereqModal.hide();
+  _purchasereqEditingNo = null;
+}
+
+async function purchasereqSubmit() {
+  const rows = [...document.querySelectorAll('#purchasereq-lines-container .purchasereq-line-row')];
+  if (!rows.length) { Swal.fire({ icon: 'warning', title: 'ใบขอซื้อต้องมีอย่างน้อย 1 รายการ' }); return; }
+
+  const prNoInput = document.getElementById('purchasereq-f-prno');
+  const enteredPrNo = prNoInput.value.trim();
+  if (!enteredPrNo) {
+    prNoInput.classList.add('is-invalid');
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกเลขที่ใบ' });
+    return;
+  }
+  prNoInput.classList.remove('is-invalid');
+
+  let ok = true;
+  const lines = rows.map(row => {
+    const seq = row.dataset.seq;
+    const qtyInput = document.getElementById(`purchasereq-f-qty-${seq}`);
+    const qty = parseFloat(qtyInput.value);
+    if (!qty || qty <= 0) { qtyInput.classList.add('is-invalid'); ok = false; }
+    const sel   = document.getElementById(`purchasereq-f-sup-${seq}`);
+    const other = document.getElementById(`purchasereq-f-supother-${seq}`);
+    const supplier = sel.value === '__other__' ? (other.value.trim() || 'ไม่ระบุซัพพลายเออร์') : sel.value;
+    return {
+      MaterialCode: row.dataset.code,
+      MaterialName: row.dataset.name,
+      UOM: row.dataset.uom,
+      QtyAtRequest: parseFloat(row.dataset.qtyatrequest) || 0,
+      MinStock: parseFloat(row.dataset.min) || 0,
+      UnitCost: parseFloat(row.dataset.unitcost) || 0,
+      RequestQty: qty,
+      Supplier: supplier,
+    };
+  });
+  if (!ok) return;
+
+  const note = document.getElementById('purchasereq-f-note').value.trim() || null;
+  const isEdit = !!_purchasereqEditingNo;
+  const oldPrNo = _purchasereqEditingNo;
+
+  // เช็คเลขที่ซ้ำก่อนบันทึกเสมอ ทั้งตอนสร้างใหม่และตอนแก้ไขแล้วเปลี่ยนเลขที่ (ผู้ใช้พิมพ์เองได้ ไม่ใช่แค่เลขแนะนำ)
+  if (!isEdit || enteredPrNo !== oldPrNo) {
+    _showLoader();
+    const { data: clashRows, error: clashErr } = await _sb.from('purchase_requests').select('PR_No').eq('PR_No', enteredPrNo);
+    _hideLoader();
+    if (clashErr) { _err('ตรวจสอบเลขที่ไม่สำเร็จ', clashErr.message); return; }
+    if ((clashRows || []).length > 0) {
+      prNoInput.classList.add('is-invalid');
+      Swal.fire({ icon: 'error', title: 'เลขที่นี้ถูกใช้ไปแล้ว', text: 'กรุณาเปลี่ยนเลขที่ใบขอซื้อ' });
+      return;
+    }
+  }
+
+  _showLoader();
+  if (isEdit) {
+    const { error: delErr } = await _sb.from('purchase_request_lines').delete().eq('PR_Ref', oldPrNo);
+    if (delErr) { _hideLoader(); _err('บันทึกไม่สำเร็จ', delErr.message); return; }
+    const { error: insErr } = await _sb.from('purchase_request_lines').insert(lines.map(l => ({ ...l, PR_Ref: enteredPrNo })));
+    if (insErr) { _hideLoader(); _err('บันทึกไม่สำเร็จ', insErr.message); return; }
+    const oldRow = _purchasereqData.find(p => p.PR_No === oldPrNo);
+    const { error: updErr } = await _sb.from('purchase_requests').update({ PR_No: enteredPrNo, Note: note }).eq('PR_No', oldPrNo);
+    _hideLoader();
+    if (updErr) { _err('บันทึกไม่สำเร็จ', updErr.message); return; }
+    _logAudit('EDIT', 'purchase_requests', enteredPrNo, _diffFields(oldRow, { PR_No: enteredPrNo, Note: note }) || `แก้ไขรายการ ${lines.length} รายการ`);
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกแล้ว', showConfirmButton: false, timer: 2000 });
+    purchasereqCloseModal();
+    await purchasereqLoadData();
+  } else {
+    const { error: hdrErr } = await _sb.from('purchase_requests').insert({
+      PR_No: enteredPrNo, Status: 'รออนุมัติ', Note: note,
+      RequestedBy: _currentUser?.name || _currentUser?.email || null,
+    });
+    if (hdrErr) { _hideLoader(); _err('สร้างใบขอซื้อไม่สำเร็จ', hdrErr.message); return; }
+    const { error: insErr } = await _sb.from('purchase_request_lines').insert(lines.map(l => ({ ...l, PR_Ref: enteredPrNo })));
+    _hideLoader();
+    if (insErr) { _err('บันทึกรายการไม่สำเร็จ', insErr.message); return; }
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `สร้างใบขอซื้อ ${enteredPrNo} แล้ว`, showConfirmButton: false, timer: 2500 });
+    purchasereqCloseModal();
+    _stockPicked.clear();
+    renderStockCards();
+    _stockUpdateFloatbar();
+    showPage('purchasereq', document.getElementById('nav-purchasereq'));
+  }
+}
+
+// ลบใบขอซื้อ — ชื่อฟังก์ชันมี "Delete(" ตรงตาม CSS blanket rule (body.role-operator [onclick*="Delete("])
+// ที่ซ่อนปุ่มลบทุกปุ่มในระบบนี้ให้ operator อัตโนมัติ ไม่ต้องเพิ่ม CSS ใหม่
+async function purchasereqDelete(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr) return;
+  if (pr.Status === 'อนุมัติแล้ว') {
+    Swal.fire({ icon: 'error', title: 'ลบไม่ได้', text: 'ใบขอซื้อที่อนุมัติแล้วต้องให้แอดมินยกเลิกก่อน' });
+    return;
+  }
+  const res = await Swal.fire({
+    title: `ลบใบขอซื้อ ${prNo}?`, text: 'ลบแล้วกู้คืนไม่ได้',
+    icon: 'warning', showCancelButton: true,
+    confirmButtonText: 'ลบ', confirmButtonColor: '#d33', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  await _sb.from('purchase_request_lines').delete().eq('PR_Ref', prNo);
+  const { error } = await _sb.from('purchase_requests').delete().eq('PR_No', prNo);
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  _logAudit('DELETE', 'purchase_requests', prNo, '');
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบแล้ว', showConfirmButton: false, timer: 2000 });
+  purchasereqLoadData();
+}
+
+// อนุมัติ/ปฏิเสธ — จำกัดแค่ระดับ admin เท่านั้น (2026-08-29 ตามคำขอผู้ใช้ — หัวหน้างานทำได้แค่ "ขอ" ไว้
+// รอแอดมินอนุมัติ ไม่ใช่ supervisor เหมือนที่อื่นในระบบนี้) ปุ่มโชว์เฉพาะ _hasRole('admin') ใน
+// purchasereqCardHTML() เอง ไม่ได้ผูกกับ RLS เพิ่มเติม (ข้อจำกัดเดียวกับปุ่มอนุมัติ/ปิดงานอื่นในระบบนี้)
+async function purchasereqApprove(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr) return;
+  const res = await Swal.fire({
+    title: `อนุมัติใบขอซื้อ ${prNo}?`, icon: 'question', showCancelButton: true,
+    confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('purchase_requests').update({
+    Status: 'อนุมัติแล้ว',
+    ApprovedBy: _currentUser?.name || _currentUser?.email || null,
+    ApprovedAt: new Date().toISOString().split('T')[0],
+  }).eq('PR_No', prNo);
+  _hideLoader();
+  if (error) { _err('อนุมัติไม่สำเร็จ', error.message); return; }
+  _logAudit('APPROVE', 'purchase_requests', prNo, '');
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติแล้ว', showConfirmButton: false, timer: 2000 });
+  purchasereqLoadData();
+}
+async function purchasereqReject(prNo) {
+  const { value: reason } = await Swal.fire({
+    title: `ปฏิเสธใบขอซื้อ ${prNo}?`, icon: 'warning',
+    input: 'textarea', inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    inputPlaceholder: 'เช่น ราคาสูงเกินไป ให้เทียบราคาใหม่ก่อน',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', confirmButtonColor: '#d33', cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('purchase_requests').update({
+    Status: 'ปฏิเสธ', RejectReason: reason.trim(),
+  }).eq('PR_No', prNo);
+  _hideLoader();
+  if (error) { _err('ปฏิเสธไม่สำเร็จ', error.message); return; }
+  _logAudit('REJECT', 'purchase_requests', prNo, reason.trim());
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ปฏิเสธแล้ว', showConfirmButton: false, timer: 2000 });
+  purchasereqLoadData();
+}
+
+// ยกเลิกใบขอซื้อที่ "อนุมัติแล้ว" — ไม่ลบข้อมูล แค่เปลี่ยนสถานะเป็น "ยกเลิก" (เก็บไว้เป็นหลักฐาน/audit trail)
+// เป็นทางออกของ purchasereqDelete ที่บล็อกไม่ให้ลบใบอนุมัติแล้วตรงๆ — จำกัดแค่ admin เท่านั้น (เหมือน
+// อนุมัติ/ปฏิเสธ) เพราะเป็นการ "ล้ม" มติที่แอดมินคนเดียวเป็นคนอนุมัติไปแล้ว ปุ่มโชว์เฉพาะ _hasRole('admin')
+// ใน purchasereqCardHTML() เอง (ข้อจำกัดเดียวกับปุ่มอนุมัติ/ยกเลิก/ปิดงานอื่นในระบบนี้ — ไม่ผูก RLS เพิ่ม)
+async function purchasereqCancel(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr) return;
+  const { value: reason } = await Swal.fire({
+    title: `ยกเลิกใบขอซื้อ ${prNo}?`,
+    html: '<div class="text-start">ใบนี้อนุมัติไปแล้ว การยกเลิกจะไม่ลบข้อมูล แค่เปลี่ยนสถานะเป็น "ยกเลิก" เท่านั้น</div>',
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ยกเลิก (จำเป็นต้องกรอก)',
+    inputPlaceholder: 'เช่น ไม่ต้องซื้อแล้ว, สั่งซ้ำผิดใบ',
+    showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิก', confirmButtonColor: '#d33', cancelButtonText: 'ปิด',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const stamp = `[ยกเลิก ${new Date().toISOString().split('T')[0]}] ${reason.trim()}`;
+  const newNote = pr.Note ? `${pr.Note} | ${stamp}` : stamp;
+  const { error } = await _sb.from('purchase_requests').update({ Status: 'ยกเลิก', Note: newNote }).eq('PR_No', prNo);
+  _hideLoader();
+  if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+  _logAudit('CANCEL', 'purchase_requests', prNo, reason.trim());
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ยกเลิกแล้ว', showConfirmButton: false, timer: 2000 });
+  purchasereqLoadData();
+}
+
+function purchasereqToggleExpand(prNo) {
+  if (_purchasereqExpandedSet.has(prNo)) _purchasereqExpandedSet.delete(prNo);
+  else _purchasereqExpandedSet.add(prNo);
+  purchasereqRenderCards();
+}
+
+function purchasereqFilterStatus(v) {
+  document.getElementById('purchasereq-filter-status').value = v;
+  purchasereqRenderCards();
+}
+
+function _purchasereqFmtDate(d) {
+  return _fmtDate(d);
+}
+
+// ── เลียนแบบฟอร์มจริงของบริษัท "ใบขอซื้อ (Purchase Requisition)" FM-PU-01-03 Rev.00 Eff.Date 01/03/2025
+// (ผู้ใช้ส่งไฟล์ PDF ต้นฉบับมาให้ 2026-08-29 ให้ทำตามเป๊ะ) — โครง 1 แผ่น A4 แบ่งครึ่งเป็นต้นฉบับ/สำเนา
+// เหมือน _pcostHalfHTML/_pcostBuildHTML ทุกประการ (ฟังก์ชันสร้าง "ครึ่งเดียว" + ฟังก์ชันประกอบ 2 ครึ่ง)
+// คอลัมน์ "วันที่"/"หมายเหตุ" รายบรรทัดในตารางเป็นช่องว่างให้ฝ่ายจัดซื้อกรอกด้วยมือทีหลัง (ตามฟอร์มกระดาษเดิม
+// ที่ไม่มีข้อมูลนี้ในระบบตั้งแต่แรก) — หมายเหตุระดับทั้งใบ (pr.Note) ไปอยู่ที่กล่อง "หมายเหตุ/คำแนะนำในการซื้อ"
+// ด้านล่างแทน ไม่ใช่คอลัมน์เดียวกัน. ชื่อผู้อนุมัติ/ฝ่ายจัดซื้อ hardcode ตรงตามฟอร์มกระดาษจริงที่ผู้ใช้ส่งมา
+// (คนที่เซ็นตำแหน่งนี้คงที่ ไม่ได้ผูกกับข้อมูลในระบบ) — ถ้าเปลี่ยนตัวคนในอนาคต แก้ตรงนี้ที่เดียว
+const PURCHASEREQ_SIGN_APPROVER = 'นางสาวศิริพร อมรธีรสรรค์';
+const PURCHASEREQ_SIGN_PURCHASING = 'นางสาวกิตติวรรณ ทองเฟื่อง';
+// เผื่อ 2 แถวว่างท้ายตารางเสมอ (เขียนเพิ่มด้วยมือได้ ตามฟอร์มกระดาษเดิมที่มีแถวว่างเผื่อไว้) — คงที่ 2 แถว
+// ไม่ผูกกับจำนวนรายการจริง ตามที่ผู้ใช้ยืนยัน 2026-08-29
+const _purchasereqBlankRowsHTML = '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'.repeat(2);
+function _purchasereqHalfHTML(pr, copyLabel) {
+  const rows = pr.lines.map((l, i) => `<tr>
+    <td class="text-center">${i + 1}</td>
+    <td><b>${l.MaterialCode}</b> ${l.MaterialName || ''}</td>
+    <td class="text-end">${(parseFloat(l.RequestQty) || 0).toLocaleString()}</td>
+    <td class="text-center">${l.UOM || ''}</td>
+    <td></td>
+    <td>${l.Supplier || ''}</td>
+    <td></td>
+  </tr>`).join('');
+  return `<div class="pr-print-half">
+    <div class="pr-print-header">
+      <div class="pr-print-header-left">
+        <img class="pr-print-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION" onerror="this.style.display='none'">
+      </div>
+      <div class="pr-print-formcode">FM-PU-01-03 / Rev. 00<br>Eff. Date 01/03/2025</div>
+    </div>
+    <div class="pr-print-title-row">
+      <div class="pr-print-title-block">
+        <div class="pr-print-title">ใบขอซื้อ (Purchase Requisition)</div>
+      </div>
+      <span class="pr-print-copylabel">${copyLabel}</span>
+    </div>
+    <div class="pr-print-meta-row">
+      <span>วันที่ : <b>${_purchasereqFmtDate(pr.PRDate)}</b></span>
+      <span>เลขที่ : <b>${pr.PR_No}</b></span>
+    </div>
+    <div class="pr-print-section-title">รายการที่ขอซื้อ</div>
+    <table class="pr-print-table">
+      <thead><tr>
+        <th style="width:6%">ลำดับที่</th><th style="width:34%">รายการ</th><th style="width:10%">จำนวน</th>
+        <th style="width:8%">หน่วย</th><th style="width:10%">วันที่</th><th style="width:18%">Supplier</th><th style="width:14%">หมายเหตุ</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="text-center" style="color:#94a3b8">ไม่มีรายการ</td></tr>'}${_purchasereqBlankRowsHTML}</tbody>
+    </table>
+    <div class="pr-print-noterow"><b>หมายเหตุ/คำแนะนำในการซื้อ:</b> ${pr.Note || ''}</div>
+    <div class="pr-print-sign">
+      <div class="pr-print-sign-requester">
+        <div class="role">ผู้ขอซื้อ</div>
+        <div class="sigline">ลายเซ็น</div>
+        <img class="sigimg" src="signature_approver.png" alt="ลายเซ็นผู้ขอซื้อ" onerror="this.style.display='none'">
+        <div class="deptline">ฝ่าย/แผนก : ....................................</div>
+        <div class="dateline">วันที่ : ${_purchasereqFmtDate(pr.PRDate)}</div>
+      </div>
+      <div>
+        <div class="role">ผู้อนุมัติ</div>
+        <div class="sigline">ลายเซ็น</div>
+        <div class="signame">(${PURCHASEREQ_SIGN_APPROVER})</div>
+        <div>ผู้จัดการโรงงาน</div>
+        <div class="dateline">วันที่ : .......... / .......... / ..........</div>
+      </div>
+      <div>
+        <div class="role">ฝ่ายจัดซื้อ</div>
+        <div class="sigline">ลายเซ็น</div>
+        <div class="signame">(${PURCHASEREQ_SIGN_PURCHASING})</div>
+        <div>ผู้ควบคุมงานฝ่ายจัดซื้อ</div>
+        <div class="dateline">วันที่ : .......... / .......... / ..........</div>
+      </div>
+    </div>
+  </div>`;
+}
+function _purchasereqBuildHTML(pr) {
+  return `<div class="pr-print-page">${_purchasereqHalfHTML(pr, 'ต้นฉบับ')}${_purchasereqHalfHTML(pr, 'สำเนา')}</div>`;
+}
+function purchasereqOpenPrintModal(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr) return;
+  const html = _purchasereqBuildHTML(pr);
+  document.getElementById('purchasereq-print-root').innerHTML = html;
+  document.getElementById('purchasereq-preview-body').innerHTML = html;
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
+    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-planweek');
+  document.body.classList.add('print-mode-purchasereq');
+  if (!_purchasereqPrintModal) _purchasereqPrintModal = new bootstrap.Modal(document.getElementById('purchasereqPrintModal'));
+  _purchasereqPrintModal.show();
+}
+
+function purchasereqCardHTML(pr) {
+  const totalVal = pr.lines.reduce((s, l) => s + (parseFloat(l.RequestQty) || 0) * (parseFloat(l.UnitCost) || 0), 0);
+  const suppliers = [...new Set(pr.lines.map(l => l.Supplier).filter(Boolean))];
+  const statusBadge = pr.Status === 'รออนุมัติ' ? '<span class="badge bg-warning text-dark">รออนุมัติ</span>'
+    : pr.Status === 'อนุมัติแล้ว' ? '<span class="badge bg-success">อนุมัติแล้ว</span>'
+    : pr.Status === 'ยกเลิก' ? '<span class="badge" style="background:#e2e8f0;color:#475569;border:1px solid #cbd5e1">ยกเลิก</span>'
+    : '<span class="badge bg-secondary">ปฏิเสธ</span>';
+  const expanded  = _purchasereqExpandedSet.has(pr.PR_No);
+  const canEdit   = pr.Status === 'รออนุมัติ';
+  const canDelete = pr.Status !== 'อนุมัติแล้ว';
+  const canPrint  = pr.Status === 'อนุมัติแล้ว';
+  const canCancel = pr.Status === 'อนุมัติแล้ว' && _hasRole('admin');
+
+  return `<div class="glass-card mb-2 p-0 overflow-hidden">
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
+         onclick="purchasereqToggleExpand('${pr.PR_No}')">
+      <span class="badge bg-secondary">${pr.PR_No}</span>
+      <span style="font-size:.8rem;color:#64748b;white-space:nowrap">
+        ${_purchasereqFmtDate(pr.PRDate)} &nbsp;·&nbsp; ${pr.lines.length} รายการ &nbsp;·&nbsp; ${suppliers.length} ซัพพลายเออร์
+        &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">฿${totalVal.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
+      </span>
+      ${statusBadge}
+      <span class="ms-auto d-flex gap-1">
+        ${canEdit ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="event.stopPropagation();purchasereqEditOpen('${pr.PR_No}')" title="แก้ไข"><i class="fas fa-pen"></i></button>` : ''}
+        ${canDelete ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="event.stopPropagation();purchasereqDelete('${pr.PR_No}')" title="ลบ"><i class="fas fa-trash"></i></button>` : ''}
+        ${canPrint ? `<button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="event.stopPropagation();purchasereqOpenPrintModal('${pr.PR_No}')" title="พิมพ์ซ้ำ"><i class="fas fa-print"></i></button>` : ''}
+      </span>
+      <i class="fas fa-chevron-down text-muted" style="font-size:.75rem;transition:transform .2s${expanded ? ';transform:rotate(180deg)' : ''}"></i>
+    </div>
+    <div class="purchasereq-detail" style="display:${expanded ? 'block' : 'none'}">
+      <div class="table-responsive">
+        <table class="table table-sm mb-2">
+          <thead><tr><th>รหัส</th><th>รายการ</th><th>ซัพพลายเออร์</th><th class="text-end">คงเหลือตอนขอ</th><th class="text-end">Min</th><th class="text-end">ขอซื้อ</th><th>หน่วย</th></tr></thead>
+          <tbody>${pr.lines.map(l => `<tr>
+            <td>${l.MaterialCode}</td><td>${l.MaterialName || ''}</td><td>${l.Supplier || '—'}</td>
+            <td class="text-end">${(parseFloat(l.QtyAtRequest) || 0).toLocaleString()}</td>
+            <td class="text-end">${(parseFloat(l.MinStock) || 0).toLocaleString()}</td>
+            <td class="text-end fw-bold">${(parseFloat(l.RequestQty) || 0).toLocaleString()}</td>
+            <td>${l.UOM || ''}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      ${pr.Note ? `<div class="text-muted small">หมายเหตุ: ${pr.Note}</div>` : ''}
+      ${pr.Status === 'ปฏิเสธ' ? `<div class="alert alert-secondary py-1 px-2 small mb-0 mt-1">เหตุผลที่ปฏิเสธ: ${pr.RejectReason || '—'}</div>` : ''}
+      ${pr.Status === 'รออนุมัติ' && _hasRole('admin') ? `<div class="d-flex gap-2 mt-2">
+        <button class="btn btn-sm btn-success" onclick="event.stopPropagation();purchasereqApprove('${pr.PR_No}')">อนุมัติ</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();purchasereqReject('${pr.PR_No}')">ปฏิเสธ</button>
+      </div>` : ''}
+      ${canCancel ? `<div class="d-flex gap-2 mt-2">
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();purchasereqCancel('${pr.PR_No}')">ยกเลิกใบขอซื้อ (สิทธิ์แอดมิน)</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function _purchasereqPopulateSupplierFilter() {
+  const sel = document.getElementById('purchasereq-filter-supplier');
+  if (!sel) return;
+  const current = sel.value;
+  const suppliers = [...new Set(_purchasereqData.flatMap(pr => pr.lines.map(l => l.Supplier).filter(Boolean)))].sort();
+  sel.innerHTML = '<option value="">ซัพพลายเออร์: ทั้งหมด</option>'
+    + suppliers.map(s => `<option value="${s}"${s === current ? ' selected' : ''}>${s}</option>`).join('');
+}
+
+function purchasereqRenderCards() {
+  _purchasereqPopulateSupplierFilter();
+  const q       = (document.getElementById('purchasereq-search')?.value || '').toLowerCase();
+  const statusF = document.getElementById('purchasereq-filter-status')?.value || '';
+  const supF    = document.getElementById('purchasereq-filter-supplier')?.value || '';
+  const container = document.getElementById('purchasereq-cards');
+
+  const items = _purchasereqData.filter(pr => {
+    if (statusF && pr.Status !== statusF) return false;
+    const suppliers = pr.lines.map(l => l.Supplier).filter(Boolean);
+    if (supF && !suppliers.includes(supF)) return false;
+    if (q) {
+      const hay = [pr.PR_No, pr.Note, ...pr.lines.map(l => l.MaterialName), ...pr.lines.map(l => l.MaterialCode), ...suppliers]
+        .join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  container.innerHTML = items.length
+    ? items.map(purchasereqCardHTML).join('')
+    : '<div class="glass-card text-center text-muted py-5">ไม่พบข้อมูล</div>';
+
+  document.getElementById('purchasereq-kpi-all').textContent      = _purchasereqData.length.toLocaleString();
+  document.getElementById('purchasereq-kpi-pending').textContent  = _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length.toLocaleString();
+  document.getElementById('purchasereq-kpi-approved').textContent = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว').length.toLocaleString();
+  document.getElementById('purchasereq-kpi-rejected').textContent = _purchasereqData.filter(p => p.Status === 'ปฏิเสธ').length.toLocaleString();
+  document.getElementById('purchasereq-kpi-cancelled').textContent = _purchasereqData.filter(p => p.Status === 'ยกเลิก').length.toLocaleString();
+  const pendVal = _purchasereqData.filter(p => p.Status === 'รออนุมัติ')
+    .reduce((s, p) => s + p.lines.reduce((s2, l) => s2 + (parseFloat(l.RequestQty) || 0) * (parseFloat(l.UnitCost) || 0), 0), 0);
+  document.getElementById('purchasereq-kpi-value').textContent = '฿' + pendVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
+}
+
+// badge สีเหลืองที่ sidebar "ใบขอซื้อ" — เห็นเฉพาะ admin เท่านั้น (2026-08-29 ตามคำขอผู้ใช้ — แคบกว่า
+// _hasRole('supervisor') เดิม เพราะตอนนี้อนุมัติได้แค่ admin, หัวหน้างานทำได้แค่ "ขอ" รอ admin อนุมัติ)
+// กัน race แบบเดียวกับ _prodrecordUpdateApproveBadge/_issueUpdateNavBadge (ดูหมายเหตุ SKILL.md)
+let _purchasereqBadgeSeq = 0;
+async function purchasereqUpdateNavBadge(notifyIfPending = false, knownCount = null) {
+  const el = document.getElementById('nav-purchasereq-badge');
+  if (!el) return;
+  if (!_hasRole('admin')) { el.style.display = 'none'; return; }
+
+  const mySeq = ++_purchasereqBadgeSeq;
+  let count = knownCount;
+  if (count === null) {
+    const { count: liveCount, error } = await _sb.from('purchase_requests')
+      .select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ');
+    if (mySeq !== _purchasereqBadgeSeq) return;
+    count = error ? 0 : (liveCount || 0);
+  }
+  if (mySeq !== _purchasereqBadgeSeq) return;
+
+  if (count > 0) { el.textContent = count; el.style.display = ''; } else { el.style.display = 'none'; }
+
+  if (notifyIfPending && count > 0) {
+    Swal.fire({
+      icon: 'info', title: `มีใบขอซื้อรออนุมัติ ${count} ใบ`,
+      confirmButtonText: 'ไปดูเลย',
+      showCancelButton: true, cancelButtonText: 'ปิด',
+    }).then(res => {
+      if (res.isConfirmed) showPage('purchasereq', document.getElementById('nav-purchasereq'));
+    });
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -11804,7 +12700,7 @@ async function planPrintTwoWeeksOpen() {
 
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-purchasereq');
   document.body.classList.add('print-mode-planweek');
 
   if (!_planWeekPrintModal) _planWeekPrintModal = new bootstrap.Modal(document.getElementById('planWeekPrintModal'));
@@ -19638,7 +20534,7 @@ function admindashOpenReportPreview() {
   document.getElementById('admindash-report-preview-body').innerHTML = html;
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-purchasereq');
   document.body.classList.add('print-mode-admindash');
   if (!_admindashReportModal) _admindashReportModal = new bootstrap.Modal(document.getElementById('admindashReportModal'));
   _admindashReportModal.show();
@@ -21791,7 +22687,7 @@ function _miscSlipBuildGroups(rows) {
 async function miscSlipRenderPreview() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash', 'print-mode-purchasereq');
   document.body.classList.add('print-mode-miscslip');
 
   const rows = _miscSlipScopeRows();
@@ -23696,6 +24592,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _prodrecordUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO เสร็จแล้วยังไม่มีบันทึกผลิต (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
           _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
+          purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
         }
       }
     } else {
