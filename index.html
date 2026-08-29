@@ -8423,10 +8423,57 @@ async function purchasereqReject(prNo) {
   purchasereqLoadData();
 }
 
+// ปุ่ม "ยกเลิก/แก้ไข" บนใบที่ "อนุมัติแล้ว" — ให้แอดมินเลือกก่อนว่าจะ "แก้ไข" (เปิดกลับไปรออนุมัติ ให้พนักงาน
+// แก้ไขรายการได้อีกครั้ง) หรือ "ยกเลิกเลย" (จบเลย ไม่ต้องแก้ไขต่อ) — ตามที่ผู้ใช้ขอ 2026-08-29 ใช้
+// showDenyButton ของ Swal2 ทำ 3 ปุ่มในกล่องเดียว (ยืนยัน=แก้ไข, ปฏิเสธ=ยกเลิกเลย, ยกเลิก=ปิดกล่องเฉยๆ)
+async function purchasereqCancelOrReopen(prNo) {
+  const res = await Swal.fire({
+    title: `ใบขอซื้อ ${prNo} นี้อนุมัติไปแล้ว`,
+    text: 'ต้องการแก้ไขรายการ (เปิดกลับไปรออนุมัติ ให้พนักงานแก้ไขได้) หรือยกเลิกใบนี้ไปเลย?',
+    icon: 'question',
+    showDenyButton: true, showCancelButton: true,
+    confirmButtonText: 'แก้ไข', denyButtonText: 'ยกเลิกเลย', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#0d6efd', denyButtonColor: '#d33',
+  });
+  if (res.isConfirmed) await purchasereqReopen(prNo);
+  else if (res.isDenied) await purchasereqCancel(prNo);
+}
+
+// เปิดกลับใบที่ "อนุมัติแล้ว" กลับไปเป็น "รออนุมัติ" ให้พนักงานแก้ไขรายการได้อีกครั้ง (ปุ่มแก้ไข ✎ จะกลับมาเอง
+// จากเงื่อนไข canEdit เดิมที่ผูกกับ Status='รออนุมัติ' อยู่แล้ว ไม่ต้องเพิ่ม gate ใหม่) — ล้าง ApprovedBy/ApprovedAt
+// ทิ้งเพราะการอนุมัติเดิมไม่ควรอยู่ต่อหลังแก้ไขรายการแล้ว ต้องอนุมัติใหม่เสมอ เหมือน prodrecordReopen
+async function purchasereqReopen(prNo) {
+  const pr = _purchasereqData.find(p => p.PR_No === prNo);
+  if (!pr) return;
+  const { value: reason } = await Swal.fire({
+    title: `เปิดกลับใบขอซื้อ ${prNo} เพื่อแก้ไข?`,
+    html: '<div class="text-start">จะเปลี่ยนสถานะกลับเป็น "รออนุมัติ" ให้แก้ไขรายการได้อีกครั้ง (ต้องอนุมัติใหม่หลังแก้ไขเสร็จ)</div>',
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่เปิดกลับแก้ไข (จำเป็นต้องกรอก)',
+    inputPlaceholder: 'เช่น จำนวน/ซัพพลายเออร์ผิด ต้องแก้ก่อนสั่งซื้อจริง',
+    showCancelButton: true, confirmButtonText: 'ยืนยันเปิดกลับ', cancelButtonText: 'ปิด',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const stamp = `[เปิดกลับแก้ไข ${new Date().toISOString().split('T')[0]}] ${reason.trim()}`;
+  const newNote = pr.Note ? `${pr.Note} | ${stamp}` : stamp;
+  const { error } = await _sb.from('purchase_requests').update({
+    Status: 'รออนุมัติ', Note: newNote, ApprovedBy: null, ApprovedAt: null,
+  }).eq('PR_No', prNo);
+  _hideLoader();
+  if (error) { _err('เปิดกลับไม่สำเร็จ', error.message); return; }
+  _logAudit('REOPEN', 'purchase_requests', prNo, reason.trim());
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เปิดกลับแล้ว รอแก้ไข', showConfirmButton: false, timer: 2000 });
+  purchasereqLoadData();
+}
+
 // ยกเลิกใบขอซื้อที่ "อนุมัติแล้ว" — ไม่ลบข้อมูล แค่เปลี่ยนสถานะเป็น "ยกเลิก" (เก็บไว้เป็นหลักฐาน/audit trail)
 // เป็นทางออกของ purchasereqDelete ที่บล็อกไม่ให้ลบใบอนุมัติแล้วตรงๆ — จำกัดแค่ admin เท่านั้น (เหมือน
 // อนุมัติ/ปฏิเสธ) เพราะเป็นการ "ล้ม" มติที่แอดมินคนเดียวเป็นคนอนุมัติไปแล้ว ปุ่มโชว์เฉพาะ _hasRole('admin')
 // ใน purchasereqCardHTML() เอง (ข้อจำกัดเดียวกับปุ่มอนุมัติ/ยกเลิก/ปิดงานอื่นในระบบนี้ — ไม่ผูก RLS เพิ่ม)
+// เรียกจาก purchasereqCancelOrReopen() เมื่อแอดมินเลือก "ยกเลิกเลย" เท่านั้น — ไม่ได้เรียกตรงจากปุ่มการ์ดอีกต่อไป
 async function purchasereqCancel(prNo) {
   const pr = _purchasereqData.find(p => p.PR_No === prNo);
   if (!pr) return;
@@ -8509,8 +8556,8 @@ function _purchasereqHalfHTML(pr, copyLabel) {
     <div class="pr-print-section-title">รายการที่ขอซื้อ</div>
     <table class="pr-print-table">
       <thead><tr>
-        <th style="width:6%">ลำดับที่</th><th style="width:34%">รายการ</th><th style="width:10%">จำนวน</th>
-        <th style="width:8%">หน่วย</th><th style="width:10%">วันที่</th><th style="width:18%">Supplier</th><th style="width:14%">หมายเหตุ</th>
+        <th style="width:5%">ลำดับ</th><th style="width:36%">รายการ</th><th style="width:8%">จำนวน</th>
+        <th style="width:9%">หน่วย</th><th style="width:10%">วันที่</th><th style="width:18%">Supplier</th><th style="width:14%">หมายเหตุ</th>
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="7" class="text-center" style="color:#94a3b8">ไม่มีรายการ</td></tr>'}${_purchasereqBlankRowsHTML}</tbody>
     </table>
@@ -8606,7 +8653,7 @@ function purchasereqCardHTML(pr) {
         <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();purchasereqReject('${pr.PR_No}')">ปฏิเสธ</button>
       </div>` : ''}
       ${canCancel ? `<div class="d-flex gap-2 mt-2">
-        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();purchasereqCancel('${pr.PR_No}')">ยกเลิกใบขอซื้อ (สิทธิ์แอดมิน)</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();purchasereqCancelOrReopen('${pr.PR_No}')">ยกเลิก/แก้ไขใบขอซื้อ (สิทธิ์แอดมิน)</button>
       </div>` : ''}
     </div>
   </div>`;
