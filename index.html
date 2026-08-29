@@ -18777,7 +18777,7 @@ async function _coRefreshMOAndShippedMaps() {
     _sb.from('manufacturing_orders').select('CO_Ref,Status').not('CO_Ref', 'is', null),
     _sb.from('delivery').select('WD_Ref,Status').not('WD_Ref', 'is', null),
     _sb.from('issue_misc').select('CO_Ref,IssuedQty').not('CO_Ref', 'is', null),
-    _sb.from('stock_balance').select('MaterialCode,QtyBalance'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
   ]);
 
   _coBulkWithdrawnMap = {};
