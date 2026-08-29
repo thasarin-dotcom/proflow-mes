@@ -463,6 +463,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 #page-lotqueue .g-stepbar.pinned{box-shadow:0 0 0 2px #fff,0 0 0 3px #1e3a8a}
 #page-lotqueue .g-stepbar.running{box-shadow:0 0 0 2px #fff,0 0 0 3px #16a34a}
 #page-lotqueue .g-stepbar.dragging{cursor:grabbing;opacity:.85;z-index:6;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+#page-lotqueue .g-stepbar.viewonly{cursor:default}
 #page-lotqueue .g-pencil{opacity:0;transition:.15s;font-size:.7rem;margin-left:auto}
 #page-lotqueue .g-drag-tooltip{position:absolute;z-index:21;background:#0f172a;color:#fff;font-size:.66rem;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;box-shadow:0 4px 10px rgba(0,0,0,.25);display:none}
 #page-lotqueue .g-nodata{grid-column:1 / -1;text-align:center;padding:2rem;font-size:.8rem;color:#cbd5e1;font-style:italic}
@@ -4700,15 +4701,17 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
 
       <div class="glass-card mb-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-          <h6 class="fw-bold mb-0"><i class="fas fa-calendar-days me-1"></i>คิวยิง Lot (ลากแท่งเพื่อปรับวัน)</h6>
+          <h6 class="fw-bold mb-0" id="lotqueue-gantt-title"><i class="fas fa-calendar-days me-1"></i>คิวยิง Lot (ลากแท่งเพื่อปรับวัน)</h6>
           <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(-7)"><i class="fas fa-chevron-left me-1"></i>7 วันก่อนหน้า</button>
-            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttGoToday()">วันนี้</button>
-            <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(7)">7 วันถัดไป<i class="fas fa-chevron-right ms-1"></i></button>
+            <div id="lotqueue-window-nav" class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(-7)"><i class="fas fa-chevron-left me-1"></i>7 วันก่อนหน้า</button>
+              <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttGoToday()">วันนี้</button>
+              <button class="btn btn-sm btn-outline-primary" onclick="lotqueueGanttShiftWindow(7)">7 วันถัดไป<i class="fas fa-chevron-right ms-1"></i></button>
+            </div>
             <span class="fw-bold" id="lotqueue-gantt-range" style="font-size:.9rem"></span>
           </div>
         </div>
-        <div class="note-box mb-3">
+        <div class="note-box mb-3" id="lotqueue-drag-note">
           แต่ละแท่งคือคิวยิง Lot ของ MO นั้น (เรียงอัตโนมัติแบบ FCFS จากวันที่บรรจุเสร็จ) — <b>ลากแท่งซ้าย/ขวาเพื่อปรับวันเริ่มเอง</b> ได้เหมือนหน้า
           ภาพรวมการผลิต/Gantt (ปรับที่นี่จะไปอัพเดตที่หน้านั้นให้อัตโนมัติ เพราะบันทึกร่วมตารางเดียวกัน) งานอื่นที่ยังไม่เคยปรับเองจะเรียงคิวหลบช่วงที่ปักไว้ให้เอง
           — ห้ามลากไปก่อนวันที่บรรจุเสร็จจริงของงานนั้น
@@ -5261,6 +5264,7 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             <button class="wh-tile" onclick="_whOpenDesktopPage('prodstatus')"><i class="fas fa-industry"></i><span>ภาพรวมการผลิต</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('mo')"><i class="fas fa-diagram-project"></i><span>ไลน์ผลิต</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('plan')"><i class="fas fa-calendar-alt"></i><span>แผนผลิต</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('lotqueue')"><i class="fas fa-barcode"></i><span>คิวห้องยิง Lot</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotscan')"><i class="fas fa-qrcode"></i><span>Lot Scan</span></button>
           </div>
           <div class="wh-section-label">บันทึกข้อมูล</div>
@@ -6457,6 +6461,9 @@ function _whOpenDesktopPage(page) {
   document.getElementById('whTabletView').style.display = 'none';
   document.getElementById('whBackFab').style.display = 'flex';
   document.body.classList.add('wh-desktop-mode'); // ขยายปุ่ม/ช่องกรอก/ตาราง ฯลฯ ให้แตะง่ายขึ้น (ดู CSS ด้านบน)
+  // คิวห้องยิง Lot ต่างจาก tile อื่นในเมนูคลัง — "ดูอย่างเดียว" ที่นี่ต้องล็อกจริง (ลากปรับ/คลิกเปิด popover/
+  // ล้างค่าปักคิวไม่ได้เลย) ตามที่ผู้ใช้ขอ ไม่ใช่แค่ label เฉยๆ เหมือนหน้าอื่น (ดูคอมเมนต์ที่ _lotqReadOnly)
+  _lotqReadOnly = (page === 'lotqueue');
   showPage(page, document.getElementById('nav-' + page));
 }
 function _whBackToTablet() {
@@ -13176,6 +13183,10 @@ let _lotqNoCapCount    = 0;   // MO ที่ active แต่ไม่มีข
 let _lotqNoPlanCount   = 0;   // MO ที่ active แต่ยังไม่มีแผนวันที่ (แผนผลิต) จึงคำนวณคิวไม่ได้
 let _lotqPinnedConflict = false; // ผู้ใช้ปักวันของ 2 งานเองจนวันทับกันเอง (ระบบไม่ auto-fix ให้ ต้องแก้เอง)
 let _lotqGanttWindowStart = null; // yyyy-mm-dd — null จนกว่าจะโหลดข้อมูลครั้งแรก (เหมือน _prodStatusGanttWindowStart)
+// true เฉพาะตอนเปิดจากไทล์ "คิวห้องยิง Lot" ในโหมดแท็บเลตคลัง (_whOpenDesktopPage) — ปิดลากปรับ/คลิกเปิด
+// popover/ปุ่มล้างค่าปักคิวทั้งหมด ให้เห็นอย่างเดียวจริงๆ ตามที่ผู้ใช้ขอ ต่างจาก tile อื่นๆ ในเมนูคลังที่คำว่า
+// "ดูอย่างเดียว" เป็นแค่ label ไม่ได้ล็อกจริง (ดูคอมเมนต์ที่ _whOpenDesktopPage)
+let _lotqReadOnly = false;
 
 async function loadLotQueueData() {
   _showLoader();
@@ -13323,14 +13334,32 @@ function _lotqueueRenderCurrentCard(running) {
 }
 
 // ── หน้าต่างวันของกริดลาก (14 วัน, เหมือน PROD_STATUS_GANTT_WINDOW_LEN ของหน้า Gantt) ──
-function lotqueueGanttShiftWindow(n) { _lotqGanttWindowStart = _ganttAddDays(_lotqGanttWindowStart, n); _lotqueueRenderGrid(); }
-function lotqueueGanttGoToday() { _lotqGanttWindowStart = _ganttAddDays(_planWeekLocalDateStr(new Date()), -3); _lotqueueRenderGrid(); }
+// ในโหมดดูอย่างเดียว (_lotqReadOnly, ดูคอมเมนต์ที่ประกาศตัวแปรนี้) หน้าต่างจะถูกล็อกไว้ที่ 5 วันคงที่
+// (เมื่อวาน 1 + วันนี้ + 3 วันข้างหน้า ตามที่ผู้ใช้ขอ) ไม่ผูกกับ _lotqGanttWindowStart/ปุ่มเลื่อนหน้าต่างเลย —
+// จำนวนวันนี้กำหนดไว้ตรงนี้ที่เดียว (_LOTQ_READONLY_DAYS_BACK/_FORWARD)
+const _LOTQ_READONLY_DAYS_BACK = 1;
+const _LOTQ_READONLY_DAYS_FORWARD = 3;
+function lotqueueGanttShiftWindow(n) { if (_lotqReadOnly) return; _lotqGanttWindowStart = _ganttAddDays(_lotqGanttWindowStart, n); _lotqueueRenderGrid(); }
+function lotqueueGanttGoToday() { if (_lotqReadOnly) return; _lotqGanttWindowStart = _ganttAddDays(_planWeekLocalDateStr(new Date()), -3); _lotqueueRenderGrid(); }
 
 // วาดกริดลากปรับวัน — เพิ่ม 2026-08-26: ละเอียดถึงระดับ "กะ" (เช้า/บ่าย) ด้วยหัวตาราง 2 ชั้นและคอลัมน์ต่อกะ
 // เหมือน prodStatusRenderGantt เป๊ะ (ดูคอมเมนต์ที่นั่นสำหรับรายละเอียดเทคนิค) แต่มีแท่งเดียวต่อแถว (ไม่มีขยาย
 // ดู 3 ขั้นตอนย่อยแบบ Gantt เพราะหน้านี้สนใจแค่ขั้น "ยิง Lot" ขั้นเดียว) เรียงแถวตามลำดับคิวจริงใน _lotqQueue
 function _lotqueueRenderGrid() {
-  const days = Array.from({ length: PROD_STATUS_GANTT_WINDOW_LEN }, (_, i) => _ganttAddDays(_lotqGanttWindowStart, i));
+  // ปุ่มเลื่อนหน้าต่าง/คำอธิบายการลาก/หัวข้อ "ลากแท่งเพื่อปรับวัน" ไม่มีความหมายในโหมดดูอย่างเดียว — ซ่อนทิ้ง
+  // ใช้ setProperty(...,'important') ตอนซ่อน ไม่ใช่ .style.display เฉยๆ เพราะ div นี้มีคลาส Bootstrap .d-flex
+  // ซึ่งประกาศ display:flex!important ไว้ — inline style ธรรมดาแพ้ !important ของคลาสเสมอ ต้องสู้ด้วย !important เหมือนกัน
+  const winNavEl = document.getElementById('lotqueue-window-nav'), noteEl = document.getElementById('lotqueue-drag-note'),
+    titleEl = document.getElementById('lotqueue-gantt-title');
+  if (winNavEl) { if (_lotqReadOnly) winNavEl.style.setProperty('display', 'none', 'important'); else winNavEl.style.removeProperty('display'); }
+  if (noteEl) noteEl.style.display = _lotqReadOnly ? 'none' : '';
+  if (titleEl) titleEl.innerHTML = _lotqReadOnly
+    ? '<i class="fas fa-calendar-days me-1"></i>คิวยิง Lot'
+    : '<i class="fas fa-calendar-days me-1"></i>คิวยิง Lot (ลากแท่งเพื่อปรับวัน)';
+
+  const windowStart = _lotqReadOnly ? _ganttAddDays(_planWeekLocalDateStr(new Date()), -_LOTQ_READONLY_DAYS_BACK) : _lotqGanttWindowStart;
+  const windowLen = _lotqReadOnly ? (_LOTQ_READONLY_DAYS_BACK + 1 + _LOTQ_READONLY_DAYS_FORWARD) : PROD_STATUS_GANTT_WINDOW_LEN;
+  const days = Array.from({ length: windowLen }, (_, i) => _ganttAddDays(windowStart, i));
   const slots = [];
   days.forEach(d => SHIFT_HALVES.forEach(h => slots.push(_shiftSlot(d, h))));
   const todayStr = _planWeekLocalDateStr(new Date());
@@ -13372,18 +13401,20 @@ function _lotqueueRenderGrid() {
       if (!(xEndSlot < slots[0] || xStartSlot > slots[slots.length - 1])) {
         let s = slots.indexOf(xStartSlot), e = slots.indexOf(xEndSlot);
         if (s < 0) s = 0; if (e < 0) e = slots.length - 1;
-        html += `<div class="g-stepbar${x.manual ? ' pinned' : ''}${x.isCurrent ? ' running' : ''}" data-mo="${x.mo.MO_ID}"
+        html += `<div class="g-stepbar${x.manual ? ' pinned' : ''}${x.isCurrent ? ' running' : ''}${_lotqReadOnly ? ' viewonly' : ''}" data-mo="${x.mo.MO_ID}"
           style="grid-column:${s + 2} / ${e + 3};grid-row:${row};background:${color}">
-          ${x.mo.MO_ID} · ${x.lotShifts}กะ<span class="g-pencil">✎</span></div>`;
+          ${x.mo.MO_ID} · ${x.lotShifts}กะ${_lotqReadOnly ? '' : '<span class="g-pencil">✎</span>'}</div>`;
       }
       row++;
     });
   }
 
   gt.innerHTML = html;
-  gt.querySelectorAll('.g-stepbar').forEach(el => {
-    el.addEventListener('pointerdown', ev => { ev.stopPropagation(); _lotqStepPointerDown(ev, el); });
-  });
+  if (!_lotqReadOnly) {
+    gt.querySelectorAll('.g-stepbar').forEach(el => {
+      el.addEventListener('pointerdown', ev => { ev.stopPropagation(); _lotqStepPointerDown(ev, el); });
+    });
+  }
 }
 
 // ── ลากแท่งเพื่อเลื่อนวันเริ่มยิง Lot — กลไกเดียวกับ _prodStatusStepPointerDown/Move/Up ของหน้า Gantt
@@ -13395,6 +13426,7 @@ function _lotqueueRenderGrid() {
 let _lotqDrag = null;
 
 function _lotqStepPointerDown(ev, el) {
+  if (_lotqReadOnly) return; // กันไว้อีกชั้น เผื่อมีจุดอื่นเรียกตรงๆ — ปกติโหมดดูอย่างเดียวจะไม่ผูก listener นี้ไว้เลย
   if (ev.button != null && ev.button !== 0) return;
   const moId = el.dataset.mo;
   const item = _lotqQueue.find(x => x.mo.MO_ID === moId);
@@ -13532,6 +13564,7 @@ async function _lotqueueSaveOverride(moId, dateStr, half = 'AM') {
 }
 
 async function _lotqueueResetOverride(moId) {
+  if (_lotqReadOnly) return; // กันไว้อีกชั้น เผื่อมีจุดอื่นเรียกตรงๆ — โหมดดูอย่างเดียวไม่ผูกปุ่มนี้ไว้เลย
   _showLoader();
   const { error } = await _sb.from('production_plan_step_overrides').delete().eq('MO_Ref', moId).eq('StepKey', 'Lot');
   _hideLoader();
@@ -13551,7 +13584,9 @@ function _lotqueueRenderQueueTable() {
   tbody.innerHTML = _lotqQueue.map((x, i) => {
     const badge = x.isCurrent ? `<span class="badge bg-primary">กำลังยิง Lot</span>` : `<span class="badge bg-secondary">รอคิว</span>`;
     const pinBadge = x.manual
-      ? `<button type="button" class="badge bg-dark border-0" style="cursor:pointer" title="ปรับวันเอง — คลิกเพื่อล้างค่า กลับไปเรียงคิวอัตโนมัติ" onclick="_lotqueueResetOverride('${x.mo.MO_ID}')"><i class="fas fa-thumbtack me-1"></i>ปรับเอง</button>`
+      ? (_lotqReadOnly
+          ? `<span class="badge bg-dark border-0" title="ปรับวันเอง"><i class="fas fa-thumbtack me-1"></i>ปรับเอง</span>`
+          : `<button type="button" class="badge bg-dark border-0" style="cursor:pointer" title="ปรับวันเอง — คลิกเพื่อล้างค่า กลับไปเรียงคิวอัตโนมัติ" onclick="_lotqueueResetOverride('${x.mo.MO_ID}')"><i class="fas fa-thumbtack me-1"></i>ปรับเอง</button>`)
       : '';
     return `<tr class="${x.isCurrent ? 'table-primary' : ''}">
       <td class="text-center">${i + 1}</td>
