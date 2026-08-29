@@ -8511,10 +8511,15 @@ async function purchasereqDelete(prNo) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  await _sb.from('purchase_request_lines').delete().eq('PR_Ref', prNo);
-  const { error } = await _sb.from('purchase_requests').delete().eq('PR_No', prNo);
+  // ลบหัวใบก่อนเสมอ (เช็คว่าลบได้จริงกี่แถวก่อน) แล้วค่อยลบรายการย่อยตาม — กัน RLS บล็อกหัวใบเงียบๆ
+  // แล้วโค้ดเข้าใจผิดว่าลบสำเร็จ ทำให้รายการย่อยถูกลบทิ้งไปแล้วแต่หัวใบยังค้างอยู่
+  const { error, data } = await _sb.from('purchase_requests').delete().eq('PR_No', prNo).select();
+  if (!error && data && data.length) {
+    await _sb.from('purchase_request_lines').delete().eq('PR_Ref', prNo);
+  }
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); purchasereqLoadData(); return; }
   _logAudit('DELETE', 'purchase_requests', prNo, '');
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบแล้ว', showConfirmButton: false, timer: 2000 });
   purchasereqLoadData();
@@ -9273,8 +9278,9 @@ async function mrDelete(rowId) {
   _mrData = _mrData.filter(d => d._row_id !== rowId);
   mrRenderTable(); mrUpdateKPIs();
 
-  const { error } = await _sb.from('mr_receive').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('mr_receive').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMRData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadMRData(); return; }
   if (r) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
 
   _logAudit('DELETE', 'mr_receive', r?.MR_ID || `${r?.MaterialCode}/${r?.Lot}`, `${r?.MaterialName||''} Lot ${r?.Lot||''} จำนวน ${r?.Qty||''}`);
@@ -9295,16 +9301,22 @@ async function mrBulkDelete() {
 
   const rowsToDelete = _mrData.filter(d => ids.includes(d._row_id));
   _showLoader();
-  const { error } = await _sb.from('mr_receive').delete().in('_row_id', ids);
-  if (!error) {
-    for (const r of rowsToDelete) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
-  }
+  const { error, data } = await _sb.from('mr_receive').delete().in('_row_id', ids).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ ids ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปหักลบ stock ของแถวที่ไม่ได้ลบจริง
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const actuallyDeleted = rowsToDelete.filter(r => deletedIds.has(r._row_id));
+  if (!actuallyDeleted.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadMRData(); return; }
+  for (const r of actuallyDeleted) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
 
-  _logAudit('BULK_DELETE', 'mr_receive', rowsToDelete.map(r => r.MR_ID || r.MaterialCode).join(', '), `ลบ ${ids.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'mr_receive', actuallyDeleted.map(r => r.MR_ID || r.MaterialCode).join(', '), `ลบ ${actuallyDeleted.length} รายการ`);
+  if (actuallyDeleted.length < ids.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${actuallyDeleted.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success',
+      title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   loadMRData();
 }
 
@@ -10057,8 +10069,9 @@ async function fgDelete(rowId) {
   if (!res.isConfirmed) return;
   _fgData = _fgData.filter(d => d._row_id !== rowId);
   fgRenderTable(); fgUpdateKPIs();
-  const { error } = await _sb.from('fg_receive').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('fg_receive').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadFGData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadFGData(); return; }
   const delQty = parseFloat(r[_fgCols.qty]) || 0;
   // คืนยอด stock_fg
   if (delQty > 0) await fgUpdateStock(r.ProductCode, r.ProductName, r[_fgCols.lot], delQty, r.UOM, null, null, false);
@@ -10077,11 +10090,15 @@ async function fgBulkDelete() {
   });
   if (!res.isConfirmed) return;
   // เก็บข้อมูลก่อนลบ เพื่อคืน stock_fg และ MO
-  const toDelete = _fgData.filter(d => ids.includes(d._row_id));
+  const toDeleteRequested = _fgData.filter(d => ids.includes(d._row_id));
   _showLoader();
-  const { error } = await _sb.from('fg_receive').delete().in('_row_id', ids);
+  const { error, data } = await _sb.from('fg_receive').delete().in('_row_id', ids).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ ids ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปคืนยอด stock ของแถวที่ไม่ได้ลบจริง
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const toDelete = toDeleteRequested.filter(r => deletedIds.has(r._row_id));
+  if (!toDelete.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadFGData(); return; }
   // คืนยอด stock_fg และ MO_Received ทุกรายการที่ลบ
   const affectedMOIds = [];
   for (const r of toDelete) {
@@ -10099,8 +10116,12 @@ async function fgBulkDelete() {
   for (const [moId, delta] of Object.entries(moDeltas)) {
     if (delta > 0) await fgUpdateMOProgress(moId, -delta);
   }
-  _logAudit('BULK_DELETE', 'fg_receive', toDelete.map(r => r.ProductCode).join(', '), `ลบ ${ids.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'fg_receive', toDelete.map(r => r.ProductCode).join(', '), `ลบ ${toDelete.length} รายการ`);
+  if (toDelete.length < ids.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${toDelete.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   loadFGData();
 }
 
@@ -11038,8 +11059,9 @@ async function fgoutDelete(rowId) {
   if (!res.isConfirmed) return;
   _fgoutData = _fgoutData.filter(d => d._row_id !== rowId);
   fgoutRenderTable(); fgoutUpdateKPIs();
-  const { error } = await _sb.from('fg_withdraw').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('fg_withdraw').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadFGOutData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadFGOutData(); return; }
   // คืนยอด stock_fg ที่ถูกหักไปตอนเบิก + คำนวณสถานะ CO ใหม่จากยอดเบิกจริงที่เหลือ (ถ้าผูก CO)
   const delQty = parseFloat(r?.QtyFG || r?.Qty) || 0;
   if (delQty > 0 && r?.Lot_FG) await fgUpdateStock(r.ProductCode, r.ProductName, r.Lot_FG, delQty, r.UOM, null, null, true);
@@ -11064,7 +11086,7 @@ async function fgoutBulkDelete() {
     return;
   }
 
-  const rowsToDelete = ids.map(id => _fgoutData.find(d => d._row_id === id)).filter(Boolean);
+  const rowsToDeleteRequested = ids.map(id => _fgoutData.find(d => d._row_id === id)).filter(Boolean);
 
   const res = await Swal.fire({
     title:`ลบ ${ids.length} รายการ?`, icon:'warning', showCancelButton:true,
@@ -11072,8 +11094,13 @@ async function fgoutBulkDelete() {
   });
   if (!res.isConfirmed) return;
   _showLoader();
-  const { error } = await _sb.from('fg_withdraw').delete().in('_row_id', ids);
+  const { error, data } = await _sb.from('fg_withdraw').delete().in('_row_id', ids).select();
   if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
+
+  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ ids ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปคืนยอด stock ของแถวที่ไม่ได้ลบจริง
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const rowsToDelete = rowsToDeleteRequested.filter(r => deletedIds.has(r._row_id));
+  if (!rowsToDelete.length) { _hideLoader(); _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadFGOutData(); return; }
 
   // คืนยอด stock_fg ทุกแถวที่ลบ + คำนวณสถานะ CO ใหม่ (ครั้งเดียวต่อ CO ไม่ซ้ำ แม้หลายแถวผูก CO เดียวกัน)
   for (const r of rowsToDelete) {
@@ -11084,8 +11111,12 @@ async function fgoutBulkDelete() {
   for (const coRef of coRefs) await fgoutUpdateCOStatus(coRef);
 
   _hideLoader();
-  _logAudit('BULK_DELETE', 'fg_withdraw', rowsToDelete.map(r => r.WD_ID || r.ProductCode).join(', '), `ลบ ${ids.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'fg_withdraw', rowsToDelete.map(r => r.WD_ID || r.ProductCode).join(', '), `ลบ ${rowsToDelete.length} รายการ`);
+  if (rowsToDelete.length < ids.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${rowsToDelete.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   document.getElementById('fgout-check-all').checked = false;
   loadFGOutData();
   loadFGStockData();
@@ -12195,9 +12226,10 @@ async function planCancelMaterialCheck(rowId) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  const { error } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId);
+  const { error, data } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId).select();
   _hideLoader();
   if (error) { _err('ยกเลิกจองไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ยกเลิกจองไม่สำเร็จ', 'ไม่มีรายการจองให้ยกเลิก หรือไม่มีสิทธิ์ลบ'); return; }
 
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกจองแล้ว', showConfirmButton:false, timer:1500 });
   const dateStr = r.PlanDate;
@@ -12604,8 +12636,9 @@ async function planDelete(rowId) {
   });
   if (!res.isConfirmed) return;
   _showLoader();
-  const { error } = await _sb.from('production_plan').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('production_plan').delete().eq('_row_id', rowId).select();
   if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _hideLoader(); _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); await planLoadData(); return; }
 
   // ถ้าแผนที่ลบผูกกับ MO ที่ "แพลนแล้ว" (จองวัตถุดิบไว้จากปุ่ม "แพลนการผลิต") และไม่มีแผนอื่นเหลือของ MO นี้บนปฏิทิน
   // แล้ว — ปล่อยจองวัตถุดิบคืน + ถอยสถานะ MO กลับเป็น "รอเบิก" ไปด้วย ไม่งั้น MO จะค้างเป็น "แพลนแล้ว" (จองของ
@@ -13701,9 +13734,10 @@ async function _lotqueueSaveOverride(moId, dateStr, half = 'AM') {
 async function _lotqueueResetOverride(moId) {
   if (_lotqReadOnly) return; // กันไว้อีกชั้น เผื่อมีจุดอื่นเรียกตรงๆ — โหมดดูอย่างเดียวไม่ผูกปุ่มนี้ไว้เลย
   _showLoader();
-  const { error } = await _sb.from('production_plan_step_overrides').delete().eq('MO_Ref', moId).eq('StepKey', 'Lot');
+  const { error, data } = await _sb.from('production_plan_step_overrides').delete().eq('MO_Ref', moId).eq('StepKey', 'Lot').select();
   _hideLoader();
   if (error) { _err('ล้างค่าที่ปรับเองไม่ได้', error.message); return; }
+  if (!data || !data.length) { _err('ล้างค่าที่ปรับเองไม่ได้', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือไม่มีค่าที่ปักไว้อยู่แล้ว'); return; }
   delete _lotqStepOverrides[moId + '|Lot'];
   _lotqClosePopover();
   _lotqueueBuildQueue();
@@ -15802,9 +15836,10 @@ async function bomDeleteLine(groupIdx, lineIdx) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  const { error } = await _sb.from('bom').delete().in('_row_id', l.rowIds);
+  const { error, data } = await _sb.from('bom').delete().in('_row_id', l.rowIds).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); bomLoadData(); return; }
 
   _logAudit('DELETE', 'bom', group.ProductCode, `ลบวัตถุดิบ ${l.MaterialName||''} จาก BOM ของ ${group.ProductName||''}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
@@ -15888,11 +15923,12 @@ async function bomDeleteProduct(groupIdx) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  const { error } = await _sb.from('bom').delete().eq('ProductCode', group.ProductCode);
+  const { error, data } = await _sb.from('bom').delete().eq('ProductCode', group.ProductCode).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); bomLoadData(); return; }
 
-  _logAudit('DELETE', 'bom', group.ProductCode, `ลบ BOM ทั้งหมด ${rawRows.length} แถวของ ${group.ProductName||''}`);
+  _logAudit('DELETE', 'bom', group.ProductCode, `ลบ BOM ทั้งหมด ${data.length} แถวของ ${group.ProductName||''}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
   bomLoadData();
@@ -16260,12 +16296,14 @@ async function prodrecordApproveDeleteRequest(gi) {
   if (!res.isConfirmed) return;
 
   _showLoader();
+  // ลบหัวบันทึกก่อนเสมอ (เช็คว่าลบได้จริงไหม) แล้วค่อยเดินหน้าคืน stock + ลบรายละเอียด — กัน RLS บล็อกหัว
+  // บันทึกเงียบๆ แล้วโค้ดเข้าใจผิดว่าลบสำเร็จ ทำให้ stock ถูกคืนไปแล้วทั้งที่บันทึกจริงยังอยู่
+  const { error, data } = await _sb.from('production_records').delete().eq('_row_id', r._row_id).select();
+  if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _hideLoader(); _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); prodrecordLoadData(); return; }
   await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
   await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
-  const { error } = await _sb.from('production_records').delete().eq('_row_id', r._row_id);
   _hideLoader();
-
-  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
 
   _logAudit('DELETE_ORPHAN', 'production_records', r.ProdRecord_ID, `อนุมัติคำขอลบจาก ${r.DeleteRequestedBy||'—'} — ลบบันทึกผลิตทิ้ง`);
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบบันทึกสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
@@ -18210,8 +18248,9 @@ async function moDelete(rowId) {
   _moData = _moData.filter(d => d._row_id !== rowId);
   renderMOTable();
 
-  const { error } = await _sb.from('manufacturing_orders').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('manufacturing_orders').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMOData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadMOData(); return; }
 
   // ปล่อยยอดจองวัตถุดิบ (WIP) คืน ถ้า MO นี้เคย "แพลนแล้ว" อยู่ก่อนถูกลบ
   if (r?.MO_ID) await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID);
@@ -19489,8 +19528,9 @@ async function coDelete(rowId) {
   _coData = _coData.filter(d => d._row_id !== rowId);
   coRenderTable(); coUpdateKPIs();
 
-  const { error } = await _sb.from('customer_orders').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('customer_orders').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadCOData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadCOData(); return; }
 
   _logAudit('DELETE', 'customer_orders', r?.Order_ID, `${r?.CustomerName||''} — ${r?.ProductName||''}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
@@ -19507,15 +19547,22 @@ async function coBulkDelete() {
   });
   if (!res.isConfirmed) return;
 
-  const rowsToDelete = _coData.filter(d => ids.includes(d._row_id));
+  const rowsToDeleteRequested = _coData.filter(d => ids.includes(d._row_id));
   _showLoader();
-  const { error } = await _sb.from('customer_orders').delete().in('_row_id', ids);
+  const { error, data } = await _sb.from('customer_orders').delete().in('_row_id', ids).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const rowsToDelete = rowsToDeleteRequested.filter(r => deletedIds.has(r._row_id));
+  if (!rowsToDelete.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadCOData(); return; }
 
-  _logAudit('BULK_DELETE', 'customer_orders', rowsToDelete.map(r => r.Order_ID).join(', '), `ลบ ${ids.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'customer_orders', rowsToDelete.map(r => r.Order_ID).join(', '), `ลบ ${rowsToDelete.length} รายการ`);
+  if (rowsToDelete.length < ids.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${rowsToDelete.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success',
+      title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   loadCOData();
 }
 
@@ -21692,8 +21739,9 @@ async function issueDelete(rowId) {
   _issueData = _issueData.filter(d => d._row_id !== rowId);
   issueRenderTable(); issueUpdateKPIs();
 
-  const { error } = await _sb.from('issue_production').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('issue_production').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadIssueData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadIssueData(); return; }
 
   // คืนสต็อกที่เคยตัดไปตอนเบิกกลับเข้าคลัง
   if (r?.MaterialCode && r?.Lot) await _issueRestoreStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
@@ -21750,25 +21798,34 @@ async function issueBulkDelete() {
   });
   if (!res.isConfirmed) return;
 
-  // เก็บ MO_ID + วัตถุดิบ/lot/จำนวนของรายการที่จะลบไว้ก่อนลบ (ต้องใช้คืนสต็อกทีหลัง)
-  const affectedMOIds = [...new Set(rowsToDelete.map(d => d.MO_ID).filter(Boolean))];
-
   _showLoader();
-  const { error } = await _sb.from('issue_production').delete().in('_row_id', goIds);
+  const { error, data } = await _sb.from('issue_production').delete().in('_row_id', goIds).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
 
+  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ goIds ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปคืนยอด stock ของแถวที่ไม่ได้ลบจริง
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const actuallyDeleted = rowsToDelete.filter(r => deletedIds.has(r._row_id));
+  if (!actuallyDeleted.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadIssueData(); return; }
+
+  // เก็บ MO_ID ของรายการที่ลบได้จริงไว้คืนสถานะ MO ทีหลัง
+  const affectedMOIds = [...new Set(actuallyDeleted.map(d => d.MO_ID).filter(Boolean))];
+
   // คืนสต็อกที่เคยตัดไปของทุกรายการที่ลบกลับเข้าคลัง
-  for (const r of rowsToDelete) {
+  for (const r of actuallyDeleted) {
     if (r.MaterialCode && r.Lot) await _issueRestoreStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
   }
 
   // คืนสถานะ MO ที่ไม่มีรายการเบิกเหลืออยู่
   if (affectedMOIds.length) await issueRevertMOIfEmpty(affectedMOIds);
 
-  _logAudit('BULK_DELETE', 'issue_production', affectedMOIds.join(', '), `ลบ ${goIds.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title:`ลบ ${goIds.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'issue_production', affectedMOIds.join(', '), `ลบ ${actuallyDeleted.length} รายการ`);
+  if (actuallyDeleted.length < goIds.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${actuallyDeleted.length}/${goIds.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success',
+      title:`ลบ ${goIds.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   loadIssueData();
 }
 
@@ -21927,9 +21984,10 @@ async function issueCancelRequest(reqId) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  const { error } = await _sb.from('issue_edit_requests').delete().eq('_row_id', reqId);
+  const { error, data } = await _sb.from('issue_edit_requests').delete().eq('_row_id', reqId).select();
   _hideLoader();
   if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ยกเลิกไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือคำขอนี้ถูกจัดการไปแล้ว'); loadIssueData(); return; }
 
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกคำขอแล้ว', showConfirmButton:false, timer:1500 });
   loadIssueData();
@@ -22468,8 +22526,9 @@ async function miscDelete(rowId) {
   if (!res.isConfirmed) return;
   _miscData = _miscData.filter(d => d._row_id !== rowId);
   miscRenderTable(); miscUpdateKPIs();
-  const { error } = await _sb.from('issue_misc').delete().eq('_row_id', rowId);
+  const { error, data } = await _sb.from('issue_misc').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMiscData(); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadMiscData(); return; }
   if (r) await _miscReverseStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
   // ถ้าแถวนี้ผูก CO_Ref ไว้ (มาจาก coWithdrawBulkFromStock) ต้องคำนวณสถานะ CO ใหม่หลังลบ ไม่งั้นสถานะ CO จะค้างผิด
   if (r?.CO_Ref) await coUpdateStatusFromBulkWithdraw(r.CO_Ref);
@@ -22495,17 +22554,25 @@ async function miscBulkDelete() {
     confirmButtonColor:'#d33', confirmButtonText:'ลบข้อมูล', cancelButtonText:'ยกเลิก'
   });
   if (!res.isConfirmed) return;
-  const rowsToDelete = _miscData.filter(d => ids.includes(d._row_id));
+  const rowsToDeleteRequested = _miscData.filter(d => ids.includes(d._row_id));
   _showLoader();
-  const { error } = await _sb.from('issue_misc').delete().in('_row_id', ids);
+  const { error, data } = await _sb.from('issue_misc').delete().in('_row_id', ids).select();
   _hideLoader();
   if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ ids ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปคืนยอด stock ของแถวที่ไม่ได้ลบจริง
+  const deletedIds = new Set((data || []).map(d => d._row_id));
+  const rowsToDelete = rowsToDeleteRequested.filter(r => deletedIds.has(r._row_id));
+  if (!rowsToDelete.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadMiscData(); return; }
   for (const r of rowsToDelete) await _miscReverseStock(r.MaterialCode, r.Lot, parseFloat(r.IssuedQty) || 0);
   // คำนวณสถานะ CO ใหม่ให้ทุก CO_Ref ที่มีแถวถูกลบไป (ไม่ซ้ำ CO เดิม)
   const affectedCORefs = [...new Set(rowsToDelete.map(r => r.CO_Ref).filter(Boolean))];
   for (const coRef of affectedCORefs) await coUpdateStatusFromBulkWithdraw(coRef);
-  _logAudit('BULK_DELETE', 'issue_misc', rowsToDelete.map(r => r.MaterialCode).join(', '), `ลบ ${ids.length} รายการ`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  _logAudit('BULK_DELETE', 'issue_misc', rowsToDelete.map(r => r.MaterialCode).join(', '), `ลบ ${rowsToDelete.length} รายการ`);
+  if (rowsToDelete.length < ids.length) {
+    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${rowsToDelete.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  }
   document.getElementById('misc-check-all').checked = false;
   loadMiscData();
 }
