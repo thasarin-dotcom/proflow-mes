@@ -6977,6 +6977,38 @@ function _whRenderLotQueueGrid() {
   gt.innerHTML = html;
 }
 
+// รายการฟังก์ชันโหลดข้อมูลต่อหน้า — ยกออกมาเป็น const ระดับ module (เดิมประกาศซ้ำใน scope ของ showPage()
+// เอง) เพื่อให้ระบบ Realtime sync (ดู _realtimeHandleChange ท้ายไฟล์) เรียกโหลดซ้ำหน้าที่กำลังเปิดอยู่ได้
+// จาก map ชุดเดียวกันนี้เป๊ะ ไม่ต้องคัดลอกรายชื่อหน้า/ฟังก์ชันเป็นชุดที่ 2 ที่อาจตกหล่น/ไม่ตรงกันภายหลัง
+const _PAGE_LOADERS = {
+  'home'     : loadHomeData,
+  'stock'    : loadStockData,
+  'purchasereq': purchasereqLoadData,
+  'fgstock'  : loadFGStockData,
+  'mo'       : loadMOData,
+  'mr'       : loadMRData,
+  'issue'    : loadIssueData,
+  'co'       : loadCOData,
+  'fg'       : loadFGData,
+  'fgout'    : loadFGOutData,
+  'misc'     : loadMiscData,
+  'plan'     : planLoadData,
+  'bom'      : bomLoadData,
+  'material' : loadMaterialData,
+  'prodrecord': prodrecordLoadData,
+  'bpr'       : bprLoadData,
+  'stockcard' : stockcardLoadData,
+  'codash'    : codashLoadData,
+  'prodstatus': loadProdStatusData,
+  'lotqueue'  : loadLotQueueData,
+  'weeklyreport': weeklyreportLoadData,
+  'admindash' : admindashLoadData,
+  'auditlog'  : auditlogLoadData,
+  'signuprequests': signupreqLoadData,
+  'lotscan'   : lotscanInit,
+  'userroles' : userrolesLoadData,
+};
+
 function showPage(page, navEl) {
   document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
@@ -6985,35 +7017,7 @@ function showPage(page, navEl) {
   if (navEl) navEl.classList.add('active');
 
   // Load data เมื่อเปิดหน้า
-  const loaders = {
-    'home'     : loadHomeData,
-    'stock'    : loadStockData,
-    'purchasereq': purchasereqLoadData,
-    'fgstock'  : loadFGStockData,
-    'mo'       : loadMOData,
-    'mr'       : loadMRData,
-    'issue'    : loadIssueData,
-    'co'       : loadCOData,
-    'fg'       : loadFGData,
-    'fgout'    : loadFGOutData,
-    'misc'     : loadMiscData,
-    'plan'     : planLoadData,
-    'bom'      : bomLoadData,
-    'material' : loadMaterialData,
-    'prodrecord': prodrecordLoadData,
-    'bpr'       : bprLoadData,
-    'stockcard' : stockcardLoadData,
-    'codash'    : codashLoadData,
-    'prodstatus': loadProdStatusData,
-    'lotqueue'  : loadLotQueueData,
-    'weeklyreport': weeklyreportLoadData,
-    'admindash' : admindashLoadData,
-    'auditlog'  : auditlogLoadData,
-    'signuprequests': signupreqLoadData,
-    'lotscan'   : lotscanInit,
-    'userroles' : userrolesLoadData,
-  };
-  if (loaders[page]) loaders[page]();
+  if (_PAGE_LOADERS[page]) _PAGE_LOADERS[page]();
 }
 
 // ══════════════════════════════════════════════
@@ -14262,6 +14266,12 @@ async function loadProdStatusData() {
   prodStatusRenderStrip();
   prodStatusRenderTodayCards();
   prodStatusRenderMOTable();
+  // ถ้ากำลังเปิดมุมมอง Gantt ค้างอยู่ (สลับมาจากก่อนหน้า ไม่ใช่ค่า default 'week') ต้องรีเฟรช extras (BOM
+  // capacity + overrides) และวาด Gantt ใหม่ตรงนี้ด้วย — ไม่งั้น #prodstatus-gtable จะค้าง HTML เก่าที่คำนวณ
+  // ไว้ก่อนรีเฟรช/ก่อนเข้าหน้านี้รอบใหม่ เพราะ prodStatusRenderGantt() เดิมถูกเรียกจาก prodStatusSetView()
+  // เท่านั้น (ตอนกดปุ่มสลับ tab) ไม่เคยถูกเรียกจาก loadProdStatusData() เอง ทำให้ Gantt โชว์คิวยิง Lot เก่า
+  // ไม่ตรงกับหน้าคิวห้องยิง Lot (nav-lotqueue) ที่คำนวณใหม่สดทุกครั้งที่เข้าหน้า — ผู้ใช้รายงานเป็นบั๊กจริง
+  if (_prodStatusView === 'gantt') await prodStatusSetView('gantt');
 }
 
 function prodStatusUpdateKPIs() {
@@ -24770,6 +24780,82 @@ function _renderCurrentUserBadge() {
 }
 
 // ══════════════════════════════════════════════
+// Realtime sync (หลายเครื่อง/หลายคนใช้พร้อมกัน) — เพิ่ม 2026-08-29 ตามคำขอผู้ใช้ ("ใช้หลายคน อยากให้
+// อีกเครื่องทำอะไร แล้วอัปเดตเองใน 3 วิ ไม่ต้องรีเฟรชเอง") — สมัคร Supabase Realtime (postgres_changes)
+// ช่องเดียวครอบทุกตารางใน schema public (ไม่ระบุ table เจาะจง = ฟังทุกตารางในสคีมาเดียวกันหมด ไม่ต้อง
+// list ~25 ตารางในโค้ดฝั่ง client) แล้วเมื่อมีการเปลี่ยนแปลงใดๆ สั่งโหลดข้อมูล "หน้าที่กำลังเปิดอยู่ตอนนี้"
+// ซ้ำผ่าน _PAGE_LOADERS ตัวเดียวกับที่ showPage() ใช้ — ไม่ทำ mapping ตาราง→หน้าเจาะจงทีละคู่ เพราะจะกลาย
+// เป็น matrix ~25 ตาราง × ~25 หน้าที่ดูแลยากและหลุดง่าย (ตารางเดียวกันถูกอ่านใช้ในหลายหน้าเสมอ) ใช้วิธี
+// "หน้าไหนเปิดอยู่ก็โหลดหน้านั้นซ้ำ" แทน ซึ่งเป็น code path เดิมที่ทำงานทุกครั้งที่กดลิงก์เมนูอยู่แล้ว (พิสูจน์
+// แล้วว่าปลอดภัยเรียกซ้ำได้ทุกหน้า เพราะทุกหน้าถูกออกแบบให้โหลดใหม่ทุกครั้งที่กดเข้าอยู่แล้ว)
+//
+// ⚠️ ต้องรัน enable_realtime_all_tables.sql ก่อน — ถ้ายังไม่รัน ตารางจะยังไม่ถูกเพิ่มเข้า publication
+// "supabase_realtime" ฝั่ง Postgres แม้ client จะ subscribe สำเร็จ (ไม่ error ใดๆ) ก็จะไม่มี event ส่งมาเลย
+//
+// Debounce 1.2 วิ (รวม event ที่มาถี่ๆ เช่น insert ทีละหลายแถวจาก multi-lot split ให้โหลดซ้ำแค่ครั้งเดียว)
+// ยังอยู่ในกรอบ "3 วิ" ที่ผู้ใช้ขอสบายๆ แม้รวม network latency ของ Realtime เอง
+//
+// ไม่โหลดซ้ำทับขณะผู้ใช้ "กำลังยุ่งอยู่" (เปิด modal/SweetAlert ค้าง, กำลังลากแท่ง Gantt/คิวยิง Lot, หรือ
+// สลับไปแท็บอื่นของเบราว์เซอร์) เพราะสั่ง render ทับตอนนั้นเสี่ยงทำแท่งที่กำลังลากหลุดกลางคัน — จะเลื่อนไปเช็ค
+// ใหม่ทุก 2 วิจนกว่าจะว่างค่อยโหลด ไม่ทิ้งอัปเดตไปเฉยๆ ฟอร์มในโหมดในหน้า (ไม่ใช่ modal) ปลอดภัยเรียกซ้ำได้ตรงๆ
+// เพราะ render ทุกหน้าอ่านค่าที่พิมพ์ในกล่องค้นหาสดจาก DOM เดิมอยู่แล้ว ไม่ได้รีเซ็ตช่องกรอกทิ้ง
+//
+// หน้า Lot Scan (lotscanInit) exclude ออกทั้งหน้า — เรียกซ้ำจะรีเซ็ตผลค้นหา/ประวัติที่ผู้ใช้กำลังดูอยู่ทันที
+// (ฟังก์ชันนี้ออกแบบมาให้เรียกตอนเข้าเพจครั้งแรกเท่านั้น ไม่ใช่ตอนรีเฟรชข้อมูลเบื้องหลัง)
+const _REALTIME_SKIP_PAGES = new Set(['lotscan']);
+let _realtimeChannel = null;
+let _realtimeRefreshTimer = null;
+
+function _realtimeIsBusy() {
+  if (document.hidden) return true;
+  if (document.querySelector('.modal.show')) return true;
+  if (typeof Swal !== 'undefined' && Swal.isVisible && Swal.isVisible()) return true;
+  if (_prodStatusDrag || _lotqDrag) return true;
+  return false;
+}
+
+function _realtimeScheduleRefresh() {
+  if (_realtimeRefreshTimer) clearTimeout(_realtimeRefreshTimer);
+  _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 1200);
+}
+
+function _realtimeRunRefresh() {
+  _realtimeRefreshTimer = null;
+  if (!_currentUser) return; // ออกจากระบบไปแล้วระหว่างรอ debounce
+  if (_realtimeIsBusy()) { _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 2000); return; }
+
+  if (_currentUser.isWarehouse) {
+    _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้
+    return;
+  }
+
+  // เลขแจ้งเตือน sidebar (badge) อัปเดตทุกครั้งไม่ว่าจะอยู่หน้าไหน — query เบา ไม่กระทบ DOM หลักของหน้า
+  _planUpdateNavBadge();
+  _issueUpdateWaitingBadge();
+  _issueUpdateNavBadge();
+  _prodrecordUpdateNavBadge();
+  _prodrecordUpdateApproveBadge();
+  _fgoutUpdateWaitingBadge();
+  purchasereqUpdateNavBadge();
+
+  const activeEl = document.querySelector('.page-view.active');
+  if (!activeEl) return;
+  const page = activeEl.id.replace(/^page-/, '');
+  if (_REALTIME_SKIP_PAGES.has(page)) return;
+  if (_PAGE_LOADERS[page]) _PAGE_LOADERS[page]();
+}
+
+function _realtimeSubscribe() {
+  if (_realtimeChannel) return; // subscribe ครั้งเดียวต่อ session — logout สั่ง location.reload() เสมอ (ดู logoutUser) จึงไม่มีทาง unsubscribe ค้าง
+  _realtimeChannel = _sb.channel('proflow-realtime-sync')
+    .on('postgres_changes', { event: '*', schema: 'public' }, () => _realtimeScheduleRefresh())
+    .subscribe();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && _currentUser) _realtimeScheduleRefresh(); // กลับมาเปิดแท็บ ให้เช็คของใหม่ทันที เผื่อพลาด event ตอนแท็บถูกซ่อนอยู่
+  });
+}
+
+// ══════════════════════════════════════════════
 // Init — เช็ค session ก่อนปล่อยเข้าแอป แล้วโหลดหน้าแรก
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
@@ -24798,6 +24884,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } catch (e) { console.error('โหลด user_roles ไม่สำเร็จ', e); }
       _applyRolePermissions();
       document.getElementById('loginGate').style.display = 'none';
+      _realtimeSubscribe(); // เปิดฟัง Realtime ทุกตาราง (ดูคอมเมนต์ที่ _realtimeSubscribe) — subscribe ครั้งเดียวพอทั้ง 2 โหมด (ปกติ/แท็บเลตคลัง)
       if (_currentUser.isWarehouse) {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
         document.getElementById('whTabletView').style.display = 'flex';
