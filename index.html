@@ -8134,8 +8134,9 @@ async function moCancelPlan(rowId) {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  const { error: delErr } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID);
+  const { error: delErr, data: delData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID).select();
   if (delErr) { _hideLoader(); _err('ปล่อยจองไม่สำเร็จ', delErr.message); return; }
+  if (!delData || !delData.length) { _hideLoader(); _err('ปล่อยจองไม่สำเร็จ', 'ไม่มีสิทธิ์ลบยอดจองนี้ (ต้องเป็นหัวหน้างานขึ้นไป) หรือไม่มียอดจองอยู่แล้ว'); return; }
 
   const { error } = await _sb.from('manufacturing_orders').update({ Status: 'รอเบิก' }).eq('_row_id', rowId);
   _hideLoader();
@@ -8220,13 +8221,21 @@ async function moForceClose(rowId) {
   _hideLoader();
   if (error) { _err('ตัดจบไม่สำเร็จ', error.message); return; }
 
-  // ปล่อยยอดจองวัตถุดิบ (WIP) คืน ถ้า MO นี้เคย "แพลนแล้ว" อยู่ก่อนตัดจบ
-  await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID);
+  // ปล่อยยอดจองวัตถุดิบ (WIP) คืน ถ้า MO นี้เคย "แพลนแล้ว" อยู่ก่อนตัดจบ — เช็คว่าลบได้จริงกี่แถว กัน RLS
+  // บล็อกเงียบๆ (0 แถวถูกลบ ไม่มี error) แล้วยอดจองค้างเป็นขยะตลอดไปโดยไม่มีใครรู้ (เจอเคสจริง 2026-08-30, MO-2608-18)
+  const { data: relData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID).select();
+  const reservationReleaseFailed = r.Status === 'แพลนแล้ว' && (!relData || !relData.length);
 
   await _moSyncCOAfterRemoved(r.CO_Ref);
 
   _logAudit('FORCE_CLOSE', 'manufacturing_orders', r.MO_ID, reason.trim());
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ตัดจบสำเร็จ', showConfirmButton:false, timer:2000 });
+  if (reservationReleaseFailed) {
+    // ใช้ dialog แบบต้องกดปิดเอง ไม่ใช่ toast — กันโดน toast "ตัดจบสำเร็จ" ทับจนไม่ทันเห็น
+    await Swal.fire({ icon:'warning', title:'ตัดจบสำเร็จ',
+      text:'แต่ปล่อยยอดจองวัตถุดิบไม่ได้ (ต้องให้หัวหน้างานขึ้นไปลบยอดจองนี้เอง)' });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ตัดจบสำเร็จ', showConfirmButton:false, timer:2000 });
+  }
   loadMOData();
 }
 
@@ -12681,6 +12690,7 @@ async function planDelete(rowId) {
   });
   if (!res.isConfirmed) return;
   _showLoader();
+  let _planReservationReleaseWarned = false;
   const { error, data } = await _sb.from('production_plan').delete().eq('_row_id', rowId).select();
   if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
   if (!data || !data.length) { _hideLoader(); _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); await planLoadData(); return; }
@@ -12695,7 +12705,8 @@ async function planDelete(rowId) {
       const { data: mo } = await _sb.from('manufacturing_orders')
         .select('_row_id,Status').eq('MO_ID', r.MO_Ref).maybeSingle();
       if (mo && mo.Status === 'แพลนแล้ว') {
-        await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_Ref);
+        const { data: relData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_Ref).select();
+        if (!relData || !relData.length) _planReservationReleaseWarned = true;
         await _sb.from('manufacturing_orders').update({ Status: 'รอเบิก' }).eq('_row_id', mo._row_id);
       }
     }
@@ -12703,12 +12714,20 @@ async function planDelete(rowId) {
     // แผนที่ยังไม่มี MO แต่เคย "เช็ควัตถุดิบ" จองไว้แล้ว (ดู planCheckMaterial) ถูกลบตรงๆ โดยไม่ผ่าน
     // "ยกเลิกการจองวัตถุดิบ" ก่อน — ต้องปล่อยยอดจองภายใต้ MO_Ref ชั่วคราว 'PLAN-<rowId>' คืนด้วย ไม่งั้นจะค้าง
     // เป็นขยะกันวัตถุดิบไว้เฉยๆ ตลอดไปโดยไม่มีใครมาโอน/ปล่อยอีกแล้ว (ไม่มี MO ให้ planOrderProduction มาทำงานต่อ)
-    await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId);
+    const { data: relData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', 'PLAN-' + rowId).select();
+    if (!relData || !relData.length) _planReservationReleaseWarned = true;
   }
 
   _hideLoader();
   _logAudit('DELETE', 'production_plan', r?.MO_Ref || r?.ProductCode, `${r?.ProductName||''} วันที่ ${_planFmtDateLabel(r?.PlanDate||'')} จำนวน ${r?.PlanQty||''}`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
+  if (_planReservationReleaseWarned) {
+    // ใช้ dialog แบบต้องกดปิดเอง ไม่ใช่ toast — กันโดน toast "ลบสำเร็จ" ด้านล่างทับจนไม่ทันเห็น
+    // (เจอบั๊กคลาสนี้จริง 2026-08-30, MO-2608-18: ยอดจองค้างเป็นขยะเงียบๆ ไม่มีใครรู้)
+    await Swal.fire({ icon:'warning', title:'ลบแผนสำเร็จ',
+      text:'แต่ปล่อยยอดจองวัตถุดิบไม่ได้ (ต้องให้หัวหน้างานขึ้นไปลบยอดจองนี้เอง)' });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
+  }
   if (_planDayModal) _planDayModal.hide();
   await planLoadData();
 }
@@ -18143,8 +18162,16 @@ async function moOpenModal(rowId = null) {
 // ทุกวันควรขยับตามสัดส่วนเดียวกัน ไม่ใช่ยัดส่วนต่างไปวันเดียว)
 async function _moSyncReservationAndPlan({ moId, productCode, oldQty, newQty }) {
   const newLines = _moBomRequirementForQty(productCode, newQty);
-  await _sb.from('mo_material_reservations').delete().eq('MO_Ref', moId);
-  if (newLines.length) {
+  const { data: delRows } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', moId).select();
+  const { data: stillThere } = await _sb.from('mo_material_reservations').select('_row_id').eq('MO_Ref', moId).limit(1);
+  if (stillThere && stillThere.length) {
+    // ลบยอดจองเดิมไม่ได้ (RLS บล็อก — ต้องเป็นหัวหน้างานขึ้นไป) — ห้าม insert ยอดใหม่ทับ ไม่งั้นจะกลายเป็นจองซ้อน
+    // สองชุดพร้อมกัน (เจอบั๊กคลาสนี้จริง 2026-08-30, MO-2608-18 — ค้างเป็นขยะเพราะจุดอื่นก็เงียบแบบนี้เหมือนกัน)
+    // ใช้ dialog แบบต้องกดปิดเอง (await) ไม่ใช่ toast — ฟังก์ชันนี้ถูกเรียกแบบ await จาก moSubmit ซึ่งจะโชว์ toast
+    // "แก้ไขสำเร็จ" ทับต่อทันทีหลังจากนี้ ถ้าใช้ toast ที่นี่จะโดนทับจนผู้ใช้ไม่ทันเห็น
+    await Swal.fire({ icon:'warning', title:'ปรับยอดจองวัตถุดิบไม่ได้',
+      text:'ต้องให้หัวหน้างานขึ้นไปทำ — ยอดจองเดิมยังคงค้างอยู่ ไม่ตรงกับจำนวนใหม่' });
+  } else if (newLines.length) {
     await _sb.from('mo_material_reservations').insert(newLines.map(l => ({
       MO_Ref: moId, MaterialCode: l.matCode, MaterialName: l.matName, ReservedQty: l.required, UOM: l.uom,
     })));
@@ -18304,8 +18331,16 @@ async function moDelete(rowId) {
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMOData(); return; }
   if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadMOData(); return; }
 
-  // ปล่อยยอดจองวัตถุดิบ (WIP) คืน ถ้า MO นี้เคย "แพลนแล้ว" อยู่ก่อนถูกลบ
-  if (r?.MO_ID) await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID);
+  // ปล่อยยอดจองวัตถุดิบ (WIP) คืน ถ้า MO นี้เคย "แพลนแล้ว" อยู่ก่อนถูกลบ — เช็คว่าลบได้จริงกี่แถว กัน RLS บล็อก
+  // เงียบๆ (0 แถวถูกลบ ไม่มี error) แล้วยอดจองค้างเป็นขยะตลอดไป (เจอเคสจริง 2026-08-30, MO-2608-18)
+  let _moReservationReleaseFailed = false;
+  if (r?.MO_ID) {
+    const { data: relData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', r.MO_ID).select();
+    if (!relData || !relData.length) {
+      const { data: stillThere } = await _sb.from('mo_material_reservations').select('_row_id').eq('MO_Ref', r.MO_ID).limit(1);
+      if (stillThere && stillThere.length) _moReservationReleaseFailed = true;
+    }
+  }
 
   // ลบบันทึกผลิต (production_records) ที่ผูกกับ MO นี้ด้วย — เดิมไม่ลบ ทำให้กลายเป็นข้อมูลกำพร้าค้างอยู่ใน
   // หน้าบันทึกผลิตตลอดไปหลังลบ MO (บั๊กจริง พบและแก้ 2026-08-06, ผู้ใช้ยืนยันให้ลบอัตโนมัติไม่ต้องเตือนซ้ำ)
@@ -18338,8 +18373,14 @@ async function moDelete(rowId) {
   await _moSyncCOAfterRemoved(r?.CO_Ref);
 
   _logAudit('DELETE', 'manufacturing_orders', r?.MO_ID, `${r?.ProductName||''} Lot ${r?.LOT||'—'}`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
+  if (_moReservationReleaseFailed) {
+    // ใช้ dialog แบบต้องกดปิดเอง ไม่ใช่ toast — กันโดน toast "ลบสำเร็จ" ทับจนไม่ทันเห็น
+    await Swal.fire({ icon:'warning', title:'ลบ MO สำเร็จ',
+      text:'แต่ปล่อยยอดจองวัตถุดิบไม่ได้ (ต้องให้หัวหน้างานขึ้นไปลบยอดจองนี้เอง)' });
+  } else {
+    Swal.fire({ toast:true, position:'top-end', icon:'success',
+      title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -21531,6 +21572,7 @@ async function issueSubmit(e) {
   let oldRow, editPayload;
   let isPendingRequest = false;
   let prodSync = null; // ผลการ sync ยอดไปที่ production_record_details ตอนหัวหน้างานแก้ยอดเบิกทันที (ไม่ผ่านคิวขออนุมัติ) — ดู _issueSyncProdRecordDetail
+  let reservationReleaseFailed = false; // เบิกจริงแล้วแต่ปล่อยยอดจอง (WIP) ไม่ได้ (RLS บล็อก) — ดูจุดที่ตั้งค่าด้านล่าง
 
   if (isEdit) {
     const qty     = parseFloat(document.getElementById('issue-f-qty').value) || 0;
@@ -21650,8 +21692,14 @@ async function issueSubmit(e) {
           .update({ Status: 'กำลังผลิต' })
           .eq('MO_ID', moId);
         // เบิกจริงเกิดขึ้นแล้ว (แม้ไม่ครบทุกรายการ) ปล่อยยอดจองวัตถุดิบ (WIP) ของ MO นี้คืนทั้งหมดทันที —
-        // ของถูกตัดจริงเป็น QtyOut ใน stock_balance แล้วผ่าน issueUpdateStock ด้านบน ไม่ต้องจองซ้อนอีกต่อไป
-        await _sb.from('mo_material_reservations').delete().eq('MO_Ref', moId);
+        // ของถูกตัดจริงเป็น QtyOut ใน stock_balance แล้วผ่าน issueUpdateStock ด้านบน ไม่ต้องจองซ้อนอีกต่อไป —
+        // เช็คว่าลบได้จริงกี่แถว กัน RLS บล็อกเงียบๆ (0 แถวถูกลบ ไม่มี error) แล้วยอดจองค้างเป็นขยะตลอดไปโดยไม่มี
+        // ใครรู้ (เจอเคสจริง 2026-08-30, MO-2608-18 — เบิกครบแล้วแต่ยอดจองยังค้างที่หน้า Stock วัตถุดิบ)
+        const { data: relData } = await _sb.from('mo_material_reservations').delete().eq('MO_Ref', moId).select();
+        if (!relData || !relData.length) {
+          const { data: stillThere } = await _sb.from('mo_material_reservations').select('_row_id').eq('MO_Ref', moId).limit(1);
+          if (stillThere && stillThere.length) reservationReleaseFailed = true;
+        }
       }
     }
   }
@@ -21672,6 +21720,10 @@ async function issueSubmit(e) {
         ยอด "เบิกไป" ที่หน้าบันทึกผลิตจึง<b>ยังไม่ถูกแก้ให้อัตโนมัติ</b> — ถ้าต้องการให้ตรงกัน กด "เปิดกลับ" ที่
         หน้าบันทึกผลิตก่อน แล้วแก้ไขผลผลิต/อนุมัติต้นทุนใหม่`,
     });
+  } else if (reservationReleaseFailed) {
+    // ใช้ dialog แบบต้องกดปิดเอง ไม่ใช่ toast — กันโดนกลบด้วย toast ปกติจนไม่ทันเห็น
+    await Swal.fire({ icon:'warning', title:`เบิกสำเร็จ ${savedCount} รายการ`,
+      text:'แต่ปล่อยยอดจองวัตถุดิบ (WIP) ของ MO นี้ไม่ได้ (ต้องให้หัวหน้างานขึ้นไปลบยอดจองนี้เอง ไม่งั้นจะค้างเป็นขยะที่หน้า Stock วัตถุดิบตลอดไป)' });
   } else {
     Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
       title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ'
