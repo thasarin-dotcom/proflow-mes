@@ -6124,7 +6124,7 @@ async function loadHomeData() {
   const [moRes, coRes, stockRes, matRes, mrRes, issueRes, miscRes, prodRecRes] = await Promise.all([
     _sb.from('manufacturing_orders').select('Status,DeliveryDate'),
     _sb.from('customer_orders').select('Status'),
-    _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,MaterialName,UOM'),
     _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
     // ดึงย้อนหลัง 12 เดือนเหมือน issue_production ด้านล่าง — ใช้ทั้งกับกราฟ Top 5 (กรองเอาแค่ไตรมาสนี้ทีหลัง) และเช็ค "ไม่เคลื่อนไหว 3 เดือน"
     // ใช้ _fetchAllPagedRange ไม่ใช่ .select() ตรงๆ — ช่วง 12 เดือนของทั้งโรงงานมีโอกาสเกิน 1000 แถว (PostgREST cap)
@@ -6679,7 +6679,7 @@ async function _whComputeBulkForecast() {
   // ด้านบน (ช่วง 12 เดือนมีโอกาสเกิน PostgREST cap 1000 แถว ทำให้บางวัตถุดิบหายไปจากพยากรณ์เงียบๆ)
   const [matRes, stockRes, mrRes, issueRes, miscRes] = await Promise.all([
     _sb.from('materials').select('MaterialCode,MinStock,TYPE'),
-    _sb.from('stock_balance').select('MaterialCode,QtyBalance,MaterialName,UOM'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,MaterialName,UOM'),
     _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', qStartStr, qEndStr),
     _fetchAllPagedRange('issue_production', 'MaterialCode,IssuedQty,Date', 'Date', trendStartStr, qEndStr),
     _sb.from('issue_misc').select('*'),
@@ -6833,7 +6833,7 @@ let _whLowStockList = [];
 let _whExpiringList = [];
 async function _whComputeStockAlerts() {
   const [stockRes, matRes] = await Promise.all([
-    _sb.from('stock_balance').select('MaterialCode,MaterialName,QtyBalance,UOM,Lot,ExpDate'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,MaterialName,QtyBalance,UOM,Lot,ExpDate'),
     _sb.from('materials').select('MaterialCode,MinStock'),
   ]);
   if (stockRes.error || matRes.error) { _whLowStockList = []; _whExpiringList = []; return; }
@@ -7035,10 +7035,12 @@ async function loadStockData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('stock-cards', '<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
   const [stockRes, matRes, resvRes] = await Promise.all([
-    _sb.from('stock_balance').select('*').order('MaterialCode'),
+    _fetchAllPaged('stock_balance', '*'),
     _sb.from('materials').select('MaterialCode,TYPE,MinStock'),
-    _sb.from('mo_material_reservations').select('MO_Ref,MaterialCode,ReservedQty,UOM'),
+    _fetchAllPaged('mo_material_reservations', 'MO_Ref,MaterialCode,ReservedQty,UOM'),
   ]);
+  // .order('MaterialCode') ทำผ่าน _fetchAllPaged ไม่ได้ (helper รับแค่ table+select) — sort เอาฝั่ง JS แทน
+  if (stockRes.data) stockRes.data.sort((a, b) => (a.MaterialCode||'').localeCompare(b.MaterialCode||''));
 
   _cancelPlaceholder();
   _hideLoader();
@@ -7618,10 +7620,11 @@ async function fgStockRecalculate() {
   if (!conf.isConfirmed) return;
 
   _showLoader();
-  // ดึงข้อมูลทั้งหมดพร้อมกัน
+  // ดึงข้อมูลทั้งหมดพร้อมกัน — ต้อง paginate เพราะฟังก์ชันนี้ล้าง+เขียน stock_fg ใหม่ทั้งหมดจากผลลัพธ์นี้
+  // ถ้าตารางต้นทางแถวเกิน 1000 แล้วโดน PostgREST ตัดเงียบๆ จะเขียน stock_fg ผิดถาวร ไม่ใช่แค่แสดงผลผิดชั่วคราว
   const [recRes, outRes] = await Promise.all([
-    _sb.from('fg_receive').select('*'),
-    _sb.from('fg_withdraw').select('*'),
+    _fetchAllPaged('fg_receive', '*'),
+    _fetchAllPaged('fg_withdraw', '*'),
   ]);
 
   if (recRes.error) { _hideLoader(); _err('โหลด fg_receive ไม่ได้', recRes.error.message); return; }
@@ -7707,6 +7710,37 @@ async function _fetchAllPagedRange(table, selectCols, dateCol, startStr, endStr)
   let from = 0, all = [];
   while (true) {
     const { data, error } = await _sb.from(table).select(selectCols).gte(dateCol, startStr).lte(dateCol, endStr).range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
+
+// เหมือน _fetchAllPaged แต่กรอง "คอลัมน์นี้ต้องไม่เป็น null" ก่อนวน .range() — ใช้กับ query ที่กรองด้วย
+// .not(col,'is',null) ซึ่งไม่ใช่ตัวกรองที่จำกัดจำนวนแถวจริง (แถวส่วนใหญ่มักมีค่านี้ตั้งไว้) จึงยังต้อง
+// paginate เหมือน select ทั้งตาราง ไม่ใช่ shortcut ที่ทำให้ไม่ต้องกังวลเรื่อง 1000-row cap
+async function _fetchAllPagedNotNull(table, selectCols, notNullCol) {
+  const pageSize = 1000;
+  let from = 0, all = [];
+  while (true) {
+    const { data, error } = await _sb.from(table).select(selectCols).not(notNullCol, 'is', null).range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return { data: all, error: null };
+}
+
+// เหมือน _fetchAllPaged แต่กรอง .eq(col, val) ก่อนวน .range() — ใช้กับ query ที่กรองด้วยค่าเดียวที่ยังจับ
+// คู่ได้หลายแถว (เช่น Status='อนุมัติแล้ว') ซึ่งไม่ใช่ตัวกรองที่จำกัดจำนวนแถวจริง ยังต้อง paginate เหมือนเดิม
+async function _fetchAllPagedEq(table, selectCols, eqCol, eqVal) {
+  const pageSize = 1000;
+  let from = 0, all = [];
+  while (true) {
+    const { data, error } = await _sb.from(table).select(selectCols).eq(eqCol, eqVal).range(from, from + pageSize - 1);
     if (error) return { data: all, error };
     all = all.concat(data || []);
     if (!data || data.length < pageSize) break;
@@ -7825,8 +7859,8 @@ let _moReservedByMO       = {};  // MO_ID → { MaterialCode: ยอดจอง
 async function _moLoadMaterialCheckData() {
   const [bomRes, stockRes, resvRes] = await Promise.all([
     _bomFetchPaged('ProductCode,MaterialCode,MaterialName,QtyPerBase,QtyWithScrap,UOM,Remark', [{ col: '_row_id', ascending: true }]),
-    _sb.from('stock_balance').select('MaterialCode,QtyBalance'),
-    _sb.from('mo_material_reservations').select('MO_Ref,MaterialCode,ReservedQty'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
+    _fetchAllPaged('mo_material_reservations', 'MO_Ref,MaterialCode,ReservedQty'),
   ]);
   _moBOM   = bomRes.data || [];
   _moReservedByMaterial = {};
@@ -8903,14 +8937,18 @@ async function loadMRData() {
 
   // โหลด MR + Materials พร้อมกัน
   const [mrRes, matRes] = await Promise.all([
-    _sb.from('mr_receive').select('*').order('_row_id', { ascending: false }),
-    _sb.from('materials').select('*').order('MaterialName'),
+    _fetchAllPaged('mr_receive', '*'),
+    _fetchAllPaged('materials', '*'),
   ]);
 
   _cancelPlaceholder();
   _hideLoader();
   if (mrRes.error)  { _err('โหลดข้อมูล MR ไม่ได้', mrRes.error.message); return; }
   if (matRes.error) { _err('โหลด Materials ไม่ได้', matRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  mrRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
+  matRes.data.sort((a, b) => (a.MaterialName||'').localeCompare(b.MaterialName||''));
 
   _mrData      = mrRes.data  || [];
   _mrMaterials = matRes.data || [];
@@ -9651,7 +9689,7 @@ async function loadFGData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('fg-tbody', '<div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
   const [fgRes, moRes, bomRes] = await Promise.all([
-    _sb.from('fg_receive').select('*').order('_row_id', { ascending: false }),
+    _fetchAllPaged('fg_receive', '*'),
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,Status,CO_Ref').order('MO_ID', { ascending: false }),
     _bomFetchPaged('ProductCode,ProductName,MaterialCode,Remark', [{ col: 'ProductName' }]),
   ]);
@@ -9659,6 +9697,9 @@ async function loadFGData() {
   _cancelPlaceholder();
   _hideLoader();
   if (fgRes.error) { _err('โหลดข้อมูล FG Receive ไม่ได้', fgRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  fgRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
 
   _fgData   = fgRes.data || [];
   _fgMOList = (moRes.data || []).filter(m => m.Status === 'กำลังผลิต');
@@ -10138,8 +10179,8 @@ async function loadFGOutData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('fgout-tbody', '<tr><td colspan="13" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   const [outRes, stockRes, coRes] = await Promise.all([
-    _sb.from('fg_withdraw').select('*').order('_row_id', { ascending: false }),
-    _sb.from('stock_fg').select('ProductCode,ProductName,LotFG,FGBalance,UOM').order('ProductName'),
+    _fetchAllPaged('fg_withdraw', '*'),
+    _fetchAllPaged('stock_fg', 'ProductCode,ProductName,LotFG,FGBalance,UOM'),
     _sb.from('customer_orders')
       .select('_row_id,Order_ID,CustomerName,ProductCode,ProductName,OrderQty,UOM,Status')
       .order('_row_id', { ascending: false }),
@@ -10149,6 +10190,10 @@ async function loadFGOutData() {
   _cancelPlaceholder();
   _hideLoader();
   if (outRes.error) { _err('โหลดข้อมูล FG Withdraw ไม่ได้', outRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  outRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
+  stockRes.data.sort((a, b) => (a.ProductName||'').localeCompare(b.ProductName||''));
 
   _fgoutData    = outRes.data  || [];
   _fgoutStockFG = stockRes.data || [];
@@ -15284,15 +15329,18 @@ async function bomLoadData() {
   // ผลลัพธ์ต่อ 1 request ไว้ที่ 1000 แถวเสมอ (ไม่ว่าจะขอ .limit() มากกว่านั้นแค่ไหน) จึงต้องวน .range() ทีละหน้า
   const [bomRows, matRes, coRes] = await Promise.all([
     _bomFetchAllRows(),
-    _sb.from('materials').select('MaterialCode,MaterialName,UOM,TYPE').order('MaterialName'),
+    _fetchAllPaged('materials', 'MaterialCode,MaterialName,UOM,TYPE'),
     // ชื่อลูกค้า distinct จาก customer_orders — ใช้ป้อน datalist ตอนตั้ง "ราคาขายพิเศษสำหรับลูกค้าเจาะจง"
     // กันพิมพ์ชื่อเพี้ยนไม่ตรงกับที่ MO/CO จริงใช้ (ดู _bomResolveSellingPrice ที่เทียบชื่อแบบ trim+lowercase)
-    _sb.from('customer_orders').select('CustomerName'),
+    _fetchAllPaged('customer_orders', 'CustomerName'),
   ]);
 
   _cancelPlaceholder();
   _hideLoader();
   if (bomRows.error) { _err('โหลดข้อมูล BOM ไม่ได้', bomRows.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  if (matRes.data) matRes.data.sort((a, b) => (a.MaterialName||'').localeCompare(b.MaterialName||''));
 
   _bomData      = bomRows.data;
   _bomMaterials = matRes.data || [];
@@ -16017,12 +16065,14 @@ async function prodrecordLoadData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('prodrecord-cards', '<div class="glass-card text-center py-5 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
   const [prRes, pendingRes] = await Promise.all([
-    _sb.from('production_records').select('*').order('_row_id', { ascending: false }),
+    _fetchAllPaged('production_records', '*'),
     _prodrecordFetchPendingMOs(),
   ]);
   _cancelPlaceholder();
   _hideLoader();
   if (prRes.error) { _err('โหลดบันทึกผลิตไม่ได้', prRes.error.message); return; }
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  prRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
   _prodrecordData = prRes.data || [];
 
   _prodrecordMOStatusMap = Object.fromEntries(pendingRes.allMOs.map(m => [m.MO_ID, m.Status]));
@@ -16836,9 +16886,9 @@ async function prodrecordOpenEntryModal(gi) {
     r.MO_Ref ? _sb.from('issue_production').select('MaterialCode,MaterialName,Lot,IssuedQty,UOM').eq('MO_ID', r.MO_Ref) : Promise.resolve({ data: [] }),
     r.MO_Ref ? _sb.from('production_records').select('ProdRecord_ID').eq('MO_Ref', r.MO_Ref).neq('ProdRecord_ID', r.ProdRecord_ID) : Promise.resolve({ data: [] }),
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
-    _sb.from('stock_balance').select('MaterialCode,Lot,UnitCost'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,Lot,UnitCost'),
     _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', r.ProductCode),
-    _sb.from('materials').select('MaterialCode,UOM'),
+    _fetchAllPaged('materials', 'MaterialCode,UOM'),
   ]);
 
   // Bulk = ทุกวัตถุดิบใน BOM ของสินค้านี้ที่ Remark ไม่ใช่ "pac" (ตรงกับวิธีแยก Bulk/Pac ที่หน้า Issue ใช้อยู่
@@ -17373,9 +17423,9 @@ async function prodrecordRecalcAllOverhead() {
   if (!_hasRole('admin')) return;
 
   _showLoader();
-  const { data: rows, error: fetchErr } = await _sb.from('production_records')
-    .select('_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit')
-    .eq('Status', 'อนุมัติแล้ว');
+  const { data: rows, error: fetchErr } = await _fetchAllPagedEq('production_records',
+    '_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit',
+    'Status', 'อนุมัติแล้ว');
   _hideLoader();
   if (fetchErr) { _err('โหลดรายการไม่สำเร็จ', fetchErr.message); return; }
   if (!rows || !rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีบันทึกที่อนุมัติต้นทุนแล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 }); return; }
@@ -17721,10 +17771,12 @@ async function bprLoadData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('bpr-tbody', '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   await _bprPurgeOld();
-  const { data, error } = await _sb.from('production_records').select('*').order('_row_id', { ascending: false });
+  const { data, error } = await _fetchAllPaged('production_records', '*');
   _cancelPlaceholder();
   _hideLoader();
   if (error) { _err('โหลดรายการไม่ได้', error.message); return; }
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  if (data) data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
   _bprData = data || [];
   bprRenderTable();
 }
@@ -18812,10 +18864,10 @@ function _coComputeDisplayStatus(r) {
 // แม้ผู้ใช้ยังไม่เคยเปิดหน้า CO มาก่อนในเซสชันนี้เลย (ตัวแปรเหล่านี้จะยังว่างเปล่าถ้าไม่เรียกก่อนใช้)
 async function _coRefreshMOAndShippedMaps() {
   const [wdRes, moRes, dlvRes, miscRes, stockRes] = await Promise.all([
-    _sb.from('fg_withdraw').select('_row_id,CO_Ref,QtyFG').not('CO_Ref', 'is', null),
-    _sb.from('manufacturing_orders').select('CO_Ref,Status').not('CO_Ref', 'is', null),
-    _sb.from('delivery').select('WD_Ref,Status').not('WD_Ref', 'is', null),
-    _sb.from('issue_misc').select('CO_Ref,IssuedQty').not('CO_Ref', 'is', null),
+    _fetchAllPagedNotNull('fg_withdraw', '_row_id,CO_Ref,QtyFG', 'CO_Ref'),
+    _fetchAllPagedNotNull('manufacturing_orders', 'CO_Ref,Status', 'CO_Ref'),
+    _fetchAllPagedNotNull('delivery', 'WD_Ref,Status', 'WD_Ref'),
+    _fetchAllPagedNotNull('issue_misc', 'CO_Ref,IssuedQty', 'CO_Ref'),
     _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
   ]);
 
@@ -19796,9 +19848,7 @@ function _admindashLast6Months() {
 async function admindashLoadData() {
   _showLoader();
   const [prodRes, bomRes, dlvRes, stockFgRes] = await Promise.all([
-    _sb.from('production_records')
-      .select('ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,ScrapPct,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status')
-      .order('_row_id', { ascending: false }),
+    _fetchAllPaged('production_records', '_row_id,ProdRecord_ID,ProductCode,ProductName,UOM,Lot_FG,FG_Actual,Date_Start,Date_End,MaterialCost,LaborCost,Overhead,TotalCost,CostPerUnit,YieldOverall,ScrapPct,StationsData,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,Status'),
     // bom มีหลักหมื่นแถว (ซ้ำ/ขยะปนอยู่ — ดู SKILL.md) ใช้ _bomFetchPaged วน .range() เอง เพราะ PostgREST
     // cap ที่ 1000 แถว/request เสมอไม่ว่าจะขอ .limit() เท่าไหร่ — SellingPrice2/SellingPrice2_CustomerName
     // เพิ่มมาให้ _admindashDlvPrice() resolve ราคาตามลูกค้าจริงของแต่ละแถว delivery ได้ (ดู _bomResolveSellingPrice)
@@ -19818,6 +19868,9 @@ async function admindashLoadData() {
   if (bomRes.error)     { _err('โหลดราคาขายจาก BOM ไม่ได้', bomRes.error.message); return; }
   if (dlvRes.error)     { _err('โหลดข้อมูลจัดส่งไม่ได้', dlvRes.error.message); return; }
   if (stockFgRes.error) { _err('โหลด Stock FG ไม่ได้', stockFgRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  if (prodRes.data) prodRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
 
   // priceMap: ProductCode → แถว bom ดิบ {SellingPrice, SellingPrice2, SellingPrice2_CustomerName} (ไม่ใช่
   // ตัวเลขราคาเดียวเหมือนก่อนหน้านี้) เก็บทั้งแถวไว้ให้ _admindashDlvPrice()/_bomResolveSellingPrice() เลือก
@@ -20848,8 +20901,8 @@ async function loadIssueData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('issue-tbody', '<tr><td colspan="10" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   const [issueRes, matRes, moRes, bomRes, reqRes] = await Promise.all([
-    _sb.from('issue_production').select('*').order('_row_id', { ascending: false }),
-    _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate').order('MaterialName'),
+    _fetchAllPaged('issue_production', '*'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate'),
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,LOT,OrderQty,UOM,Status').order('_row_id', { ascending: false }),
     _bomFetchPaged('ProductCode,MaterialCode,MaterialName,QtyPerBase,QtyWithScrap,UOM,Remark', [{ col: '_row_id', ascending: true }]),
     _sb.from('issue_edit_requests').select('*').eq('Status', 'รออนุมัติ').order('_row_id', { ascending: true }),
@@ -20859,6 +20912,10 @@ async function loadIssueData() {
   _hideLoader();
   if (issueRes.error) { _err('โหลดข้อมูล Issue ไม่ได้', issueRes.error.message); return; }
   if (matRes.error)   { _err('โหลด Stock ไม่ได้', matRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ (helper รับแค่ table+select) — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  issueRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
+  matRes.data.sort((a, b) => (a.MaterialName||'').localeCompare(b.MaterialName||''));
 
   _issueData      = issueRes.data || [];
   _issueMaterials = matRes.data   || [];
@@ -22116,14 +22173,18 @@ async function loadMiscData() {
   const _cancelPlaceholder = _deferLoadingPlaceholder('misc-tbody', '<tr><td colspan="11" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   const [miscRes, matRes, coRes] = await Promise.all([
-    _sb.from('issue_misc').select('*').order('_row_id', { ascending: false }),
-    _sb.from('stock_balance').select('MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate').order('MaterialName'),
+    _fetchAllPaged('issue_misc', '*'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,MaterialName,Lot,QtyBalance,UOM,ExpDate'),
     _sb.from('customer_orders').select('CustomerName,CustomerAddress').order('_row_id', { ascending: false }),
   ]);
 
   _cancelPlaceholder();
   _hideLoader();
   if (miscRes.error) { _err('โหลดข้อมูล Misc Issue ไม่ได้', miscRes.error.message); return; }
+
+  // .order() ทำผ่าน _fetchAllPaged ไม่ได้ — sort เอาฝั่ง JS แทนให้พฤติกรรมเดิม
+  miscRes.data.sort((a, b) => (b._row_id||0) - (a._row_id||0));
+  matRes.data.sort((a, b) => (a.MaterialName||'').localeCompare(b.MaterialName||''));
 
   _miscData    = miscRes.data || [];
   _miscMatList = matRes.data  || [];
