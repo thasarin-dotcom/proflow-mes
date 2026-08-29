@@ -2878,9 +2878,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           </div>
         </div>
         <div class="col-6 col-md-2">
-          <div class="kpi-card" style="border-color:#94a3b8;cursor:pointer" onclick="purchasereqFilterStatus('ปฏิเสธ')" title="กดเพื่อกรองเฉพาะปฏิเสธ">
-            <div class="kpi-num" style="color:#64748b" id="purchasereq-kpi-rejected">—</div>
-            <div class="kpi-label">ปฏิเสธ</div>
+          <div class="kpi-card" style="border-color:#22c55e">
+            <div class="kpi-num text-success" id="purchasereq-kpi-approved-value">—</div>
+            <div class="kpi-label">มูลค่าที่อนุมัติ (฿)</div>
           </div>
         </div>
         <div class="col-6 col-md-2">
@@ -8556,8 +8556,8 @@ function _purchasereqHalfHTML(pr, copyLabel) {
     <div class="pr-print-section-title">รายการที่ขอซื้อ</div>
     <table class="pr-print-table">
       <thead><tr>
-        <th style="width:5%">ลำดับ</th><th style="width:36%">รายการ</th><th style="width:8%">จำนวน</th>
-        <th style="width:9%">หน่วย</th><th style="width:10%">วันที่</th><th style="width:18%">Supplier</th><th style="width:14%">หมายเหตุ</th>
+        <th style="width:5%">ลำดับ</th><th style="width:40%">รายการ</th><th style="width:8%">จำนวน</th>
+        <th style="width:9%">หน่วย</th><th style="width:10%">วันที่</th><th style="width:14%">Supplier</th><th style="width:14%">หมายเหตุ</th>
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="7" class="text-center" style="color:#94a3b8">ไม่มีรายการ</td></tr>'}${_purchasereqBlankRowsHTML}</tbody>
     </table>
@@ -8636,14 +8636,20 @@ function purchasereqCardHTML(pr) {
     <div class="purchasereq-detail" style="display:${expanded ? 'block' : 'none'}">
       <div class="table-responsive">
         <table class="table table-sm mb-2">
-          <thead><tr><th>รหัส</th><th>รายการ</th><th>ซัพพลายเออร์</th><th class="text-end">คงเหลือตอนขอ</th><th class="text-end">Min</th><th class="text-end">ขอซื้อ</th><th>หน่วย</th></tr></thead>
-          <tbody>${pr.lines.map(l => `<tr>
+          <thead><tr><th>รหัส</th><th>รายการ</th><th>ซัพพลายเออร์</th><th class="text-end">คงเหลือตอนขอ</th><th class="text-end">Min</th><th class="text-end">ขอซื้อ</th><th>หน่วย</th><th class="text-end">ราคา/หน่วย</th><th class="text-end">ราคารวม</th></tr></thead>
+          <tbody>${pr.lines.map(l => {
+            const qty = parseFloat(l.RequestQty) || 0;
+            const unitCost = parseFloat(l.UnitCost) || 0;
+            return `<tr>
             <td>${l.MaterialCode}</td><td>${l.MaterialName || ''}</td><td>${l.Supplier || '—'}</td>
             <td class="text-end">${(parseFloat(l.QtyAtRequest) || 0).toLocaleString()}</td>
             <td class="text-end">${(parseFloat(l.MinStock) || 0).toLocaleString()}</td>
-            <td class="text-end fw-bold">${(parseFloat(l.RequestQty) || 0).toLocaleString()}</td>
+            <td class="text-end fw-bold">${qty.toLocaleString()}</td>
             <td>${l.UOM || ''}</td>
-          </tr>`).join('')}</tbody>
+            <td class="text-end">฿${unitCost.toLocaleString('th-TH',{maximumFractionDigits:2})}</td>
+            <td class="text-end fw-semibold" style="color:#16a34a">฿${(qty*unitCost).toLocaleString('th-TH',{maximumFractionDigits:0})}</td>
+          </tr>`;
+          }).join('')}</tbody>
         </table>
       </div>
       ${pr.Note ? `<div class="text-muted small">หมายเหตุ: ${pr.Note}</div>` : ''}
@@ -8691,14 +8697,16 @@ function purchasereqRenderCards() {
     ? items.map(purchasereqCardHTML).join('')
     : '<div class="glass-card text-center text-muted py-5">ไม่พบข้อมูล</div>';
 
+  const _purchasereqLineValue = (p) => p.lines.reduce((s2, l) => s2 + (parseFloat(l.RequestQty) || 0) * (parseFloat(l.UnitCost) || 0), 0);
+
   document.getElementById('purchasereq-kpi-all').textContent      = _purchasereqData.length.toLocaleString();
   document.getElementById('purchasereq-kpi-pending').textContent  = _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length.toLocaleString();
   document.getElementById('purchasereq-kpi-approved').textContent = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว').length.toLocaleString();
-  document.getElementById('purchasereq-kpi-rejected').textContent = _purchasereqData.filter(p => p.Status === 'ปฏิเสธ').length.toLocaleString();
   document.getElementById('purchasereq-kpi-cancelled').textContent = _purchasereqData.filter(p => p.Status === 'ยกเลิก').length.toLocaleString();
-  const pendVal = _purchasereqData.filter(p => p.Status === 'รออนุมัติ')
-    .reduce((s, p) => s + p.lines.reduce((s2, l) => s2 + (parseFloat(l.RequestQty) || 0) * (parseFloat(l.UnitCost) || 0), 0), 0);
+  const pendVal = _purchasereqData.filter(p => p.Status === 'รออนุมัติ').reduce((s, p) => s + _purchasereqLineValue(p), 0);
   document.getElementById('purchasereq-kpi-value').textContent = '฿' + pendVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
+  const approvedVal = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว').reduce((s, p) => s + _purchasereqLineValue(p), 0);
+  document.getElementById('purchasereq-kpi-approved-value').textContent = '฿' + approvedVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
 }
 
 // badge สีเหลืองที่ sidebar "ใบขอซื้อ" — เห็นเฉพาะ admin เท่านั้น (2026-08-29 ตามคำขอผู้ใช้ — แคบกว่า
@@ -24639,7 +24647,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _prodrecordUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามี MO เสร็จแล้วยังไม่มีบันทึกผลิต (แค่ครั้งเดียวตอน login)
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
           _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
-          purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
+          purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin เพราะมีแค่ admin ที่อนุมัติได้)
         }
       }
     } else {
