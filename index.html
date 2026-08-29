@@ -11556,6 +11556,25 @@ async function planConfirmSubmit(e) {
   const lotNum = parseInt(lotRaw.replace(/\D/g, ''));
   if (!lotRaw || isNaN(lotNum)) { _err('กรุณาระบุ Lot FG', 'Lot FG ต้องเป็นตัวเลข (เช่น 260701)'); return; }
 
+  // กันออกใบบันทึกผลิตซ้ำสำหรับ MO+Lot เดียวกัน (2026-08-27 — พบเคสจริง PROD-2608-021/022 ผูก MO-2608-20/
+  // Lot 260826 เดียวกันทั้งคู่ เกิดจากแผนผลิตถูกยืนยันออกใบซ้ำ 2 รอบ ไม่เคยมีการเช็คมาก่อนว่า MO+Lot นี้มี
+  // บันทึกผลิตที่ยังไม่อนุมัติอยู่แล้วหรือยัง) ไม่บล็อกเด็ดขาด (บาง MO อาจตั้งใจแบ่งหลายบันทึกจริงๆ ต่างแค่ Lot
+  // — ดู _moSyncProdRecordAfterEdit ที่รองรับเคส "MO นี้มีหลายบันทึกผลิต" อยู่แล้ว) แค่เตือนก่อนถ้า MO+Lot
+  // ตรงกันเป๊ะ ให้ผู้ใช้ยืนยันเองว่าตั้งใจออกซ้ำจริงๆ
+  if (r.MO_Ref) {
+    const { data: dupRows } = await _sb.from('production_records')
+      .select('ProdRecord_ID').eq('MO_Ref', r.MO_Ref).eq('Lot_FG', lotNum).neq('Status', 'อนุมัติแล้ว');
+    if (dupRows && dupRows.length) {
+      const proceed = await Swal.fire({
+        title: 'มีบันทึกผลิตของ Lot นี้อยู่แล้ว',
+        html: `MO <b>${r.MO_Ref}</b> Lot FG <b>${lotNum}</b> มีบันทึกผลิต <b>${dupRows.map(d => d.ProdRecord_ID).join(', ')}</b> ที่ยังไม่อนุมัติต้นทุนอยู่แล้ว<br>ต้องการออกใบบันทึกผลิตซ้ำอีกใบจริงหรือไม่?`,
+        icon: 'warning', showCancelButton: true,
+        confirmButtonColor: '#d97706', confirmButtonText: 'ออกใบซ้ำต่อไป', cancelButtonText: 'ยกเลิก',
+      });
+      if (!proceed.isConfirmed) return;
+    }
+  }
+
   const dateEnd = document.getElementById('plan-confirm-dateend').value || r.PlanDate;
 
   const saveBtn = document.getElementById('plan-confirm-save-btn');
@@ -15022,6 +15041,102 @@ function _prodrecordMOIsDone(r) {
   return status === undefined || _moDoneStatuses.includes(status);
 }
 
+// ลบบันทึกผลิตที่ไม่มีข้อมูลจะเสีย ("กำพร้า" MO ถูกลบไปแล้ว, หรือ "ยังไม่เริ่มกรอก" FG_Actual ยังไม่มีค่าเลย)
+// — เดิมมีแค่เคสกำพร้า (2026-08-27 รอบแรก, พบจาก PROD-2608-022/MO-2608-20) แต่ตามไล่ดูจริงกลับพบว่า MO
+// ไม่ได้ถูกลบเลย (แค่แก้ยอดสั่งจาก 6000→3200) และมี "บันทึกผลิตซ้ำ" 2 ใบผูก MO/Lot เดียวกันแทน (PROD-2608-021
+// ยอดใหม่ 3200, PROD-2608-022 ยอดเก่า 6000 ค้างอยู่) ต้นเหตุจริงคือ planConfirmSubmit (ออกใบบันทึกผลิตจาก
+// แผนผลิต) ไม่เคยเช็คมาก่อนว่า MO+Lot นี้มีบันทึกผลิตที่ยังไม่อนุมัติอยู่แล้วหรือยัง (ดู guard ที่เพิ่มในฟังก์ชัน
+// นั้นเอง กันไม่ให้เกิดซ้ำอีก) — ปุ่มลบจึงขยายเงื่อนไขให้ลบได้ทั้ง 2 เคส เพราะทั้งคู่ไม่มีข้อมูลจริงที่เสี่ยงจะหาย:
+// กำพร้า (isOrphan) หรือ FG_Actual ยังเป็น null (ไม่เคยกด "กรอกผลผลิต" เลยด้วยซ้ำ) จำกัดเฉพาะที่ยังไม่อนุมัติ
+// ต้นทุนเสมอ (ต้อง "เปิดกลับ" ก่อนถ้าจะลบใบที่อนุมัติแล้ว กันลบข้อมูลการเงินที่ล็อกไว้ทิ้งไปโดยไม่ตั้งใจ)
+//
+// เปลี่ยนจาก "ลบทันที (supervisor เท่านั้น)" เป็น "ขอลบ → รอ admin อนุมัติ" (2026-08-27 ตามคำขอผู้ใช้ "ปุ่มลบ
+// ให้หน้ากดได้ แต่ต้องรอแอดมินอนุมัติอีกที") — ใครก็กด "ขอลบ" ได้ (ไม่จำกัด role อีกต่อไป) แต่การลบจริงต้อง
+// admin กด "อนุมัติลบ" อีกที เหมือน pattern อนุมัติต้นทุน/อนุมัติการเบิกที่มีอยู่แล้วในแอปนี้ ต้องมีคอลัมน์ใหม่
+// เก็บสถานะคำขอ (ดู alter_production_records_add_delete_request.sql — ต้องรันก่อนใช้ฟีเจอร์นี้)
+async function prodrecordRequestDelete(gi) {
+  const r = _prodrecordLastRows[gi];
+  if (!r) return;
+  if (r.Status === 'อนุมัติแล้ว') return; // กันไว้อีกชั้น แม้ปุ่มจะไม่โผล่ให้กดในเคสนี้อยู่แล้ว
+
+  const isOrphan = !!r.MO_Ref && _prodrecordMOStatusMap[r.MO_Ref] === undefined;
+  const reasonHtml = isOrphan
+    ? `MO อ้างอิง <b>${r.MO_Ref||'—'}</b> ไม่มีอยู่ในระบบแล้ว`
+    : `ยังไม่เคยกรอกผลผลิตของบันทึกนี้เลย (FG_Actual ว่าง)`;
+
+  const res = await Swal.fire({
+    title: 'ขอลบบันทึกผลิตนี้?',
+    html: `<div class="text-start"><b>${r.ProdRecord_ID}</b> — ${r.ProductName||''} · Lot FG ${r.Lot_FG??'—'} · MO ${r.MO_Ref||'—'}<br>
+      ${reasonHtml}<br>
+      <span class="text-muted">คำขอนี้จะรอแอดมินอนุมัติก่อนถึงจะลบจริง</span></div>`,
+    icon: 'question', showCancelButton: true,
+    confirmButtonColor: '#dc2626', confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('production_records').update({
+    DeleteRequested: true,
+    DeleteRequestedBy: _currentUser?.name || _currentUser?.email || null,
+    DeleteRequestedAt: new Date().toISOString().split('T')[0],
+  }).eq('_row_id', r._row_id);
+  _hideLoader();
+
+  if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+
+  _logAudit('REQUEST_DELETE', 'production_records', r.ProdRecord_ID, `${isOrphan ? `MO อ้างอิง ${r.MO_Ref||'—'} ไม่มีอยู่ในระบบแล้ว` : 'ยังไม่เคยกรอกผลผลิต'} — ขอลบบันทึกผลิต รออนุมัติ`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ส่งคำขอลบแล้ว รอแอดมินอนุมัติ', showConfirmButton: false, timer: 2500, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
+// admin เท่านั้น — อนุมัติคำขอลบจริง (ลบ production_record_details ก่อนเสมอเหมือน pattern เดิมของ
+// moDelete/_bprPurgeOld ไม่มี FK cascade ระดับ DB)
+async function prodrecordApproveDeleteRequest(gi) {
+  if (!_hasRole('admin')) return;
+  const r = _prodrecordLastRows[gi];
+  if (!r || !r.DeleteRequested) return;
+
+  const res = await Swal.fire({
+    title: 'อนุมัติลบบันทึกผลิตนี้?',
+    html: `<div class="text-start"><b>${r.ProdRecord_ID}</b> — ${r.ProductName||''}<br>
+      ขอลบโดย <b>${r.DeleteRequestedBy||'—'}</b> เมื่อ ${_fmtDate(r.DeleteRequestedAt)}<br>
+      <span class="text-danger">ลบแล้วกู้คืนไม่ได้ ข้อมูลผลผลิต/วัตถุดิบที่กรอกไว้ (ถ้ามี) จะหายไปด้วย</span></div>`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#dc2626', confirmButtonText: 'อนุมัติ+ลบเลย', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
+  const { error } = await _sb.from('production_records').delete().eq('_row_id', r._row_id);
+  _hideLoader();
+
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+
+  _logAudit('DELETE_ORPHAN', 'production_records', r.ProdRecord_ID, `อนุมัติคำขอลบจาก ${r.DeleteRequestedBy||'—'} — ลบบันทึกผลิตทิ้ง`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบบันทึกสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
+// admin เท่านั้น — ปฏิเสธคำขอลบ (แค่ล้าง flag คืน ไม่ลบข้อมูลจริง)
+async function prodrecordRejectDeleteRequest(gi) {
+  if (!_hasRole('admin')) return;
+  const r = _prodrecordLastRows[gi];
+  if (!r || !r.DeleteRequested) return;
+
+  _showLoader();
+  const { error } = await _sb.from('production_records').update({
+    DeleteRequested: false, DeleteRequestedBy: null, DeleteRequestedAt: null,
+  }).eq('_row_id', r._row_id);
+  _hideLoader();
+
+  if (error) { _err('ปฏิเสธคำขอไม่สำเร็จ', error.message); return; }
+
+  _logAudit('REJECT_DELETE_REQUEST', 'production_records', r.ProdRecord_ID, `ปฏิเสธคำขอลบจาก ${r.DeleteRequestedBy||'—'}`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'ปฏิเสธคำขอลบแล้ว', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
 function prodrecordRenderTable() {
   _prodrecordRenderPending();
   const q = (document.getElementById('prodrecord-search')?.value||'').toLowerCase();
@@ -15040,6 +15155,15 @@ function prodrecordRenderTable() {
     const expanded = _prodrecordExpandedSet.has(r.ProdRecord_ID);
     const approved = r.Status === 'อนุมัติแล้ว';
     const hasActual = r.FG_Actual != null;
+    // MO_Ref มีค่า แต่หา MO นั้นไม่เจอใน _prodrecordMOStatusMap เลย = MO ต้นทางถูกลบไปแล้วจริงๆ (กำพร้า) —
+    // ปกติ moDelete จะลบ production_records ที่ผูกกับ MO นั้นไปด้วยอัตโนมัติอยู่แล้ว (แก้ 2026-08-06) แต่ถ้า
+    // ยังเจอเคสนี้อยู่ (เช่น ลบไปตั้งแต่ก่อนแก้บั๊กนั้น) ไม่มีทางลบออกจากหน้านี้เองมาก่อนเลย เพิ่มปุ่มนี้ให้
+    // 2026-08-27 ตามที่ผู้ใช้รายงาน (PROD-2608-022/MO-2608-20) — ภายหลังพบว่าเคสจริงไม่ใช่ MO ถูกลบ แต่เป็น
+    // บันทึกผลิตซ้ำ 2 ใบจาก planConfirmSubmit (ดู guard ที่เพิ่มในฟังก์ชันนั้น) ปุ่มลบจึงขยายเงื่อนไขให้ครอบคลุม
+    // ทั้ง "กำพร้าจริง" (isOrphan) และ "ยังไม่เคยกรอกผลผลิตเลย" (!hasActual, ปลอดภัยเพราะไม่มีข้อมูลจะเสีย) โดย
+    // ยังคงจำกัดเฉพาะที่ยังไม่อนุมัติต้นทุนเสมอ (ไม่มีข้อมูลการเงินที่ล็อกไว้ต้องกังวล)
+    const isOrphan = !!r.MO_Ref && _prodrecordMOStatusMap[r.MO_Ref] === undefined;
+    const canDelete = !approved && (isOrphan || !hasActual);
     return `<div class="glass-card mb-2">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="cursor:pointer" onclick="prodrecordToggleExpand(${gi})">
         <div>
@@ -15047,6 +15171,8 @@ function prodrecordRenderTable() {
           <b>${r.ProductName||'—'}</b>
           <span class="badge bg-light text-dark border ms-2">Lot FG: ${r.Lot_FG ?? '—'}</span>
           <span class="text-muted ms-2 small">MO: ${r.MO_Ref||'—'}</span>${_prodrecordStatusBadge(r.Status)}
+          ${isOrphan ? `<span class="badge bg-danger ms-2" title="MO นี้ถูกลบไปจากระบบแล้ว บันทึกผลิตนี้ค้างเป็นข้อมูลกำพร้า"><i class="fas fa-triangle-exclamation me-1"></i>MO ถูกลบแล้ว</span>` : ''}
+          ${r.DeleteRequested ? `<span class="badge bg-secondary ms-2" title="ขอลบโดย ${r.DeleteRequestedBy||'—'} เมื่อ ${_fmtDate(r.DeleteRequestedAt)} — รอแอดมินอนุมัติ"><i class="fas fa-hourglass-half me-1"></i>รออนุมัติการลบ</span>` : ''}
         </div>
         <div class="d-flex gap-1 align-items-center flex-wrap" onclick="event.stopPropagation()">
           <span class="text-muted small me-2">แผน ${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}${hasActual ? ` · จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()}` : ''}</span>
@@ -15056,6 +15182,9 @@ function prodrecordRenderTable() {
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})" title="พิมพ์รายงานต้นทุน"><i class="fas fa-print me-1"></i>พิมพ์ต้นทุน</button>
             ${_hasRole('admin') ? `<button class="btn btn-sm btn-outline-info" onclick="prodrecordOpenApproveModal(${gi}, true)" title="ดูต้นทุนที่อนุมัติ"><i class="fas fa-eye me-1"></i>ดูต้นทุน</button>` : ''}
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}` : ''}
+          ${canDelete && !r.DeleteRequested ? `<button class="btn btn-sm btn-outline-danger" onclick="prodrecordRequestDelete(${gi})" title="${isOrphan ? 'ขอลบบันทึกผลิตกำพร้านี้ (MO ต้นทางถูกลบไปแล้ว) — รอแอดมินอนุมัติ' : 'ขอลบบันทึกนี้ (ยังไม่เคยกรอกผลผลิตเลย) — รอแอดมินอนุมัติ'}"><i class="fas fa-trash me-1"></i>ขอลบ</button>` : ''}
+          ${canDelete && r.DeleteRequested && _hasRole('admin') ? `<button class="btn btn-sm btn-danger" onclick="prodrecordApproveDeleteRequest(${gi})" title="อนุมัติคำขอลบ — ลบบันทึกนี้ทิ้งจริง"><i class="fas fa-trash me-1"></i>อนุมัติลบ</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="prodrecordRejectDeleteRequest(${gi})" title="ปฏิเสธคำขอลบ"><i class="fas fa-ban me-1"></i>ปฏิเสธ</button>` : ''}
         </div>
       </div>
       ${!expanded ? '' : _prodrecordRenderExpanded(r)}
@@ -17741,6 +17870,7 @@ function coRenderTable() {
           <span class="badge bg-light text-dark border ms-2">${r.ProductCode||'—'}</span>
           ${isBulk ? `<span class="badge bg-warning text-dark ms-2" title="สินค้า Bulk (ยังไม่บรรจุ)"><i class="fas fa-flask me-1"></i>Bulk</span>` : ''}
           ${(!isBulk && needProduce > 0) ? `<span class="badge bg-danger ms-2" title="ต้องผลิตเพิ่ม"><i class="fas fa-industry me-1"></i>ต้องผลิต ${needProduce.toLocaleString()}</span>` : ''}
+          ${fgStock > 0 ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2" title="${isBulk ? 'วัตถุดิบ Bulk คงเหลือในคลัง' : 'FG คงเหลือในคลัง'}"><i class="fas fa-box me-1"></i>มีในสต็อก ${fgStock.toLocaleString()}</span>` : ''}
         </div>
         <div class="d-flex align-items-center gap-2">
           <small class="text-muted">${_fmtDate(r.DueDate)||''}</small>
