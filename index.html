@@ -1540,6 +1540,9 @@ body.role-operator [onclick*="moForceClose("],
 body.role-operator [onclick*="moCancelPlan("],
 body.role-operator [onclick*="deliveryCancel("],
 body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !important; }
+/* หน้าสต็อก Defect/Retain มีปุ่มต่อแถวเยอะ (สูงสุด 6 ปุ่มตอนมีคำขอเปลี่ยนประเภทค้าง) — ย่อขนาดเฉพาะปุ่ม
+   กลุ่มนี้ ไม่กระทบ .btn-sm ที่ใช้ทั่วทั้งแอป */
+.holdstock-action-btn { padding: .15rem .38rem; font-size: .72rem; line-height: 1.2; }
 </style>
 </head>
 <body>
@@ -4256,7 +4259,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         </div>
         <div class="col-6 col-md-3">
           <div class="kpi-card" style="border-color:#3b82f6">
-            <div class="kpi-num text-primary" id="holdstock-kpi-value">—</div><div class="kpi-label">มูลค่ารวม (฿, เฉพาะ Bulk/Pac)</div>
+            <div class="kpi-num text-primary" id="holdstock-kpi-value">—</div><div class="kpi-label">มูลค่ารวม (฿)</div>
           </div>
         </div>
         <div class="col-6 col-md-3" id="holdstock-kpi-duebox" style="display:none">
@@ -4279,7 +4282,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-xs">หน่วย</th>
                 <th class="text-end wh-col-sm">มูลค่า (฿)</th><th class="wh-col-xs">อายุ (วัน)</th>
                 <th class="wh-col-sm" id="holdstock-th-due">วันครบกำหนด</th>
-                <th class="text-center" style="width:230px">การดำเนินการ</th>
+                <th class="text-center" style="width:190px">การดำเนินการ</th>
               </tr>
             </thead>
             <tbody id="holdstock-tbody">
@@ -23651,11 +23654,20 @@ let _holdstockHistoryMoves = [];
 let _holdstockHistoryRowKey = null;
 
 const _HOLDSTOCK_MOVE_LABELS = { IN: 'ย้ายเข้า', SCRAP: 'ทิ้ง/Scrap', REWORK: 'Rework', DISPOSE: 'ทิ้ง (Retain)' };
+let _holdstockFgCostByLot = {};   // `${ProductCode}|${Lot_FG}` → CostPerUnit จาก production_records ที่อนุมัติแล้ว
+                                    // (โครงเดียวกับ costByLot ของหน้าแดชบอร์ดต้นทุน&กำไร — ดู _admindashLotKey)
 
 async function holdstockLoadData() {
-  const { data, error } = await _fetchAllPaged('hold_stock', '*');
-  if (error) { _err('โหลดสต็อก Defect/Retain ไม่ได้', error.message); return; }
-  _holdstockData = data || [];
+  const [hsRes, prodRes] = await Promise.all([
+    _fetchAllPaged('hold_stock', '*'),
+    _fetchAllPagedEq('production_records', 'ProductCode,Lot_FG,CostPerUnit', 'Status', 'อนุมัติแล้ว'),
+  ]);
+  if (hsRes.error) { _err('โหลดสต็อก Defect/Retain ไม่ได้', hsRes.error.message); return; }
+  _holdstockData = hsRes.data || [];
+  _holdstockFgCostByLot = {};
+  (prodRes.data || []).forEach(r => {
+    if (r.CostPerUnit != null) _holdstockFgCostByLot[`${r.ProductCode}|${r.Lot_FG}`] = parseFloat(r.CostPerUnit) || 0;
+  });
   holdstockRenderTable();
 }
 
@@ -23679,34 +23691,48 @@ function _holdstockDueBadge(dueDateStr) {
   return `${_fmtDate(dueDateStr)} <span class="badge ${cls} ms-1">${label}</span>`;
 }
 
+// มูลค่าต่อแถว — Bulk/Pac ใช้ UnitCost ที่ก็อปแช่แข็งไว้ตอนย้ายเข้า (มีอยู่แล้วใน stock_balance),
+// FG ไม่มีต้นทุนเก็บในตัวเองเลย (stock_fg ไม่มีคอลัมน์นี้ทั้งแอป) เลยไปดึงสดจาก production_records.CostPerUnit
+// ของ Lot นั้น (เฉพาะ Status='อนุมัติแล้ว') — โครงเดียวกับที่แดชบอร์ดต้นทุน&กำไรใช้ (_admindashLotKey/costByLot)
+function _holdstockRowValue(r) {
+  if (r.ItemType === 'FG') {
+    const cost = _holdstockFgCostByLot[`${r.ItemCode}|${r.Lot}`];
+    return cost != null ? (parseFloat(r.QtyBalance) || 0) * cost : null;
+  }
+  return r.UnitCost != null ? (parseFloat(r.StockValue) || 0) : null;
+}
+
 function _holdstockRenderRow(r) {
   const typeBadge = { FG: 'bg-primary', BULK: 'bg-info', PAC: 'bg-success' };
-  const value = r.UnitCost != null ? (parseFloat(r.StockValue) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
+  const rowValue = _holdstockRowValue(r);
+  const value = rowValue != null ? rowValue.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
   const dueCell = r.HoldType === 'RETAIN' ? _holdstockDueBadge(r.RetainDueDate) : '—';
-  const nameCell = r.PendingHoldType
-    ? `${r.ItemName || ''}<br><span class="badge bg-secondary" title="${(r.PendingReason || '').replace(/"/g, '&quot;')}">รออนุมัติ → ${r.PendingHoldType === 'RETAIN' ? 'Retain' : 'Defect'}</span>`
-    : (r.ItemName || '');
+  let nameCell = r.ItemName || '';
+  if (r.Remark) nameCell += `<br><small class="text-muted"><i class="fas fa-note-sticky me-1"></i>${r.Remark}</small>`;
+  if (r.PendingHoldType) {
+    nameCell += `<br><span class="badge bg-secondary" title="${(r.PendingReason || '').replace(/"/g, '&quot;')}">รออนุมัติ → ${r.PendingHoldType === 'RETAIN' ? 'Retain' : 'Defect'}</span>`;
+  }
 
   let actions = `<div class="d-flex flex-wrap gap-1 justify-content-center">`;
-  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockViewSource(${r._row_id})" title="ดูที่มา"><i class="fas fa-magnifying-glass"></i></button>`;
-  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockOpenHistoryModal(${r._row_id})" title="ดูรายการเคลื่อนไหว"><i class="fas fa-clock-rotate-left"></i></button>`;
+  actions += `<button class="btn btn-sm btn-outline-secondary holdstock-action-btn" onclick="holdstockViewSource(${r._row_id})" title="ดูที่มา"><i class="fas fa-magnifying-glass"></i></button>`;
+  actions += `<button class="btn btn-sm btn-outline-secondary holdstock-action-btn" onclick="holdstockOpenHistoryModal(${r._row_id})" title="ดูรายการเคลื่อนไหว"><i class="fas fa-clock-rotate-left"></i></button>`;
 
   if (r.PendingHoldType) {
     // มีคำขอเปลี่ยนประเภทค้างรออยู่ — แสดงปุ่มยกเลิกคำขอ (ทุก role) + อนุมัติ/ปฏิเสธ (เฉพาะ admin)
-    actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockCancelReclassify(${r._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-ban"></i></button>`;
+    actions += `<button class="btn btn-sm btn-outline-secondary holdstock-action-btn" onclick="holdstockCancelReclassify(${r._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-ban"></i></button>`;
     if (_hasRole('admin')) {
-      actions += `<button class="btn btn-sm btn-outline-success" onclick="holdstockApproveReclassify(${r._row_id})" title="อนุมัติเปลี่ยนประเภท"><i class="fas fa-check"></i></button>`;
-      actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockRejectReclassify(${r._row_id})" title="ปฏิเสธคำขอ"><i class="fas fa-times"></i></button>`;
+      actions += `<button class="btn btn-sm btn-outline-success holdstock-action-btn" onclick="holdstockApproveReclassify(${r._row_id})" title="อนุมัติเปลี่ยนประเภท"><i class="fas fa-check"></i></button>`;
+      actions += `<button class="btn btn-sm btn-outline-danger holdstock-action-btn" onclick="holdstockRejectReclassify(${r._row_id})" title="ปฏิเสธคำขอ"><i class="fas fa-times"></i></button>`;
     }
   } else {
-    actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockRequestReclassify(${r._row_id})" title="แก้ไข (ขอเปลี่ยนประเภท Defect/Retain — ต้องรอ Admin อนุมัติ)"><i class="fas fa-pen"></i></button>`;
+    actions += `<button class="btn btn-sm btn-outline-secondary holdstock-action-btn" onclick="holdstockRequestReclassify(${r._row_id})" title="แก้ไข (ขอเปลี่ยนประเภท Defect/Retain — ต้องรอ Admin อนุมัติ)"><i class="fas fa-pen"></i></button>`;
   }
 
   if (r.HoldType === 'DEFECT') {
-    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'SCRAP')" title="ทิ้ง/Scrap"><i class="fas fa-trash"></i></button>`;
-    actions += `<button class="btn btn-sm btn-outline-success" onclick="holdstockOpenActionModal(${r._row_id},'REWORK')" title="Rework/คืนสต็อกดี"><i class="fas fa-rotate-left"></i></button>`;
+    actions += `<button class="btn btn-sm btn-outline-danger holdstock-action-btn" onclick="holdstockOpenActionModal(${r._row_id},'SCRAP')" title="ทิ้ง/Scrap"><i class="fas fa-trash"></i></button>`;
+    actions += `<button class="btn btn-sm btn-outline-success holdstock-action-btn" onclick="holdstockOpenActionModal(${r._row_id},'REWORK')" title="Rework/คืนสต็อกดี"><i class="fas fa-rotate-left"></i></button>`;
   } else {
-    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'DISPOSE')" title="ทิ้งเมื่อครบกำหนด"><i class="fas fa-trash"></i></button>`;
+    actions += `<button class="btn btn-sm btn-outline-danger holdstock-action-btn" onclick="holdstockOpenActionModal(${r._row_id},'DISPOSE')" title="ทิ้งเมื่อครบกำหนด"><i class="fas fa-trash"></i></button>`;
   }
   actions += `</div>`;
 
@@ -23722,7 +23748,7 @@ function _holdstockRenderRow(r) {
 
 function _holdstockRenderKPIs(rows) {
   document.getElementById('holdstock-kpi-lots').textContent = rows.length.toLocaleString();
-  const totalValue = rows.filter(r => r.UnitCost != null).reduce((s, r) => s + (parseFloat(r.StockValue) || 0), 0);
+  const totalValue = rows.reduce((s, r) => s + (_holdstockRowValue(r) || 0), 0);
   document.getElementById('holdstock-kpi-value').textContent = totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const isRetain = _holdstockMode === 'RETAIN';
   document.getElementById('holdstock-kpi-duebox').style.display = isRetain ? '' : 'none';
