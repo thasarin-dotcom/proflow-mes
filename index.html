@@ -158,6 +158,25 @@ body.wh-desktop-mode .planweek-day-card { min-width: 90px; padding: .55rem .4rem
   display: none; justify-content: center; align-items: center;
   z-index: 9999; color: white; flex-direction: column;
 }
+/* Realtime update flash — กระพริบขอบจอเบาๆ ให้รู้ว่ามีข้อมูลอัปเดตจากเครื่อง/คนอื่นแบบเรียลไทม์ (ดู
+   _realtimeFlashPage/_realtimeRunRefresh) ทุกหน้าใช้ overlay เดียวกันนี้ ไม่ต้องแก้ทีละหน้า — คลิกทะลุผ่านได้
+   เสมอ (pointer-events:none) จะได้ไม่บังการใช้งานระหว่างกระพริบ */
+#realtime-flash-overlay {
+  position: fixed; inset: 0; z-index: 20000; pointer-events: none;
+  box-shadow: inset 0 0 0 5px rgba(37,99,235,0); opacity: 0;
+}
+#realtime-flash-overlay.flash { animation: realtimeFlashAnim .9s ease-out; }
+@keyframes realtimeFlashAnim {
+  0%   { box-shadow: inset 0 0 0 5px rgba(37,99,235,.55); opacity: 1; }
+  100% { box-shadow: inset 0 0 0 5px rgba(37,99,235,0); opacity: 0; }
+}
+/* ไฮไลท์เฉพาะการ์ด/แถวที่เพิ่งเปลี่ยนจริงจาก realtime — นำร่องเฉพาะหน้าที่มี data-rt-key ผูกไว้ (ดู
+   _realtimeHighlightRows) ต่างจาก #realtime-flash-overlay ที่กระพริบทั้งจอแบบไม่รู้ว่าแถวไหนเปลี่ยน */
+.rt-row-flash { animation: rtRowFlashAnim 1.6s ease-out; }
+@keyframes rtRowFlashAnim {
+  0%   { background-color: rgba(37,99,235,.16); box-shadow: 0 0 0 2px rgba(37,99,235,.5); }
+  100% { background-color: rgba(37,99,235,0);   box-shadow: 0 0 0 2px rgba(37,99,235,0); }
+}
 /* Login gate — full-screen overlay ก่อนเข้าใช้แอป (เหมือน #loadingOverlay แต่ z-index สูงกว่า #topLoader
    เพราะต้องบังทุกอย่างจนกว่าจะ login สำเร็จ) */
 #loginGate {
@@ -4260,7 +4279,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-xs">หน่วย</th>
                 <th class="text-end wh-col-sm">มูลค่า (฿)</th><th class="wh-col-xs">อายุ (วัน)</th>
                 <th class="wh-col-sm" id="holdstock-th-due">วันครบกำหนด</th>
-                <th class="text-center" style="width:170px">การดำเนินการ</th>
+                <th class="text-center" style="width:230px">การดำเนินการ</th>
               </tr>
             </thead>
             <tbody id="holdstock-tbody">
@@ -5578,6 +5597,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   <div class="spinner-border text-light mb-2" style="width:2.5rem;height:2.5rem"></div>
   <div id="loadingText">กำลังโหลด...</div>
 </div>
+
+<!-- Realtime update flash — ดู _realtimeFlashPage() -->
+<div id="realtime-flash-overlay"></div>
 
 <!-- Public Report View — โหมดพิเศษเมื่อ URL มี ?report=TOKEN ข้าม login gate ทั้งหมด ดูฟังก์ชัน
      _renderPublicReport ท้ายไฟล์ (เรียกจาก DOMContentLoaded ก่อนเช็ค session ใดๆ) -->
@@ -7534,7 +7556,7 @@ function renderStockCards() {
 
     const isPicked = g.code && _stockPicked.has(g.code);
     return `
-    <div class="glass-card mb-2 p-0 overflow-hidden${isPicked ? ' stock-card-picked' : ''}">
+    <div class="glass-card mb-2 p-0 overflow-hidden${isPicked ? ' stock-card-picked' : ''}" data-rt-key="${(g.code||'').replace(/"/g,'&quot;')}">
       <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
            onclick="stockToggleLots(this)">
         ${g.code ? `<input type="checkbox" class="stock-chk" ${isPicked?'checked':''}
@@ -7875,7 +7897,7 @@ function renderFGStockTable() {
       }).join('');
 
     return `
-    <div class="glass-card mb-2 p-0 overflow-hidden">
+    <div class="glass-card mb-2 p-0 overflow-hidden" data-rt-key="${(g.code||'').replace(/"/g,'&quot;')}">
       <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .75rem;cursor:pointer;user-select:none"
            onclick="stockToggleLots(this)">
         <span class="badge bg-secondary">${g.code||'—'}</span>
@@ -8321,7 +8343,7 @@ function renderMOTable() {
     const matCheck = isWait ? _moComputeMaterialCheck(r) : null;
     const expanded = _moExpandedSet.has(r.MO_ID);
 
-    return `<div class="glass-card mb-2 p-0 overflow-hidden">
+    return `<div class="glass-card mb-2 p-0 overflow-hidden" data-rt-key="${(r.MO_ID||'').replace(/"/g,'&quot;')}">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="moToggleExpand(${idx})">
         <div>
           <span class="badge bg-secondary me-2">${r.MO_ID||'—'}</span>
@@ -16774,7 +16796,7 @@ function prodrecordRenderTable() {
     // ยังคงจำกัดเฉพาะที่ยังไม่อนุมัติต้นทุนเสมอ (ไม่มีข้อมูลการเงินที่ล็อกไว้ต้องกังวล)
     const isOrphan = !!r.MO_Ref && _prodrecordMOStatusMap[r.MO_Ref] === undefined;
     const canDelete = !approved && (isOrphan || !hasActual);
-    return `<div class="glass-card mb-2">
+    return `<div class="glass-card mb-2" data-rt-key="${(r.ProdRecord_ID||'').replace(/"/g,'&quot;')}">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="cursor:pointer" onclick="prodrecordToggleExpand(${gi})">
         <div>
           <span class="badge bg-primary me-2">${r.ProdRecord_ID||'—'}</span>
@@ -19529,7 +19551,7 @@ function coRenderTable() {
     const expanded = _coExpandedSet.has(r.Order_ID);
     const justCompleted = _coRecentlyCompleted(r);
 
-    return `<div class="glass-card mb-2 p-0 overflow-hidden${justCompleted ? ' border-success border-2' : ''}">
+    return `<div class="glass-card mb-2 p-0 overflow-hidden${justCompleted ? ' border-success border-2' : ''}" data-rt-key="${(r.Order_ID||'').replace(/"/g,'&quot;')}">
       ${!justCompleted ? '' : `<div class="px-3 py-1 small text-success fw-bold" style="background:#f0fdf4">
         <i class="fas fa-check-circle me-1"></i>ส่งสำเร็จเมื่อ ${_fmtDateTime(r.CompletedAt)}
         <span class="text-muted fw-normal">(การ์ดนี้จะซ่อนอัตโนมัติหลังผ่านไป ${_coCompletedVisibleHours} ชม.)</span>
@@ -23661,17 +23683,36 @@ function _holdstockRenderRow(r) {
   const typeBadge = { FG: 'bg-primary', BULK: 'bg-info', PAC: 'bg-success' };
   const value = r.UnitCost != null ? (parseFloat(r.StockValue) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
   const dueCell = r.HoldType === 'RETAIN' ? _holdstockDueBadge(r.RetainDueDate) : '—';
-  let actions = `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockViewSource(${r._row_id})" title="ดูที่มา"><i class="fas fa-magnifying-glass"></i></button> `;
-  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockOpenHistoryModal(${r._row_id})" title="ดูรายการเคลื่อนไหว"><i class="fas fa-clock-rotate-left"></i></button> `;
+  const nameCell = r.PendingHoldType
+    ? `${r.ItemName || ''}<br><span class="badge bg-secondary" title="${(r.PendingReason || '').replace(/"/g, '&quot;')}">รออนุมัติ → ${r.PendingHoldType === 'RETAIN' ? 'Retain' : 'Defect'}</span>`
+    : (r.ItemName || '');
+
+  let actions = `<div class="d-flex flex-wrap gap-1 justify-content-center">`;
+  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockViewSource(${r._row_id})" title="ดูที่มา"><i class="fas fa-magnifying-glass"></i></button>`;
+  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockOpenHistoryModal(${r._row_id})" title="ดูรายการเคลื่อนไหว"><i class="fas fa-clock-rotate-left"></i></button>`;
+
+  if (r.PendingHoldType) {
+    // มีคำขอเปลี่ยนประเภทค้างรออยู่ — แสดงปุ่มยกเลิกคำขอ (ทุก role) + อนุมัติ/ปฏิเสธ (เฉพาะ admin)
+    actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockCancelReclassify(${r._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-ban"></i></button>`;
+    if (_hasRole('admin')) {
+      actions += `<button class="btn btn-sm btn-outline-success" onclick="holdstockApproveReclassify(${r._row_id})" title="อนุมัติเปลี่ยนประเภท"><i class="fas fa-check"></i></button>`;
+      actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockRejectReclassify(${r._row_id})" title="ปฏิเสธคำขอ"><i class="fas fa-times"></i></button>`;
+    }
+  } else {
+    actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockRequestReclassify(${r._row_id})" title="แก้ไข (ขอเปลี่ยนประเภท Defect/Retain — ต้องรอ Admin อนุมัติ)"><i class="fas fa-pen"></i></button>`;
+  }
+
   if (r.HoldType === 'DEFECT') {
-    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'SCRAP')" title="ทิ้ง/Scrap"><i class="fas fa-trash"></i></button> `;
+    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'SCRAP')" title="ทิ้ง/Scrap"><i class="fas fa-trash"></i></button>`;
     actions += `<button class="btn btn-sm btn-outline-success" onclick="holdstockOpenActionModal(${r._row_id},'REWORK')" title="Rework/คืนสต็อกดี"><i class="fas fa-rotate-left"></i></button>`;
   } else {
     actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'DISPOSE')" title="ทิ้งเมื่อครบกำหนด"><i class="fas fa-trash"></i></button>`;
   }
+  actions += `</div>`;
+
   return `<tr>
     <td><span class="badge ${typeBadge[r.ItemType] || 'bg-secondary'}">${r.ItemType}</span></td>
-    <td>${r.ItemCode || ''}</td><td>${r.ItemName || ''}</td><td>${r.Lot || ''}</td>
+    <td>${r.ItemCode || ''}</td><td>${nameCell}</td><td>${r.Lot || ''}</td>
     <td class="text-end">${(parseFloat(r.QtyBalance) || 0).toLocaleString()}</td><td>${r.UOM || ''}</td>
     <td class="text-end">${value}</td><td>${_holdstockAgeDays(r)}</td>
     <td>${dueCell}</td>
@@ -23936,25 +23977,32 @@ async function _holdstockUpsertIn(holdType, itemType, itemCode, itemName, lot, u
   return inserted?._row_id || null;
 }
 
-async function _holdstockAdjustBalance(holdRowId, qty, isAdd) {
+// mode ต้องแยกจากทิศทาง QtyBalance เพราะ QtyIn/QtyOut เป็นยอดสะสมเชิงบัญชี (เหมือน stock_balance) ต้องขยับ
+// "ตัวที่ถูกต้องจริง" เท่านั้น ไม่งั้นยอดสะสมจะเพี้ยนแม้ QtyBalance จะบวก/ลบถูกทิศก็ตาม (บั๊กจริงที่เจอตอน
+// ทดสอบ 2026-08-31 — ตอนย้อน SCRAP กลับเคยไปบวก QtyIn แทนที่จะลด QtyOut):
+//   'OUT'      — ย้ายออกจากบ่อจริง (Scrap/Rework/Dispose เดินหน้า): QtyOut+=qty, QtyBalance-=qty
+//   'UNDO_OUT' — ย้อน Scrap/Rework/Dispose ที่เคยทำไปกลับ: QtyOut-=qty, QtyBalance+=qty
+//   'UNDO_IN'  — ย้อนรายการย้ายเข้า (MoveType='IN') ที่เคยทำไปกลับ: QtyIn-=qty, QtyBalance-=qty
+// ส่วน "ย้ายเข้าจริง" (เดินหน้า MoveType='IN') ใช้ _holdstockUpsertIn() ต่างหาก ไม่ผ่านฟังก์ชันนี้
+async function _holdstockAdjustBalance(holdRowId, qty, mode) {
   if (!holdRowId) return;
   const { data: existing } = await _sb.from('hold_stock').select('QtyIn,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue').eq('_row_id', holdRowId).maybeSingle();
   if (!existing) return;
   const cost = parseFloat(existing.UnitCost) || 0;
   const deltaCost = qty * cost;
-  const payload = isAdd
-    ? {
-        QtyIn: (parseFloat(existing.QtyIn) || 0) + qty,
-        QtyBalance: (parseFloat(existing.QtyBalance) || 0) + qty,
-        TotalCost: (parseFloat(existing.TotalCost) || 0) + deltaCost,
-        StockValue: (parseFloat(existing.StockValue) || 0) + deltaCost,
-      }
-    : {
-        QtyOut: (parseFloat(existing.QtyOut) || 0) + qty,
-        QtyBalance: Math.max(0, (parseFloat(existing.QtyBalance) || 0) - qty),
-        TotalCost: (parseFloat(existing.TotalCost) || 0) - deltaCost,
-        StockValue: (parseFloat(existing.StockValue) || 0) - deltaCost,
-      };
+  const qtyIn = parseFloat(existing.QtyIn) || 0;
+  const qtyOut = parseFloat(existing.QtyOut) || 0;
+  const qtyBal = parseFloat(existing.QtyBalance) || 0;
+  const totalCost = parseFloat(existing.TotalCost) || 0;
+  const stockValue = parseFloat(existing.StockValue) || 0;
+  let payload;
+  if (mode === 'OUT') {
+    payload = { QtyOut: qtyOut + qty, QtyBalance: Math.max(0, qtyBal - qty), TotalCost: totalCost - deltaCost, StockValue: stockValue - deltaCost };
+  } else if (mode === 'UNDO_OUT') {
+    payload = { QtyOut: Math.max(0, qtyOut - qty), QtyBalance: qtyBal + qty, TotalCost: totalCost + deltaCost, StockValue: stockValue + deltaCost };
+  } else { // 'UNDO_IN'
+    payload = { QtyIn: Math.max(0, qtyIn - qty), QtyBalance: Math.max(0, qtyBal - qty), TotalCost: totalCost - deltaCost, StockValue: stockValue - deltaCost };
+  }
   payload.UpdatedAt = new Date().toISOString();
   await _sb.from('hold_stock').update(payload).eq('_row_id', holdRowId);
 }
@@ -23968,7 +24016,7 @@ async function _holdstockLogMove(payload) {
 // ต่างกันแค่ MoveType ที่บันทึก ตาม wrapper ที่เช็ค HoldType ก่อนเรียกเสมอ (กันเผลอ Scrap แถว Retain หรือกลับกัน)
 async function _holdstockRemoveFromHold(row, qty, moveType, reason) {
   if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
-  await _holdstockAdjustBalance(row._row_id, qty, false);
+  await _holdstockAdjustBalance(row._row_id, qty, 'OUT');
   await _holdstockLogMove({
     MoveDate: new Date().toISOString().split('T')[0], HoldType: row.HoldType, ItemType: row.ItemType,
     ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: moveType,
@@ -23998,7 +24046,7 @@ async function holdstockRework(rowId, qty, reason) {
   const row = _holdstockData.find(d => d._row_id === rowId);
   if (!row || row.HoldType !== 'DEFECT') return false;
   if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
-  await _holdstockAdjustBalance(row._row_id, qty, false);
+  await _holdstockAdjustBalance(row._row_id, qty, 'OUT');
   if (row.ItemType === 'FG') await fgUpdateStock(row.ItemCode, row.ItemName, row.Lot, qty, row.UOM, null, null, true);
   else await _miscReverseStock(row.ItemCode, row.Lot, qty);
   await _holdstockLogMove({
@@ -24009,6 +24057,99 @@ async function holdstockRework(rowId, qty, reason) {
   });
   _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `Rework คืนสต็อกดี จำนวน ${qty} — ${reason}`);
   return true;
+}
+
+// ── "แก้ไข" แถวยอดรวม = ขอเปลี่ยนประเภท Defect ↔ Retain — ต้องรอ Admin อนุมัติก่อนถึงมีผลจริง (ตามคำขอ
+// ผู้ใช้ 2026-08-30 หลังทดสอบใช้งานจริง) เก็บเป็นคอลัมน์ Pending* บน hold_stock เอง (คำขอค้างได้ทีละ 1
+// รายการต่อแถว ไม่มีประวัติคำขอซ้อนกันต้องเก็บ) ดู alter_hold_stock_add_pending_reclassify.sql
+function holdstockRequestReclassify(rowId) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row) return;
+  const targetType = row.HoldType === 'DEFECT' ? 'RETAIN' : 'DEFECT';
+  const targetLabel = targetType === 'RETAIN' ? 'Retain (ตัวอย่างกัก)' : 'Defect (ของเสีย)';
+  Swal.fire({
+    title: `ขอเปลี่ยนประเภทเป็น ${targetLabel}?`,
+    html: `<div class="text-start">${row.ItemCode} — ${row.ItemName || ''} · Lot ${row.Lot}<br>
+      <small class="text-muted">คำขอนี้ต้องรอ Admin อนุมัติก่อน จึงจะเปลี่ยนประเภทจริง</small></div>`,
+    icon: 'question', input: 'textarea',
+    inputLabel: 'เหตุผลที่ขอเปลี่ยน (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ส่งคำขอ', cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  }).then(async (res) => {
+    if (!res.isConfirmed) return;
+    _showLoader();
+    const { error } = await _sb.from('hold_stock').update({
+      PendingHoldType: targetType, PendingReason: res.value.trim(),
+      PendingRequestedBy: _currentUser?.email || null, PendingRequestedAt: new Date().toISOString(),
+    }).eq('_row_id', rowId);
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+    _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ขอเปลี่ยนประเภทเป็น ${targetType} — ${res.value.trim()}`);
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ส่งคำขอแล้ว รอ Admin อนุมัติ', showConfirmButton: false, timer: 2000 });
+    holdstockLoadData();
+  });
+}
+
+async function holdstockCancelReclassify(rowId) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row) return;
+  const conf = await Swal.fire({ title: 'ยกเลิกคำขอเปลี่ยนประเภทนี้?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกคำขอ', cancelButtonText: 'ปิด' });
+  if (!conf.isConfirmed) return;
+  _showLoader();
+  const { error } = await _sb.from('hold_stock').update({ PendingHoldType: null, PendingReason: null, PendingRequestedBy: null, PendingRequestedAt: null }).eq('_row_id', rowId);
+  _hideLoader();
+  if (error) { _err('ยกเลิกคำขอไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, 'ยกเลิกคำขอเปลี่ยนประเภท');
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ยกเลิกคำขอแล้ว', showConfirmButton: false, timer: 2000 });
+  holdstockLoadData();
+}
+
+// อนุมัติ/ปฏิเสธ — ปุ่มโชว์เฉพาะ _hasRole('admin') ใน _holdstockRenderRow() เอง (ข้อจำกัดเดียวกับปุ่มอนุมัติ/
+// ปฏิเสธใบขอซื้อใน nav-purchasereq — ไม่ผูก RLS เพิ่ม)
+async function holdstockApproveReclassify(rowId) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row || !row.PendingHoldType) return;
+  const target = row.PendingHoldType;
+  const conf = await Swal.fire({ title: `อนุมัติเปลี่ยนเป็น ${target === 'RETAIN' ? 'Retain' : 'Defect'}?`, icon: 'question', showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก' });
+  if (!conf.isConfirmed) return;
+
+  // กันชนแถวปลายทางที่มีอยู่แล้ว (เช่น Lot เดียวกันถูกแยกเป็น Defect บางส่วน + Retain บางส่วนไปแล้วก่อนหน้า)
+  const { data: clash } = await _sb.from('hold_stock').select('_row_id')
+    .eq('HoldType', target).eq('ItemType', row.ItemType).eq('ItemCode', row.ItemCode).eq('Lot', row.Lot).maybeSingle();
+  if (clash) { _err('อนุมัติไม่ได้', `มีแถว ${target} ของ Lot นี้อยู่แล้ว กรุณาทำรายการด้วยมือแทน (ย้ายออกแล้วย้ายเข้าใหม่)`); return; }
+
+  _showLoader();
+  const { error: e1 } = await _sb.from('hold_stock').update({
+    HoldType: target, PendingHoldType: null, PendingReason: null, PendingRequestedBy: null, PendingRequestedAt: null,
+  }).eq('_row_id', rowId);
+  // อัปเดต HoldType ในประวัติทุกรายการของ Lot นี้ด้วย — หน้า "ดูรายการเคลื่อนไหว" ค้นหาด้วยคีย์ที่รวม
+  // HoldType อยู่ ถ้าไม่อัปเดตตามจะหาแถวประวัติเก่าของ Lot นี้ไม่เจออีกต่อไป
+  const { error: e2 } = await _sb.from('hold_stock_moves').update({ HoldType: target })
+    .eq('HoldType', row.HoldType).eq('ItemType', row.ItemType).eq('ItemCode', row.ItemCode).eq('Lot', row.Lot);
+  _hideLoader();
+  if (e1 || e2) { _err('อนุมัติไม่สำเร็จ', (e1 || e2).message); return; }
+  _logAudit('APPROVE', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `เปลี่ยนประเภทจาก ${row.HoldType} เป็น ${target}`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติแล้ว', showConfirmButton: false, timer: 2000 });
+  holdstockLoadData();
+}
+
+async function holdstockRejectReclassify(rowId) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row) return;
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอเปลี่ยนประเภท?', icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)', showCancelButton: true,
+    confirmButtonText: 'ยืนยันปฏิเสธ', confirmButtonColor: '#d33', cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+  _showLoader();
+  const { error } = await _sb.from('hold_stock').update({ PendingHoldType: null, PendingReason: null, PendingRequestedBy: null, PendingRequestedAt: null }).eq('_row_id', rowId);
+  _hideLoader();
+  if (error) { _err('ปฏิเสธไม่สำเร็จ', error.message); return; }
+  _logAudit('REJECT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, reason.trim());
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ปฏิเสธแล้ว', showConfirmButton: false, timer: 2000 });
+  holdstockLoadData();
 }
 
 // ── Modal ใช้ร่วมกันสำหรับ Scrap/Rework/Dispose (ต่างกันแค่ title/label ปุ่มถูกซ่อนสำหรับ operator ด้วย
@@ -24130,11 +24271,11 @@ async function _holdstockReverseMove(m) {
   if (m.MoveType === 'IN') {
     if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, null, null, true);
     else await _miscReverseStock(m.ItemCode, m.Lot, qty);
-    await _holdstockAdjustBalance(m.RefHoldStockId, qty, false);
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_IN');
   } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
-    await _holdstockAdjustBalance(m.RefHoldStockId, qty, true);
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_OUT');
   } else if (m.MoveType === 'REWORK') {
-    await _holdstockAdjustBalance(m.RefHoldStockId, qty, true);
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_OUT');
     if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, null, null, false);
     else await miscUpdateStock(m.ItemCode, m.Lot, qty);
   }
@@ -24156,9 +24297,9 @@ async function holdstockMoveEditSubmit(moveId) {
     else await miscUpdateStock(m.ItemCode, m.Lot, newQty);
     await _holdstockUpsertIn(m.HoldType, m.ItemType, m.ItemCode, m.ItemName, m.Lot, m.UOM, newQty, m.UnitCost, m.RetainDueDate);
   } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
-    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, false);
+    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, 'OUT');
   } else if (m.MoveType === 'REWORK') {
-    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, false);
+    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, 'OUT');
     if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, newQty, m.UOM, null, null, true);
     else await _miscReverseStock(m.ItemCode, m.Lot, newQty);
   }
@@ -25932,6 +26073,10 @@ function _renderCurrentUserBadge() {
 const _REALTIME_SKIP_PAGES = new Set(['lotscan']);
 let _realtimeChannel = null;
 let _realtimeRefreshTimer = null;
+// บัฟเฟอร์ payload ของ postgres_changes ที่มาระหว่างรอ debounce (แต่ละตัวมี {table,eventType,new,old})
+// เก็บไว้ใช้ไฮไลท์ "แถวที่เพิ่งเปลี่ยนจริง" หลังโหลดข้อมูลหน้าเสร็จ (ดู _realtimeHighlightRows) — เคลียร์ทิ้ง
+// ทันทีที่เริ่มรอบรีเฟรชใหม่ ไม่ใช่หลังไฮไลท์เสร็จ กันเหตุการณ์ที่มาระหว่างกำลังโหลดหน้าไปตกหล่น/ปนรอบถัดไป
+let _realtimeChangedRows = [];
 
 function _realtimeIsBusy() {
   if (document.hidden) return true;
@@ -25946,13 +26091,66 @@ function _realtimeScheduleRefresh() {
   _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 1200);
 }
 
-function _realtimeRunRefresh() {
+// กระพริบขอบจอเบาๆ ให้รู้ว่ามีข้อมูลอัปเดตจากเครื่อง/คนอื่นแบบเรียลไทม์ — overlay เดียวใช้ร่วมกันทุกหน้า
+// (ทั้ง desktop และโหมดแท็บเลตคลัง) ไม่ต้องแก้ทีละหน้า, ตามคำขอผู้ใช้ 2026-08-31 ("ทุกหน้า...ให้แสดงเป็น
+// แฟลช ให้รู้ว่ามีอัปเดต") — เป็นแค่สัญญาณภาพเฉยๆ ไม่บอกว่าเปลี่ยนอะไร/หน้าไหน (ตรงกับหลักการเดิมของระบบ
+// realtime นี้ที่ไม่ทำ mapping ตาราง→หน้าเจาะจง ดูหมายเหตุ _realtimeSubscribe ด้านบน)
+function _realtimeFlashPage() {
+  const el = document.getElementById('realtime-flash-overlay');
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;   // force reflow เพื่อ retrigger animation ได้ ถ้ายิงถี่ๆ ติดกัน
+  el.classList.add('flash');
+}
+
+// ไฮไลท์เฉพาะ "การ์ด/แถว" ที่เพิ่งเปลี่ยนจริงจาก realtime event — นำร่องแค่ 5 หน้าหลักที่มีคนแก้ไขบ่อย/
+// หลายคนใช้ร่วมกันก่อน (MO, CO, บันทึกผลิต, Stock วัตถุดิบ, Stock FG) ตามคำขอผู้ใช้ 2026-08-31 ("ให้กระพริบ
+// แถวที่มีการอัปเดตด้วย") — หน้าอื่นยังได้แค่ #realtime-flash-overlay กระพริบทั้งจอเหมือนเดิม เพราะโครงสร้าง
+// การ์ด/แถวของแต่ละหน้าไม่เหมือนกัน (บางหน้าเป็นการ์ดกลุ่มรวมหลายแถวจริง เช่น BOM/MR/Issue) การจับคู่
+// "แถวไหนในตารางไหนเปลี่ยน → element ไหนบนจอ" ต้องออกแบบเจาะจงทีละหน้า ทำทีเดียวทั้ง ~25 หน้าเสี่ยงเกินไป
+// จึงเลือกทำเฉพาะหน้าที่มีการ์ด = 1 แถวจริงชัดเจน (MO/CO/บันทึกผลิต) หรือกลุ่มที่คีย์ตรงตัวชัดเจน
+// (Stock/Stock FG กลุ่มตาม MaterialCode/ProductCode) — แต่ละหน้าต้องมี data-rt-key ผูกไว้ที่การ์ดเอง
+// (ดู renderMOTable/coRenderTable/prodrecordRenderTable/renderStockCards/renderFGStockTable)
+function _realtimeHighlightRows(page, changes) {
+  if (!changes || !changes.length) return;
+  const rowsByTable = {};
+  changes.forEach(c => {
+    const row = c.new || c.old;
+    if (!row) return;
+    (rowsByTable[c.table] ||= []).push(row);
+  });
+  const flash = (containerId, table, keyField) => {
+    const rows = rowsByTable[table];
+    if (!rows || !rows.length) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const keys = new Set(rows.map(r => r[keyField]).filter(v => v != null).map(String));
+    if (!keys.size) return;
+    container.querySelectorAll('[data-rt-key]').forEach(el => {
+      if (!keys.has(el.getAttribute('data-rt-key'))) return;
+      el.classList.remove('rt-row-flash');
+      void el.offsetWidth;   // force reflow เพื่อ retrigger animation ได้ ถ้ายิงถี่ๆ ติดกัน
+      el.classList.add('rt-row-flash');
+    });
+  };
+  if (page === 'mo')              flash('mo-tbody', 'manufacturing_orders', 'MO_ID');
+  else if (page === 'co')         flash('co-tbody', 'customer_orders', 'Order_ID');
+  else if (page === 'prodrecord') flash('prodrecord-cards', 'production_records', 'ProdRecord_ID');
+  else if (page === 'stock')      flash('stock-cards', 'stock_balance', 'MaterialCode');
+  else if (page === 'fgstock')    flash('fgstock-cards', 'stock_fg', 'ProductCode');
+}
+
+async function _realtimeRunRefresh() {
   _realtimeRefreshTimer = null;
   if (!_currentUser) return; // ออกจากระบบไปแล้วระหว่างรอ debounce
   if (_realtimeIsBusy()) { _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 2000); return; }
 
+  _realtimeFlashPage();
+  const changes = _realtimeChangedRows;
+  _realtimeChangedRows = [];
+
   if (_currentUser.isWarehouse) {
-    _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้
+    _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้ (ยังไม่ทำไฮไลท์รายแถวในโหมดนี้)
     return;
   }
 
@@ -25969,13 +26167,17 @@ function _realtimeRunRefresh() {
   if (!activeEl) return;
   const page = activeEl.id.replace(/^page-/, '');
   if (_REALTIME_SKIP_PAGES.has(page)) return;
-  if (_PAGE_LOADERS[page]) _PAGE_LOADERS[page]();
+  if (_PAGE_LOADERS[page]) await _PAGE_LOADERS[page]();   // await ไว้ก่อน จะได้ไฮไลท์หลัง DOM ของหน้าเรนเดอร์เสร็จจริง
+  _realtimeHighlightRows(page, changes);
 }
 
 function _realtimeSubscribe() {
   if (_realtimeChannel) return; // subscribe ครั้งเดียวต่อ session — logout สั่ง location.reload() เสมอ (ดู logoutUser) จึงไม่มีทาง unsubscribe ค้าง
   _realtimeChannel = _sb.channel('proflow-realtime-sync')
-    .on('postgres_changes', { event: '*', schema: 'public' }, () => _realtimeScheduleRefresh())
+    .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+      if (payload?.table) _realtimeChangedRows.push(payload);
+      _realtimeScheduleRefresh();
+    })
     .subscribe();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && _currentUser) _realtimeScheduleRefresh(); // กลับมาเปิดแท็บ ให้เช็คของใหม่ทันที เผื่อพลาด event ตอนแท็บถูกซ่อนอยู่
