@@ -1519,7 +1519,8 @@ body.role-operator [onclick*="Delete("] { display: none !important; }
    ไว้ในเวอร์ชันนี้ — ดู SKILL.md หัวข้อ RBAC) ชื่อฟังก์ชันเฉพาะเจาะจงพอจะไม่ชนกับปุ่มอื่นโดยไม่ตั้งใจ */
 body.role-operator [onclick*="moForceClose("],
 body.role-operator [onclick*="moCancelPlan("],
-body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
+body.role-operator [onclick*="deliveryCancel("],
+body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !important; }
 </style>
 </head>
 <body>
@@ -1607,6 +1608,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
     </a>
     <a href="#" class="nav-link mb-1" id="nav-misc" onclick="showPage('misc',this)" title="เบิกเบ็ดเตล็ด">
       <i class="fas fa-box-open me-2"></i><span>เบิกเบ็ดเตล็ด</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-holdstock" onclick="showPage('holdstock',this)" title="สต็อก Defect/Retain">
+      <i class="fas fa-triangle-exclamation me-2"></i><span>สต็อก Defect/Retain</span>
     </a>
     </div>
 
@@ -1916,7 +1920,10 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           <button class="btn btn-sm btn-outline-warning" id="stock-autopick-btn" style="display:none" onclick="stockAutoPickLow()">
             เลือกทั้งหมดที่ต่ำกว่า Min
           </button>
-          <button class="btn btn-sm btn-primary ms-auto" onclick="loadStockData()">
+          <button class="btn btn-sm btn-outline-success ms-auto" onclick="stockExportReport()" title="ดาวน์โหลดรายงานสต็อกวัตถุดิบปัจจุบันทั้งหมดเป็น Excel">
+            <i class="fas fa-file-excel me-1"></i>ออกรายงาน
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="loadStockData()">
             <i class="fas fa-sync-alt me-1"></i>รีเฟรช
           </button>
         </div>
@@ -2005,6 +2012,9 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
           </select>
           <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="fgCheckProductNames()" title="เช็คชื่อสินค้าใน fg_receive/stock_fg ให้ตรงกับ BOM (dry-run ก่อนแก้จริง)">
             <i class="fas fa-spell-check me-1"></i>เช็คชื่อสินค้า (BOM)
+          </button>
+          <button class="btn btn-sm btn-outline-success" onclick="fgStockExportReport()" title="ดาวน์โหลดรายงานสต็อก FG ปัจจุบันทั้งหมดเป็น Excel">
+            <i class="fas fa-file-excel me-1"></i>ออกรายงาน
           </button>
           <button class="btn btn-sm btn-warning" onclick="fgStockRecalculate()" title="คำนวณยอดใหม่จาก fg_receive − fg_withdraw">
             <i class="fas fa-calculator me-1"></i>คำนวณ Stock ใหม่
@@ -4126,7 +4136,6 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
                   <option value="">— เลือกประเภท —</option>
                   <option value="ตัวอย่าง">ตัวอย่าง</option>
                   <option value="ทดสอบ">ทดสอบ</option>
-                  <option value="สูญเสีย">สูญเสีย</option>
                   <option value="ใช้ภายใน">ใช้ภายใน</option>
                   <option value="ขายลูกค้า (Bulk)">ขายลูกค้า (Bulk)</option>
                   <option value="อื่นๆ">อื่นๆ</option>
@@ -4168,6 +4177,238 @@ body.role-operator [onclick*="deliveryCancel("] { display: none !important; }
             <button type="submit" class="btn btn-primary" id="misc-save-btn">
               <i class="fas fa-save me-1"></i>บันทึกการเบิก
             </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ สต็อก Defect / Retain (Hold Stock) Page ════════════ -->
+  <div class="page-view" id="page-holdstock">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-triangle-exclamation me-2"></i>สต็อก Defect / Retain
+        </h4>
+        <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="holdstockOpenModal()">
+          <i class="fas fa-plus-circle me-2"></i>ย้ายเข้า
+        </button>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-4">
+            <div class="btn-group" role="group">
+              <input type="radio" class="btn-check" name="holdstock-mode" id="holdstock-mode-defect" value="DEFECT" checked onchange="holdstockOnModeChange()">
+              <label class="btn btn-outline-danger btn-sm" for="holdstock-mode-defect"><i class="fas fa-ban me-1"></i>Defect (ของเสีย)</label>
+              <input type="radio" class="btn-check" name="holdstock-mode" id="holdstock-mode-retain" value="RETAIN" onchange="holdstockOnModeChange()">
+              <label class="btn btn-outline-warning btn-sm" for="holdstock-mode-retain"><i class="fas fa-flask me-1"></i>Retain (ตัวอย่างกัก)</label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="holdstock-search" class="form-control border-start-0 search-input"
+                placeholder="ค้นหา รหัส / ชื่อ / Lot..." oninput="holdstockRenderTable()">
+              <button type="button" class="btn btn-outline-secondary border-start-0 search-clear-btn" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา" tabindex="-1"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <select id="holdstock-filter-itemtype" class="form-select form-select-sm" onchange="holdstockRenderTable()">
+              <option value="">ประเภท: ทั้งหมด</option>
+              <option value="FG">FG</option>
+              <option value="BULK">Bulk</option>
+              <option value="PAC">Pac</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-flex gap-2 justify-content-end">
+            <button class="btn btn-sm btn-primary" onclick="holdstockLoadData()">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card"><div class="kpi-num" id="holdstock-kpi-lots">—</div><div class="kpi-label">Lot คงค้าง</div></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#3b82f6">
+            <div class="kpi-num text-primary" id="holdstock-kpi-value">—</div><div class="kpi-label">มูลค่ารวม (฿, เฉพาะ Bulk/Pac)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3" id="holdstock-kpi-duebox" style="display:none">
+          <div class="kpi-card" style="border-color:#f59e0b">
+            <div class="kpi-num text-warning" id="holdstock-kpi-due">—</div><div class="kpi-label">ใกล้ครบกำหนด (≤7 วัน)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3" id="holdstock-kpi-overduebox" style="display:none">
+          <div class="kpi-card" style="border-color:#ef4444">
+            <div class="kpi-num text-danger" id="holdstock-kpi-overdue">—</div><div class="kpi-label">เกินกำหนดแล้ว</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th class="wh-col-xs">ประเภท</th><th class="wh-hide-code">รหัส</th><th class="wh-col-lg">ชื่อ</th>
+                <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-xs">หน่วย</th>
+                <th class="text-end wh-col-sm">มูลค่า (฿)</th><th class="wh-col-xs">อายุ (วัน)</th>
+                <th class="wh-col-sm" id="holdstock-th-due">วันครบกำหนด</th>
+                <th class="text-center" style="width:170px">การดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody id="holdstock-tbody">
+              <tr><td colspan="10" class="text-center py-4 text-muted">
+                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Hold Stock: "+ ย้ายเข้า" Modal ════════════ -->
+  <div class="modal fade" id="holdstockModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>ย้ายเข้าสต็อก Defect/Retain</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="holdstockForm" onsubmit="holdstockMoveInSubmit(event)">
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label d-block">ย้ายเข้าเป็น <span class="text-danger">*</span></label>
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="holdstock-f-holdtype" id="holdstock-f-holdtype-defect" value="DEFECT" checked onchange="holdstockUpdateRetainFieldVisibility()">
+                  <label class="btn btn-outline-danger" for="holdstock-f-holdtype-defect">Defect (ของเสีย)</label>
+                  <input type="radio" class="btn-check" name="holdstock-f-holdtype" id="holdstock-f-holdtype-retain" value="RETAIN" onchange="holdstockUpdateRetainFieldVisibility()">
+                  <label class="btn btn-outline-warning" for="holdstock-f-holdtype-retain">Retain (ตัวอย่างกัก)</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label d-block">ประเภทสินค้า <span class="text-danger">*</span></label>
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="holdstock-f-itemtype" id="holdstock-f-itemtype-fg" value="FG" checked onchange="holdstockItemTypeChange()">
+                  <label class="btn btn-outline-secondary" for="holdstock-f-itemtype-fg">FG</label>
+                  <input type="radio" class="btn-check" name="holdstock-f-itemtype" id="holdstock-f-itemtype-bulk" value="BULK" onchange="holdstockItemTypeChange()">
+                  <label class="btn btn-outline-secondary" for="holdstock-f-itemtype-bulk">Bulk</label>
+                  <input type="radio" class="btn-check" name="holdstock-f-itemtype" id="holdstock-f-itemtype-pac" value="PAC" onchange="holdstockItemTypeChange()">
+                  <label class="btn btn-outline-secondary" for="holdstock-f-itemtype-pac">Pac</label>
+                </div>
+              </div>
+              <div class="col-md-8 position-relative">
+                <label class="form-label">ชื่อ/รหัสสินค้า <span class="text-danger">*</span></label>
+                <input type="text" id="holdstock-f-item-search" class="form-control" placeholder="พิมพ์เพื่อค้นหาจาก Stock ที่มีอยู่จริง..."
+                  autocomplete="off" oninput="holdstockSearchItem(this.value)" required>
+                <div id="holdstock-item-dropdown" class="list-group position-absolute shadow z-3"
+                  style="max-height:200px;overflow-y:auto;display:none;width:calc(100% - 1.5rem)"></div>
+                <input type="hidden" id="holdstock-f-item-code">
+                <input type="hidden" id="holdstock-f-item-name">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Lot <span class="text-danger">*</span></label>
+                <select id="holdstock-f-lot" class="form-select" onchange="holdstockLotChange()" required>
+                  <option value="">— เลือก Lot —</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">จำนวน <span class="text-danger">*</span></label>
+                <input type="number" id="holdstock-f-qty" class="form-control" min="0.001" step="0.001" required>
+                <small id="holdstock-stock-hint" class="text-muted"></small>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">หน่วย</label>
+                <input type="text" id="holdstock-f-uom" class="form-control" readonly placeholder="—">
+              </div>
+              <div class="col-md-4 holdstock-retain-field" style="display:none">
+                <label class="form-label">วันครบกำหนดเก็บ</label>
+                <input type="date" id="holdstock-f-retaindue" class="form-control">
+                <small id="holdstock-retaindue-hint" class="text-muted"></small>
+              </div>
+              <div class="col-12">
+                <label class="form-label">เหตุผล/สาเหตุ <span class="text-danger">*</span></label>
+                <input type="text" id="holdstock-f-reason" class="form-control" placeholder="เช่น ตำหนิ/แตก/ฉลากผิด หรือ ตัวอย่าง QC" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">หมายเหตุ</label>
+                <input type="text" id="holdstock-f-remark" class="form-control" placeholder="หมายเหตุ (ไม่บังคับ)">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="holdstock-save-btn">
+              <i class="fas fa-save me-1"></i>บันทึกย้ายเข้า
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Hold Stock: ประวัติการเคลื่อนไหว Modal ════════════ -->
+  <div class="modal fade" id="holdstockHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="holdstockHistoryTitle"><i class="fas fa-clock-rotate-left me-2"></i>ประวัติการเคลื่อนไหว</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>วันที่</th><th>ประเภท</th><th class="text-end">จำนวน</th><th>เหตุผล</th>
+                  <th class="text-center" style="width:110px">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="holdstock-history-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Hold Stock: ทิ้ง/Rework/จำหน่าย Modal (ใช้ร่วมกัน 3 การกระทำ) ════════════ -->
+  <div class="modal fade" id="holdstockActionModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="holdstockActionTitle">ดำเนินการ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="holdstockActionForm" onsubmit="holdstockActionSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="holdstock-action-rowid">
+            <input type="hidden" id="holdstock-action-movetype">
+            <div id="holdstock-action-info" class="mb-3 text-muted small"></div>
+            <div class="mb-3">
+              <label class="form-label">จำนวน <span class="text-danger">*</span></label>
+              <input type="number" id="holdstock-action-qty" class="form-control" min="0.001" step="0.001" required>
+              <small id="holdstock-action-hint" class="text-muted"></small>
+            </div>
+            <div class="mb-0">
+              <label class="form-label">เหตุผล/หมายเหตุ <span class="text-danger">*</span></label>
+              <input type="text" id="holdstock-action-reason" class="form-control" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="holdstock-action-save-btn">ยืนยัน</button>
           </div>
         </form>
       </div>
@@ -6992,6 +7233,7 @@ const _PAGE_LOADERS = {
   'fg'       : loadFGData,
   'fgout'    : loadFGOutData,
   'misc'     : loadMiscData,
+  'holdstock' : holdstockLoadData,
   'plan'     : planLoadData,
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
@@ -7327,6 +7569,61 @@ function renderStockCards() {
   }).join('');
 }
 
+// ── ดาวน์โหลดรายงานสต็อกวัตถุดิบปัจจุบันทั้งหมดเป็น Excel (.xlsx) — ชีทแรก "สรุป" (1 บรรทัด/วัตถุดิบ รวมทุก
+// Lot) ตามด้วย 1 ชีทต่อ 1 วัตถุดิบ (รายละเอียดทุก Lot ของวัตถุดิบนั้น) — แยกชีทตามที่ผู้ใช้ขอ (2026-08-30),
+// เดิมรวมทุกวัตถุดิบไว้ชีท "รายละเอียด" เดียว รูปแบบเดียวกับ admindashExportAllProductsXLSX (ชีทละสินค้า)
+// เลยเรียก _admindashSafeSheetName() ตัวเดียวกันแทนก๊อปกฎ sanitize/dedupe ชื่อชีทซ้ำเป็นชุดที่สอง — รวม Lot
+// ที่คงเหลือ = 0 ด้วยทั้งชีทสรุปและชีทรายวัตถุดิบ (ต่างจากการ์ดบนจอที่ซ่อน Lot หมดตามปกติ นี่คือรายงานสต็อก
+// จริงทั้งหมด ไม่ใช่มุมมองหน้าจอ) ใช้สูตร isLow/avgUnitCost เดียวกับ renderStockCards()/updateStockKPIs()
+// เป๊ะ กันตัวเลขในรายงานเพี้ยนไปจากที่การ์ดโชว์จริง
+async function stockExportReport() {
+  if (typeof XLSX === 'undefined') { _err('โหลดไลบรารี Excel ไม่สำเร็จ', 'เช็คการเชื่อมต่ออินเทอร์เน็ต แล้วลองรีเฟรชหน้าใหม่'); return; }
+  if (!_stockData.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'ยังไม่มีข้อมูลสต็อกวัตถุดิบ'); return; }
+
+  const groupMap = {};
+  for (const r of _stockData) {
+    const key = r.MaterialCode || r.MaterialName || '—';
+    if (!groupMap[key]) groupMap[key] = { code: r.MaterialCode, name: r.MaterialName, uom: r.UOM, lots: [] };
+    groupMap[key].lots.push(r);
+  }
+  const groups = Object.values(groupMap).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+  const summaryHeaders = ['รหัสวัตถุดิบ', 'ชื่อวัตถุดิบ', 'ประเภท', 'จำนวน Lot (มีของ)', 'คงเหลือรวม', 'หน่วย',
+    'มูลค่าคงเหลือรวม (฿)', 'ราคาเฉลี่ย/หน่วย (฿)', 'Min Stock', 'สถานะ', 'หมดอายุเร็วสุด'];
+  const summaryRows = groups.map(g => {
+    const master      = _matMasterMap[g.code] || {};
+    const minStock    = master.minStock || g.lots[0]?.MinStock || 100;
+    const matType     = master.type || '';
+    const activeLots  = g.lots.filter(r => r.QtyBalance > 0);
+    const total       = g.lots.reduce((s, r) => s + (r.QtyBalance || 0), 0);
+    const totalVal    = g.lots.reduce((s, r) => s + (r.StockValue || 0), 0);
+    const avgUnitCost = total > 0 ? totalVal / total : 0;
+    const status = total <= 0 ? 'หมดแล้ว' : (total < minStock ? 'ใกล้หมด' : 'ปกติ');
+    const sortedExp = activeLots.filter(r => r.ExpDate).sort((a, b) => a.ExpDate > b.ExpDate ? 1 : -1);
+    const expStr = sortedExp[0]?.ExpDate ? _fmtDate(sortedExp[0].ExpDate) : '';
+    return [g.code || '', g.name || '', matType, activeLots.length, total, g.uom || '',
+      Math.round(totalVal * 100) / 100, Math.round(avgUnitCost * 100) / 100, minStock, status, expStr];
+  });
+
+  const detailHeaders = ['Lot', 'คงเหลือ', 'หน่วย', 'ราคา/หน่วย (฿)', 'มูลค่าคงเหลือ (฿)',
+    'รับเข้าสะสม', 'จ่ายออกสะสม', 'วันหมดอายุ'];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]), 'สรุป');
+
+  const usedSheetNames = new Set(['สรุป']);
+  groups.forEach(g => {
+    const detailRows = g.lots.map(r => [r.Lot || '', r.QtyBalance || 0, r.UOM || '', r.UnitCost || 0,
+      Math.round((r.StockValue || 0) * 100) / 100, r.QtyIn || 0, r.QtyOut || 0,
+      r.ExpDate ? _fmtDate(r.ExpDate) : '']);
+    const ws = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+    const sheetName = _admindashSafeSheetName(`${g.code || ''} ${g.name || ''}`.trim(), usedSheetNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, `รายงานสต็อกวัตถุดิบ_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
 // ── แสดงรายละเอียดยอดจอง (WIP) ของวัตถุดิบตัวหนึ่ง — จอง MO ไหนไว้เท่าไหร่บ้าง (จาก mo_material_reservations
 // ผ่านปุ่ม "แพลนการผลิต" ที่หน้า MO) ของยังอยู่ในคลังจริงเสมอ ตัวเลขนี้แค่กันไม่ให้ MO ใบอื่นเบิกซ้ำ ──
 function stockShowReservations(code, name) {
@@ -7602,6 +7899,58 @@ function renderFGStockTable() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── ดาวน์โหลดรายงานสต็อก FG ปัจจุบันทั้งหมดเป็น Excel (.xlsx, 2 ชีทเหมือนหน้าวัตถุดิบ) ──
+// "สรุป" = 1 บรรทัด/สินค้า, "รายละเอียด" = 1 บรรทัด/Lot — รวม Lot ที่คงเหลือ = 0 ด้วย (ไม่กรองออกเหมือน
+// _fgStockGroupAll() ที่การ์ดบนจอใช้ เพราะรายงานนี้ต้องเห็นของหมดด้วย) ไม่มีคอลัมน์มูลค่า เพราะ stock_fg
+// ไม่มีต้นทุน/หน่วยเก็บอยู่จริง (ต่างจากวัตถุดิบที่มี UnitCost/StockValue ใน stock_balance) ใช้
+// _fgParseNameParts เดียวกับ renderFGStockTable() แยกซีรี่/ประเภท กันตัวเลขเพี้ยนจากที่หน้าจอโชว์จริง
+async function fgStockExportReport() {
+  if (typeof XLSX === 'undefined') { _err('โหลดไลบรารี Excel ไม่สำเร็จ', 'เช็คการเชื่อมต่ออินเทอร์เน็ต แล้วลองรีเฟรชหน้าใหม่'); return; }
+  if (!_fgStockData.length) { _err('ไม่มีข้อมูลให้ดาวน์โหลด', 'ยังไม่มีข้อมูลสต็อก FG'); return; }
+
+  const groupMap = {};
+  for (const r of _fgStockData) {
+    const lotVal = r.LotFG || '';
+    const qty    = parseFloat(r.FGBalance) || 0;
+    const key = r.ProductCode || r.ProductName || '—';
+    if (!groupMap[key]) groupMap[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] };
+    groupMap[key].lots.push({ ...r, _lot: lotVal, _qty: qty });
+  }
+  const groups = Object.values(groupMap)
+    .map(g => ({ ...g, parts: _fgParseNameParts(g.name) }))
+    .sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+  const summaryHeaders = ['รหัสสินค้า', 'ชื่อสินค้า', 'ซีรี่', 'ประเภท', 'จำนวน Lot (มีของ)', 'คงเหลือรวม', 'หน่วย', 'หมดอายุเร็วสุด'];
+  const summaryRows = groups.map(g => {
+    const activeLots = g.lots.filter(r => r._qty > 0);
+    const total = g.lots.reduce((s, r) => s + r._qty, 0);
+    const expDates = activeLots
+      .map(r => _fgStockOriginMap[(g.code || '') + '|' + r._lot]?.exp)
+      .filter(Boolean).sort();
+    const expStr = expDates[0] ? _fmtDate(expDates[0]) : '';
+    return [g.code || '', g.name || '', g.parts.series, g.parts.type, activeLots.length, total, g.uom || '', expStr];
+  });
+
+  const detailHeaders = ['Lot FG', 'คงเหลือ', 'หน่วย', 'วันหมดอายุ', 'MO Ref', 'ลูกค้า (ที่มา)'];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]), 'สรุป');
+
+  const usedSheetNames = new Set(['สรุป']);
+  groups.forEach(g => {
+    const detailRows = g.lots.map(r => {
+      const origin = _fgStockOriginMap[(g.code || '') + '|' + r._lot] || {};
+      return [r._lot || '', r._qty, r.UOM || '', origin.exp ? _fmtDate(origin.exp) : '',
+        origin.moId || '', origin.customer || ''];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+    const sheetName = _admindashSafeSheetName(`${g.code || ''} ${g.name || ''}`.trim(), usedSheetNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, `รายงานสต็อกFG_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // ── Rebuild stock_fg จาก fg_receive − fg_withdraw ──
@@ -18839,7 +19188,11 @@ let _coPendingDispatchMap = {};
 let _coTotalWithdrawnMap = {};
 let _coFGStockMap   = {};   // { ProductCode → FG คงเหลือรวมทุก Lot จาก stock_fg }
 let _coBulkWithdrawnMap = {};   // { Order_ID → ยอดเบิกวัตถุดิบ Bulk สะสมจาก issue_misc (CO_Ref) — เฉพาะ CO ที่ ItemType='BULK'
-let _coBulkStockMap     = {};   // { MaterialCode → วัตถุดิบ Bulk คงเหลือรวมทุก Lot จาก stock_balance }
+// { MaterialCode ของ Bulk → ยอด Bulk "พร้อมส่ง" จริงในสต็อก = stock_balance.QtyBalance รวมทุก Lot หักยอด
+// จอง (WIP) จาก mo_material_reservations ตามคำขอผู้ใช้ 2026-08-31 ("รหัส Bulk ให้ดู Bulk พร้อมส่งหักยอดจอง,
+// รหัส FG ให้ดู FG พร้อมส่ง" — เดิมเคยลองเปลี่ยนเป็นยอด FG ที่ผลิตจาก Bulk นี้ แล้วถอยกลับมาเป็นแบบนี้แทน)
+// สร้างใน loadCOData()
+let _coBulkAvailStockMap = {};
 let _coOpenMOSet    = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) และ MO นั้นยังไม่ปิดงาน — กันปุ่ม "สั่งผลิต" กดซ้ำ
 let _coAnyMOSet      = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) อย่างน้อย 1 ใบ ไม่ว่าจะปิดงานแล้วหรือยัง — ใช้แยก "ยังไม่มี MO เลย" ออกจาก "มี MO ครบทุกใบแล้ว" ใน _coComputeDisplayStatus
 let _coExpandedSet  = new Set();   // Order_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
@@ -18904,22 +19257,17 @@ function _coComputeDisplayStatus(r) {
 // เพื่อให้หน้าอื่น (เช่น loadFGOutData ตอนกรองดรอปดาวน์ CO Reference) เรียกใช้ _coComputeDisplayStatus ได้ถูกต้อง
 // แม้ผู้ใช้ยังไม่เคยเปิดหน้า CO มาก่อนในเซสชันนี้เลย (ตัวแปรเหล่านี้จะยังว่างเปล่าถ้าไม่เรียกก่อนใช้)
 async function _coRefreshMOAndShippedMaps() {
-  const [wdRes, moRes, dlvRes, miscRes, stockRes] = await Promise.all([
+  const [wdRes, moRes, dlvRes, miscRes] = await Promise.all([
     _fetchAllPagedNotNull('fg_withdraw', '_row_id,CO_Ref,QtyFG', 'CO_Ref'),
     _fetchAllPagedNotNull('manufacturing_orders', 'CO_Ref,Status', 'CO_Ref'),
     _fetchAllPagedNotNull('delivery', 'WD_Ref,Status', 'WD_Ref'),
     _fetchAllPagedNotNull('issue_misc', 'CO_Ref,IssuedQty', 'CO_Ref'),
-    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
   ]);
 
   _coBulkWithdrawnMap = {};
   (miscRes.data || []).forEach(m => {
     if (!m.CO_Ref) return;
     _coBulkWithdrawnMap[m.CO_Ref] = (_coBulkWithdrawnMap[m.CO_Ref] || 0) + (parseFloat(m.IssuedQty) || 0);
-  });
-  _coBulkStockMap = {};
-  (stockRes.data || []).forEach(s => {
-    _coBulkStockMap[s.MaterialCode] = (_coBulkStockMap[s.MaterialCode] || 0) + (parseFloat(s.QtyBalance) || 0);
   });
 
   // สถานะจัดส่งของแต่ละรายการเบิก (WD_Ref → delivery.Status)
@@ -19073,9 +19421,11 @@ async function loadCOData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('co-tbody', '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
-  const [coRes, fgRes] = await Promise.all([
+  const [coRes, fgRes, stockRes, resvRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
     _sb.from('stock_fg').select('ProductCode,FGBalance'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
+    _fetchAllPaged('mo_material_reservations', 'MaterialCode,ReservedQty'),
     _coRefreshMOAndShippedMaps(),   // เติม _coShippedMap/_coPendingDispatchMap/_coOpenMOSet/_coAnyMOSet ให้สด (ฟังก์ชันกลาง ใช้ร่วมกับ loadFGOutData)
   ]);
 
@@ -19090,6 +19440,23 @@ async function loadCOData() {
   (fgRes.data || []).forEach(s => {
     if (!s.ProductCode) return;
     _coFGStockMap[s.ProductCode] = (_coFGStockMap[s.ProductCode] || 0) + (parseFloat(s.FGBalance) || 0);
+  });
+
+  // Build map: Bulk MaterialCode → ยอด Bulk พร้อมส่งจริง = stock_balance รวมทุก Lot หักยอดจอง (WIP) จาก
+  // mo_material_reservations — ตามคำขอผู้ใช้ 2026-08-31 (Bulk ดู Bulk พร้อมส่งหักจอง, FG ดู FG พร้อมส่ง)
+  const bulkBalanceMap = {};
+  (stockRes.data || []).forEach(s => {
+    if (!s.MaterialCode) return;
+    bulkBalanceMap[s.MaterialCode] = (bulkBalanceMap[s.MaterialCode] || 0) + (parseFloat(s.QtyBalance) || 0);
+  });
+  const bulkReservedMap = {};
+  (resvRes.data || []).forEach(rv => {
+    if (!rv.MaterialCode) return;
+    bulkReservedMap[rv.MaterialCode] = (bulkReservedMap[rv.MaterialCode] || 0) + (parseFloat(rv.ReservedQty) || 0);
+  });
+  _coBulkAvailStockMap = {};
+  Object.keys(bulkBalanceMap).forEach(code => {
+    _coBulkAvailStockMap[code] = Math.max(0, bulkBalanceMap[code] - (bulkReservedMap[code] || 0));
   });
 
   coUpdateKPIs();
@@ -19148,14 +19515,15 @@ function coRenderTable() {
   container.innerHTML = rows.map((r, idx) => {
     const displayStatus = _coComputeDisplayStatus(r);
     const sc       = _coStatusColor[displayStatus] || 'secondary';
-    // CO แบบ Bulk (ItemType='BULK') สั่งขายวัตถุดิบ/สูตรตรงๆ ไม่ผ่านแผนผลิต/MO/stock_fg เลย — "ส่งแล้ว"/"ในสต็อก"
-    // ของแถวนี้จึงอ่านจาก _coBulkWithdrawnMap/_coBulkStockMap (ตัดสต็อกจาก stock_balance ตรงตอนเบิก, ดู
-    // coWithdrawBulkFromStock/coUpdateStatusFromBulkWithdraw) ไม่ใช่ _coShippedMap/_coFGStockMap ฝั่ง FG
+    // CO แบบ Bulk (ItemType='BULK') สั่งขายวัตถุดิบ/สูตรตรงๆ ไม่ผ่านแผนผลิต/MO เลย — "ส่งแล้ว" ของแถวนี้จึง
+    // อ่านจาก _coBulkWithdrawnMap (ตัดสต็อกจาก stock_balance ตรงตอนเบิก, ดู coWithdrawBulkFromStock/
+    // coUpdateStatusFromBulkWithdraw) ไม่ใช่ _coShippedMap ฝั่ง FG — "มีในสต็อก" ของแถว Bulk ก็ดู Bulk พร้อมส่ง
+    // หักยอดจอง (_coBulkAvailStockMap) ตามคำขอผู้ใช้ 2026-08-31, ส่วนแถว FG ยังดู FG พร้อมส่ง (_coFGStockMap)
     const isBulk = r.ItemType === 'BULK';
     const shipped  = isBulk ? (_coBulkWithdrawnMap[r.Order_ID] || 0) : (_coShippedMap[r.Order_ID] || 0);
     const orderQty = parseFloat(r.OrderQty) || 0;
     const remain   = orderQty - shipped;
-    const fgStock  = isBulk ? (_coBulkStockMap[r.ProductCode] || 0) : (_coFGStockMap[r.ProductCode] || 0);
+    const fgStock  = isBulk ? (_coBulkAvailStockMap[r.ProductCode] || 0) : (_coFGStockMap[r.ProductCode] || 0);
     const pendingDispatch = isBulk ? 0 : (_coPendingDispatchMap[r.Order_ID] || 0);   // เบิกจากคลังไปแล้วแต่ยังรอจัดส่งอยู่ — ไม่อยู่ใน fgStock แล้ว แต่ยังนับเป็นของที่มีให้ CO นี้ได้
     const needProduce = isBulk ? 0 : Math.max(0, remain - fgStock - pendingDispatch);   // Bulk ไม่ผ่านแผนผลิตเลย ไม่มีแนวคิด "ต้องผลิตเพิ่ม"
     const expanded = _coExpandedSet.has(r.Order_ID);
@@ -19175,7 +19543,7 @@ function coRenderTable() {
           <span class="badge bg-light text-dark border ms-2">${r.ProductCode||'—'}</span>
           ${isBulk ? `<span class="badge bg-warning text-dark ms-2" title="สินค้า Bulk (ยังไม่บรรจุ)"><i class="fas fa-flask me-1"></i>Bulk</span>` : ''}
           ${(!isBulk && needProduce > 0) ? `<span class="badge bg-danger ms-2" title="ต้องผลิตเพิ่ม"><i class="fas fa-industry me-1"></i>ต้องผลิต ${needProduce.toLocaleString()}</span>` : ''}
-          ${fgStock > 0 ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2" title="${isBulk ? 'วัตถุดิบ Bulk คงเหลือในคลัง' : 'FG คงเหลือในคลัง'}"><i class="fas fa-box me-1"></i>มีในสต็อก ${fgStock.toLocaleString()}</span>` : ''}
+          ${fgStock > 0 ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2" title="${isBulk ? 'วัตถุดิบ Bulk พร้อมส่ง (หักยอดจองแล้ว) คงเหลือในคลัง' : 'FG คงเหลือในคลัง'}"><i class="fas fa-box me-1"></i>มีในสต็อก ${fgStock.toLocaleString()}</span>` : ''}
         </div>
         <div class="d-flex align-items-center gap-2">
           <small class="text-muted">${_fmtDate(r.DueDate)||''}</small>
@@ -19207,7 +19575,7 @@ function coRenderTable() {
           <div class="col-6 col-md-3">
             <div class="p-2 rounded" style="background:#eff6ff">
               <div class="fw-bold text-primary" style="font-size:1.1rem">${fgStock.toLocaleString()}</div>
-              <div class="text-muted" style="font-size:.72rem">${isBulk ? 'วัตถุดิบ Bulk ในสต็อก' : 'FG ในสต็อก'}</div>
+              <div class="text-muted" style="font-size:.72rem">${isBulk ? 'Bulk พร้อมส่งในสต็อก (หักจอง)' : 'FG ในสต็อก'}</div>
             </div>
           </div>
         </div>
@@ -23243,6 +23611,585 @@ async function miscSlipRenderPreview() {
     overlay.innerHTML = '<div class="box">🔒 กรุณายืนยันเลขที่ใบส่งก่อน<br>จึงจะพิมพ์ได้ (ดูตัวอย่างข้อมูลได้ตามปกติ)</div>';
     wrap.appendChild(overlay);
   }
+}
+
+// ══════════════════════════════════════════════
+// PAGE: สต็อก Defect / Retain (Hold Stock) — แยกจากเบิกเบ็ดเตล็ด (nav-misc) ตามคำขอผู้ใช้ (2026-08-30)
+// hold_stock = ยอดคงเหลือสะสมต่อ (HoldType,ItemType,ItemCode,Lot) เหมือน stock_balance/stock_fg
+// hold_stock_moves = ประวัติทีละรายการ เหมือน issue_misc — แก้ไข/ลบทำที่ระดับ move ใน history modal เท่านั้น
+// ══════════════════════════════════════════════
+let _holdstockData = [];
+let _holdstockMode = 'DEFECT';   // 'DEFECT' | 'RETAIN' — โหมดของหน้าปัจจุบัน
+let _holdstockModal = null;
+let _holdstockActionModal = null;
+let _holdstockHistoryModal = null;
+let _holdstockFgList = [];       // stock_fg (Balance>0) — โหลดสดตอนเปิด modal ย้ายเข้า โหมด FG
+let _holdstockMatList = [];      // stock_balance join materials.TYPE (Balance>0) — โหมด Bulk/Pac
+let _holdstockHistoryMoves = [];
+let _holdstockHistoryRowKey = null;
+
+const _HOLDSTOCK_MOVE_LABELS = { IN: 'ย้ายเข้า', SCRAP: 'ทิ้ง/Scrap', REWORK: 'Rework', DISPOSE: 'ทิ้ง (Retain)' };
+
+async function holdstockLoadData() {
+  const { data, error } = await _fetchAllPaged('hold_stock', '*');
+  if (error) { _err('โหลดสต็อก Defect/Retain ไม่ได้', error.message); return; }
+  _holdstockData = data || [];
+  holdstockRenderTable();
+}
+
+function holdstockOnModeChange() {
+  _holdstockMode = document.querySelector('input[name="holdstock-mode"]:checked').value;
+  holdstockRenderTable();
+}
+
+function _holdstockAgeDays(r) {
+  if (!r.FirstMovedInAt) return '—';
+  const start = new Date(r.FirstMovedInAt + 'T00:00:00');
+  return Math.max(0, Math.floor((new Date() - start) / 86400000));
+}
+
+function _holdstockDueBadge(dueDateStr) {
+  if (!dueDateStr) return '—';
+  const days = Math.floor((new Date(dueDateStr + 'T00:00:00') - new Date()) / 86400000);
+  let cls = 'bg-success', label = 'ปกติ';
+  if (days < 0) { cls = 'bg-danger'; label = 'เกินกำหนด'; }
+  else if (days <= 7) { cls = 'bg-warning text-dark'; label = 'ใกล้ครบ'; }
+  return `${_fmtDate(dueDateStr)} <span class="badge ${cls} ms-1">${label}</span>`;
+}
+
+function _holdstockRenderRow(r) {
+  const typeBadge = { FG: 'bg-primary', BULK: 'bg-info', PAC: 'bg-success' };
+  const value = r.UnitCost != null ? (parseFloat(r.StockValue) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
+  const dueCell = r.HoldType === 'RETAIN' ? _holdstockDueBadge(r.RetainDueDate) : '—';
+  let actions = `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockViewSource(${r._row_id})" title="ดูที่มา"><i class="fas fa-magnifying-glass"></i></button> `;
+  actions += `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockOpenHistoryModal(${r._row_id})" title="ดูรายการเคลื่อนไหว"><i class="fas fa-clock-rotate-left"></i></button> `;
+  if (r.HoldType === 'DEFECT') {
+    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'SCRAP')" title="ทิ้ง/Scrap"><i class="fas fa-trash"></i></button> `;
+    actions += `<button class="btn btn-sm btn-outline-success" onclick="holdstockOpenActionModal(${r._row_id},'REWORK')" title="Rework/คืนสต็อกดี"><i class="fas fa-rotate-left"></i></button>`;
+  } else {
+    actions += `<button class="btn btn-sm btn-outline-danger" onclick="holdstockOpenActionModal(${r._row_id},'DISPOSE')" title="ทิ้งเมื่อครบกำหนด"><i class="fas fa-trash"></i></button>`;
+  }
+  return `<tr>
+    <td><span class="badge ${typeBadge[r.ItemType] || 'bg-secondary'}">${r.ItemType}</span></td>
+    <td>${r.ItemCode || ''}</td><td>${r.ItemName || ''}</td><td>${r.Lot || ''}</td>
+    <td class="text-end">${(parseFloat(r.QtyBalance) || 0).toLocaleString()}</td><td>${r.UOM || ''}</td>
+    <td class="text-end">${value}</td><td>${_holdstockAgeDays(r)}</td>
+    <td>${dueCell}</td>
+    <td class="text-center">${actions}</td>
+  </tr>`;
+}
+
+function _holdstockRenderKPIs(rows) {
+  document.getElementById('holdstock-kpi-lots').textContent = rows.length.toLocaleString();
+  const totalValue = rows.filter(r => r.UnitCost != null).reduce((s, r) => s + (parseFloat(r.StockValue) || 0), 0);
+  document.getElementById('holdstock-kpi-value').textContent = totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const isRetain = _holdstockMode === 'RETAIN';
+  document.getElementById('holdstock-kpi-duebox').style.display = isRetain ? '' : 'none';
+  document.getElementById('holdstock-kpi-overduebox').style.display = isRetain ? '' : 'none';
+  if (isRetain) {
+    let due = 0, overdue = 0;
+    rows.forEach(r => {
+      if (!r.RetainDueDate) return;
+      const days = Math.floor((new Date(r.RetainDueDate + 'T00:00:00') - new Date()) / 86400000);
+      if (days < 0) overdue++; else if (days <= 7) due++;
+    });
+    document.getElementById('holdstock-kpi-due').textContent = due;
+    document.getElementById('holdstock-kpi-overdue').textContent = overdue;
+  }
+}
+
+function holdstockRenderTable() {
+  const search = (document.getElementById('holdstock-search').value || '').trim().toLowerCase();
+  const itemTypeFilter = document.getElementById('holdstock-filter-itemtype').value;
+  const rows = _holdstockData.filter(r => {
+    if (r.HoldType !== _holdstockMode) return false;
+    if (itemTypeFilter && r.ItemType !== itemTypeFilter) return false;
+    if (search && !`${r.ItemCode} ${r.ItemName} ${r.Lot}`.toLowerCase().includes(search)) return false;
+    return true;
+  }).sort((a, b) => (a.ItemCode || '').localeCompare(b.ItemCode || ''));
+
+  const tbody = document.getElementById('holdstock-tbody');
+  tbody.innerHTML = rows.length
+    ? rows.map(r => _holdstockRenderRow(r)).join('')
+    : `<tr><td colspan="10" class="text-center py-4 text-muted">ไม่มีรายการ</td></tr>`;
+  _holdstockRenderKPIs(rows);
+}
+
+// ── "+ ย้ายเข้า" modal — ค้นหาสินค้าจาก stock ที่มีจริง (FG: stock_fg, Bulk/Pac: stock_balance กรองด้วย
+// materials.TYPE) — ยังไม่มี pattern ค้นหาแบบนี้ในแอปมาก่อน เขียนใหม่ตามโครง coLoadBomProducts/miscSearchMaterial
+async function holdstockPrepareItemLists() {
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  if (itemType === 'FG') {
+    const { data, error } = await _fetchAllPaged('stock_fg', 'ProductCode,ProductName,LotFG,FGBalance,UOM');
+    if (error) { _err('โหลด Stock FG ไม่ได้', error.message); _holdstockFgList = []; return; }
+    _holdstockFgList = (data || []).filter(r => (parseFloat(r.FGBalance) || 0) > 0);
+  } else {
+    const [balRes, matRes] = await Promise.all([
+      _fetchAllPaged('stock_balance', 'MaterialCode,MaterialName,Lot,QtyBalance,UOM,UnitCost,ExpDate'),
+      _fetchAllPaged('materials', 'MaterialCode,TYPE'),
+    ]);
+    if (balRes.error) { _err('โหลด Stock วัตถุดิบไม่ได้', balRes.error.message); _holdstockMatList = []; return; }
+    const typeMap = {};
+    (matRes.data || []).forEach(m => { typeMap[m.MaterialCode] = (m.TYPE || '').toUpperCase(); });
+    _holdstockMatList = (balRes.data || []).filter(r => (parseFloat(r.QtyBalance) || 0) > 0 && typeMap[r.MaterialCode] === itemType);
+  }
+}
+
+async function holdstockItemTypeChange() {
+  document.getElementById('holdstock-f-item-search').value = '';
+  document.getElementById('holdstock-f-item-code').value = '';
+  document.getElementById('holdstock-f-item-name').value = '';
+  document.getElementById('holdstock-f-lot').innerHTML = '<option value="">— เลือก Lot —</option>';
+  document.getElementById('holdstock-f-uom').value = '';
+  document.getElementById('holdstock-stock-hint').textContent = '';
+  await holdstockPrepareItemLists();
+}
+
+function holdstockSearchItem(q) {
+  const dropdown = document.getElementById('holdstock-item-dropdown');
+  q = (q || '').trim().toLowerCase();
+  document.getElementById('holdstock-f-item-code').value = '';
+  document.getElementById('holdstock-f-lot').innerHTML = '<option value="">— เลือก Lot —</option>';
+  if (!q) { dropdown.style.display = 'none'; return; }
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  const source = itemType === 'FG' ? _holdstockFgList : _holdstockMatList;
+  const codeKey = itemType === 'FG' ? 'ProductCode' : 'MaterialCode';
+  const nameKey = itemType === 'FG' ? 'ProductName' : 'MaterialName';
+  const seen = new Set();
+  const matches = source.filter(r => {
+    const key = r[codeKey] + '|' + r[nameKey];
+    if (seen.has(key)) return false;
+    if (!((r[codeKey] || '').toLowerCase().includes(q) || (r[nameKey] || '').toLowerCase().includes(q))) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 30);
+  dropdown.innerHTML = matches.length
+    ? matches.map(r => `<a href="#" class="list-group-item list-group-item-action" onclick="event.preventDefault();holdstockSelectItem('${r[codeKey]}','${(r[nameKey] || '').replace(/'/g, "\\'")}')">${r[codeKey]} — ${r[nameKey] || ''}</a>`).join('')
+    : `<div class="list-group-item text-muted small">ไม่พบสินค้าที่มีสต็อก</div>`;
+  dropdown.style.display = 'block';
+}
+
+function holdstockSelectItem(code, name) {
+  document.getElementById('holdstock-f-item-search').value = `${code} — ${name}`;
+  document.getElementById('holdstock-f-item-code').value = code;
+  document.getElementById('holdstock-f-item-name').value = name;
+  document.getElementById('holdstock-item-dropdown').style.display = 'none';
+  holdstockPopulateLots(code);
+}
+
+function holdstockPopulateLots(code) {
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  const source = itemType === 'FG' ? _holdstockFgList : _holdstockMatList;
+  const codeKey = itemType === 'FG' ? 'ProductCode' : 'MaterialCode';
+  const lotKey = itemType === 'FG' ? 'LotFG' : 'Lot';
+  const balKey = itemType === 'FG' ? 'FGBalance' : 'QtyBalance';
+  const rows = source.filter(r => r[codeKey] === code);
+  const sel = document.getElementById('holdstock-f-lot');
+  sel.innerHTML = '<option value="">— เลือก Lot —</option>' +
+    rows.map(r => `<option value="${r[lotKey]}">Lot ${r[lotKey]} (คงเหลือ: ${(parseFloat(r[balKey]) || 0).toLocaleString()} ${r.UOM || ''})</option>`).join('');
+  document.getElementById('holdstock-f-uom').value = rows[0]?.UOM || '';
+  if (rows.length === 1) { sel.value = rows[0][lotKey]; holdstockLotChange(); }
+}
+
+function holdstockLotChange() {
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  const code = document.getElementById('holdstock-f-item-code').value;
+  const lot = document.getElementById('holdstock-f-lot').value;
+  const source = itemType === 'FG' ? _holdstockFgList : _holdstockMatList;
+  const codeKey = itemType === 'FG' ? 'ProductCode' : 'MaterialCode';
+  const lotKey = itemType === 'FG' ? 'LotFG' : 'Lot';
+  const balKey = itemType === 'FG' ? 'FGBalance' : 'QtyBalance';
+  const row = source.find(r => r[codeKey] === code && String(r[lotKey]) === String(lot));
+  const hint = document.getElementById('holdstock-stock-hint');
+  hint.textContent = row ? `คงเหลือ: ${(parseFloat(row[balKey]) || 0).toLocaleString()} ${row.UOM || ''}` : '';
+  document.getElementById('holdstock-f-qty').max = row ? (parseFloat(row[balKey]) || 0) : '';
+  holdstockUpdateRetainDueDefault(itemType, code, lot);
+}
+
+function holdstockUpdateRetainFieldVisibility() {
+  const holdType = document.querySelector('input[name="holdstock-f-holdtype"]:checked').value;
+  document.querySelectorAll('.holdstock-retain-field').forEach(el => el.style.display = holdType === 'RETAIN' ? '' : 'none');
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  const code = document.getElementById('holdstock-f-item-code').value;
+  const lot = document.getElementById('holdstock-f-lot').value;
+  if (holdType === 'RETAIN' && code && lot) holdstockUpdateRetainDueDefault(itemType, code, lot);
+}
+
+function _holdstockAddMonths(dateStr, months) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split('T')[0];
+}
+
+// ตั้งค่า default "วันครบกำหนดเก็บ" = วันหมดอายุของ Lot + 3 เดือน (ตามนโยบายที่ยืนยันกับผู้ใช้) — FG ต้อง
+// ไปหาวันหมดอายุจาก fg_receive.ExpireDate สด (stock_fg เองไม่มีคอลัมน์นี้), Bulk/Pac อ่านจาก stock_balance.ExpDate
+// ที่ดึงมาแล้วตอนโหลดรายการค้นหา — ยังแก้ไขเองได้เสมอ ไม่ได้ล็อกค่า
+async function holdstockUpdateRetainDueDefault(itemType, code, lot) {
+  const holdType = document.querySelector('input[name="holdstock-f-holdtype"]:checked').value;
+  const dueInput = document.getElementById('holdstock-f-retaindue');
+  const hint = document.getElementById('holdstock-retaindue-hint');
+  if (holdType !== 'RETAIN' || !code || !lot) return;
+  let expDate = null;
+  if (itemType === 'FG') {
+    const { data } = await _sb.from('fg_receive').select('ExpireDate').eq('ProductCode', code).eq('Lot_FG', lot).limit(1).maybeSingle();
+    expDate = data?.ExpireDate || null;
+  } else {
+    const row = _holdstockMatList.find(r => r.MaterialCode === code && String(r.Lot) === String(lot));
+    expDate = row?.ExpDate || null;
+  }
+  if (expDate) {
+    dueInput.value = _holdstockAddMonths(expDate, 3);
+    hint.textContent = `คำนวณจากวันหมดอายุ (${_fmtDate(expDate)}) + 3 เดือน — แก้ไขได้`;
+  } else {
+    dueInput.value = '';
+    hint.textContent = 'ไม่พบวันหมดอายุของ Lot นี้ กรุณากรอกวันครบกำหนดเก็บเอง';
+  }
+}
+
+async function holdstockOpenModal() {
+  if (!_holdstockModal) _holdstockModal = new bootstrap.Modal(document.getElementById('holdstockModal'));
+  document.getElementById('holdstockForm').reset();
+  document.getElementById('holdstock-f-item-code').value = '';
+  document.getElementById('holdstock-f-item-name').value = '';
+  document.getElementById('holdstock-f-lot').innerHTML = '<option value="">— เลือก Lot —</option>';
+  document.getElementById('holdstock-stock-hint').textContent = '';
+  document.getElementById('holdstock-item-dropdown').style.display = 'none';
+  document.getElementById(_holdstockMode === 'RETAIN' ? 'holdstock-f-holdtype-retain' : 'holdstock-f-holdtype-defect').checked = true;
+  document.getElementById('holdstock-f-itemtype-fg').checked = true;
+  holdstockUpdateRetainFieldVisibility();
+  await holdstockPrepareItemLists();
+  _holdstockModal.show();
+}
+
+async function holdstockMoveInSubmit(e) {
+  e.preventDefault();
+  const holdType = document.querySelector('input[name="holdstock-f-holdtype"]:checked').value;
+  const itemType = document.querySelector('input[name="holdstock-f-itemtype"]:checked').value;
+  const itemCode = document.getElementById('holdstock-f-item-code').value;
+  const itemName = document.getElementById('holdstock-f-item-name').value;
+  const lot = document.getElementById('holdstock-f-lot').value;
+  const uom = document.getElementById('holdstock-f-uom').value;
+  const qty = parseFloat(document.getElementById('holdstock-f-qty').value) || 0;
+  const reason = document.getElementById('holdstock-f-reason').value.trim();
+  const retainDue = document.getElementById('holdstock-f-retaindue').value || null;
+  const remark = document.getElementById('holdstock-f-remark').value.trim();
+
+  if (!itemCode || !lot) { _err('กรุณาเลือกสินค้าและ Lot ให้ครบ', ''); return; }
+  if (qty <= 0) { _err('จำนวนต้องมากกว่า 0', ''); return; }
+
+  // ดึงยอดคงเหลือสดอีกครั้งก่อนตัด กันค่าที่ cache ไว้ตอนเปิด modal เพี้ยนไปแล้วระหว่างที่ผู้ใช้กรอกฟอร์ม
+  let liveBalance = 0, unitCost = null;
+  if (itemType === 'FG') {
+    const { data } = await _sb.from('stock_fg').select('FGBalance').eq('ProductCode', itemCode).eq('LotFG', lot).maybeSingle();
+    liveBalance = parseFloat(data?.FGBalance) || 0;
+  } else {
+    const { data } = await _sb.from('stock_balance').select('QtyBalance,UnitCost').eq('MaterialCode', itemCode).eq('Lot', lot).maybeSingle();
+    liveBalance = parseFloat(data?.QtyBalance) || 0;
+    unitCost = parseFloat(data?.UnitCost) || 0;
+  }
+  if (qty > liveBalance) { _err('จำนวนเกินยอดคงเหลือจริง', `คงเหลือปัจจุบัน: ${liveBalance.toLocaleString()} ${uom}`); return; }
+
+  _showLoader();
+  if (itemType === 'FG') await fgUpdateStock(itemCode, itemName, lot, qty, uom, null, null, false);
+  else await miscUpdateStock(itemCode, lot, qty);
+
+  const holdRowId = await _holdstockUpsertIn(holdType, itemType, itemCode, itemName, lot, uom, qty, unitCost, holdType === 'RETAIN' ? retainDue : null);
+  await _holdstockLogMove({
+    MoveDate: new Date().toISOString().split('T')[0], HoldType: holdType, ItemType: itemType,
+    ItemCode: itemCode, ItemName: itemName, Lot: lot, UOM: uom, MoveType: 'IN', Qty: qty,
+    UnitCost: unitCost, Reason: reason, RetainDueDate: holdType === 'RETAIN' ? retainDue : null,
+    RefHoldStockId: holdRowId, Remark: remark, CreatedBy: _currentUser?.email || null,
+  });
+  _hideLoader();
+  _logAudit('CREATE', 'hold_stock_moves', `${itemCode}/${lot}`, `ย้ายเข้า ${holdType} จำนวน ${qty}`);
+  _holdstockModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ย้ายเข้าสำเร็จ', showConfirmButton: false, timer: 2000 });
+  holdstockLoadData();
+}
+
+async function _holdstockUpsertIn(holdType, itemType, itemCode, itemName, lot, uom, qty, unitCost, retainDueDate) {
+  const cost = unitCost || 0;
+  const addCost = qty * cost;
+  const { data: existing } = await _sb.from('hold_stock').select('_row_id,QtyIn,QtyBalance,TotalCost,StockValue')
+    .eq('HoldType', holdType).eq('ItemType', itemType).eq('ItemCode', itemCode).eq('Lot', lot).maybeSingle();
+  if (existing) {
+    const wasEmpty = (parseFloat(existing.QtyBalance) || 0) <= 0;
+    const payload = {
+      QtyIn: (parseFloat(existing.QtyIn) || 0) + qty,
+      QtyBalance: (parseFloat(existing.QtyBalance) || 0) + qty,
+      TotalCost: (parseFloat(existing.TotalCost) || 0) + addCost,
+      StockValue: (parseFloat(existing.StockValue) || 0) + addCost,
+      UpdatedAt: new Date().toISOString(),
+    };
+    if (wasEmpty) payload.FirstMovedInAt = new Date().toISOString().split('T')[0];
+    if (retainDueDate) payload.RetainDueDate = retainDueDate;
+    await _sb.from('hold_stock').update(payload).eq('_row_id', existing._row_id);
+    return existing._row_id;
+  }
+  const { data: inserted, error } = await _sb.from('hold_stock').insert({
+    HoldType: holdType, ItemType: itemType, ItemCode: itemCode, ItemName: itemName, Lot: lot, UOM: uom,
+    QtyIn: qty, QtyOut: 0, QtyBalance: qty, UnitCost: unitCost ?? null, TotalCost: addCost, StockValue: addCost,
+    RetainDueDate: retainDueDate || null, FirstMovedInAt: new Date().toISOString().split('T')[0],
+  }).select('_row_id').maybeSingle();
+  if (error) { _err('บันทึกสต็อก Defect/Retain ไม่สำเร็จ', error.message); return null; }
+  return inserted?._row_id || null;
+}
+
+async function _holdstockAdjustBalance(holdRowId, qty, isAdd) {
+  if (!holdRowId) return;
+  const { data: existing } = await _sb.from('hold_stock').select('QtyIn,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue').eq('_row_id', holdRowId).maybeSingle();
+  if (!existing) return;
+  const cost = parseFloat(existing.UnitCost) || 0;
+  const deltaCost = qty * cost;
+  const payload = isAdd
+    ? {
+        QtyIn: (parseFloat(existing.QtyIn) || 0) + qty,
+        QtyBalance: (parseFloat(existing.QtyBalance) || 0) + qty,
+        TotalCost: (parseFloat(existing.TotalCost) || 0) + deltaCost,
+        StockValue: (parseFloat(existing.StockValue) || 0) + deltaCost,
+      }
+    : {
+        QtyOut: (parseFloat(existing.QtyOut) || 0) + qty,
+        QtyBalance: Math.max(0, (parseFloat(existing.QtyBalance) || 0) - qty),
+        TotalCost: (parseFloat(existing.TotalCost) || 0) - deltaCost,
+        StockValue: (parseFloat(existing.StockValue) || 0) - deltaCost,
+      };
+  payload.UpdatedAt = new Date().toISOString();
+  await _sb.from('hold_stock').update(payload).eq('_row_id', holdRowId);
+}
+
+async function _holdstockLogMove(payload) {
+  const { error } = await _sb.from('hold_stock_moves').insert(payload);
+  if (error) _err('บันทึกประวัติการเคลื่อนไหวไม่สำเร็จ', error.message);
+}
+
+// ── Scrap/Rework/Dispose — primitive ร่วม _holdstockRemoveFromHold ใช้กลไกเดียวกันสำหรับ Scrap/Dispose
+// ต่างกันแค่ MoveType ที่บันทึก ตาม wrapper ที่เช็ค HoldType ก่อนเรียกเสมอ (กันเผลอ Scrap แถว Retain หรือกลับกัน)
+async function _holdstockRemoveFromHold(row, qty, moveType, reason) {
+  if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
+  await _holdstockAdjustBalance(row._row_id, qty, false);
+  await _holdstockLogMove({
+    MoveDate: new Date().toISOString().split('T')[0], HoldType: row.HoldType, ItemType: row.ItemType,
+    ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: moveType,
+    Qty: qty, UnitCost: row.UnitCost, Reason: reason, RefHoldStockId: row._row_id,
+    CreatedBy: _currentUser?.email || null,
+  });
+  return true;
+}
+
+async function holdstockScrap(rowId, qty, reason) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row || row.HoldType !== 'DEFECT') return false;
+  const ok = await _holdstockRemoveFromHold(row, qty, 'SCRAP', reason);
+  if (ok) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง/Scrap จำนวน ${qty} — ${reason}`);
+  return ok;
+}
+
+async function holdstockDispose(rowId, qty, reason) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row || row.HoldType !== 'RETAIN') return false;
+  const ok = await _holdstockRemoveFromHold(row, qty, 'DISPOSE', reason);
+  if (ok) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง Retain จำนวน ${qty} — ${reason}`);
+  return ok;
+}
+
+async function holdstockRework(rowId, qty, reason) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row || row.HoldType !== 'DEFECT') return false;
+  if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
+  await _holdstockAdjustBalance(row._row_id, qty, false);
+  if (row.ItemType === 'FG') await fgUpdateStock(row.ItemCode, row.ItemName, row.Lot, qty, row.UOM, null, null, true);
+  else await _miscReverseStock(row.ItemCode, row.Lot, qty);
+  await _holdstockLogMove({
+    MoveDate: new Date().toISOString().split('T')[0], HoldType: 'DEFECT', ItemType: row.ItemType,
+    ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: 'REWORK',
+    Qty: qty, UnitCost: row.UnitCost, Reason: reason, RefHoldStockId: row._row_id,
+    CreatedBy: _currentUser?.email || null,
+  });
+  _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `Rework คืนสต็อกดี จำนวน ${qty} — ${reason}`);
+  return true;
+}
+
+// ── Modal ใช้ร่วมกันสำหรับ Scrap/Rework/Dispose (ต่างกันแค่ title/label ปุ่มถูกซ่อนสำหรับ operator ด้วย
+// CSS blanket rule [onclick*="holdstockOpenActionModal("] — ดูส่วน <style> ต้นไฟล์) ──
+function holdstockOpenActionModal(rowId, moveType) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row) return;
+  if (!_holdstockActionModal) _holdstockActionModal = new bootstrap.Modal(document.getElementById('holdstockActionModal'));
+  document.getElementById('holdstock-action-rowid').value = rowId;
+  document.getElementById('holdstock-action-movetype').value = moveType;
+  const titles = { SCRAP: 'ทิ้ง / Scrap', REWORK: 'Rework / คืนสต็อกดี', DISPOSE: 'ทิ้งเมื่อครบกำหนด (Retain)' };
+  document.getElementById('holdstockActionTitle').textContent = titles[moveType] || 'ดำเนินการ';
+  document.getElementById('holdstock-action-info').innerHTML =
+    `<b>${row.ItemCode}</b> — ${row.ItemName || ''} · Lot ${row.Lot} · คงเหลือ ${(parseFloat(row.QtyBalance) || 0).toLocaleString()} ${row.UOM || ''}`;
+  document.getElementById('holdstock-action-qty').value = row.QtyBalance;
+  document.getElementById('holdstock-action-qty').max = row.QtyBalance;
+  document.getElementById('holdstock-action-hint').textContent = `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()} ${row.UOM || ''}`;
+  document.getElementById('holdstock-action-reason').value = '';
+  _holdstockActionModal.show();
+}
+
+async function holdstockActionSubmit(e) {
+  e.preventDefault();
+  const rowId = parseInt(document.getElementById('holdstock-action-rowid').value);
+  const moveType = document.getElementById('holdstock-action-movetype').value;
+  const qty = parseFloat(document.getElementById('holdstock-action-qty').value) || 0;
+  const reason = document.getElementById('holdstock-action-reason').value.trim();
+  if (qty <= 0) { _err('จำนวนต้องมากกว่า 0', ''); return; }
+
+  _showLoader();
+  let ok = false;
+  if (moveType === 'SCRAP') ok = await holdstockScrap(rowId, qty, reason);
+  else if (moveType === 'REWORK') ok = await holdstockRework(rowId, qty, reason);
+  else if (moveType === 'DISPOSE') ok = await holdstockDispose(rowId, qty, reason);
+  _hideLoader();
+  if (!ok) return;
+
+  _holdstockActionModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกแล้ว', showConfirmButton: false, timer: 2000 });
+  holdstockLoadData();
+}
+
+// ── "ดูที่มา" — เด้งไปหน้า Lot Scan ที่มีระบบตรวจสอบย้อนกลับข้ามตารางอยู่แล้ว ไม่สร้างใหม่ ──
+function holdstockViewSource(rowId) {
+  const r = _holdstockData.find(d => d._row_id === rowId);
+  if (!r) return;
+  showPage('lotscan', document.getElementById('nav-lotscan'));
+  const match = r.ItemType === 'FG'
+    ? { type: 'fg', productCode: r.ItemCode, lotFg: r.Lot }
+    : { type: 'material', materialCode: r.ItemCode, lot: r.Lot };   // Bulk และ Pac ทั้งคู่ไล่ผ่าน stock_balance
+  lotscanShow(match);
+}
+
+// ── ประวัติการเคลื่อนไหว (drill-down ต่อ Lot) — แก้ไข/ลบทำที่นี่ทีละรายการ ไม่ใช่ที่แถวยอดรวม ──
+async function holdstockOpenHistoryModal(rowId) {
+  const row = _holdstockData.find(d => d._row_id === rowId);
+  if (!row) return;
+  if (!_holdstockHistoryModal) _holdstockHistoryModal = new bootstrap.Modal(document.getElementById('holdstockHistoryModal'));
+  _holdstockHistoryRowKey = { HoldType: row.HoldType, ItemType: row.ItemType, ItemCode: row.ItemCode, Lot: row.Lot };
+  document.getElementById('holdstockHistoryTitle').innerHTML = `<i class="fas fa-clock-rotate-left me-2"></i>ประวัติ ${row.ItemCode} — Lot ${row.Lot}`;
+  await _holdstockLoadHistory();
+  _holdstockHistoryModal.show();
+}
+
+async function _holdstockLoadHistory() {
+  const k = _holdstockHistoryRowKey;
+  const { data, error } = await _sb.from('hold_stock_moves').select('*')
+    .eq('HoldType', k.HoldType).eq('ItemType', k.ItemType).eq('ItemCode', k.ItemCode).eq('Lot', k.Lot)
+    .order('MoveDate', { ascending: true }).order('_row_id', { ascending: true });
+  if (error) { _err('โหลดประวัติไม่ได้', error.message); return; }
+  _holdstockHistoryMoves = data || [];
+  _holdstockRenderHistoryTable();
+}
+
+function _holdstockRenderHistoryTable(editingId) {
+  const tbody = document.getElementById('holdstock-history-tbody');
+  if (!_holdstockHistoryMoves.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">ไม่มีประวัติ</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _holdstockHistoryMoves.map(m => {
+    if (m._row_id === editingId) return _holdstockRenderHistoryEditRow(m);
+    // move 'IN' แก้ไข/ลบได้ทุก role (แก้ข้อผิดพลาดตอนกรอก) ส่วน SCRAP/REWORK/DISPOSE ต้อง supervisor ขึ้นไป
+    // เท่านั้น — ย้อนการกระทำได้ก็ต้องมีสิทธิ์ระดับเดียวกับที่ทำมันได้ (เจตนาไม่ตั้งชื่อฟังก์ชันลบว่า
+    // "...Delete(" เพื่อไม่ให้โดน CSS blanket-hide ของทั้งแอปบัง IN ที่ควรแก้ได้ทุก role ไปด้วย)
+    const canManage = m.MoveType === 'IN' || _hasRole('supervisor');
+    const actions = canManage
+      ? `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockMoveEditStart(${m._row_id})" title="แก้ไข"><i class="fas fa-pen"></i></button> ` +
+        `<button class="btn btn-sm btn-outline-danger" onclick="holdstockMoveRemove(${m._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>`
+      : '';
+    return `<tr>
+      <td>${_fmtDate(m.MoveDate)}</td><td>${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType}</td>
+      <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td><td>${m.Reason || ''}</td>
+      <td class="text-center">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _holdstockRenderHistoryEditRow(m) {
+  return `<tr>
+    <td><input type="date" id="holdstock-hedit-date" class="form-control form-control-sm" value="${m.MoveDate}"></td>
+    <td>${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType}</td>
+    <td><input type="number" id="holdstock-hedit-qty" class="form-control form-control-sm text-end" value="${m.Qty}" min="0.001" step="0.001"></td>
+    <td><input type="text" id="holdstock-hedit-reason" class="form-control form-control-sm" value="${(m.Reason || '').replace(/"/g, '&quot;')}"></td>
+    <td class="text-center">
+      <button class="btn btn-sm btn-success" onclick="holdstockMoveEditSubmit(${m._row_id})" title="บันทึก"><i class="fas fa-check"></i></button>
+      <button class="btn btn-sm btn-secondary" onclick="_holdstockRenderHistoryTable()" title="ยกเลิก"><i class="fas fa-times"></i></button>
+    </td>
+  </tr>`;
+}
+
+function holdstockMoveEditStart(moveId) {
+  _holdstockRenderHistoryTable(moveId);
+}
+
+// ย้อนผลของ move หนึ่งรายการกลับ (ใช้ทั้งตอนแก้ไขก่อน reapply ค่าใหม่ และตอนลบ) — dispatch ตาม MoveType เดิม
+async function _holdstockReverseMove(m) {
+  const qty = parseFloat(m.Qty) || 0;
+  if (m.MoveType === 'IN') {
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, null, null, true);
+    else await _miscReverseStock(m.ItemCode, m.Lot, qty);
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, false);
+  } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, true);
+  } else if (m.MoveType === 'REWORK') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, true);
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, null, null, false);
+    else await miscUpdateStock(m.ItemCode, m.Lot, qty);
+  }
+}
+
+async function holdstockMoveEditSubmit(moveId) {
+  const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
+  if (!m) return;
+  const newDate = document.getElementById('holdstock-hedit-date').value;
+  const newQty = parseFloat(document.getElementById('holdstock-hedit-qty').value) || 0;
+  const newReason = document.getElementById('holdstock-hedit-reason').value.trim();
+  if (newQty <= 0) { _err('จำนวนต้องมากกว่า 0', ''); return; }
+
+  _showLoader();
+  await _holdstockReverseMove(m);
+  // reapply ด้วยค่าใหม่ ตาม MoveType เดิมเป๊ะ (ไม่ให้เปลี่ยนประเภท move ตอนแก้ไข)
+  if (m.MoveType === 'IN') {
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, newQty, m.UOM, null, null, false);
+    else await miscUpdateStock(m.ItemCode, m.Lot, newQty);
+    await _holdstockUpsertIn(m.HoldType, m.ItemType, m.ItemCode, m.ItemName, m.Lot, m.UOM, newQty, m.UnitCost, m.RetainDueDate);
+  } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, false);
+  } else if (m.MoveType === 'REWORK') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, newQty, false);
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, newQty, m.UOM, null, null, true);
+    else await _miscReverseStock(m.ItemCode, m.Lot, newQty);
+  }
+  const { error } = await _sb.from('hold_stock_moves').update({ MoveDate: newDate, Qty: newQty, Reason: newReason }).eq('_row_id', moveId);
+  _hideLoader();
+  if (error) { _err('แก้ไขไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `แก้ไขรายการ ${m.MoveType}: qty ${m.Qty}→${newQty}`);
+  await _holdstockLoadHistory();
+  holdstockLoadData();
+}
+
+async function holdstockMoveRemove(moveId) {
+  const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
+  if (!m) return;
+  const conf = await Swal.fire({
+    title: 'ลบรายการนี้?', text: `${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType} จำนวน ${m.Qty}`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+  });
+  if (!conf.isConfirmed) return;
+
+  _showLoader();
+  await _holdstockReverseMove(m);
+  const { data, error } = await _sb.from('hold_stock_moves').delete().eq('_row_id', moveId).select();
+  _hideLoader();
+  if (error || !data?.length) {
+    _err('ลบไม่สำเร็จ', error?.message || 'ไม่มีสิทธิ์ลบรายการนี้ (รายการ SCRAP/REWORK/DISPOSE ต้องเป็นหัวหน้างานขึ้นไป)');
+    return;
+  }
+  _logAudit('DELETE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ลบรายการ ${m.MoveType} จำนวน ${m.Qty}`);
+  await _holdstockLoadHistory();
+  holdstockLoadData();
 }
 
 // ══════════════════════════════════════════════
