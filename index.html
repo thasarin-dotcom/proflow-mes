@@ -7900,13 +7900,17 @@ async function loadFGStockData() {
 // แก้ไข/ลบ move ที่หน้า Hold Stock จะ mutate แถวเดิมในที่ ไม่ insert ซ้ำ (ดู holdstockMoveEditSubmit/
 // holdstockMoveRemove) ยอดในตารางนี้จึงตรงกับสถานะปัจจุบันเสมอ ไม่ต้องกังวลเรื่องนับซ้ำจากประวัติเก่า
 async function _fgStockComputeFlowKPIs() {
+  // เลือกคอลัมน์ตรงๆ (ไม่ใช่ '*') — ต้องระบุ QtyFG อย่างเดียว ห้ามใส่ 'Qty' ปนด้วยแบบ getQty() ฝั่ง
+  // fgStockRecalculate() ที่ปลอดภัยเพราะดึงทั้งแถว ('*') แล้วค่อย fallback ฝั่ง JS — ถ้าระบุ select('Qty,QtyFG,...')
+  // ตรงๆ กับ PostgREST แล้วคอลัมน์ใดคอลัมน์หนึ่งไม่มีจริงในตาราง (fg_receive/fg_withdraw มีแค่ QtyFG ไม่มี Qty)
+  // ทั้ง query จะพัง 400/42703 ทันที ไม่ fallback เงียบๆ แบบที่ตั้งใจไว้ (บั๊กจริง พบตอน deploy 2026-09-01)
   const [recRes, wdRes, holdRes, moveRes] = await Promise.all([
-    _fetchAllPaged('fg_receive', 'ProductCode,Qty,QtyFG,UOM'),
-    _fetchAllPaged('fg_withdraw', 'ProductCode,Qty,QtyFG,UOM'),
+    _fetchAllPaged('fg_receive', 'ProductCode,QtyFG,UOM'),
+    _fetchAllPaged('fg_withdraw', 'ProductCode,QtyFG,UOM'),
     _fetchAllPagedEq('hold_stock', 'HoldType,QtyBalance,UOM', 'ItemType', 'FG'),
     _fetchAllPagedEq('hold_stock_moves', 'MoveType,Qty,UOM', 'ItemType', 'FG'),
   ]);
-  const getQty = r => parseFloat(r.Qty ?? r.QtyFG ?? 0) || 0;
+  const getQty = r => parseFloat(r.QtyFG) || 0;
 
   const inTotals = {};
   (recRes.data || []).forEach(r => { const u = r.UOM || '—'; inTotals[u] = (inTotals[u] || 0) + getQty(r); });
