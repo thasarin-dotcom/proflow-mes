@@ -13699,8 +13699,26 @@ function _pubWeeklyOverviewSection(data) {
   // _renderPublicReport ที่เลื่อนจอไปหาการ์ดนี้อัตโนมัติ)
   const todayStr = _planWeekLocalDateStr(new Date());
 
+  // เติมการ์ด "สัปดาห์สุดท้ายของเดือนก่อนหน้า" ไว้หน้าสุด เฉพาะตอน "ต้นเดือน" — นิยามตรงนี้คือวันนี้ยังอยู่
+  // ในช่วงสัปดาห์แรกของเดือนที่รายงาน (ยังไม่ผ่านสัปดาห์แรกไปเลย) ตามคำขอผู้ใช้ 2026-09-01 "อยากให้เห็น
+  // สัปดาห์ล่าสุดของเดือนก่อนหน้าด้วย ถ้าเป็นต้นเดือน" — ใช้ data.prevWeekProdRows/prevWeekDlvRows ที่ Edge
+  // Function ดึงแยกมาให้ต่างหาก (ช่วงวันที่คนละก้อนกับ data.prodRows/dlvRows โดยเจตนา — ตัวนั้นใช้คำนวณยอด
+  // รวม "ทั้งเดือน" ที่อื่นในรายงานนี้ด้วย (แผนผลิต vs ผลจริง/การจัดส่ง/ลูกค้าที่จัดส่งมากที่สุด) ถ้าเอาข้อมูล
+  // สัปดาห์ก่อนหน้ามาปนจะทำให้ยอดเดือนนี้บวมผิด ดูคอมเมนต์ที่ plan-report/index.ts) ลิงก์เก่าที่ยังไม่ได้
+  // redeploy Edge Function เวอร์ชันนี้จะไม่มี field พวกนี้เลย ก็แค่ไม่แสดงการ์ดเสริม ไม่ error
+  let prevWeekNote = '';
+  if (Array.isArray(data.prevWeekProdRows) && Array.isArray(data.prevWeekDlvRows) &&
+      monthWeeks.length && todayStr <= monthWeeks[0].end) {
+    const prevWeekMonday = _weeklyreportShiftDate(monthWeeks[0].start, -7);
+    const prevWeekRange = _weeklyreportRange(prevWeekMonday);
+    const prevWeekData = _weeklyreportBuildMonthWeekData([prevWeekRange], data.prevWeekProdRows, data.prevWeekDlvRows);
+    weeksData.unshift(prevWeekData[0]);
+    prevWeekNote = `<div class="text-muted small mb-2">* รวมสัปดาห์สุดท้ายของเดือนก่อนหน้าไว้ให้ด้วย เนื่องจากเพิ่งเข้าเดือนใหม่</div>`;
+  }
+
   return `<div class="glass-card mb-3">
     <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวมรายสัปดาห์ — ${_weeklyreportMonthLabel(data.startDate)}</h6>
+    ${prevWeekNote}
     ${_weeklyreportBuildMonthWeekHTML(weeksData, todayStr)}
   </div>`;
 }
