@@ -2069,6 +2069,33 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </div>
         </div>
       </div>
+      <!-- ยอดรับเข้า/จ่ายออกสะสม + Defect/Retain คงค้าง (2026-09-01) -->
+      <div class="row g-3 mb-3" id="fgstock-flow-kpi-row">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#0ea5e9">
+            <div class="kpi-num" style="color:#0ea5e9;font-size:.95rem;line-height:1.4" id="fgkpi-flow-in">—</div>
+            <div class="kpi-label">รับเข้ารวม (สะสม)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#f97316" title="รวมเบิกลูกค้า/เบ็ดเตล็ด และยอดที่ย้ายไปสต็อก Defect/Retain (สุทธิหลังหักที่ Rework กลับมาแล้ว)">
+            <div class="kpi-num" style="color:#f97316;font-size:.95rem;line-height:1.4" id="fgkpi-flow-out">—</div>
+            <div class="kpi-label">จ่ายออกรวม (รวม Defect/Retain)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#dc2626;cursor:pointer" onclick="_fgStockJumpToHold('DEFECT')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
+            <div class="kpi-num text-danger" style="font-size:.95rem;line-height:1.4" id="fgkpi-hold-defect">—</div>
+            <div class="kpi-label"><i class="fas fa-ban me-1"></i>Defect คงค้าง (FG)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="_fgStockJumpToHold('RETAIN')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
+            <div class="kpi-num text-warning" style="font-size:.95rem;line-height:1.4" id="fgkpi-hold-retain">—</div>
+            <div class="kpi-label"><i class="fas fa-flask me-1"></i>Retain คงค้าง (FG)</div>
+          </div>
+        </div>
+      </div>
       <div id="fgstock-cards">
         <div class="text-center text-muted py-5">
           <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
@@ -7846,6 +7873,80 @@ async function loadFGStockData() {
   _fgStockPopulateFilters();
   updateFGStockKPIs();
   renderFGStockTable();
+  // ยอดรับเข้า/จ่ายออกสะสม + Defect/Retain คงค้าง — คิวแยกจากการ์ดหลัก ไม่บล็อกการ render ตาราง (fire-and-forget
+  // เหมือน _whComputeBulkForecast().then(_whRenderForecast) ของแท็บเล็ตคลัง)
+  _fgStockComputeFlowKPIs().then(_fgStockRenderFlowKPIs);
+}
+
+// ── ยอดรับเข้า/จ่ายออกรวมของ FG ทั้งหมด (สะสม, แยกตามหน่วย) — "จ่ายออก" ต้องนับรวมยอดที่ถูกย้ายไปสต็อก
+// Defect/Retain ด้วย ไม่ใช่แค่ fg_withdraw เฉยๆ เพราะ holdstockMoveInSubmit() ตัด stock_fg ออกจริง
+// (fgUpdateStock(...,false)) แต่ไม่เคยสร้างแถว fg_withdraw เลย — ถ้านับแค่ fg_withdraw ยอดจ่ายออกจะขาดหาย
+// ส่วนที่ Rework กลับมาแล้ว (fgUpdateStock(...,true)) ต้องหักออกจากยอดจ่ายออกด้วย ไม่งั้นจะนับซ้ำเป็นยิ่งจ่าย
+// ออกไปทั้งที่ของกลับเข้าสต็อกปกติแล้ว — ใช้ hold_stock_moves (ItemType='FG') เป็น source of truth เพราะ
+// แก้ไข/ลบ move ที่หน้า Hold Stock จะ mutate แถวเดิมในที่ ไม่ insert ซ้ำ (ดู holdstockMoveEditSubmit/
+// holdstockMoveRemove) ยอดในตารางนี้จึงตรงกับสถานะปัจจุบันเสมอ ไม่ต้องกังวลเรื่องนับซ้ำจากประวัติเก่า
+async function _fgStockComputeFlowKPIs() {
+  const [recRes, wdRes, holdRes, moveRes] = await Promise.all([
+    _fetchAllPaged('fg_receive', 'ProductCode,Qty,QtyFG,UOM'),
+    _fetchAllPaged('fg_withdraw', 'ProductCode,Qty,QtyFG,UOM'),
+    _fetchAllPagedEq('hold_stock', 'HoldType,QtyBalance,UOM', 'ItemType', 'FG'),
+    _fetchAllPagedEq('hold_stock_moves', 'MoveType,Qty,UOM', 'ItemType', 'FG'),
+  ]);
+  const getQty = r => parseFloat(r.Qty ?? r.QtyFG ?? 0) || 0;
+
+  const inTotals = {};
+  (recRes.data || []).forEach(r => { const u = r.UOM || '—'; inTotals[u] = (inTotals[u] || 0) + getQty(r); });
+
+  const outTotals = {};
+  (wdRes.data || []).forEach(r => { const u = r.UOM || '—'; outTotals[u] = (outTotals[u] || 0) + getQty(r); });
+  (moveRes.data || []).forEach(m => {
+    const u = m.UOM || '—';
+    const q = parseFloat(m.Qty) || 0;
+    if (m.MoveType === 'IN') outTotals[u] = (outTotals[u] || 0) + q;         // ย้ายออกจาก stock_fg ไปเก็บ
+    else if (m.MoveType === 'REWORK') outTotals[u] = (outTotals[u] || 0) - q; // Rework กลับเข้า stock_fg แล้ว หักออก
+  });
+
+  const defectTotals = {}, retainTotals = {};
+  (holdRes.data || []).forEach(r => {
+    const bal = parseFloat(r.QtyBalance) || 0;
+    if (bal <= 0) return;
+    const u = r.UOM || '—';
+    const bucket = r.HoldType === 'RETAIN' ? retainTotals : defectTotals;
+    bucket[u] = (bucket[u] || 0) + bal;
+  });
+
+  return { inTotals, outTotals, defectTotals, retainTotals };
+}
+
+function _fgStockFmtUomTotals(totals) {
+  const entries = Object.entries(totals).filter(([, q]) => Math.abs(q) > 0.0001);
+  if (!entries.length) return '—';
+  return entries.sort((a, b) => b[1] - a[1])
+    .map(([uom, qty]) => `${qty.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${uom}`)
+    .join(' · ');
+}
+
+function _fgStockRenderFlowKPIs(k) {
+  if (!k) return;
+  const inEl = document.getElementById('fgkpi-flow-in');
+  const outEl = document.getElementById('fgkpi-flow-out');
+  const defEl = document.getElementById('fgkpi-hold-defect');
+  const retEl = document.getElementById('fgkpi-hold-retain');
+  if (inEl) inEl.textContent = _fgStockFmtUomTotals(k.inTotals);
+  if (outEl) outEl.textContent = _fgStockFmtUomTotals(k.outTotals);
+  if (defEl) defEl.textContent = _fgStockFmtUomTotals(k.defectTotals);
+  if (retEl) retEl.textContent = _fgStockFmtUomTotals(k.retainTotals);
+}
+
+// ── กดที่การ์ด KPI Defect/Retain (FG) บนหน้า Stock FG → เด้งไปหน้าสต็อก Defect/Retain กรองเฉพาะ FG ให้เลย ──
+function _fgStockJumpToHold(holdType) {
+  showPage('holdstock', document.getElementById('nav-holdstock'));
+  const radio = document.getElementById(holdType === 'RETAIN' ? 'holdstock-mode-retain' : 'holdstock-mode-defect');
+  if (radio) radio.checked = true;
+  _holdstockMode = holdType;
+  const typeFilter = document.getElementById('holdstock-filter-itemtype');
+  if (typeFilter) typeFilter.value = 'FG';
+  holdstockLoadData();
 }
 
 function renderFGStockTable() {
@@ -7985,7 +8086,8 @@ async function fgStockRecalculate() {
     html: `ระบบจะ<br>
       <b>1.</b> รวมยอดรับทั้งหมดจาก <b>fg_receive</b><br>
       <b>2.</b> หักยอดเบิกทั้งหมดจาก <b>fg_withdraw</b><br>
-      <b>3.</b> เขียน <b>stock_fg</b> ใหม่ทั้งหมด<br><br>
+      <b>3.</b> หักยอดที่ย้ายไปสต็อก <b>Defect/Retain</b> (บวกคืนส่วนที่ Rework กลับมาแล้ว)<br>
+      <b>4.</b> เขียน <b>stock_fg</b> ใหม่ทั้งหมด<br><br>
       <span class="text-muted" style="font-size:.85rem">ข้อมูลเดิมใน stock_fg จะถูกแทนที่ทั้งหมด</span>`,
     icon: 'question', showCancelButton: true,
     confirmButtonText: 'คำนวณเลย', cancelButtonText: 'ยกเลิก',
@@ -7996,16 +8098,22 @@ async function fgStockRecalculate() {
   _showLoader();
   // ดึงข้อมูลทั้งหมดพร้อมกัน — ต้อง paginate เพราะฟังก์ชันนี้ล้าง+เขียน stock_fg ใหม่ทั้งหมดจากผลลัพธ์นี้
   // ถ้าตารางต้นทางแถวเกิน 1000 แล้วโดน PostgREST ตัดเงียบๆ จะเขียน stock_fg ผิดถาวร ไม่ใช่แค่แสดงผลผิดชั่วคราว
-  const [recRes, outRes] = await Promise.all([
+  // ต้องดึง hold_stock_moves (ItemType='FG') ด้วย — ของที่ย้ายไปสต็อก Defect/Retain ถูกตัดออกจาก stock_fg
+  // จริงผ่าน fgUpdateStock(...,false) แต่ไม่เคยสร้างแถว fg_withdraw เลย ถ้าไม่หักตรงนี้ด้วย การคำนวณใหม่จะ
+  // "คืน" ยอดที่ถูกย้ายไป Defect/Retain กลับเข้า stock_fg อย่างผิดๆ (ดูหมายเหตุที่ _fgStockComputeFlowKPIs())
+  const [recRes, outRes, moveRes] = await Promise.all([
     _fetchAllPaged('fg_receive', '*'),
     _fetchAllPaged('fg_withdraw', '*'),
+    _fetchAllPagedEq('hold_stock_moves', 'ItemCode,Lot,MoveType,Qty', 'ItemType', 'FG'),
   ]);
 
   if (recRes.error) { _hideLoader(); _err('โหลด fg_receive ไม่ได้', recRes.error.message); return; }
   if (outRes.error) { _hideLoader(); _err('โหลด fg_withdraw ไม่ได้', outRes.error.message); return; }
+  if (moveRes.error) { _hideLoader(); _err('โหลด hold_stock_moves ไม่ได้', moveRes.error.message); return; }
 
   const receives  = recRes.data || [];
   const withdraws = outRes.data || [];
+  const holdMoves = moveRes.data || [];
 
   // helper: อ่านค่า lot/qty จาก row ที่ column name อาจต่างกัน
   const getLot = r => r.LotFG || r['Lot_FG'] || r.LOT || '';
@@ -8029,6 +8137,17 @@ async function fgStockRecalculate() {
     const key = `${r.ProductCode}||${getLot(r)}`;
     if (map[key]) map[key].FGBalance = Math.max(0, map[key].FGBalance - getQty(r));
     // ถ้า withdraw มีแต่ไม่เคยรับ — ไม่สร้าง row ใหม่ (balance จะเป็นลบ ข้ามไป)
+  }
+
+  // หักยอดที่ถูกย้ายไปสต็อก Defect/Retain (MoveType='IN') และบวกกลับส่วนที่ Rework คืนสต็อกปกติแล้ว
+  // (MoveType='REWORK') — SCRAP/DISPOSE ไม่กระทบ stock_fg เลย เพราะของออกจาก stock_fg ไปตั้งแต่ตอน
+  // ย้ายเข้า Hold แล้ว ทิ้ง/Scrap ทีหลังเป็นแค่การตัดยอดภายใน hold_stock เอง
+  for (const m of holdMoves) {
+    const key = `${m.ItemCode}||${m.Lot}`;
+    if (!map[key]) continue;
+    const qty = parseFloat(m.Qty) || 0;
+    if (m.MoveType === 'IN') map[key].FGBalance = Math.max(0, map[key].FGBalance - qty);
+    else if (m.MoveType === 'REWORK') map[key].FGBalance += qty;
   }
 
   // ตัดเฉพาะ column ที่ stock_fg มีแน่ๆ (ไม่รวม ExpDate/MO_ID ที่อาจไม่มี)
@@ -8055,7 +8174,7 @@ async function fgStockRecalculate() {
   await loadFGStockData();
   Swal.fire({
     icon: 'success', title: 'คำนวณ Stock ใหม่สำเร็จ',
-    html: `พบ <b>${receives.length}</b> รายการรับ / <b>${withdraws.length}</b> รายการเบิก<br>
+    html: `พบ <b>${receives.length}</b> รายการรับ / <b>${withdraws.length}</b> รายการเบิก / <b>${holdMoves.length}</b> รายการย้าย Defect-Retain<br>
            อัพเดต <b>${newRows.length}</b> Lot ใน stock_fg`,
     confirmButtonText: 'OK'
   });
@@ -16697,7 +16816,14 @@ function _prodrecordRenderExpanded(r) {
       </tr>`).join('')}
       </tbody></table>`;
 
-  const costHtml = r.Status !== 'อนุมัติแล้ว' ? '' : `
+  // เดิมเช็ค r.Status !== 'อนุมัติแล้ว' → ซ่อนกล่องต้นทุนทันทีที่กด "เปิดกลับ" (Status เปลี่ยนกลับเป็น
+  // "รอเช็คต้นทุน") ทั้งที่ MaterialCost/LaborCost/Overhead/TotalCost/CostPerUnit/YieldOverall ยังอยู่ครบใน
+  // DB จริง (prodrecordReopen แก้แค่ Status/ProductionNote ไม่เคยล้างค่าต้นทุนทิ้งเลย) — ผู้ใช้รายงานว่ากด
+  // เปิดกลับแล้วขยายการ์ดดูข้อมูลไม่ได้อีก ("เด้งหายหมด") 2026-08-27 แก้เป็นเช็คว่า "มีข้อมูลต้นทุนบันทึกไว้
+  // ไหม" (r.TotalCost != null) แทนการเช็ค Status ตรงๆ ให้ยังดูของเดิมได้แม้เปิดกลับไปแล้ว พร้อมข้อความเตือนว่า
+  // เป็นค่าก่อนเปิดกลับ ไม่ใช่ต้นทุนที่ล็อกอยู่ตอนนี้
+  const costHtml = r.TotalCost == null ? '' : `
+    ${r.Status !== 'อนุมัติแล้ว' ? '<div class="small text-warning mb-1"><i class="fas fa-triangle-exclamation me-1"></i>ต้นทุนก่อนเปิดกลับ (ยังไม่ได้อนุมัติใหม่)</div>' : ''}
     <div class="row g-2 text-center mt-2">
       <div class="col"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">วัตถุดิบ</div></div></div>
       <div class="col"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${(parseFloat(r.LaborCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ค่าแรง</div></div></div>
