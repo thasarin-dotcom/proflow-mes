@@ -13685,12 +13685,22 @@ function _pubWeeklyOverviewSection(data) {
   if (!Array.isArray(data.prodRows) || !Array.isArray(data.dlvRows)) return '';
 
   // หมายเหตุ: data.startDate/endDate ตอน period==='month' คือวันที่ 1 ถึงวันสุดท้ายของเดือนพอดี (ดู
-  // _planReportComputeRange) แต่สัปดาห์แรก/สุดท้ายของเดือนอาจมีบางวันคาบเกี่ยวไปเดือนก่อน/ถัดไป — เดือน
-  // เหล่านั้นจะไม่มีข้อมูลติดมาด้วย (data.prodRows/dlvRows ถูกตัดที่ขอบเดือนพอดีตามด้านบน) การ์ดสัปดาห์แรก/
-  // สุดท้ายจึงอาจนับได้น้อยกว่าหน้า "รายงานรายสัปดาห์" ในแอปเล็กน้อยสำหรับวันที่อยู่นอกเดือนนั้น — ยอมรับ
-  // ข้อจำกัดนี้เพื่อเลี่ยงการแก้ Edge Function เพิ่ม (ดูหมายเหตุด้านบน)
+  // _planReportComputeRange) แต่สัปดาห์แรกของเดือนอาจมีบางวันคาบเกี่ยวไปเดือนก่อนหน้า (เช่น จ.31ส.ค.–ส.5ก.ย.
+  // นับเป็นสัปดาห์ของ ก.ย.) — data.prodRows/dlvRows ถูกตัดที่ขอบเดือนปฏิทินพอดี (ไม่ใช่ขอบสัปดาห์) จึงไม่มี
+  // ข้อมูลวันที่ 31 ส.ค. ติดมาด้วย ทำให้การ์ดสัปดาห์แรกเคยนับยอดน้อยกว่าหน้า "รายงานรายสัปดาห์" จริงในแอป
+  // (บั๊กที่ผู้ใช้เจอจริง 2026-09-01 — เทียบ "31 ส.ค.–5 ก.ย." สองที่แล้วยอดจัดส่งไม่ตรงกัน, ขาดสินค้าบางตัวไป
+  // เลยทั้งแถว) **แก้แล้ว**: data.prevWeekProdRows/dlvRows (ดึงมาสำหรับการ์ด "สัปดาห์ก่อนหน้า" ด้านล่างอยู่
+  // แล้ว ครอบคลุมถึงวันสุดท้ายของเดือนก่อนหน้าพอดี — ดู plan-report/index.ts) เอามาต่อรวมก่อนคำนวณการ์ด
+  // รายสัปดาห์เท่านั้น (ไม่ใช่กับ data.prodRows/dlvRows ที่ใช้คำนวณยอดรวม "ทั้งเดือน" ที่อื่นในรายงานนี้ —
+  // ยอดทั้งเดือนของ ก.ย. ต้องไม่รวมวันที่ 31 ส.ค. อยู่แล้วโดยนิยาม ไม่ใช่บั๊ก) แถวที่ไม่ได้อยู่ในสัปดาห์แรก
+  // จะถูกกรองทิ้งเองโดย _weeklyreportBuildMonthWeekData (เทียบช่วงวันที่ต่อสัปดาห์อยู่แล้ว) จึงต่อได้ตรงๆ
+  // โดยไม่ต้องกังวลนับซ้ำ — **ยังไม่ได้แก้สัปดาห์สุดท้ายของเดือนที่อาจคาบเกี่ยวไปเดือนถัดไป** (ไม่มีข้อมูล
+  // เดือนถัดไปให้ backfill เพราะยังไม่ได้ดึง ถ้าเจอปัญหานี้ที่สัปดาห์ท้ายเดือนอีก ต้องเพิ่ม query แบบเดียวกัน
+  // นี้สำหรับ "สัปดาห์แรกของเดือนถัดไป" ที่ Edge Function ด้วย)
   const monthWeeks = _weeklyreportMonthWeekRanges(data.startDate);
-  const weeksData = _weeklyreportBuildMonthWeekData(monthWeeks, data.prodRows, data.dlvRows);
+  const prodForWeeks = Array.isArray(data.prevWeekProdRows) ? data.prodRows.concat(data.prevWeekProdRows) : data.prodRows;
+  const dlvForWeeks = Array.isArray(data.prevWeekDlvRows) ? data.dlvRows.concat(data.prevWeekDlvRows) : data.dlvRows;
+  const weeksData = _weeklyreportBuildMonthWeekData(monthWeeks, prodForWeeks, dlvForWeeks);
 
   // "สัปดาห์นี้" ต้องเทียบกับวันนี้จริงๆ (เวลาเครื่องผู้เปิดลิงก์) ไม่ใช่ data.startDate — data.startDate
   // คือวันที่ 1 ของเดือนที่รายงานเสมอ (ดูหมายเหตุด้านบน) ถ้าใช้ค่านั้นมาเทียบ isCurrent ใน
@@ -14385,12 +14395,15 @@ function _weeklyreportBuildMonthWeekHTML(weeksData, selectedDateVal) {
     const dlvList = !dlvTop.length ? `<div class="wreport-week-empty">ไม่มีการจัดส่ง</div>` :
       dlvTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
     const rangeLabel = `${_planFmtDateLabel(wk.range.start)} – ${_planFmtDateLabel(wk.range.end)}`;
+    // สลับลำดับ "จัดส่ง" ขึ้นก่อน "ผลิต" 2026-09-01 ตามคำขอผู้ใช้ — ใช้ร่วมกันทั้งหน้า "รายงานรายสัปดาห์"
+    // ในแอป (weeklyreportRenderMonthWeeks) และรายงานสาธารณะ (_pubWeeklyOverviewSection) เพราะเป็นฟังก์ชัน
+    // เดียวกัน ไม่แยกโค้ด 2 ชุด — ลำดับจึงเปลี่ยนพร้อมกันทั้ง 2 ที่โดยตั้งใจ
     return `<div class="wreport-week-card${isCurrent ? ' wreport-week-current' : ''}">
       <div class="wreport-week-range">${rangeLabel}${isCurrent ? '<br><span style="color:#3b82f6">(สัปดาห์นี้)</span>' : ''}</div>
-      <div class="wreport-week-sub-title"><i class="fas fa-industry"></i>ผลิต</div>
-      ${prodList}
       <div class="wreport-week-sub-title"><i class="fas fa-truck"></i>จัดส่ง</div>
       ${dlvList}
+      <div class="wreport-week-sub-title"><i class="fas fa-industry"></i>ผลิต</div>
+      ${prodList}
     </div>`;
   }).join('');
   return `<div class="wreport-week-grid">${cards}</div>`;
