@@ -13713,7 +13713,7 @@ async function _renderPublicReport(token) {
 
   let data;
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/plan-report?token=${encodeURIComponent(token)}`);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/plan-report?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
     data = await res.json();
   } catch (e) {
     showError('เชื่อมต่อไม่สำเร็จ'); return;
