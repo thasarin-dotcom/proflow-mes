@@ -4773,8 +4773,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </div>
           </div>
           <div class="col-md-6 d-flex gap-2 justify-content-end">
-            <button class="btn btn-sm btn-outline-warning" id="prodrecord-recalc-oh-btn" style="display:none" onclick="prodrecordRecalcAllOverhead()" title="คำนวณ Overhead ของบันทึกที่อนุมัติต้นทุนแล้วทั้งหมดใหม่ ตามสูตรล่าสุด (ชม.ทำงานจริง แทนจำนวนวันปฏิทิน)">
-              <i class="fas fa-calculator me-1"></i>คำนวณ Overhead ใหม่ทั้งหมด
+            <button class="btn btn-sm btn-outline-warning" id="prodrecord-recalc-oh-btn" style="display:none" onclick="prodrecordRecalcAllOverhead()" title="คำนวณ Overhead+ค่าแรง ของบันทึกที่อนุมัติต้นทุนแล้วทั้งหมดใหม่ ตามสูตรล่าสุด (ชม.ทำงานจริง + ปัดชม.เก็บล้าง)">
+              <i class="fas fa-calculator me-1"></i>คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด
             </button>
             <button class="btn btn-sm btn-primary" onclick="prodrecordLoadData()">
               <i class="fas fa-sync-alt me-1"></i>รีเฟรช
@@ -13733,6 +13733,10 @@ function _pubWeeklyOverviewSection(data) {
   </div>`;
 }
 
+// true หลังตั้ง auto-refresh setInterval ของ _renderPublicReport ไปแล้วครั้งแรก — กันไม่ให้ตั้งซ้อนกันหลาย
+// ตัวถ้าฟังก์ชันถูกเรียกซ้ำ และใช้แยกด้วยว่ารอบนี้เป็นรอบแรก (ควร scrollIntoView) หรือรอบรีเฟรช (ไม่ควร)
+let _pubReportRefreshStarted = false;
+
 // เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
 // login/RLS เลย (ข้อมูลมาจาก Edge Function plan-report ที่อ่านด้วย service_role) ใช้ CSS/คลาสของแอป
 // เอง (glass-card, table, badge ฯลฯ) ที่โหลดอยู่แล้วในหน้านี้ ไม่ต้องทำหน้าแยก
@@ -13788,8 +13792,8 @@ async function _renderPublicReport(token) {
     <div class="glass-card mb-3"><h5 class="fw-bold mb-1">🏭 รายงานผลิต-จัดส่ง (${periodLabel})</h5>
       <div class="text-muted small">ช่วง ${rangeLabel} · ProFlow Wise MES</div></div>
     ${_pubWeeklyOverviewSection(data)}
-    ${_weeklyreportPlanVsActualCardHTML(wreportSummary)}
-    ${_weeklyreportDeliveryCardHTML(wreportSummary)}`;
+    ${_weeklyreportDeliveryCardHTML(wreportSummary)}
+    ${_weeklyreportPlanVsActualCardHTML(wreportSummary)}`;
   }
 
   const ganttSection = _pubGanttBuildSection(data);
@@ -13806,14 +13810,35 @@ async function _renderPublicReport(token) {
 
   _pubGanttRenderGrid(); // ต้องเรียกหลัง bodyEl.innerHTML เซ็ตเสร็จ — #pubgantt-gtable เพิ่งถูกสร้างขึ้นตอนนี้เอง
 
+  // isFirstRender ต้องอ่านค่า _pubReportRefreshStarted "ก่อน" ตั้งเป็น true (แบบ sync ตรงนี้ ไม่ใช่ในนี้
+  // setTimeout/setInterval ด้านล่าง) กันไม่ให้เกิด race — เรียก _renderPublicReport ซ้ำจาก setInterval ทุกครั้ง
+  // จะได้รู้ว่าตัวเองไม่ใช่รอบแรกแน่ๆ ไม่ต้องพึ่งจับเวลาอะไรทั้งนั้น
+  const isFirstRender = !_pubReportRefreshStarted;
+
   // เลื่อนจอไปหาการ์ด "สัปดาห์นี้" อัตโนมัติ (เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "ให้เห็นสัปดาห์ปัจจุบันด้วย") —
-  // ไม่มีถ้าเป็นลิงก์รายสัปดาห์ (_pubWeeklyOverviewSection คืนค่าว่างไปแล้ว) หรือวันนี้ไม่ได้อยู่ในเดือนที่
-  // รายงาน (เช่น เปิดลิงก์เดือนก่อนหน้าที่ยังไม่หมดอายุ) ก็แค่ไม่มีการ์ดให้เลื่อนหา ไม่ error. หน่วงเล็กน้อยรอ
-  // ให้ Gantt (สูงพอสมควร) วาดเสร็จ/จัด layout ก่อน ไม่งั้นตำแหน่งที่คำนวณไว้อาจเพี้ยน
+  // เฉพาะตอนโหลดครั้งแรกเท่านั้น (isFirstRender) ไม่งั้นพอมีการรีเฟรชอัตโนมัติทุก 60 วิด้านล่าง จะกระตุกเลื่อน
+  // จอกลับมาซ้ำทุกรอบระหว่างที่คนอ่านอยู่ตรงส่วนอื่นของรายงานอยู่ — ไม่มีถ้าเป็นลิงก์รายสัปดาห์
+  // (_pubWeeklyOverviewSection คืนค่าว่างไปแล้ว) หรือวันนี้ไม่ได้อยู่ในเดือนที่รายงาน (เช่น เปิดลิงก์เดือน
+  // ก่อนหน้าที่ยังไม่หมดอายุ) ก็แค่ไม่มีการ์ดให้เลื่อนหา ไม่ error. หน่วงเล็กน้อยรอให้ Gantt (สูงพอสมควร)
+  // วาดเสร็จ/จัด layout ก่อน ไม่งั้นตำแหน่งที่คำนวณไว้อาจเพี้ยน
   setTimeout(() => {
+    if (!isFirstRender) return;
     document.querySelector('#publicReportBody .wreport-week-current')
       ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 150);
+
+  // ซิงก์ข้อมูลอัตโนมัติเป็นระยะ (เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "ทำให้ทั้งหมดซิ้งค์เรียลไทม์ด้วย") — หน้า
+  // รายงานสาธารณะนี้ไม่ผ่าน login/RLS เลย จึงไม่มี Supabase Realtime channel ให้ subscribe แบบหน้าอื่นในแอป
+  // (ระบบ Realtime ของแอปหลัก, ดูหมายเหตุ 2026-08-29 ที่อื่นในไฟล์นี้ ผูกกับ session ที่ login แล้วเท่านั้น) —
+  // ใช้ polling ธรรมดาแทน ทุก 60 วิ ดึงข้อมูลใหม่ทั้งหมดแล้ว render ซ้ำผ่านฟังก์ชันนี้เอง (โค้ดคำนวณชุดเดียว
+  // ไม่แยกอีกชุด) ตั้ง setInterval ครั้งเดียวตอน render ครั้งแรกเท่านั้น (กัน setInterval ซ้อนกันหลายตัวถ้า
+  // ฟังก์ชันนี้ถูกเรียกซ้ำ — ในทางปฏิบัติจะถูกเรียกซ้ำก็จากตัว setInterval นี้เองเท่านั้น ไม่มีจุดอื่นเรียกซ้ำ)
+  // 60 วิเป็นค่ากะประมาณที่สมเหตุสมผล (เร็วพอเห็นข้อมูลใหม่ไว ไม่ถี่จนยิง query ไม่จำเป็น) ไม่ใช่ค่าที่ผู้ใช้
+  // ระบุมาเอง — ปรับได้ถ้าต้องการถี่/ห่างกว่านี้
+  if (isFirstRender) {
+    _pubReportRefreshStarted = true;
+    setInterval(() => _renderPublicReport(token), 60000);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -14533,7 +14558,8 @@ function _weeklyreportPlanVsActualCardHTML(s) {
     }).join('')}</tbody></table>
     ${s.plan.unconfirmedCount > 0 ? `<div class="text-muted small mt-1">มีอีก ${s.plan.unconfirmedCount} แผนที่ยังไม่ยืนยัน (ไม่รวมในตารางนี้)</div>` : ''}`;
   return `<div class="glass-card mb-3">
-    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">แผนผลิต vs ผลจริง</h6>
+    <h6 class="fw-bold text-muted mb-1" style="border-left:4px solid #0ea5e9;padding-left:8px">แผนผลิต vs ผลจริง</h6>
+    <div class="text-muted small mb-2" style="padding-left:12px">ข้อมูลช่วง ${_planFmtDateLabel(s.range.start)} – ${_planFmtDateLabel(s.range.end)}</div>
     <div class="table-responsive">${planTable}</div>
   </div>`;
 }
@@ -14553,7 +14579,8 @@ function _weeklyreportDeliveryCardHTML(s) {
     ${custRest > 0 ? `<div class="text-muted small mt-1">และอีก ${custRest} ราย</div>` : ''}`;
 
   return `<div class="glass-card mb-3">
-    <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">การจัดส่ง</h6>
+    <h6 class="fw-bold text-muted mb-1" style="border-left:4px solid #0ea5e9;padding-left:8px">การจัดส่ง</h6>
+    <div class="text-muted small mb-2" style="padding-left:12px">ข้อมูลช่วง ${_planFmtDateLabel(s.range.start)} – ${_planFmtDateLabel(s.range.end)}</div>
     <div class="mb-2">${dlvStatusBadges}</div>
     ${dlvDetailHTML}
     <div class="table-responsive">${dlvCustomerList}</div>
@@ -17667,12 +17694,23 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
 // ตรงๆ) ว่า "อาจจะคิดแค่ในหนึ่งวันทำกี่ชม. ไม่รวมทุกคน" เปลี่ยนเป็น: ต่อ 1 วันปฏิทิน เอาแค่ชม.สูงสุด (max) ที่มี
 // คนทำงานจริงในวันนั้น (ตัวแทนว่าวันนั้นโรงงาน "เปิด" นานแค่ไหน) ไม่ใช่ผลรวมของ FT+PT+OS หรือของหลายขั้นตอนที่
 // ตรงวันเดียวกัน แล้วค่อยรวมชม.สูงสุดของแต่ละวันเข้าด้วยกันอีกที (คนละวันจริง = เวลาที่ต่างกันจริง ต้องรวมกัน)
-// ปัดชม./วันเพื่อชดเชยเวลาเก็บล้างหลังงานหลักเสร็จ (2026-08-27 ปรึกษาผู้ใช้ก่อนใส่ — ตัวอย่างจริงที่ยกมา:
-// "งานรวม 7.3 ชม. แต่คนยังเก็บล้างไปจบครบ 8 ชม.") กติกาที่ยืนยัน: ใกล้ครบกะ (≥7 ชม.) ปัดขึ้นเป็นเต็มกะ 8 ชม.
-// ไปเลย, ถ้าน้อยกว่านั้นให้บวกคงที่ 20 นาที (ไม่ใช่ % ของชม. เพราะเก็บล้างเป็นเวลาคงที่ไม่ได้โตตามงานหลัก)
-// ไม่ปัด/ไม่บวกถ้าวันนั้นไม่มีคนทำงานเลย (h<=0 คือไม่มีใครทำงานวันนั้น ไม่ใช่กรณีที่ต้องชดเชยเก็บล้าง)
+// ปัดชม.ของ "1 กะ" เพื่อชดเชยเวลาที่ยังต้องอยู่จริง (เก็บล้าง/ว่างงานรอ) แม้งานหลักจะเสร็จเร็วกว่ากะเต็ม —
+// ใช้ร่วมกัน 2 จุด: ชม.รวมของ Overhead (_prodrecordComputeOverheadHours, ปรึกษาผู้ใช้ก่อนใส่ 2026-08-27 —
+// ตัวอย่างจริงที่ยกมา "งานรวม 7.3 ชม. แต่คนยังเก็บล้างไปจบครบ 8 ชม.") และชม.ปกติของ FT/PT ใน "ค่าแรง"
+// (_prodrecordComputeLaborCost, เพิ่มวันเดียวกัน — ผู้ใช้ยืนยัน FT/PT จ้างเป็น "เงินเดือนคงที่" ได้เงินเต็มกะ
+// เหมือนกันไม่ว่างานหลักจะเสร็จเร็วแค่ไหน จึงมีปัญหาเดียวกับ Overheadเป๊ะ) **Out Source ไม่ใช้ฟังก์ชันนี้เลย**
+// เพราะมีอัตรา ฿/ชม. ตามสัญญาจริงอยู่แล้ว (ยืนยันแยกไว้ก่อนหน้าในวันเดียวกัน — จ้างตามชม.จริง ไม่ใช่เงินเดือน
+// คงที่แบบ FT/PT) กติกาที่ยืนยัน: ใกล้ครบกะ (≥7 ชม. แต่ยังไม่ถึง 8) ปัดขึ้นเป็นเต็มกะ 8 ชม.ไปเลย, ถ้าน้อยกว่า 7
+// ให้บวกคงที่ 20 นาที (ไม่ใช่ % ของชม. เพราะเก็บล้างเป็นเวลาคงที่ไม่ได้โตตามงานหลัก) ไม่ปัด/ไม่บวกถ้าวันนั้นไม่มี
+// คนทำงานเลย (h<=0) — **ถ้า h ≥ 8 อยู่แล้ว (มี OT จริงเกินกะปกติ) ใช้ค่าจริงตรงๆ ไม่ปัด/ไม่ลดทอนเลย** (บั๊กที่พบ
+// และแก้ 2026-08-27 รอบ 2 — เดิม `h >= 7 ? 8 : ...` ปัด "ลง" เหลือ 8 แม้ h จะสูงกว่านั้นมาก เช่น OS ทำ OT จริง
+// 10.3 ชม. กลับถูกตัดเหลือ 8 ทำให้ Overhead ของวันนั้นหายไปเกือบ 2.3 ชม. — พบจากผู้ใช้ขอให้เช็คที่มาตัวเลขใน
+// โมดัลอนุมัติต้นทุนจริง เทียบกับตารางชม.ต้นทาง)
+function _prodrecordFillShiftGap(h) {
+  return h <= 0 ? 0 : (h >= 8 ? h : (h >= 7 ? 8 : h + 20 / 60));
+}
+
 function _prodrecordComputeOverheadHours(stations, workDays) {
-  const ohRoundDayHours = h => h <= 0 ? 0 : (h >= 7 ? 8 : h + 20 / 60);
   const ohDateMax = {}; // date string -> ชม.สูงสุดของวันนั้น (ข้ามทุกขั้นตอน/ทุกประเภทพนักงานที่ตรงวันเดียวกัน)
   let ohLegacyDayHours = 0; // บันทึกเก่าไม่มีวันที่ต่อแถว ถือว่าทุกวันในช่วง workDays มีรูปแบบเดียวกันซ้ำ
   stations.forEach(s => {
@@ -17682,7 +17720,7 @@ function _prodrecordComputeOverheadHours(stations, workDays) {
         if (d.ftWorkers) dayHours = Math.max(dayHours, (d.ftNormalHrs||0) + (d.ftOtHrs||0));
         if (d.ptWorkers) dayHours = Math.max(dayHours, (d.ptNormalHrs||0) + (d.ptOtHrs||0));
         if (d.osWorkers) dayHours = Math.max(dayHours, (d.osNormalHrs||0) + (d.osOtHrs||0));
-        dayHours = ohRoundDayHours(dayHours);
+        dayHours = _prodrecordFillShiftGap(dayHours);
         const dateKey = d.date || '';
         if (dayHours > (ohDateMax[dateKey] || 0)) ohDateMax[dateKey] = dayHours;
       });
@@ -17692,7 +17730,46 @@ function _prodrecordComputeOverheadHours(stations, workDays) {
       if (s.osWorkers) ohLegacyDayHours = Math.max(ohLegacyDayHours, (s.osNormalHrs||0) + (s.osOtHrs||0));
     }
   });
-  return Object.values(ohDateMax).reduce((sum, h) => sum + h, 0) + ohRoundDayHours(ohLegacyDayHours) * workDays;
+  return Object.values(ohDateMax).reduce((sum, h) => sum + h, 0) + _prodrecordFillShiftGap(ohLegacyDayHours) * workDays;
+}
+
+// ค่าแรงรวม — เหมือน pattern เดียวกับ _prodrecordComputeOverheadHours (ฟังก์ชันเดี่ยวเรียกซ้ำได้ทั้งจาก
+// _prodrecordRecalcApprove ตอน preview สดในโมดัล และ prodrecordRecalcAllOverhead ตอนคำนวณย้อนหลังทั้งหมด)
+// FT/PT ปรับ "ชม.ปกติ" ด้วย _prodrecordFillShiftGap ก่อนคูณเรต (เงินเดือนคงที่ ได้เต็มกะไม่ว่างานเสร็จเร็ว
+// แค่ไหน) ส่วน "ชม.OT" ไม่ต้องปรับเลย เพราะการคำนวณชม.จากเวลาเข้า-ออกงาน (_prodrecordCalcHoursFromTime)
+// รับประกันอยู่แล้วว่า OT>0 ได้ก็ต่อเมื่อชม.รวมเกิน threshold (8) ไปแล้วเท่านั้น ซึ่งเป็นกรณีที่
+// _prodrecordFillShiftGap คืนค่าจริงตรงๆ อยู่แล้ว (ไม่ปัด) — คำนวณชม.รวมที่ปรับแล้วก่อน แล้วค่อยแยกกลับเป็น
+// normal (capped ที่ threshold) / OT (ส่วนเกิน threshold) เพื่อคูณกับคนละเรต — Out Source ไม่ปรับเลย ใช้
+// ชม.ดิบตรงๆ (จ้างตามสัญญา ฿/ชม.จริง ไม่ใช่เงินเดือนคงที่)
+function _prodrecordComputeLaborCost(stations, workDays, rates) {
+  const { ftRate, ftOt, ptRate, ptOt, osRate, osOt } = rates;
+  const FT_PT_THRESHOLD = 8;
+  const splitAdjusted = (workers, normalHrs, otHrs) => {
+    if (!workers) return { normal: 0, ot: 0 };
+    const total = _prodrecordFillShiftGap((normalHrs||0) + (otHrs||0));
+    return { normal: Math.min(total, FT_PT_THRESHOLD), ot: Math.max(0, total - FT_PT_THRESHOLD) };
+  };
+
+  let laborCost = 0;
+  stations.forEach(s => {
+    if (Array.isArray(s.days)) {
+      s.days.forEach(d => {
+        const ft = splitAdjusted(d.ftWorkers, d.ftNormalHrs, d.ftOtHrs);
+        const pt = splitAdjusted(d.ptWorkers, d.ptNormalHrs, d.ptOtHrs);
+        laborCost += (d.ftWorkers||0) * ft.normal * ftRate + (d.ftWorkers||0) * ft.ot * ftOt;
+        laborCost += (d.ptWorkers||0) * pt.normal * ptRate + (d.ptWorkers||0) * pt.ot * ptOt;
+        laborCost += (d.osWorkers||0) * (d.osNormalHrs||0) * osRate;
+        laborCost += (d.osWorkers||0) * (d.osOtHrs||0) * osOt;
+      });
+    } else {
+      const ft = splitAdjusted(s.ftWorkers, s.ftNormalHrs, s.ftOtHrs);
+      const pt = splitAdjusted(s.ptWorkers, s.ptNormalHrs, s.ptOtHrs);
+      laborCost += workDays * ((s.ftWorkers||0) * ft.normal * ftRate + (s.ftWorkers||0) * ft.ot * ftOt);
+      laborCost += workDays * ((s.ptWorkers||0) * pt.normal * ptRate + (s.ptWorkers||0) * pt.ot * ptOt);
+      laborCost += workDays * ((s.osWorkers||0) * (s.osNormalHrs||0) * osRate + (s.osWorkers||0) * (s.osOtHrs||0) * osOt);
+    }
+  });
+  return laborCost;
 }
 
 function _prodrecordRecalcApprove() {
@@ -17710,33 +17787,7 @@ function _prodrecordRecalcApprove() {
   const osOt   = parseFloat(document.getElementById('prodrecord-ap-os-ot').value) || 0;
   const ohUtil = parseFloat(document.getElementById('prodrecord-ap-oh-util').value) || 0;
 
-  let laborCost = 0;
-  stations.forEach(s => {
-    if (Array.isArray(s.days)) {
-      // รูปแบบใหม่ (2026-08-17): แต่ละแถว "วัน" มีค่าจริงของวันนั้นอยู่แล้ว ไม่ต้องคูณ workDays ซ้ำ
-      // (ต่างจากแบบเก่าที่เป็นค่าเฉลี่ย ชม./วันเดียว แล้วคูณจำนวนวันทั้งหมดของบันทึกนี้) — Out Source (os*)
-      // เพิ่มเข้ามาทีหลัง (2026-08-17 เช่นกัน) แต่ค่า default 0 ตาม d.osWorkers||0 อยู่แล้ว ไม่กระทบบันทึก
-      // ก่อนหน้าที่ไม่มีฟิลด์นี้เลย
-      s.days.forEach(d => {
-        laborCost += (d.ftWorkers||0) * (d.ftNormalHrs||0) * ftRate;
-        laborCost += (d.ftWorkers||0) * (d.ftOtHrs||0) * ftOt;
-        laborCost += (d.ptWorkers||0) * (d.ptNormalHrs||0) * ptRate;
-        laborCost += (d.ptWorkers||0) * (d.ptOtHrs||0) * ptOt;
-        laborCost += (d.osWorkers||0) * (d.osNormalHrs||0) * osRate;
-        laborCost += (d.osWorkers||0) * (d.osOtHrs||0) * osOt;
-      });
-    } else {
-      // บันทึกเก่าก่อน 2026-08-17 (ไม่มี s.days เลย) — ยังเป็นค่าเฉลี่ย ชม./วันเดียวแบบเดิม ต้องคูณ workDays
-      // เหมือนเดิม ไม่งั้นต้นทุนของบันทึกเก่าที่เคยอนุมัติไปแล้วจะคำนวณต่างไปจากตอนอนุมัติจริง (รูปแบบแบนนี้
-      // ไม่เคยมี Out Source เลย จึง (s.osWorkers||0) เป็น 0 เสมอ ไม่กระทบผลลัพธ์)
-      laborCost += (s.ftWorkers||0) * (s.ftNormalHrs||0) * workDays * ftRate;
-      laborCost += (s.ftWorkers||0) * (s.ftOtHrs||0) * workDays * ftOt;
-      laborCost += (s.ptWorkers||0) * (s.ptNormalHrs||0) * workDays * ptRate;
-      laborCost += (s.ptWorkers||0) * (s.ptOtHrs||0) * workDays * ptOt;
-      laborCost += (s.osWorkers||0) * (s.osNormalHrs||0) * workDays * osRate;
-      laborCost += (s.osWorkers||0) * (s.osOtHrs||0) * workDays * osOt;
-    }
-  });
+  const laborCost = _prodrecordComputeLaborCost(stations, workDays, { ftRate, ftOt, ptRate, ptOt, osRate, osOt });
   const totalOhHours = _prodrecordComputeOverheadHours(stations, workDays);
   // Overhead รวม เปลี่ยนจาก "อัตรา/วัน × จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.รวมที่ทำงานจริง" (2026-08-27
   // ตามคำขอผู้ใช้ "ต้องคิดจากจำนวน ชม.ที่ทำงาน") — เดิมคิดตาม workDays (ช่วงวันที่เริ่ม-สิ้นสุดตามปฏิทิน)
@@ -17852,27 +17903,29 @@ async function prodrecordApproveSubmit() {
   prodrecordLoadData();
 }
 
-// ── ปุ่ม admin "คำนวณ Overhead ใหม่ทั้งหมด" (หน้าบันทึกผลิต) — สูตร Overhead เปลี่ยนจาก "อัตรา/วัน ×
-// จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.ทำงานจริง" เมื่อ 2026-08-27 (ดู _prodrecordComputeOverheadHours) แต่
-// เปลี่ยนแค่สูตรไม่ได้ทำให้ตัวเลขที่ "อนุมัติไปแล้วก่อนหน้านี้" ในฐานข้อมูลขยับตาม (ค่าที่บันทึกไว้ตอนอนุมัติจริง
-// ยังเป็นของสูตรเก่าค้างอยู่) — ผู้ใช้ขอให้ไล่คำนวณใหม่ย้อนหลังทุกใบที่ Status='อนุมัติแล้ว' แทนที่จะต้อง
-// "เปิดกลับ" ทีละใบแล้วกดอนุมัติซ้ำเอง เขียนทับเฉพาะ Overhead/TotalCost/CostPerUnit เท่านั้น (MaterialCost,
-// LaborCost, YieldOverall, ScrapPct ไม่เกี่ยวกับสูตรนี้เลย ไม่แตะ) ข้ามใบที่ตัวเลขไม่เปลี่ยน (ต่างกัน <0.005
-// บาท ถือว่าปัดเศษเฉยๆ) กันเขียนทับ/ขึ้น audit log โดยไม่มีอะไรเปลี่ยนจริง
+// ── ปุ่ม admin "คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด" (หน้าบันทึกผลิต) — สูตร Overhead เปลี่ยนจาก "อัตรา/วัน ×
+// จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.ทำงานจริง" เมื่อ 2026-08-27 (ดู _prodrecordComputeOverheadHours) และ
+// สูตรค่าแรง FT/PT เพิ่ม _prodrecordFillShiftGap วันเดียวกัน (FT/PT เงินเดือนคงที่ ได้เต็มกะไม่ว่างานเสร็จเร็ว
+// แค่ไหน) — เปลี่ยนแค่สูตรไม่ได้ทำให้ตัวเลขที่ "อนุมัติไปแล้วก่อนหน้านี้" ในฐานข้อมูลขยับตาม (ค่าที่บันทึกไว้ตอน
+// อนุมัติจริงยังเป็นของสูตรเก่าค้างอยู่) — ผู้ใช้ขอให้ไล่คำนวณใหม่ย้อนหลังทุกใบที่ Status='อนุมัติแล้ว' แทนที่จะ
+// ต้อง "เปิดกลับ" ทีละใบแล้วกดอนุมัติซ้ำเอง เขียนทับ LaborCost/Overhead/TotalCost/CostPerUnit (MaterialCost,
+// YieldOverall, ScrapPct ไม่เกี่ยวกับ 2 สูตรนี้เลย ไม่แตะ) ข้ามใบที่ตัวเลขทั้งคู่ไม่เปลี่ยน (ต่างกัน <0.005 บาท
+// ถือว่าปัดเศษเฉยๆ) กันเขียนทับ/ขึ้น audit log โดยไม่มีอะไรเปลี่ยนจริง — ต้องดึงเรตค่าแรงที่บันทึกไว้ตอนอนุมัติ
+// จริงของแต่ละใบมาด้วย (FT/PT/OS ค่าแรง+OT) ไม่ใช่ค่าปัจจุบันในฟอร์ม เพราะแต่ละใบอนุมัติด้วยเรตคนละช่วงเวลากัน
 async function prodrecordRecalcAllOverhead() {
   if (!_hasRole('admin')) return;
 
   _showLoader();
   const { data: rows, error: fetchErr } = await _fetchAllPagedEq('production_records',
-    '_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit',
+    '_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate',
     'Status', 'อนุมัติแล้ว');
   _hideLoader();
   if (fetchErr) { _err('โหลดรายการไม่สำเร็จ', fetchErr.message); return; }
   if (!rows || !rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีบันทึกที่อนุมัติต้นทุนแล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 }); return; }
 
   const res = await Swal.fire({
-    title: 'คำนวณ Overhead ใหม่ทั้งหมด?',
-    html: `<div class="text-start">พบ <b>${rows.length}</b> บันทึกที่อนุมัติต้นทุนแล้ว จะคำนวณ Overhead/ต้นทุนรวม/ต้นทุนต่อหน่วยใหม่ตามสูตรล่าสุด (ชม.ทำงานจริง แทนจำนวนวันปฏิทิน) แล้วเขียนทับค่าเดิม<br>
+    title: 'คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด?',
+    html: `<div class="text-start">พบ <b>${rows.length}</b> บันทึกที่อนุมัติต้นทุนแล้ว จะคำนวณ ค่าแรง/Overhead/ต้นทุนรวม/ต้นทุนต่อหน่วยใหม่ตามสูตรล่าสุด (ชม.ทำงานจริง+ปัดชม.เก็บล้าง) แล้วเขียนทับค่าเดิม<br>
       <span class="text-muted">ใบที่ตัวเลขไม่เปลี่ยน (ผลลัพธ์เหมือนเดิม) จะไม่ถูกเขียนทับ</span></div>`,
     icon: 'warning', showCancelButton: true,
     confirmButtonText: `คำนวณใหม่ทั้ง ${rows.length} ใบ`, cancelButtonText: 'ยกเลิก', confirmButtonColor: '#b45309',
@@ -17880,41 +17933,51 @@ async function prodrecordRecalcAllOverhead() {
   if (!res.isConfirmed) return;
 
   _showLoader();
-  let updated = 0, unchanged = 0, failed = 0, totalDelta = 0;
+  let updated = 0, unchanged = 0, failed = 0, ohDelta = 0, laborDelta = 0;
   for (const r of rows) {
     let stations = [];
     try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { stations = []; }
     const workDays = _prodrecordWorkDays(r);
+
     const totalOhHours = _prodrecordComputeOverheadHours(stations, workDays);
     const ohUtil = parseFloat(r.OverheadUtility) || 0;
     const newOverhead = (ohUtil / 8) * totalOhHours;
     const oldOverhead = parseFloat(r.Overhead) || 0;
-    if (Math.abs(newOverhead - oldOverhead) < 0.005) { unchanged++; continue; }
+
+    const newLaborCost = _prodrecordComputeLaborCost(stations, workDays, {
+      ftRate: parseFloat(r.FT_LaborRate) || 0, ftOt: parseFloat(r.FT_OT_Rate) || 0,
+      ptRate: parseFloat(r.PT_LaborRate) || 0, ptOt: parseFloat(r.PT_OT_Rate) || 0,
+      osRate: parseFloat(r.OS_LaborRate) || 0, osOt: parseFloat(r.OS_OT_Rate) || 0,
+    });
+    const oldLaborCost = parseFloat(r.LaborCost) || 0;
+
+    if (Math.abs(newOverhead - oldOverhead) < 0.005 && Math.abs(newLaborCost - oldLaborCost) < 0.005) { unchanged++; continue; }
 
     const materialCost = parseFloat(r.MaterialCost) || 0;
-    const laborCost    = parseFloat(r.LaborCost) || 0;
-    const newTotalCost = materialCost + laborCost + newOverhead;
+    const newTotalCost = materialCost + newLaborCost + newOverhead;
     const fgActual      = parseFloat(r.FG_Actual) || 0;
     const newCostPerUnit = fgActual ? newTotalCost / fgActual : 0;
 
     const { error } = await _sb.from('production_records').update({
-      Overhead: newOverhead, TotalCost: newTotalCost, CostPerUnit: newCostPerUnit,
+      LaborCost: newLaborCost, Overhead: newOverhead, TotalCost: newTotalCost, CostPerUnit: newCostPerUnit,
     }).eq('_row_id', r._row_id);
     if (error) { failed++; continue; }
-    totalDelta += newOverhead - oldOverhead;
+    ohDelta += newOverhead - oldOverhead;
+    laborDelta += newLaborCost - oldLaborCost;
     updated++;
   }
   _hideLoader();
 
   if (updated) {
     _logAudit('RECALC_OVERHEAD', 'production_records', 'BULK',
-      `คำนวณ Overhead ใหม่ ${updated} บันทึก (ไม่เปลี่ยน ${unchanged}, ล้มเหลว ${failed}) — Overhead รวมเปลี่ยน ${totalDelta >= 0 ? '+' : ''}฿${totalDelta.toLocaleString(undefined,{maximumFractionDigits:2})}`);
+      `คำนวณ Overhead+ค่าแรงใหม่ ${updated} บันทึก (ไม่เปลี่ยน ${unchanged}, ล้มเหลว ${failed}) — Overhead เปลี่ยน ${ohDelta >= 0 ? '+' : ''}฿${ohDelta.toLocaleString(undefined,{maximumFractionDigits:2})}, ค่าแรงเปลี่ยน ${laborDelta >= 0 ? '+' : ''}฿${laborDelta.toLocaleString(undefined,{maximumFractionDigits:2})}`);
   }
   Swal.fire({
     icon: failed ? 'warning' : 'success',
-    title: 'คำนวณ Overhead ใหม่เสร็จแล้ว',
+    title: 'คำนวณ Overhead+ค่าแรงใหม่เสร็จแล้ว',
     html: `<div class="text-start">อัปเดต <b>${updated}</b> บันทึก · ไม่เปลี่ยนแปลง ${unchanged} บันทึก${failed ? ` · <span class="text-danger">ล้มเหลว ${failed} บันทึก</span>` : ''}<br>
-      Overhead รวมที่เปลี่ยน: <b>${totalDelta >= 0 ? '+' : ''}฿${totalDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b></div>`,
+      Overhead รวมที่เปลี่ยน: <b>${ohDelta >= 0 ? '+' : ''}฿${ohDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b><br>
+      ค่าแรงรวมที่เปลี่ยน: <b>${laborDelta >= 0 ? '+' : ''}฿${laborDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b></div>`,
   });
   prodrecordLoadData();
 }
