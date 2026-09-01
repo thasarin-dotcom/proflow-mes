@@ -13692,9 +13692,16 @@ function _pubWeeklyOverviewSection(data) {
   const monthWeeks = _weeklyreportMonthWeekRanges(data.startDate);
   const weeksData = _weeklyreportBuildMonthWeekData(monthWeeks, data.prodRows, data.dlvRows);
 
+  // "สัปดาห์นี้" ต้องเทียบกับวันนี้จริงๆ (เวลาเครื่องผู้เปิดลิงก์) ไม่ใช่ data.startDate — data.startDate
+  // คือวันที่ 1 ของเดือนที่รายงานเสมอ (ดูหมายเหตุด้านบน) ถ้าใช้ค่านั้นมาเทียบ isCurrent ใน
+  // _weeklyreportBuildMonthWeekHTML จะ highlight สัปดาห์แรกของเดือนผิดๆ ทุกครั้งไม่ว่าจะเปิดวันไหนก็ตาม
+  // (เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "ให้เห็นสัปดาห์ปัจจุบันด้วย" — ดู scrollIntoView คู่กันใน
+  // _renderPublicReport ที่เลื่อนจอไปหาการ์ดนี้อัตโนมัติ)
+  const todayStr = _planWeekLocalDateStr(new Date());
+
   return `<div class="glass-card mb-3">
     <h6 class="fw-bold text-muted mb-2" style="border-left:4px solid #0ea5e9;padding-left:8px">ภาพรวมรายสัปดาห์ — ${_weeklyreportMonthLabel(data.startDate)}</h6>
-    ${_weeklyreportBuildMonthWeekHTML(weeksData, data.startDate)}
+    ${_weeklyreportBuildMonthWeekHTML(weeksData, todayStr)}
   </div>`;
 }
 
@@ -13770,6 +13777,15 @@ async function _renderPublicReport(token) {
     <div class="text-center text-muted small pb-3">ลิงก์นี้ดูได้โดยไม่ต้อง login และจะหมดอายุใน 60 วันหลังสร้าง</div>`;
 
   _pubGanttRenderGrid(); // ต้องเรียกหลัง bodyEl.innerHTML เซ็ตเสร็จ — #pubgantt-gtable เพิ่งถูกสร้างขึ้นตอนนี้เอง
+
+  // เลื่อนจอไปหาการ์ด "สัปดาห์นี้" อัตโนมัติ (เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "ให้เห็นสัปดาห์ปัจจุบันด้วย") —
+  // ไม่มีถ้าเป็นลิงก์รายสัปดาห์ (_pubWeeklyOverviewSection คืนค่าว่างไปแล้ว) หรือวันนี้ไม่ได้อยู่ในเดือนที่
+  // รายงาน (เช่น เปิดลิงก์เดือนก่อนหน้าที่ยังไม่หมดอายุ) ก็แค่ไม่มีการ์ดให้เลื่อนหา ไม่ error. หน่วงเล็กน้อยรอ
+  // ให้ Gantt (สูงพอสมควร) วาดเสร็จ/จัด layout ก่อน ไม่งั้นตำแหน่งที่คำนวณไว้อาจเพี้ยน
+  setTimeout(() => {
+    document.querySelector('#publicReportBody .wreport-week-current')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 150);
 }
 
 // ══════════════════════════════════════════════
