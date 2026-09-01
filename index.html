@@ -1004,6 +1004,7 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 .wreport-week-item span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .wreport-week-item span:last-child{font-weight:700;flex-shrink:0}
 .wreport-week-empty{font-size:10px;color:#94a3b8;text-align:center;padding:4px 0}
+.wreport-week-note{font-size:8.5px;color:#94a3b8;font-style:italic;margin:-1px 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── ไลน์ผลิต MO: ออกใบ Released (สติกเกอร์เขียว FM-QC-01-05, 10 ดวง/แผ่น A4 2×5) ── */
 #moReleasedModal .modal-dialog{max-width:1180px}
@@ -2048,51 +2049,26 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       </div>
     </div>
     <div class="scroll-content">
-      <!-- KPI -->
+      <!-- KPI แถวเดียว (2026-09-01: เอา "จำนวนคงเหลือรวม (แยกตามหน่วย)" ออกตามคำขอผู้ใช้ รวม "มูลค่ารวม" มาแถว
+           เดียวกันเลย — stock_fg เองไม่มีคอลัมน์ต้นทุน มูลค่ารวมคิดจาก production_records.CostPerUnit ที่
+           อนุมัติแล้วก่อน แล้ว fallback ไปราคาขาย BOM (ดูหมายเหตุที่ _fgStockComputeTotalValue()) -->
       <div class="row g-3 mb-3" id="fgstock-kpi-row">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
           <div class="kpi-card" style="cursor:pointer" onclick="fgStockClearFilters()" title="กดเพื่อดูรายการทั้งหมด (ล้างฟิลเตอร์)">
             <div class="kpi-num" id="fgkpi-total-items">—</div>
             <div class="kpi-label">รายการทั้งหมด (SKU)</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
           <div class="kpi-card" style="border-color:#7c3aed">
             <div class="kpi-num" style="color:#7c3aed" id="fgkpi-total-lots">—</div>
             <div class="kpi-label">จำนวน Lot ทั้งหมด</div>
           </div>
         </div>
-        <div class="col-12 col-md-6">
-          <div class="kpi-card" style="border-color:#22c55e">
-            <div class="kpi-num text-success" id="fgkpi-total-qty" style="font-size:1.05rem;line-height:1.5">—</div>
-            <div class="kpi-label">จำนวนคงเหลือรวม (แยกตามหน่วย)</div>
-          </div>
-        </div>
-      </div>
-      <!-- ยอดรับเข้า/จ่ายออกสะสม + Defect/Retain คงค้าง (2026-09-01) -->
-      <div class="row g-3 mb-3" id="fgstock-flow-kpi-row">
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#0ea5e9">
-            <div class="kpi-num" style="color:#0ea5e9;font-size:.95rem;line-height:1.4" id="fgkpi-flow-in">—</div>
-            <div class="kpi-label">รับเข้ารวม (สะสม)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#f97316" title="รวมเบิกลูกค้า/เบ็ดเตล็ด และยอดที่ย้ายไปสต็อก Defect/Retain (สุทธิหลังหักที่ Rework กลับมาแล้ว)">
-            <div class="kpi-num" style="color:#f97316;font-size:.95rem;line-height:1.4" id="fgkpi-flow-out">—</div>
-            <div class="kpi-label">จ่ายออกรวม (รวม Defect/Retain)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#dc2626;cursor:pointer" onclick="_fgStockJumpToHold('DEFECT')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
-            <div class="kpi-num text-danger" style="font-size:.95rem;line-height:1.4" id="fgkpi-hold-defect">—</div>
-            <div class="kpi-label"><i class="fas fa-ban me-1"></i>Defect คงค้าง (FG)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="_fgStockJumpToHold('RETAIN')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
-            <div class="kpi-num text-warning" style="font-size:.95rem;line-height:1.4" id="fgkpi-hold-retain">—</div>
-            <div class="kpi-label"><i class="fas fa-flask me-1"></i>Retain คงค้าง (FG)</div>
+        <div class="col-12 col-md-4">
+          <div class="kpi-card" style="border-color:#f59e0b" title="คิดจากต้นทุน/หน่วยของบันทึกผลิตที่อนุมัติต้นทุนแล้วก่อน ถ้า Lot ไหนยังไม่มีต้นทุนอนุมัติ จะใช้ราคาขายจาก BOM แทน — Lot ที่ไม่มีทั้งคู่จะไม่ถูกรวมในยอดนี้">
+            <div class="kpi-num text-warning" id="fgkpi-total-value">—</div>
+            <div class="kpi-label">มูลค่ารวม (฿)</div>
           </div>
         </div>
       </div>
@@ -5221,6 +5197,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <i class="fas fa-search fa-2x mb-3 d-block"></i>ค้นหาและเลือกวัตถุดิบหรือ FG ด้านบนเพื่อดูการ์ดสต็อก
       </div>
       <div id="stockcard-result" class="d-none">
+        <!-- KPI ทั้งหมดอยู่แถวเดียว (6 การ์ดหลัก, 2 การ์ด Defect/Retain ต้องหักออกจาก "ยอดคงเหลือ" เสมอ —
+             ดูหมายเหตุที่ stockcardBuildFgTxns/stockcardBuildMatTxns — ตรงนี้แค่โชว์แยกว่าไปกองอยู่ไหน, 2026-09-01) -->
         <div class="row g-3 mb-3">
           <div class="col-6 col-md-2">
             <div class="kpi-card"><div class="kpi-num" id="stockcard-kpi-open">—</div><div class="kpi-label">ยอดยกมา</div></div>
@@ -5240,23 +5218,19 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <div class="kpi-num" id="stockcard-kpi-close">—</div><div class="kpi-label">ยอดคงเหลือ</div>
             </div>
           </div>
-          <div class="col-6 col-md-4" id="stockcard-kpi-value-wrap">
-            <div class="kpi-card" style="border-color:#f59e0b">
-              <div class="kpi-num text-warning" id="stockcard-kpi-value">—</div><div class="kpi-label">มูลค่าคงเหลือ (฿)</div>
-            </div>
-          </div>
-        </div>
-        <!-- Defect/Retain คงค้างของสินค้า/Lot ที่กำลังดู — ต้องหักออกจาก "ยอดคงเหลือ" ด้านบนแล้วเสมอ
-             (ดูหมายเหตุที่ stockcardBuildFgTxns/stockcardBuildMatTxns) ตรงนี้แค่โชว์แยกให้เห็นว่าไปกองอยู่ไหน (2026-09-01) -->
-        <div class="row g-3 mb-3" id="stockcard-hold-kpi-row" style="display:none">
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md-2">
             <div class="kpi-card" style="border-color:#dc2626;cursor:pointer" onclick="_stockcardJumpToHold('DEFECT')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
               <div class="kpi-num text-danger" id="stockcard-kpi-defect">—</div><div class="kpi-label"><i class="fas fa-ban me-1"></i>Defect คงค้าง</div>
             </div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md-2">
             <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="_stockcardJumpToHold('RETAIN')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
               <div class="kpi-num text-warning" id="stockcard-kpi-retain">—</div><div class="kpi-label"><i class="fas fa-flask me-1"></i>Retain คงค้าง</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-4" id="stockcard-kpi-value-wrap">
+            <div class="kpi-card" style="border-color:#f59e0b">
+              <div class="kpi-num text-warning" id="stockcard-kpi-value">—</div><div class="kpi-label">มูลค่าคงเหลือ (฿)</div>
             </div>
           </div>
         </div>
@@ -7813,19 +7787,8 @@ function _fgStockPopulateFilters() {
 function updateFGStockKPIs() {
   const groups = _fgStockGroupAll();
   const totalLots = groups.reduce((s, g) => s + g.lots.length, 0);
-  const uomTotals = {};
-  groups.forEach(g => g.lots.forEach(l => {
-    const u = l.UOM || '—';
-    uomTotals[u] = (uomTotals[u] || 0) + l._qty;
-  }));
-  const qtyStr = Object.entries(uomTotals)
-    .sort((a, b) => b[1] - a[1])
-    .map(([uom, qty]) => `${qty.toLocaleString()} ${uom}`)
-    .join(' · ') || '—';
-
   document.getElementById('fgkpi-total-items').textContent = groups.length.toLocaleString();
   document.getElementById('fgkpi-total-lots').textContent  = totalLots.toLocaleString();
-  document.getElementById('fgkpi-total-qty').textContent   = qtyStr;
 }
 
 function fgStockClearFilters() {
@@ -7887,84 +7850,51 @@ async function loadFGStockData() {
   _fgStockPopulateFilters();
   updateFGStockKPIs();
   renderFGStockTable();
-  // ยอดรับเข้า/จ่ายออกสะสม + Defect/Retain คงค้าง — คิวแยกจากการ์ดหลัก ไม่บล็อกการ render ตาราง (fire-and-forget
-  // เหมือน _whComputeBulkForecast().then(_whRenderForecast) ของแท็บเล็ตคลัง)
-  _fgStockComputeFlowKPIs().then(_fgStockRenderFlowKPIs);
+  // มูลค่ารวม — คิวแยกจากการ์ดหลัก ไม่บล็อกการ render ตาราง (fire-and-forget เหมือน
+  // _whComputeBulkForecast().then(_whRenderForecast) ของแท็บเล็ตคลัง)
+  _fgStockComputeTotalValue().then(_fgStockRenderTotalValue);
 }
 
-// ── ยอดรับเข้า/จ่ายออกรวมของ FG ทั้งหมด (สะสม, แยกตามหน่วย) — "จ่ายออก" ต้องนับรวมยอดที่ถูกย้ายไปสต็อก
-// Defect/Retain ด้วย ไม่ใช่แค่ fg_withdraw เฉยๆ เพราะ holdstockMoveInSubmit() ตัด stock_fg ออกจริง
-// (fgUpdateStock(...,false)) แต่ไม่เคยสร้างแถว fg_withdraw เลย — ถ้านับแค่ fg_withdraw ยอดจ่ายออกจะขาดหาย
-// ส่วนที่ Rework กลับมาแล้ว (fgUpdateStock(...,true)) ต้องหักออกจากยอดจ่ายออกด้วย ไม่งั้นจะนับซ้ำเป็นยิ่งจ่าย
-// ออกไปทั้งที่ของกลับเข้าสต็อกปกติแล้ว — ใช้ hold_stock_moves (ItemType='FG') เป็น source of truth เพราะ
-// แก้ไข/ลบ move ที่หน้า Hold Stock จะ mutate แถวเดิมในที่ ไม่ insert ซ้ำ (ดู holdstockMoveEditSubmit/
-// holdstockMoveRemove) ยอดในตารางนี้จึงตรงกับสถานะปัจจุบันเสมอ ไม่ต้องกังวลเรื่องนับซ้ำจากประวัติเก่า
-async function _fgStockComputeFlowKPIs() {
-  // เลือกคอลัมน์ตรงๆ (ไม่ใช่ '*') — ต้องระบุ QtyFG อย่างเดียว ห้ามใส่ 'Qty' ปนด้วยแบบ getQty() ฝั่ง
-  // fgStockRecalculate() ที่ปลอดภัยเพราะดึงทั้งแถว ('*') แล้วค่อย fallback ฝั่ง JS — ถ้าระบุ select('Qty,QtyFG,...')
-  // ตรงๆ กับ PostgREST แล้วคอลัมน์ใดคอลัมน์หนึ่งไม่มีจริงในตาราง (fg_receive/fg_withdraw มีแค่ QtyFG ไม่มี Qty)
-  // ทั้ง query จะพัง 400/42703 ทันที ไม่ fallback เงียบๆ แบบที่ตั้งใจไว้ (บั๊กจริง พบตอน deploy 2026-09-01)
-  const [recRes, wdRes, holdRes, moveRes] = await Promise.all([
-    _fetchAllPaged('fg_receive', 'ProductCode,QtyFG,UOM'),
-    _fetchAllPaged('fg_withdraw', 'ProductCode,QtyFG,UOM'),
-    _fetchAllPagedEq('hold_stock', 'HoldType,QtyBalance,UOM', 'ItemType', 'FG'),
-    _fetchAllPagedEq('hold_stock_moves', 'MoveType,Qty,UOM', 'ItemType', 'FG'),
+// ── มูลค่ารวมของ FG คงเหลือทั้งหมด — stock_fg เองไม่มีคอลัมน์ต้นทุน/ราคาขายเก็บเอง (ต่างจากวัตถุดิบที่มี
+// UnitCost/StockValue ใน stock_balance) ตามคำยืนยันของผู้ใช้ (2026-09-01): คิดจากต้นทุนจริงที่อนุมัติแล้วก่อน
+// (จับคู่ (ProductCode, Lot_FG) กับ production_records.CostPerUnit ที่ Status='อนุมัติแล้ว' — โครงเดียวกับ
+// _holdstockFgCostByLot ของหน้าสต็อก Defect/Retain) ถ้า Lot นั้นไม่มีต้นทุนอนุมัติเลย (เช่น รับเข้าแบบ "ทั่วไป"
+// ไม่ผ่านบันทึกผลิต) ให้ fallback ไปใช้ราคาขายจาก BOM แทน ผ่าน _bomResolveSellingPrice() — จุดตัดสินใจ
+// "ควรใช้ราคาขายไหน" จุดเดียวของทั้งแอป (Stage B/deliveryAutoCreate/แดชบอร์ดต้นทุนใช้ร่วมกัน) ไม่ประดิษฐ์ใหม่
+// เรียกแบบไม่ระบุลูกค้า (null) เพราะยอดนี้เป็นมูลค่าคงคลังรวม ไม่ได้ผูกกับการขายให้ลูกค้ารายใดรายหนึ่ง จึงได้
+// ราคาขายทั่วไป (tier:'default') เสมอ ไม่ใช่ราคาเฉพาะลูกค้า (SellingPrice2) — Lot ที่ไม่มีทั้งต้นทุนอนุมัติและ
+// ราคาขายใน BOM เลย จะไม่ถูกรวมในยอดนี้ (พบได้แต่ควรน้อยลงมากเมื่อเทียบกับตอนใช้แค่ต้นทุนอนุมัติอย่างเดียว)
+async function _fgStockComputeTotalValue() {
+  const [stockRes, prodRes, bomRes] = await Promise.all([
+    _fetchAllPaged('stock_fg', 'ProductCode,LotFG,FGBalance'),
+    _fetchAllPagedEq('production_records', 'ProductCode,Lot_FG,CostPerUnit', 'Status', 'อนุมัติแล้ว'),
+    _bomFetchPaged('ProductCode,SellingPrice,SellingPrice2,SellingPrice2_CustomerName'),
   ]);
-  const getQty = r => parseFloat(r.QtyFG) || 0;
-
-  const inTotals = {};
-  (recRes.data || []).forEach(r => { const u = r.UOM || '—'; inTotals[u] = (inTotals[u] || 0) + getQty(r); });
-
-  const outTotals = {};
-  (wdRes.data || []).forEach(r => { const u = r.UOM || '—'; outTotals[u] = (outTotals[u] || 0) + getQty(r); });
-  (moveRes.data || []).forEach(m => {
-    const u = m.UOM || '—';
-    const q = parseFloat(m.Qty) || 0;
-    if (m.MoveType === 'IN') outTotals[u] = (outTotals[u] || 0) + q;         // ย้ายออกจาก stock_fg ไปเก็บ
-    else if (m.MoveType === 'REWORK') outTotals[u] = (outTotals[u] || 0) - q; // Rework กลับเข้า stock_fg แล้ว หักออก
+  const costByLot = {};
+  (prodRes.data || []).forEach(r => {
+    if (r.CostPerUnit != null) costByLot[`${r.ProductCode}|${r.Lot_FG}`] = parseFloat(r.CostPerUnit) || 0;
   });
+  const bomByProduct = {};
+  (bomRes.data || []).forEach(r => { if (!bomByProduct[r.ProductCode]) bomByProduct[r.ProductCode] = r; });
 
-  const defectTotals = {}, retainTotals = {};
-  (holdRes.data || []).forEach(r => {
-    const bal = parseFloat(r.QtyBalance) || 0;
+  let totalValue = 0;
+  (stockRes.data || []).forEach(r => {
+    const bal = parseFloat(r.FGBalance) || 0;
     if (bal <= 0) return;
-    const u = r.UOM || '—';
-    const bucket = r.HoldType === 'RETAIN' ? retainTotals : defectTotals;
-    bucket[u] = (bucket[u] || 0) + bal;
+    let unit = costByLot[`${r.ProductCode}|${r.LotFG}`];
+    if (unit == null) {
+      const resolved = _bomResolveSellingPrice(bomByProduct[r.ProductCode], null);
+      unit = resolved ? resolved.price : null;
+    }
+    if (unit == null) return;
+    totalValue += bal * unit;
   });
-
-  return { inTotals, outTotals, defectTotals, retainTotals };
+  return totalValue;
 }
 
-function _fgStockFmtUomTotals(totals) {
-  const entries = Object.entries(totals).filter(([, q]) => Math.abs(q) > 0.0001);
-  if (!entries.length) return '—';
-  return entries.sort((a, b) => b[1] - a[1])
-    .map(([uom, qty]) => `${qty.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${uom}`)
-    .join(' · ');
-}
-
-function _fgStockRenderFlowKPIs(k) {
-  if (!k) return;
-  const inEl = document.getElementById('fgkpi-flow-in');
-  const outEl = document.getElementById('fgkpi-flow-out');
-  const defEl = document.getElementById('fgkpi-hold-defect');
-  const retEl = document.getElementById('fgkpi-hold-retain');
-  if (inEl) inEl.textContent = _fgStockFmtUomTotals(k.inTotals);
-  if (outEl) outEl.textContent = _fgStockFmtUomTotals(k.outTotals);
-  if (defEl) defEl.textContent = _fgStockFmtUomTotals(k.defectTotals);
-  if (retEl) retEl.textContent = _fgStockFmtUomTotals(k.retainTotals);
-}
-
-// ── กดที่การ์ด KPI Defect/Retain (FG) บนหน้า Stock FG → เด้งไปหน้าสต็อก Defect/Retain กรองเฉพาะ FG ให้เลย ──
-function _fgStockJumpToHold(holdType) {
-  showPage('holdstock', document.getElementById('nav-holdstock'));
-  const radio = document.getElementById(holdType === 'RETAIN' ? 'holdstock-mode-retain' : 'holdstock-mode-defect');
-  if (radio) radio.checked = true;
-  _holdstockMode = holdType;
-  const typeFilter = document.getElementById('holdstock-filter-itemtype');
-  if (typeFilter) typeFilter.value = 'FG';
-  holdstockLoadData();
+function _fgStockRenderTotalValue(totalValue) {
+  const el = document.getElementById('fgkpi-total-value');
+  if (el) el.textContent = '฿' + (totalValue || 0).toLocaleString('th-TH', { maximumFractionDigits: 0 });
 }
 
 function renderFGStockTable() {
@@ -8118,7 +8048,7 @@ async function fgStockRecalculate() {
   // ถ้าตารางต้นทางแถวเกิน 1000 แล้วโดน PostgREST ตัดเงียบๆ จะเขียน stock_fg ผิดถาวร ไม่ใช่แค่แสดงผลผิดชั่วคราว
   // ต้องดึง hold_stock_moves (ItemType='FG') ด้วย — ของที่ย้ายไปสต็อก Defect/Retain ถูกตัดออกจาก stock_fg
   // จริงผ่าน fgUpdateStock(...,false) แต่ไม่เคยสร้างแถว fg_withdraw เลย ถ้าไม่หักตรงนี้ด้วย การคำนวณใหม่จะ
-  // "คืน" ยอดที่ถูกย้ายไป Defect/Retain กลับเข้า stock_fg อย่างผิดๆ (ดูหมายเหตุที่ _fgStockComputeFlowKPIs())
+  // "คืน" ยอดที่ถูกย้ายไป Defect/Retain กลับเข้า stock_fg อย่างผิดๆ
   const [recRes, outRes, moveRes] = await Promise.all([
     _fetchAllPaged('fg_receive', '*'),
     _fetchAllPaged('fg_withdraw', '*'),
@@ -14488,7 +14418,7 @@ async function weeklyreportRun() {
     _sb.from('delivery').select('*').gte('Date', range.start).lte('Date', range.end),
     // ดึงข้อมูลทั้งเดือนช่วงเดียว (ไม่ query แยกทีละสัปดาห์หลายรอบ) แล้วค่อยแบ่งกลุ่มตามช่วงวันที่ฝั่ง client
     _sb.from('production_records').select('ProductCode,ProductName,UOM,FG_Actual,Date_Start').gte('Date_Start', spanStart).lte('Date_Start', spanEnd),
-    _sb.from('delivery').select('ProductCode,ProductName,UOM,QtyDelivered,Status,Date').gte('Date', spanStart).lte('Date', spanEnd),
+    _sb.from('delivery').select('ProductCode,ProductName,UOM,QtyDelivered,Status,Date,CustomerName').gte('Date', spanStart).lte('Date', spanEnd),
   ]);
   _hideLoader();
   if (prodRes.error || planRes.error || dlvRes.error || prodMonthRes.error || dlvMonthRes.error) {
@@ -14519,11 +14449,20 @@ function _weeklyreportBuildMonthWeekData(weeks, prodRows, dlvRows) {
       if (r.Status === 'ยกเลิก') return;
       if (r.Date < range.start || r.Date > range.end) return;
       const key = r.ProductCode || r.ProductName || '(ไม่ระบุ)';
-      shipped[key] ||= { name: r.ProductName || key, uom: r.UOM || '', qty: 0 };
+      shipped[key] ||= { name: r.ProductName || key, uom: r.UOM || '', qty: 0, customers: new Set() };
       shipped[key].qty += parseFloat(r.QtyDelivered) || 0;
+      const shortName = _weeklyreportShortCustomerName(r.CustomerName);
+      if (shortName) shipped[key].customers.add(shortName);
     });
     return { range, produced, shipped };
   });
+}
+
+// ตัด "บริษัท" นำหน้า / "จำกัด" (+"(มหาชน)") ต่อท้ายออก เหลือแค่ชื่อเรียกสั้นๆ ของลูกค้า — ใช้โชว์เป็นโน้ต
+// เล็กๆ ใต้แต่ละรายการที่จัดส่ง (2026-09-01, ตามคำขอผู้ใช้) ไม่ใช่ fuzzy match ของจริง แค่ตัดคำนำหน้า/ต่อท้าย
+// ที่พบบ่อยตามรูปแบบชื่อบริษัทไทยทั่วไป
+function _weeklyreportShortCustomerName(name) {
+  return (name || '').replace(/^บริษัท\s*/, '').replace(/\s*จำกัด\s*(\(มหาชน\))?\s*$/, '').trim();
 }
 
 // ป้ายชื่อ "เดือน ปี" (พ.ศ.) จากวันที่ที่เลือกอยู่ — ใช้ทั้งบนจอและในหน้าพิมพ์
@@ -14555,7 +14494,10 @@ function _weeklyreportBuildMonthWeekHTML(weeksData, selectedDateVal) {
     const prodList = !prodTop.length ? `<div class="wreport-week-empty">ไม่มีการผลิต</div>` :
       prodTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
     const dlvList = !dlvTop.length ? `<div class="wreport-week-empty">ไม่มีการจัดส่ง</div>` :
-      dlvTop.map(([, v]) => `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>`).join('');
+      dlvTop.map(([, v]) => {
+        const note = v.customers && v.customers.size ? `<div class="wreport-week-note">ส่ง: ${[...v.customers].join(', ')}</div>` : '';
+        return `<div class="wreport-week-item"><span>${v.name}</span><span>${fmtQty(v.qty)}</span></div>${note}`;
+      }).join('');
     const rangeLabel = `${_planFmtDateLabel(wk.range.start)} – ${_planFmtDateLabel(wk.range.end)}`;
     // สลับลำดับ "จัดส่ง" ขึ้นก่อน "ผลิต" 2026-09-01 ตามคำขอผู้ใช้ — ใช้ร่วมกันทั้งหน้า "รายงานรายสัปดาห์"
     // ในแอป (weeklyreportRenderMonthWeeks) และรายงานสาธารณะ (_pubWeeklyOverviewSection) เพราะเป็นฟังก์ชัน
@@ -24733,7 +24675,6 @@ async function stockcardRun() {
   _hideLoader();
   document.getElementById('stockcard-kpi-defect').textContent = holdTotals.defect > 0 ? `${holdTotals.defect.toLocaleString()} ${holdTotals.uom}`.trim() : '0';
   document.getElementById('stockcard-kpi-retain').textContent = holdTotals.retain > 0 ? `${holdTotals.retain.toLocaleString()} ${holdTotals.uom}`.trim() : '0';
-  document.getElementById('stockcard-hold-kpi-row').style.display = '';
 
   txns.sort((a,b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type));
   const before  = txns.filter(t => dateFrom ? t.date < dateFrom : false);
