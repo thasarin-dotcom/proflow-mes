@@ -5246,6 +5246,20 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </div>
           </div>
         </div>
+        <!-- Defect/Retain คงค้างของสินค้า/Lot ที่กำลังดู — ต้องหักออกจาก "ยอดคงเหลือ" ด้านบนแล้วเสมอ
+             (ดูหมายเหตุที่ stockcardBuildFgTxns/stockcardBuildMatTxns) ตรงนี้แค่โชว์แยกให้เห็นว่าไปกองอยู่ไหน (2026-09-01) -->
+        <div class="row g-3 mb-3" id="stockcard-hold-kpi-row" style="display:none">
+          <div class="col-6 col-md-3">
+            <div class="kpi-card" style="border-color:#dc2626;cursor:pointer" onclick="_stockcardJumpToHold('DEFECT')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
+              <div class="kpi-num text-danger" id="stockcard-kpi-defect">—</div><div class="kpi-label"><i class="fas fa-ban me-1"></i>Defect คงค้าง</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="kpi-card" style="border-color:#f59e0b;cursor:pointer" onclick="_stockcardJumpToHold('RETAIN')" title="กดเพื่อดูรายการที่หน้าสต็อก Defect/Retain">
+              <div class="kpi-num text-warning" id="stockcard-kpi-retain">—</div><div class="kpi-label"><i class="fas fa-flask me-1"></i>Retain คงค้าง</div>
+            </div>
+          </div>
+        </div>
 
         <div class="glass-card p-0 overflow-hidden mb-3">
           <div class="table-responsive">
@@ -24708,8 +24722,14 @@ async function stockcardRun() {
   const dateTo   = mTo   ? new Date(parseInt(mTo.split('-')[0]), parseInt(mTo.split('-')[1]), 0).toISOString().split('T')[0] : null;
 
   _showLoader();
-  const txns = mode === 'mat' ? await stockcardBuildMatTxns(code, lot) : await stockcardBuildFgTxns(code, lot);
+  const [txns, holdTotals] = await Promise.all([
+    mode === 'mat' ? stockcardBuildMatTxns(code, lot) : stockcardBuildFgTxns(code, lot),
+    _stockcardComputeHoldTotals(mode, code, lot),
+  ]);
   _hideLoader();
+  document.getElementById('stockcard-kpi-defect').textContent = holdTotals.defect > 0 ? `${holdTotals.defect.toLocaleString()} ${holdTotals.uom}`.trim() : '0';
+  document.getElementById('stockcard-kpi-retain').textContent = holdTotals.retain > 0 ? `${holdTotals.retain.toLocaleString()} ${holdTotals.uom}`.trim() : '0';
+  document.getElementById('stockcard-hold-kpi-row').style.display = '';
 
   txns.sort((a,b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type));
   const before  = txns.filter(t => dateFrom ? t.date < dateFrom : false);
@@ -24799,6 +24819,39 @@ async function stockcardRun() {
       }).join('');
 }
 
+// ── Defect/Retain คงค้างของสินค้า/Lot ที่กำลังดูอยู่บนการ์ดสต็อก (ItemCode ตรงกับ hold_stock, กรอง Lot
+// ด้วยถ้าเลือกไว้) — ItemType กรองตามโหมดหน้า: FG→'FG', วัตถุดิบ→'BULK'/'PAC' (ผู้ใช้เลือกตอนย้ายเข้า Hold
+// เอง ไม่ได้มาจาก materials.TYPE เสมอไป จึงกรองด้วย .in() ไม่ระบุตัวเดียว) ──
+async function _stockcardComputeHoldTotals(mode, code, lot) {
+  let q = _sb.from('hold_stock').select('HoldType,QtyBalance,UOM').eq('ItemCode', code);
+  q = mode === 'mat' ? q.in('ItemType', ['BULK', 'PAC']) : q.eq('ItemType', 'FG');
+  if (lot) q = q.eq('Lot', lot);
+  const { data, error } = await q;
+  if (error) return { defect: 0, retain: 0, uom: '' };
+  let defect = 0, retain = 0, uom = '';
+  (data || []).forEach(r => {
+    const bal = parseFloat(r.QtyBalance) || 0;
+    if (bal <= 0) return;
+    uom = uom || r.UOM || '';
+    if (r.HoldType === 'RETAIN') retain += bal; else defect += bal;
+  });
+  return { defect, retain, uom };
+}
+
+// ── กดที่การ์ด KPI Defect/Retain บนการ์ดสต็อก → เด้งไปหน้าสต็อก Defect/Retain กรองเฉพาะสินค้าตัวนี้ให้เลย ──
+function _stockcardJumpToHold(holdType) {
+  const code = document.getElementById('stockcard-f-code').value;
+  showPage('holdstock', document.getElementById('nav-holdstock'));
+  const radio = document.getElementById(holdType === 'RETAIN' ? 'holdstock-mode-retain' : 'holdstock-mode-defect');
+  if (radio) radio.checked = true;
+  _holdstockMode = holdType;
+  const typeFilter = document.getElementById('holdstock-filter-itemtype');
+  if (typeFilter) typeFilter.value = stockcardMode() === 'mat' ? '' : 'FG';
+  const search = document.getElementById('holdstock-search');
+  if (search) search.value = code || '';
+  holdstockLoadData();
+}
+
 async function stockcardBuildMatTxns(code, lot) {
   let mrQ   = _sb.from('mr_receive').select('*').eq('MaterialCode', code);
   let issQ  = _sb.from('issue_production').select('*').eq('MaterialCode', code);
@@ -24848,6 +24901,23 @@ async function stockcardBuildMatTxns(code, lot) {
       source: ['เบิกเบ็ดเตล็ด', r.Category, r.CustomerName].filter(Boolean).join(' — '),
     });
   });
+  // ย้ายเข้าสต็อก Defect/Retain (hold_stock_moves, ItemType BULK/PAC) — บั๊กเดียวกับฝั่ง FG ด้านล่าง
+  // (stockcardBuildFgTxns) ตัด stock_balance ออกจริงตอนย้าย (miscUpdateStock) แต่ไม่เคยสร้างแถวใน
+  // issue_misc/issue_production เลย ต้องดึงมาสร้างธุรกรรมเองเหมือนกัน
+  let holdQ = _sb.from('hold_stock_moves').select('MoveDate,MoveType,HoldType,Lot,Qty,UOM').in('ItemType', ['BULK','PAC']).eq('ItemCode', code);
+  if (lot) holdQ = holdQ.eq('Lot', lot);
+  const { data: holdMoves } = await holdQ;
+  (holdMoves||[]).forEach(m => {
+    const qty = parseFloat(m.Qty) || 0;
+    if (qty <= 0) return;
+    if (m.MoveType === 'IN') {
+      txns.push({ date: String(m.MoveDate||''), type: 'OUT', docId: '', lot: m.Lot||'', qty, uom: m.UOM||'',
+        source: `ย้ายเข้าสต็อก ${m.HoldType==='RETAIN'?'Retain':'Defect'}` });
+    } else if (m.MoveType === 'REWORK') {
+      txns.push({ date: String(m.MoveDate||''), type: 'IN', docId: '', lot: m.Lot||'', qty, uom: m.UOM||'',
+        source: 'Rework คืนจากสต็อก Defect' });
+    }
+  });
   return txns;
 }
 
@@ -24878,6 +24948,26 @@ async function stockcardBuildFgTxns(code, lot) {
       lot: r.Lot_FG||'', qty: parseFloat(r.QtyFG)||0, uom: r.UOM||'',
       source: [r.CustomerName, r.CO_Ref].filter(Boolean).join(' / '),
     });
+  });
+  // ย้ายเข้าสต็อก Defect/Retain (hold_stock_moves, ItemType='FG') ตัด stock_fg ออกจริงตอนย้าย
+  // (fgUpdateStock(...,false), ดู holdstockMoveInSubmit) แต่ไม่เคยสร้างแถวใน fg_withdraw เลย — ถ้าไม่ดึงมา
+  // เพิ่มตรงนี้ การ์ดสต็อกจะยังโชว์ "คงเหลือ" สูงกว่าความจริง (ของถูกย้ายไปกองที่ Defect/Retain แล้วแต่ไม่มี
+  // ธุรกรรมจ่ายออกให้เห็น) — Rework (ItemType='FG') คืนของกลับเข้า stock_fg จริง (fgUpdateStock(...,true))
+  // จึงดึงมาเป็นธุรกรรมรับเข้าคู่กัน ส่วน SCRAP/DISPOSE ไม่กระทบ stock_fg เลย (ของออกจาก stock_fg ไปตั้งแต่
+  // ตอนย้ายเข้า Hold แล้ว) จึงไม่สร้างธุรกรรมซ้ำ
+  let holdQ = _sb.from('hold_stock_moves').select('MoveDate,MoveType,HoldType,Lot,Qty,UOM').eq('ItemType', 'FG').eq('ItemCode', code);
+  if (lot) holdQ = holdQ.eq('Lot', lot);
+  const { data: holdMoves } = await holdQ;
+  (holdMoves||[]).forEach(m => {
+    const qty = parseFloat(m.Qty) || 0;
+    if (qty <= 0) return;
+    if (m.MoveType === 'IN') {
+      txns.push({ date: String(m.MoveDate||''), type: 'OUT', docId: '', lot: m.Lot||'', qty, uom: m.UOM||'',
+        source: `ย้ายเข้าสต็อก ${m.HoldType==='RETAIN'?'Retain':'Defect'}` });
+    } else if (m.MoveType === 'REWORK') {
+      txns.push({ date: String(m.MoveDate||''), type: 'IN', docId: '', lot: m.Lot||'', qty, uom: m.UOM||'',
+        source: 'Rework คืนจากสต็อก Defect' });
+    }
   });
   return txns;
 }
