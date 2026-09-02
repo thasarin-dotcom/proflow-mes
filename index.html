@@ -8894,35 +8894,46 @@ function _purchasereqOnSupplierChange(seq) {
 
 // r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions} — snapshot ทั้งหมดเก็บลง data-* ของ
 // แถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกันทั้งสร้างใหม่/แก้ไข)
+// "ราคา/หน่วย" เพิ่ม 2026-09-02 เป็นช่องกรอกจริง ไม่ใช่ data-* ที่มองไม่เห็นอีกต่อไป — ตัวที่มีต้นทุนเฉลี่ยจาก
+// stock_balance อยู่แล้ว (r.unit > 0) ดึงมาใส่ให้เลย ส่วนวัตถุดิบใหม่ที่ยังไม่มีต้นทุน (r.unit === 0/ไม่มี Lot
+// เลย) ปล่อยว่างไว้ให้กรอกเอง ไม่ยัดเป็น 0 ให้เข้าใจผิดว่าราคาจริงคือ 0
 function _purchasereqLineRowHTML(r) {
   const seq = _purchasereqRowSeq++;
   const nameAttr = (r.name || '').replace(/"/g, '&quot;');
   const uomAttr  = (r.uom || '').replace(/"/g, '&quot;');
+  const unitVal  = (r.unit || 0) > 0 ? r.unit : '';
   return `<div class="purchasereq-line-row border rounded p-2 mb-2" data-seq="${seq}" data-code="${r.code}"
       data-name="${nameAttr}" data-uom="${uomAttr}" data-qtyatrequest="${r.qtyAtRequest || 0}"
-      data-min="${r.min || 0}" data-unitcost="${r.unit || 0}">
+      data-min="${r.min || 0}">
     <div class="row g-2 align-items-center">
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="fw-semibold" style="font-size:.85rem">${r.name || '—'}</div>
         <small class="text-muted">${r.code} · ${r.uom || ''}</small>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-6">
         <label class="form-label mb-1" style="font-size:.7rem">ซัพพลายเออร์</label>
         ${_purchasereqSupplierCellHTML(r.supplier, r.suppliersOptions, seq)}
-      </div>
-      <div class="col-md-2 text-end">
-        <label class="form-label mb-1 d-block" style="font-size:.7rem">คงเหลือ / Min</label>
-        <span style="font-size:.82rem">${(r.qtyAtRequest || 0).toLocaleString()} / ${(r.min || 0).toLocaleString()}</span>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label mb-1" style="font-size:.7rem">จำนวนขอซื้อ</label>
-        <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-qty-${seq}"
-          min="0" step="0.01" value="${r.qty}" oninput="_purchasereqValidateRow(${seq})">
       </div>
       <div class="col-md-2 text-end">
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="purchasereqRemoveLineRow(${seq})" title="เอาออกจากใบนี้">
           <i class="fas fa-times"></i>
         </button>
+      </div>
+    </div>
+    <div class="row g-2 align-items-center mt-1">
+      <div class="col-4">
+        <label class="form-label mb-1 d-block" style="font-size:.7rem">คงเหลือ / Min</label>
+        <span style="font-size:.82rem">${(r.qtyAtRequest || 0).toLocaleString()} / ${(r.min || 0).toLocaleString()}</span>
+      </div>
+      <div class="col-4">
+        <label class="form-label mb-1" style="font-size:.7rem">ราคา/หน่วย (฿)</label>
+        <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-unitcost-${seq}"
+          min="0" step="0.01" value="${unitVal}" placeholder="ระบุราคา">
+      </div>
+      <div class="col-4">
+        <label class="form-label mb-1" style="font-size:.7rem">จำนวนขอซื้อ</label>
+        <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-qty-${seq}"
+          min="0" step="0.01" value="${r.qty}" oninput="_purchasereqValidateRow(${seq})">
       </div>
     </div>
   </div>`;
@@ -9128,13 +9139,14 @@ async function purchasereqSubmit() {
     const sel   = document.getElementById(`purchasereq-f-sup-${seq}`);
     const other = document.getElementById(`purchasereq-f-supother-${seq}`);
     const supplier = sel.value === '__other__' ? (other.value.trim() || 'ไม่ระบุซัพพลายเออร์') : sel.value;
+    const unitCostInput = document.getElementById(`purchasereq-f-unitcost-${seq}`);
     return {
       MaterialCode: row.dataset.code,
       MaterialName: row.dataset.name,
       UOM: row.dataset.uom,
       QtyAtRequest: parseFloat(row.dataset.qtyatrequest) || 0,
       MinStock: parseFloat(row.dataset.min) || 0,
-      UnitCost: parseFloat(row.dataset.unitcost) || 0,
+      UnitCost: parseFloat(unitCostInput.value) || 0,
       RequestQty: qty,
       Supplier: supplier,
     };
