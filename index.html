@@ -2949,9 +2949,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <select id="purchasereq-filter-supplier" class="form-select form-select-sm" style="max-width:200px" onchange="purchasereqRenderCards()">
             <option value="">ซัพพลายเออร์: ทั้งหมด</option>
           </select>
-          <button class="btn btn-sm btn-primary ms-auto" onclick="purchasereqLoadData()">
-            <i class="fas fa-sync-alt me-1"></i>รีเฟรช
-          </button>
+          <div class="ms-auto d-flex gap-2">
+            <button class="btn btn-sm btn-warning fw-bold" onclick="purchasereqOpenManualCreateModal()">
+              <i class="fas fa-plus me-1"></i>สร้างใบขอซื้อ
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="purchasereqLoadData()">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -6254,6 +6259,15 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <small class="text-muted">รันต่อจากเลขล่าสุดของปีให้อัตโนมัติ แก้ไขเองได้</small>
         </div>
         <div class="text-muted small mb-2">ต่ำกว่า Min → เติมถึง Min แล้วเผื่อเพิ่มอีก 1 เท่า ให้อัตโนมัติ แก้ไขได้ทุกช่อง</div>
+        <div id="purchasereq-add-material-box" class="mb-3" style="display:none">
+          <label class="form-label">ค้นหาวัตถุดิบจาก Master เพื่อเพิ่มรายการ</label>
+          <div class="position-relative">
+            <input type="text" id="purchasereq-add-material-search" class="form-control" autocomplete="off"
+              placeholder="พิมพ์รหัส หรือชื่อวัตถุดิบ..." oninput="purchasereqManualSearchMaterial(this.value)">
+            <div id="purchasereq-add-material-dropdown" class="list-group position-absolute w-100 shadow"
+              style="z-index:1060;max-height:220px;overflow:auto;display:none"></div>
+          </div>
+        </div>
         <div id="purchasereq-lines-container"></div>
         <div class="text-muted small mt-1">* ถ้าเลือกหลายซัพพลายเออร์ ฝ่ายจัดซื้อจะแยกออกเป็นใบสั่งซื้อ (PO) ต่อซัพพลายเออร์ตอนสั่งจริง</div>
         <div class="mt-3">
@@ -8782,6 +8796,12 @@ let _purchasereqEditingNo = null; // PR_No ที่กำลังแก้ไ�
 let _purchasereqRowSeq = 0;       // never-reused running counter (เหมือน _bomRowSeq) กันชน id ตอนลบแถวกลาง
 let _purchasereqModal = null;
 let _purchasereqPrintModal = null;
+// โหมด "สร้างเองจากหน้านี้" (เพิ่ม, ปุ่ม "สร้างใบขอซื้อ" บนหน้า purchasereq เอง) — ต่างจากโหมดเดิมที่ต้องไปติ๊ก
+// เลือกวัตถุดิบที่หน้า Stock ก่อน: โหมดนี้ค้นหา/เพิ่มวัตถุดิบจาก Master ตรงในโมดัลนี้เลย ไม่ผูกกับ _stockPicked
+let _purchasereqManualMode = false;
+let _purchasereqManualMaterials = [];   // materials master (MaterialCode,MaterialName,UOM,MinStock) — โหลดสดทุกครั้งที่เปิดโหมดนี้
+let _purchasereqManualStockMap = {};    // MaterialCode → { qty, val } รวมจาก stock_balance ทุก Lot (สำหรับคงเหลือ/ต้นทุนเฉลี่ย)
+let _purchasereqManualSupplierMap = {}; // MaterialCode → [ซัพพลายเออร์ที่เคยใช้จริง] (เหมือน _purchasereqBuildSupplierMap)
 
 async function purchasereqLoadData() {
   _showLoader();
@@ -8823,13 +8843,24 @@ async function purchasereqSuggestPRNo() {
   return prefix + String(maxNum + 1).padStart(3, '0');
 }
 
-// ชื่อซัพพลายเออร์ที่เคยใช้จริงต่อวัตถุดิบ — ไม่มี master ซัพพลายเออร์แยกในระบบ (ซัพพลายเออร์เป็นแค่ช่อง Supplier
-// พิมพ์อิสระต่อครั้งที่หน้ารับวัตถุดิบ) จึงดึงจากประวัติ mr_receive จริงมาทำ dropdown ให้เลือกแทน
+// รายชื่อซัพพลายเออร์ต่อวัตถุดิบ — รวม 2 แหล่ง: (1) materials.SUPPLIER (ซัพพลายเออร์หลักที่ตั้งไว้ที่หน้า Master
+// วัตถุดิบ — ใส่ไว้ก่อนเสมอ ให้เป็นตัวเลือก default/แรกสุด) + (2) ประวัติ Supplier จริงที่เคยพิมพ์ไว้ตอนรับวัตถุดิบ
+// (mr_receive, อาจมีมากกว่า 1 เจ้าต่อวัตถุดิบถ้าเคยซื้อหลายเจ้า) — แก้ 2026-09-02: เดิมดึงจาก mr_receive อย่างเดียว
+// ทำให้วัตถุดิบที่ยังไม่เคยมีประวัติรับเข้าเลย (เช่น เพิ่งเพิ่มใน Master ใหม่) ไม่มีตัวเลือกซัพพลายเออร์ขึ้นให้เลือก
+// เลยทั้งที่ตั้งซัพพลายเออร์หลักไว้แล้วที่หน้า Master (ผู้ใช้รายงานจริงกับ SPOL024)
 async function _purchasereqBuildSupplierMap() {
-  const { data, error } = await _fetchAllPaged('mr_receive', 'MaterialCode,Supplier');
+  const [matRes, mrRes] = await Promise.all([
+    _sb.from('materials').select('MaterialCode,SUPPLIER'),
+    _fetchAllPaged('mr_receive', 'MaterialCode,Supplier'),
+  ]);
   const map = {};
-  if (!error) {
-    (data || []).forEach(r => {
+  (matRes.data || []).forEach(r => {
+    const sup = (r.SUPPLIER || '').trim();
+    if (!sup || !r.MaterialCode) return;
+    (map[r.MaterialCode] ||= new Set()).add(sup);
+  });
+  if (!mrRes.error) {
+    (mrRes.data || []).forEach(r => {
       const sup = (r.Supplier || '').trim();
       if (!sup || !r.MaterialCode) return;
       (map[r.MaterialCode] ||= new Set()).add(sup);
@@ -8907,8 +8938,9 @@ function purchasereqRemoveLineRow(seq) {
   if (!el) return;
   const code = el.dataset.code;
   el.remove();
-  // ตอนสร้างใหม่ (ไม่ใช่แก้ไข) การลบแถวในโมดัลต้องเลิกติ๊กที่หน้า Stock ด้วย ไม่งั้นเปิดโมดัลใหม่จะโผล่ซ้ำ
-  if (!_purchasereqEditingNo) {
+  // ตอนสร้างใหม่ผ่านหน้า Stock (ไม่ใช่แก้ไข และไม่ใช่โหมด "สร้างใบขอซื้อ" จากหน้านี้เอง) การลบแถวในโมดัลต้อง
+  // เลิกติ๊กที่หน้า Stock ด้วย ไม่งั้นเปิดโมดัลใหม่จะโผล่ซ้ำ — โหมด manual ไม่ผูกกับ _stockPicked เลย
+  if (!_purchasereqEditingNo && !_purchasereqManualMode) {
     _stockPicked.delete(code);
     renderStockCards();
     _stockUpdateFloatbar();
@@ -8920,10 +8952,12 @@ function purchasereqRemoveLineRow(seq) {
 async function purchasereqOpenCreateModal() {
   if (!_stockPicked.size) return;
   _purchasereqEditingNo = null;
+  _purchasereqManualMode = false;
   document.getElementById('purchasereqModalTitle').textContent = 'สร้างใบขอซื้อวัตถุดิบ';
   document.getElementById('purchasereq-f-note').value = '';
   document.getElementById('purchasereq-f-prno').value = '';
   document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
+  document.getElementById('purchasereq-add-material-box').style.display = 'none';
 
   _showLoader();
   const [supplierMap, suggestedPrNo] = await Promise.all([
@@ -8959,10 +8993,12 @@ async function purchasereqEditOpen(prNo) {
   const pr = _purchasereqData.find(p => p.PR_No === prNo);
   if (!pr || pr.Status !== 'รออนุมัติ') return;
   _purchasereqEditingNo = prNo;
+  _purchasereqManualMode = false;
   document.getElementById('purchasereqModalTitle').textContent = 'แก้ไขใบขอซื้อ ' + prNo;
   document.getElementById('purchasereq-f-note').value = pr.Note || '';
   document.getElementById('purchasereq-f-prno').value = prNo;
   document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
+  document.getElementById('purchasereq-add-material-box').style.display = 'none';
 
   _showLoader();
   const supplierMap = await _purchasereqBuildSupplierMap();
@@ -8983,7 +9019,92 @@ async function purchasereqEditOpen(prNo) {
 function purchasereqCloseModal() {
   if (_purchasereqModal) _purchasereqModal.hide();
   _purchasereqEditingNo = null;
+  _purchasereqManualMode = false;
 }
+
+// เรียกจากปุ่ม "สร้างใบขอซื้อ" บนหน้า purchasereq เอง (2026-09-02, ตามคำขอผู้ใช้ — ไม่ต้องไปติ๊กเลือกที่หน้า
+// Stock ก่อนแล้ว) — เริ่มใบเปล่า แล้วค้นหา/เพิ่มวัตถุดิบจาก Master ทีละตัวผ่านกล่องค้นหาด้านบนตาราง แทนการดึงจาก
+// _stockPicked ที่ purchasereqOpenCreateModal ใช้ (โหมดเดิมนั้นยังอยู่ ไม่ได้แทนที่ — เข้าถึงคนละทาง)
+async function purchasereqOpenManualCreateModal() {
+  _purchasereqEditingNo = null;
+  _purchasereqManualMode = true;
+  document.getElementById('purchasereqModalTitle').textContent = 'สร้างใบขอซื้อวัตถุดิบ';
+  document.getElementById('purchasereq-f-note').value = '';
+  document.getElementById('purchasereq-f-prno').value = '';
+  document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
+  document.getElementById('purchasereq-lines-container').innerHTML = '';
+  document.getElementById('purchasereq-add-material-box').style.display = 'block';
+  document.getElementById('purchasereq-add-material-search').value = '';
+  document.getElementById('purchasereq-add-material-dropdown').style.display = 'none';
+
+  _showLoader();
+  const [matRes, stockRes, supplierMap, suggestedPrNo] = await Promise.all([
+    _sb.from('materials').select('MaterialCode,MaterialName,UOM,MinStock'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,UnitCost,StockValue'),
+    _purchasereqBuildSupplierMap(),
+    purchasereqSuggestPRNo(),
+  ]);
+  _hideLoader();
+  if (matRes.error) { _err('โหลด Master วัตถุดิบไม่ได้', matRes.error.message); return; }
+
+  _purchasereqManualMaterials = (matRes.data || []).sort((a, b) => (a.MaterialCode||'').localeCompare(b.MaterialCode||''));
+  _purchasereqManualStockMap = {};
+  (stockRes.data || []).forEach(r => {
+    const g = (_purchasereqManualStockMap[r.MaterialCode] ||= { qty: 0, val: 0 });
+    g.qty += parseFloat(r.QtyBalance) || 0;
+    g.val += parseFloat(r.StockValue) || 0;
+  });
+  _purchasereqManualSupplierMap = supplierMap;
+  document.getElementById('purchasereq-f-prno').value = suggestedPrNo;
+
+  if (!_purchasereqModal) _purchasereqModal = new bootstrap.Modal(document.getElementById('purchasereqModal'));
+  _purchasereqModal.show();
+}
+
+// ── Material Autocomplete สำหรับโหมด "สร้างใบขอซื้อ" (Master วัตถุดิบ) ──
+function purchasereqManualSearchMaterial(q) {
+  const dd = document.getElementById('purchasereq-add-material-dropdown');
+  if (!q || q.length < 1) { dd.style.display = 'none'; return; }
+  const already = new Set([...document.querySelectorAll('#purchasereq-lines-container .purchasereq-line-row')].map(el => el.dataset.code));
+  const results = _purchasereqManualMaterials.filter(m =>
+    !already.has(m.MaterialCode) &&
+    ((m.MaterialName||'').toLowerCase().includes(q.toLowerCase()) || (m.MaterialCode||'').toLowerCase().includes(q.toLowerCase()))
+  ).slice(0, 10);
+  if (!results.length) {
+    dd.innerHTML = '<div class="list-group-item text-muted py-1 px-2" style="font-size:.82rem">ไม่พบ หรือเพิ่มไปแล้ว</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = results.map(m => `
+    <button type="button" class="list-group-item list-group-item-action py-1 px-2" style="font-size:.82rem"
+      onclick="purchasereqManualAddMaterial('${m.MaterialCode}')">
+      <span class="badge bg-secondary me-1">${m.MaterialCode}</span>${m.MaterialName||''}
+    </button>`).join('');
+  dd.style.display = 'block';
+}
+function purchasereqManualAddMaterial(code) {
+  const m = _purchasereqManualMaterials.find(x => x.MaterialCode === code);
+  if (!m) return;
+  const stock = _purchasereqManualStockMap[code] || { qty: 0, val: 0 };
+  const min = parseFloat(m.MinStock) || 0;
+  const unitCost = stock.qty > 0 ? stock.val / stock.qty : 0;
+  const row = {
+    code, name: m.MaterialName || code, uom: m.UOM || '',
+    qtyAtRequest: stock.qty, min, qty: _purchasereqSuggestQty(stock.qty, min),
+    unit: unitCost, supplier: (_purchasereqManualSupplierMap[code]||[])[0] || '',
+    suppliersOptions: _purchasereqManualSupplierMap[code] || [],
+  };
+  document.getElementById('purchasereq-lines-container').insertAdjacentHTML('beforeend', _purchasereqLineRowHTML(row));
+  document.getElementById('purchasereq-add-material-search').value = '';
+  document.getElementById('purchasereq-add-material-dropdown').style.display = 'none';
+  document.getElementById('purchasereq-add-material-search').focus();
+}
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('purchasereq-add-material-dropdown');
+  if (dd && !dd.contains(e.target) && e.target.id !== 'purchasereq-add-material-search') {
+    dd.style.display = 'none';
+  }
+});
 
 async function purchasereqSubmit() {
   const rows = [...document.querySelectorAll('#purchasereq-lines-container .purchasereq-line-row')];
@@ -9062,9 +9183,7 @@ async function purchasereqSubmit() {
     if (insErr) { _err('บันทึกรายการไม่สำเร็จ', insErr.message); return; }
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `สร้างใบขอซื้อ ${enteredPrNo} แล้ว`, showConfirmButton: false, timer: 2500 });
     purchasereqCloseModal();
-    _stockPicked.clear();
-    renderStockCards();
-    _stockUpdateFloatbar();
+    if (_stockPicked.size) { _stockPicked.clear(); renderStockCards(); _stockUpdateFloatbar(); }
     showPage('purchasereq', document.getElementById('nav-purchasereq'));
   }
 }
