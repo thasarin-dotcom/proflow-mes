@@ -4814,6 +4814,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </div>
           </div>
           <div class="col-md-6 d-flex gap-2 justify-content-end">
+            <select id="prodrecord-sort" class="form-select form-select-sm" style="max-width:150px" onchange="_prodrecordSortBy=this.value; prodrecordRenderTable();" title="เรียงลำดับรายการ (ใหม่สุดบน เก่าสุดล่างเสมอ)">
+              <option value="prod">เรียงตาม PROD</option>
+              <option value="lot">เรียงตาม LOT</option>
+            </select>
             <button class="btn btn-sm btn-outline-warning" id="prodrecord-recalc-oh-btn" style="display:none" onclick="prodrecordRecalcAllOverhead()" title="คำนวณ Overhead+ค่าแรง ของบันทึกที่อนุมัติต้นทุนแล้วทั้งหมดใหม่ ตามสูตรล่าสุด (ชม.ทำงานจริง + ปัดชม.เก็บล้าง)">
               <i class="fas fa-calculator me-1"></i>คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด
             </button>
@@ -16783,6 +16787,20 @@ async function bomDeleteProduct(groupIdx) {
 // ══════════════════════════════════════════════
 let _prodrecordData = [];
 let _prodrecordLastRows = [];        // ผลลัพธ์กรอง/ค้นหาล่าสุด ให้ปุ่มการ์ดอ้างอิงด้วย index
+
+// ตัวเลือก sort ของหน้ารายการ (2026-09-02 ตามคำขอผู้ใช้ — ก่อนหน้านี้เรียงตาม _row_id ตอนโหลดข้อมูล
+// (ลำดับที่ insert ลง DB) ซึ่งไม่ตรงกับลำดับ PROD/Lot เป๊ะเสมอไป) ใหม่สุดอยู่บนสุด/เก่าสุดอยู่ล่างสุดเสมอ
+// ไม่ว่าจะเรียงตามคีย์ไหน — ตัวแปรนี้แยกจาก _prodrecordData (ข้อมูลดิบ) เพื่อให้ค้นหา/รีเฟรชไม่ล้างค่าที่เลือกไว้
+let _prodrecordSortBy = 'prod'; // 'prod' | 'lot'
+function _prodrecordSortRows(rows) {
+  const arr = rows.slice();
+  if (_prodrecordSortBy === 'lot') {
+    arr.sort((a, b) => (parseFloat(b.Lot_FG) || 0) - (parseFloat(a.Lot_FG) || 0));
+  } else {
+    arr.sort((a, b) => (b.ProdRecord_ID || '').localeCompare(a.ProdRecord_ID || ''));
+  }
+  return arr;
+}
 let _prodrecordExpandedSet = new Set();
 let _prodrecordDetailsByRecord = {}; // ProdRecord_ID → array ของ production_record_details (cache, โหลดตอนกางการ์ด)
 let _prodrecordPendingMOs = [];      // MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิตครบทุก Lot FG — {mo, lots, noFgData}
@@ -17185,12 +17203,12 @@ async function prodrecordRejectDeleteRequest(gi) {
 function prodrecordRenderTable() {
   _prodrecordRenderPending();
   const q = (document.getElementById('prodrecord-search')?.value||'').toLowerCase();
-  const rows = _prodrecordData.filter(r => {
+  const rows = _prodrecordSortRows(_prodrecordData.filter(r => {
     if (!_prodrecordMOIsDone(r)) return false;
     if (!q) return true;
     const hay = [r.ProdRecord_ID, r.ProductName, r.ProductCode, r.Lot_FG, r.MO_Ref].join(' ').toLowerCase();
     return hay.includes(q);
-  });
+  }));
   _prodrecordLastRows = rows;
 
   const container = document.getElementById('prodrecord-cards');
