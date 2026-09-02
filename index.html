@@ -18194,7 +18194,11 @@ function _prodrecordRecalcApprove() {
   // ต้นทุน/หน่วยที่เพิ่งคำนวณ ให้เห็นกำไร/หน่วยตอนอนุมัติต้นทุนเลย ไม่ต้องไปเปิดหน้า BOM เทียบเอง
   const priceResolved = _bomResolveSellingPrice(window._prodrecordApproveBomRow, window._prodrecordApproveCustomerName);
   const sellingPrice = priceResolved ? priceResolved.price : null;
-  const profitPerUnit = sellingPrice != null ? sellingPrice - costPerUnit : null;
+  // กำไร/หน่วย เทียบกับ "ต้นทุน/หน่วยจริง (รวม Scrap)" ไม่ใช่ต้นทุน/หน่วยปกติ (2026-09-02 ตามคำขอผู้ใช้ —
+  // ให้สอดคล้องกับตาราง "เจาะลึกรายสินค้า" ในแดชบอร์ดต้นทุน & กำไร ที่เปลี่ยนไปใช้ต้นทุนรวม Scrap ไปแล้วก่อนหน้านี้)
+  // fallback กลับไปใช้ต้นทุน/หน่วยปกติถ้ายังไม่มี Scrap % ให้คำนวณ (costPerUnitScrapAdj เป็น null)
+  const profitCostBasis = costPerUnitScrapAdj != null ? costPerUnitScrapAdj : costPerUnit;
+  const profitPerUnit = sellingPrice != null ? sellingPrice - profitCostBasis : null;
 
   window._prodrecordApproveComputed = { workDays, laborCost, overhead, totalOhHours, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
 
@@ -18217,7 +18221,7 @@ function _prodrecordRecalcApprove() {
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${sellingPrice!=null?'฿'+sellingPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div><div class="text-muted" style="font-size:.7rem">ราคาขาย/หน่วย${priceResolved?.tier==='customer'?` <span class="badge bg-info-subtle text-info border border-info-subtle">ลูกค้า: ${priceResolved.customerName}</span>`:''}</div></div></div>
       <div class="col-8"><div class="p-2 rounded" style="background:${profitPerUnit==null?'#f8fafc':(profitPerUnit>=0?'#ecfdf5':'#fef2f2')}">
         <div class="fw-bold ${profitPerUnit==null?'':(profitPerUnit>=0?'text-success':'text-danger')}">${profitPerUnit!=null?(profitPerUnit>=0?'+':'')+'฿'+profitPerUnit.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</div>
-        <div class="text-muted" style="font-size:.7rem">กำไร/หน่วย (ราคาขาย − ต้นทุน/หน่วย)${sellingPrice==null?' — ยังไม่ได้ตั้งราคาขายที่หน้า BOM':''}</div>
+        <div class="text-muted" style="font-size:.7rem">กำไร/หน่วย (ราคาขาย − ต้นทุน/หน่วยจริง รวม Scrap)${sellingPrice==null?' — ยังไม่ได้ตั้งราคาขายที่หน้า BOM':''}</div>
       </div></div>
     </div>`;
 }
