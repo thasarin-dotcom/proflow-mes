@@ -2768,9 +2768,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <div class="alert alert-secondary py-2 px-3 mb-2" style="font-size:.75rem">
           Utilization% = ต้นทุนที่ระบบคำนวณจากชั่วโมงในบันทึกผลิตจริง ÷ ค่าจ้างจริงที่จ่ายทั้งเดือน — ต่ำกว่า
           70% แปลว่าจ่ายเกินกว่าที่งานจริงต้องการ (อาจพิจารณาลดคน/OS), เกิน 130% แปลว่าใช้งานหนักเกินอัตรากำลัง
-          ที่มี (อาจต้องเพิ่มคน) · คอลัมน์ "OT (เทียบเท่าจ้างเพิ่ม)" เทียบค่า OT ที่จ่ายเดือนนั้นกับต้นทุนจ้าง
-          พนักงาน 1 คนทั้งเดือน — ถ้า ≈0.8 คนขึ้นไปติดต่อกันหลายเดือน แปลว่าจ่าย OT แพงพอๆ กับจ้างเพิ่ม ควร
-          พิจารณาจ้างประจำแทนการใช้ OT
+          ที่มี (อาจต้องเพิ่มคน) · คอลัมน์ "FT/OS OT (เทียบเท่าจ้างเพิ่ม)" เทียบค่า OT ที่จ่ายเดือนนั้นกับ
+          ต้นทุนจ้างพนักงาน 1 คนทั้งเดือน — ถ้า ≈0.8 คนขึ้นไปติดต่อกันหลายเดือน แปลว่าจ่าย OT แพงพอๆ กับจ้าง
+          เพิ่ม ควรพิจารณาจ้างประจำแทนการใช้ OT · คอลัมน์ "PT OT (เทียบเท่าจ้างเพิ่ม)" เทียบเป็น "จำนวนวัน-คน"
+          แทน (PT จ้างเป็นวัน ไม่มีหัวคนคงที่) — ถ้า OT ที่จ่ายเทียบเท่าจ้าง PT เพิ่ม ≥15 วัน-คน/เดือน อาจคุ้ม
+          กว่าจ้าง PT ประจำเพิ่มแทนการให้ OT บ่อยๆ
         </div>
         <div id="admindash-payroll-table"><div class="text-center text-muted py-3">ยังไม่มีข้อมูลค่าจ้างจริง — กด "บันทึก/แก้ไขค่าจ้างจริง" เพื่อเริ่มกรอก</div></div>
       </div>
@@ -17934,9 +17936,21 @@ async function prodrecordEntrySubmit(e) {
   // ── กันคืนสต็อกซ้ำซ้อนตอนแก้ไขผลผลิตซ้ำ: ย้อนคืน ReturnedQty เดิม (ถ้ามี) + ย้อนยอดสะสม ReturnQty/ScrapQty
   // เดิมออกจาก stock_balance ก่อนลบแถว detail เก่า แล้วค่อยใส่ค่าใหม่ทั้งหมดทีหลัง (idempotent-replace) ──
   await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
-  await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
-
   let error;
+  ({ error } = await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID));
+  // เช็ค error ของ delete ก่อนเสมอ (บั๊กจริงพบ 2026-09-02 — เดิมไม่เช็คเลย พอ trigger DB กันลบ
+  // production_record_details ของบันทึกที่เคยอนุมัติแล้ว (add_protect_approved_production_records.sql)
+  // บล็อก delete นี้ด้วย exception เงียบๆ (ไม่เช็ค error) โค้ดก็เดินหน้าไป insert ชุดใหม่ทับเข้าไปเฉยๆ ทำให้
+  // แถววัตถุดิบซ้ำกันเพิ่มขึ้นทุกครั้งที่ "เปิดกลับ" แล้วบันทึกซ้ำ — ต้อง abort ทันทีถ้า delete ไม่สำเร็จ ไม่ใช่
+  // เดินหน้า insert ต่อทั้งที่ของเก่ายังอยู่)
+  if (error) {
+    _hideLoader();
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึกผลผลิต';
+    _err('บันทึกไม่สำเร็จ', `ลบรายการวัตถุดิบเดิมไม่ได้: ${error.message}`);
+    return;
+  }
+
   if (materials.length) {
     const detailPayload = materials.map((m, i) => ({
       DetailID     : `${r.ProdRecord_ID}-${String(i + 1).padStart(2, '0')}`,
@@ -21854,7 +21868,7 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     if (!p) {
       return `<tr class="text-muted">
         <td class="fw-bold">${label}</td>
-        <td colspan="9" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
+        <td colspan="10" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="admindashOpenPayrollModal('${m}')" title="กรอกค่าจ้างจริง"><i class="fas fa-plus"></i></button></td>
       </tr>`;
     }
@@ -21882,6 +21896,19 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
       return `${fmtB(otCost)} <span class="text-muted" style="font-size:.68rem">(${Math.round(otHours * 10) / 10} ชม.)</span>` +
         (equivHeads != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivHeads.toFixed(2)} คน${equivHeads >= 0.8 ? ' ⚠️ OT แพงเกือบเท่าจ้างเพิ่ม' : ''}</span>` : '');
     };
+    // PT ก็มี OT เหมือนกัน (PT_OT_Rate) — เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "PT ก็มี OT นะ" หลังจากรอบแรกให้ PT
+    // แค่โชว์ยอด OT เฉยๆ ไม่มีตัวเทียบเท่าแบบ FT/OS (ตอนนั้นให้เหตุผลว่า PT ไม่มี headcount คงที่ให้หาร) —
+    // แก้โดยเทียบกับ **จำนวนวัน-คนที่จ้าง PT เพิ่มได้แทน** (ptOtCost ÷ PT_DayRate จริง) แทนที่จะหารด้วยหัวคน
+    // เพราะ PT จ้างเป็นวันอยู่แล้ว ไม่ต้องมี headcount คงที่ก็เทียบเป็น "จำนวนวันจ้างเพิ่ม" ได้ตรงๆ — เกณฑ์สี
+    // ≥15 วัน-คน (มากกว่าครึ่งเดือนทำงาน) = แดง, ≥7 วัน-คน (ประมาณ 1 สัปดาห์) = เหลือง เป็นเกณฑ์คร่าวๆ ของ
+    // ผู้เขียนเช่นเดียวกับเกณฑ์ FT/OS ด้านบน ไม่ใช่ตัวเลขที่ผู้ใช้กำหนดเอง
+    const ptOtBlock = (otCost, otHours, dayRate) => {
+      if (!otHours) return '<span class="text-muted">—</span>';
+      const equivDays = dayRate ? otCost / dayRate : null;
+      const cls = equivDays == null ? '' : (equivDays >= 15 ? 'text-danger fw-bold' : (equivDays >= 7 ? 'text-warning fw-bold' : ''));
+      return `${fmtB(otCost)} <span class="text-muted" style="font-size:.68rem">(${Math.round(otHours * 10) / 10} ชม.)</span>` +
+        (equivDays != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivDays.toFixed(1)} วัน-คน${equivDays >= 15 ? ' ⚠️ OT สูง ลองจ้าง PT เพิ่มแทน' : ''}</span>` : '');
+    };
 
     return `<tr>
       <td class="fw-bold">${label}</td>
@@ -21893,7 +21920,8 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
       <td class="text-end">${fmtB(t.osCost)}</td>
       <td class="text-end fw-bold ${utilClass(osUtil)}">${osUtil != null ? osUtil + '%' : '—'}</td>
       <td class="text-end">${otBlock(t.osOtCost, t.osOtHours, osHeadcount, osPaid)}</td>
-      <td class="text-end">${ptDayRate != null ? '฿' + ptDayRate.toLocaleString() : '—'}<br><span class="text-muted" style="font-size:.68rem">เรทระบบ ${avgPtRateDay != null ? '฿' + Math.round(avgPtRateDay).toLocaleString() : '—'}${ptDiffPct != null ? ` (${ptDiffPct >= 0 ? '+' : ''}${ptDiffPct}%)` : ''}</span>${t.ptOtHours > 0 ? `<br><span class="text-muted" style="font-size:.68rem">OT ${fmtB(t.ptOtCost)} (${Math.round(t.ptOtHours * 10) / 10} ชม.)</span>` : ''}</td>
+      <td class="text-end">${ptDayRate != null ? '฿' + ptDayRate.toLocaleString() : '—'}<br><span class="text-muted" style="font-size:.68rem">เรทระบบ ${avgPtRateDay != null ? '฿' + Math.round(avgPtRateDay).toLocaleString() : '—'}${ptDiffPct != null ? ` (${ptDiffPct >= 0 ? '+' : ''}${ptDiffPct}%)` : ''}</span></td>
+      <td class="text-end">${ptOtBlock(t.ptOtCost, t.ptOtHours, ptDayRate)}</td>
       <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="admindashOpenPayrollModal('${m}')" title="แก้ไข"><i class="fas fa-pen"></i></button></td>
     </tr>`;
   }).join('');
@@ -21903,7 +21931,7 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
       <th>เดือน</th>
       <th class="text-end">FT จ่ายจริง</th><th class="text-end">FT ใช้จริงในผลิต</th><th class="text-end">FT Utilization</th><th class="text-end">FT OT (เทียบเท่าจ้างเพิ่ม)</th>
       <th class="text-end">OS จ่ายจริง</th><th class="text-end">OS ใช้จริงในผลิต</th><th class="text-end">OS Utilization</th><th class="text-end">OS OT (เทียบเท่าจ้างเพิ่ม)</th>
-      <th class="text-end">PT เรทจริง/เรทระบบ (฿/วัน)</th><th></th>
+      <th class="text-end">PT เรทจริง/เรทระบบ (฿/วัน)</th><th class="text-end">PT OT (เทียบเท่าจ้างเพิ่ม)</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
