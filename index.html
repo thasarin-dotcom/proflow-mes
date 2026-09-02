@@ -20480,7 +20480,17 @@ async function coSubmit(e) {
 
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
 
-  if (isEdit) _logAudit('EDIT', 'customer_orders', payloads[0].Order_ID, _diffFields(oldRow, payloads[0]));
+  if (isEdit) {
+    _logAudit('EDIT', 'customer_orders', payloads[0].Order_ID, _diffFields(oldRow, payloads[0]));
+    // แก้ไข OrderQty อาจทำให้ยอดจัดส่งสะสมที่มีอยู่แล้วครบยอดสั่งใหม่พอดี โดยไม่มี event จัดส่ง/ยืนยันส่งเสร็จ
+    // เกิดขึ้นใหม่มา trigger — _deliveryCheckCOComplete/_miscCheckCOComplete ทำงานเฉพาะตอนนั้นเท่านั้น ไม่ได้ผูก
+    // กับการแก้ไข CO เลย ทำให้ CO ค้างสถานะเดิม (เช่น ส่งบางส่วน) ทั้งที่ยอดตรงกันแล้ว จึงต้องเรียกเช็คซ้ำเองที่นี่
+    if (payloads[0].ItemType === 'BULK') {
+      await _miscCheckCOComplete(payloads[0].Order_ID);
+    } else {
+      await _deliveryCheckCOComplete(payloads[0].Order_ID);
+    }
+  }
   _coModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title: isEdit ? 'แก้ไขสำเร็จ' : `เพิ่ม CO สำเร็จ${payloads.length > 1 ? ` (${payloads.length} รายการ)` : ''}`,
