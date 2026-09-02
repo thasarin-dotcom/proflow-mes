@@ -9380,15 +9380,18 @@ const PURCHASEREQ_SIGN_PURCHASING = 'นางสาวกิตติวรร�
 // ไม่ผูกกับจำนวนรายการจริง ตามที่ผู้ใช้ยืนยัน 2026-08-29
 const _purchasereqBlankRowsHTML = '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'.repeat(2);
 function _purchasereqHalfHTML(pr, copyLabel) {
-  const rows = pr.lines.map((l, i) => `<tr>
+  const rows = pr.lines.map((l, i) => {
+    const unitCost = parseFloat(l.UnitCost) || 0;
+    return `<tr>
     <td class="text-center">${i + 1}</td>
     <td><b>${l.MaterialCode}</b> ${l.MaterialName || ''}</td>
     <td class="text-end">${(parseFloat(l.RequestQty) || 0).toLocaleString()}</td>
     <td class="text-center">${l.UOM || ''}</td>
     <td></td>
     <td>${l.Supplier || ''}</td>
-    <td></td>
-  </tr>`).join('');
+    <td class="text-end">${unitCost ? '฿' + unitCost.toLocaleString('th-TH', { maximumFractionDigits: 2 }) : ''}</td>
+  </tr>`;
+  }).join('');
   return `<div class="pr-print-half">
     <div class="pr-print-header">
       <div class="pr-print-header-left">
@@ -10038,6 +10041,10 @@ const MR_RPT_NO_SUPPLIER = 'ไม่ระบุซัพพลายเออ�
 let _mrReportModal = null;
 let _mrReportConfirmed = false;
 let _mrReportConfirmedRcNo = '';
+// _row_id ของแถวที่จะ "รวมอยู่ในรายงานที่กำลังจะพิมพ์" จริงๆ — คำนวณ/ล็อกไว้ครั้งเดียวตอนเปลี่ยนสโคป
+// (mrReportOnScopeChange) ไม่คำนวณใหม่ทุกครั้งที่ render/confirm กันแถวที่เพิ่ง stamp เลขเสร็จหายไปจาก
+// พรีวิวทันที (เพราะพอ stamp แล้วมันก็มี RC_No แล้ว จะไม่เข้าเงื่อนไข "ยังไม่มีเลข" อีกต่อไป)
+let _mrReportPrintRowIds = [];
 
 function _mrRptNormSupplier(s) {
   return (!s || s === '#N/A') ? MR_RPT_NO_SUPPLIER : s;
@@ -10046,7 +10053,8 @@ function _mrRptDateCol() {
   return _mrData.length && _mrData[0].Date !== undefined ? 'Date'
        : _mrData.length && _mrData[0].ReceiveDate !== undefined ? 'ReceiveDate' : 'Date';
 }
-// แถวของ mr_receive ที่อยู่ในสโคป "วันที่ + ซัพพลายเออร์ที่เลือก" — ใช้ร่วมกันทั้งเช็คสถานะ RC No, stamp ตอนยืนยัน, และตัวรายงาน
+// แถวของ mr_receive ที่อยู่ในสโคป "วันที่ + ซัพพลายเออร์ที่เลือก" ทั้งหมด (รวมแถวเก่าที่เคยออกเลขไปแล้วด้วย)
+// ใช้เช็คสถานะ RC No ของทั้งสโคปเท่านั้น — ไม่ใช่ตัวที่ใช้พิมพ์/stamp จริง ดู _mrRptPrintRows() แทน
 function _mrRptScopeRows(dateStr, supplierFilter) {
   const dateCol = _mrRptDateCol();
   return _mrData.filter(r => {
@@ -10054,6 +10062,12 @@ function _mrRptScopeRows(dateStr, supplierFilter) {
     if (supplierFilter && _mrRptNormSupplier(r.Supplier) !== supplierFilter) return false;
     return true;
   });
+}
+// แถวที่จะรวมอยู่ใน "รายงานที่กำลังจะพิมพ์" จริง — ใช้ _mrReportPrintRowIds ที่ล็อกไว้ตอนเปลี่ยนสโคป
+// (ไม่ใช่กรองสดจาก RC_No ทุกครั้ง เพราะ stamp เสร็จแล้วแถวจะมีเลขทันที ทำให้ filter "ยังไม่มีเลข" กรองแถวนั้นออกไปเอง)
+function _mrRptPrintRows() {
+  const ids = new Set(_mrReportPrintRowIds);
+  return _mrData.filter(r => ids.has(r._row_id));
 }
 
 function mrReportOpenModal() {
@@ -10091,6 +10105,7 @@ async function mrReportOnScopeChange() {
   const warnEl = document.getElementById('mr-rpt-mixed-warn');
 
   if (rows.length && rcNos.length === 1 && rows.every(r => r.RC_No === rcNos[0])) {
+    _mrReportPrintRowIds = rows.map(r => r._row_id);
     _mrReportConfirmed = true;
     _mrReportConfirmedRcNo = rcNos[0];
     document.getElementById('mr-rpt-rcno').value = rcNos[0];
@@ -10105,8 +10120,12 @@ async function mrReportOnScopeChange() {
     return;
   }
 
+  // มิกซ์ (มีบางแถวเคยออกเลขไปแล้ว บางแถวยังไม่มี) หรือยังไม่เคยออกเลขเลย — รายงานที่กำลังจะพิมพ์นี้
+  // ต้องรวมเฉพาะแถวที่ "ยังไม่มีเลข RC No" เท่านั้น ห้ามดึงแถวเดิมที่เคยออกใบไปแล้วมาปนพิมพ์/ตีเลขทับซ้ำ
+  _mrReportPrintRowIds = rows.filter(r => !r.RC_No).map(r => r._row_id);
+
   if (rcNos.length) {
-    warnEl.innerHTML = `⚠️ วันที่/ซัพพลายเออร์นี้มีรายการที่เคยออกเลข <b>${rcNos.join(', ')}</b> ไปแล้ว แต่มีรายการรับใหม่ที่ยังไม่มีเลข — กรุณายืนยันเลข (จะใช้เลขเดิมซ้ำหรือกำหนดเลขใหม่ก็ได้)`;
+    warnEl.innerHTML = `⚠️ วันที่/ซัพพลายเออร์นี้มีรายการที่เคยออกเลข <b>${rcNos.join(', ')}</b> ไปแล้ว (รายการเดิมจะไม่ถูกดึงมารวมในรายงานนี้ และไม่ถูกเปลี่ยนเลข) มีรายการรับใหม่ที่ยังไม่มีเลขอีก <b>${_mrReportPrintRowIds.length}</b> รายการ — กรุณายืนยันเลข RC No สำหรับรายการใหม่เหล่านี้`;
     warnEl.style.display = 'block';
   } else {
     warnEl.style.display = 'none';
@@ -10147,7 +10166,14 @@ async function mrReportConfirmRcNo() {
   const dateStr      = document.getElementById('mr-rpt-date').value;
   const supplierSel  = document.getElementById('mr-rpt-supplier').value;
   const supplierVal  = supplierSel || null;
-  const scopeRows    = _mrRptScopeRows(dateStr, supplierSel);
+  // เฉพาะแถวที่ล็อกไว้ตอนเปลี่ยนสโคป (rows ที่ยังไม่มีเลข RC No ณ ตอนนั้น) — ไม่ใช่ทั้งสโคป กันแถวเก่าที่
+  // เคยออกเลขไปแล้วโดนตีเลขทับซ้ำ/ถูกดึงมาปนอยู่ในรายงานฉบับนี้
+  const scopeRows    = _mrRptPrintRows();
+  if (!scopeRows.length) {
+    errEl.textContent = 'ไม่มีรายการใหม่ในวันที่/ซัพพลายเออร์นี้ที่ต้องออกเลข RC No (รายการทั้งหมดมีเลขอยู่แล้ว)';
+    errEl.style.display = 'block';
+    return;
+  }
 
   _showLoader();
   const { data: existing, error: checkErr } = await _sb.from('mr_rc_numbers').select('_row_id,ReceiveDate').eq('RC_No', val);
@@ -10168,8 +10194,9 @@ async function mrReportConfirmRcNo() {
     return;
   }
 
-  // stamp เลข RC No กลับลงทุกแถว mr_receive ในสโคปนี้ (รวมแถวที่มีเลขเดิมอยู่แล้วถ้ายืนยันเลขเดิมซ้ำตอนมีรายการรับใหม่)
-  // ใช้ _row_id ตรงจาก scopeRows ที่กรองไว้แล้ว ไม่ต้องเขียน query filter ซ้ำ (ต้องรัน alter_mr_receive_add_rc_no.sql ก่อน)
+  // stamp เลข RC No กลับลงเฉพาะแถว mr_receive ที่ล็อกไว้ใน scopeRows (แถวที่ยังไม่มีเลขตอนเปิดสโคปนี้เท่านั้น
+  // — ไม่แตะแถวเก่าที่เคยออกเลขไปแล้ว) ใช้ _row_id ตรงจาก scopeRows ที่กรองไว้แล้ว ไม่ต้องเขียน query filter ซ้ำ
+  // (ต้องรัน alter_mr_receive_add_rc_no.sql ก่อน)
   const ids = scopeRows.map(r => r._row_id);
   if (ids.length) {
     const { error: stampErr } = await _sb.from('mr_receive').update({ RC_No: val }).in('_row_id', ids);
@@ -10247,7 +10274,8 @@ function mrReportRenderPreview() {
 
   const dateStr = document.getElementById('mr-rpt-date').value;
   const supplierFilter = document.getElementById('mr-rpt-supplier').value;
-  const rows = _mrRptScopeRows(dateStr, supplierFilter);
+  // ใช้ชุดแถวที่ล็อกไว้ตอนเปลี่ยนสโคป (ไม่ใช่ทั้งสโคป) — กันแถวเก่าที่เคยออกเลขไปแล้วมาปนอยู่ในพรีวิว/รายงานฉบับนี้
+  const rows = _mrRptPrintRows();
 
   const trs = rows.map((r, i) => {
     const qty  = parseFloat(r.Qty||r.QtyIn||0);
