@@ -17727,6 +17727,26 @@ async function prodrecordEntrySubmit(e) {
     return { key, days };
   });
 
+  // กันบันทึกทับข้อมูลเดิมด้วยฟอร์มว่างเปล่าโดยไม่ตั้งใจ (2026-09-01 — เกิดเหตุจริง: บันทึกที่เคยกรอกผลผลิต
+  // ไว้แล้วเปิด "แก้ไขผลผลิต" มาแล้ววัตถุดิบ/กำลังคนว่างเปล่าเพราะบั๊กอื่น (ดูหมายเหตุ _bprPurgeOld) ผู้ใช้กด
+  // "บันทึกผลผลิต" ทับไปโดยไม่รู้ว่าฟอร์มว่าง ทำให้ StationsData/production_record_details ที่เคยมีจริงหายไป
+  // ถาวร ไม่มีทางกู้คืน) — ถ้าบันทึกนี้เคยกรอกผลผลิตมาก่อนแล้ว (r.FG_Actual มีค่าอยู่แล้ว = กำลังแก้ไข ไม่ใช่
+  // กรอกครั้งแรก) แต่ตอนนี้ไม่มีทั้งแถววัตถุดิบและแถววันทำงานเลยสักแถวเดียว ถือเป็นสัญญาณผิดปกติชัดเจน ต้อง
+  // ให้ผู้ใช้ยืนยันซ้ำก่อนเสมอ ไม่ว่าสาเหตุที่ฟอร์มว่างจะมาจากอะไรก็ตาม
+  const isEditingExisting = r.FG_Actual != null;
+  const formIsEmpty = materials.length === 0 && stations.every(s => s.days.length === 0);
+  if (isEditingExisting && formIsEmpty) {
+    const confirmEmpty = await Swal.fire({
+      title: 'แบบฟอร์มนี้ไม่มีข้อมูลวัตถุดิบ/กำลังคนเลย',
+      html: `<div class="text-start">บันทึกนี้เคยมีข้อมูลผลผลิตอยู่ก่อนแล้ว แต่ตอนนี้ไม่มีรายการวัตถุดิบและไม่มีวันทำงานในตาราง "กำลังคนต่อขั้นตอน" เลยสักแถว<br>
+        <span class="text-danger">ถ้ากด "บันทึกทับข้อมูลเดิม" ข้อมูลเดิมทั้งหมดจะถูกลบทิ้งถาวร กู้คืนไม่ได้</span><br>
+        <span class="text-muted">ถ้าฟอร์มว่างเพราะโหลดข้อมูลไม่สำเร็จ (บั๊ก) ให้กด "ยกเลิก" แล้วปิด/เปิดฟอร์มนี้ใหม่แทน อย่าเพิ่งบันทึก</span></div>`,
+      icon: 'warning', showCancelButton: true,
+      confirmButtonText: 'บันทึกทับข้อมูลเดิม (ฉันมั่นใจ)', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626',
+    });
+    if (!confirmEmpty.isConfirmed) return;
+  }
+
   const materialCost = materials.reduce((s, m) => s + m.ActualUsedQty * m.UnitCost, 0);
 
   const saveBtn = document.getElementById('prodrecord-entry-save-btn');
