@@ -4820,6 +4820,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <option value="prod">เรียงตาม PROD</option>
               <option value="lot">เรียงตาม LOT</option>
             </select>
+            <button class="btn btn-sm btn-outline-danger" id="prodrecord-dedupe-btn" style="display:none" onclick="prodrecordDedupeDetails()" title="เช็คทุกบันทึกผลิต ลบรายการวัตถุดิบที่ซ้ำ (แถวเดียวกัน วัตถุดิบ+Lot เดียวกัน) ที่เกิดจากบั๊ก trigger กันลบเมื่อ 2026-09-02 เก็บแถวล่าสุดไว้ 1 แถว">
+              <i class="fas fa-broom me-1"></i>ลบรายการวัตถุดิบซ้ำ
+            </button>
             <button class="btn btn-sm btn-outline-warning" id="prodrecord-recalc-oh-btn" style="display:none" onclick="prodrecordRecalcAllOverhead()" title="คำนวณ Overhead+ค่าแรง ของบันทึกที่อนุมัติต้นทุนแล้วทั้งหมดใหม่ ตามสูตรล่าสุด (ชม.ทำงานจริง + ปัดชม.เก็บล้าง)">
               <i class="fas fa-calculator me-1"></i>คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด
             </button>
@@ -18302,6 +18305,96 @@ async function prodrecordApproveSubmit() {
   prodrecordLoadData();
 }
 
+// ── ปุ่ม admin "ลบรายการวัตถุดิบซ้ำ" (หน้าบันทึกผลิต, 2026-09-02) — เก็บกวาดแถวซ้ำที่เกิดจากบั๊ก trigger
+// กันลบ (ดู add_protect_approved_production_records.sql / fix_relax_production_record_details_delete_
+// trigger.sql): prodrecordEntrySubmit() delete-then-reinsert รายละเอียดวัตถุดิบทุกครั้งที่บันทึก "แก้ไข
+// ผลผลิต" แต่ trigger เก่าบล็อกการลบของบันทึกที่เคยอนุมัติแล้ว (แม้เปิดกลับแล้วก็ตาม) โดยโค้ดไม่เช็ค error เลย
+// เดินหน้า insert ทับไปเรื่อยๆ ทุกรอบ "เปิดกลับ→แก้→บันทึก" ทำให้วัตถุดิบซ้ำสะสมเพิ่มขึ้น — ปุ่มนี้ไล่หากลุ่มที่
+// ProdRecord_ID+MaterialCode+LotMaterial ซ้ำกัน (ลายเซ็นเฉพาะของบั๊กนี้ การบันทึกปกติไม่มีทางสร้างแถวซ้ำแบบนี้)
+// เก็บแถวล่าสุด (_row_id สูงสุด = ค่าที่แก้ไขล่าสุด) ไว้ 1 แถวต่อกลุ่ม ลบที่เหลือทิ้ง แล้วคำนวณ "ต้นทุนวัตถุดิบ"
+// (MaterialCost) ใหม่จากแถวที่เหลือให้เฉพาะบันทึกที่ Status ยังไม่ใช่ "อนุมัติแล้ว" ตอนนี้ (เหมือนที่ Stage A
+// save ปกติคำนวณอยู่แล้ว) — **บันทึกที่อนุมัติแล้ว ณ ตอนรันปุ่มนี้ จะลบแค่แถวซ้ำ ไม่แตะ MaterialCost/TotalCost/
+// CostPerUnit ที่ล็อกไว้เด็ดขาด** เพราะแก้ MaterialCost เฉยๆ โดยไม่คำนวณ TotalCost/CostPerUnit ตามจะทำให้ตัว
+// เลขที่โชว์ในรายงานที่พิมพ์ไปแล้วไม่สอดคล้องกันเอง (ผลรวมของส่วนประกอบไม่เท่า TotalCost อีกต่อไป) — ถ้าต้องแก้
+// ต้นทุนของบันทึกที่อนุมัติแล้วจริง ต้อง "เปิดกลับ" แล้วอนุมัติใหม่เองตามขั้นตอนปกติเสมอ (house convention เดิม)
+async function prodrecordDedupeDetails() {
+  if (!_hasRole('admin')) return;
+
+  _showLoader();
+  const { data: allDetails, error: fetchErr } = await _fetchAllPaged('production_record_details',
+    '_row_id,ProdRecord_ID,MaterialCode,LotMaterial,TotalCost');
+  _hideLoader();
+  if (fetchErr) { _err('โหลดรายละเอียดวัตถุดิบไม่ได้', fetchErr.message); return; }
+
+  const groups = {};
+  (allDetails || []).forEach(d => {
+    const key = `${d.ProdRecord_ID}|||${d.MaterialCode}|||${d.LotMaterial}`;
+    (groups[key] = groups[key] || []).push(d);
+  });
+  const byProdId = {};
+  Object.values(groups).filter(g => g.length > 1).forEach(g => {
+    const prodId = g[0].ProdRecord_ID;
+    (byProdId[prodId] = byProdId[prodId] || []).push(g);
+  });
+
+  const affectedProdIds = Object.keys(byProdId);
+  if (!affectedProdIds.length) {
+    Swal.fire({ icon: 'info', title: 'ไม่พบรายการวัตถุดิบซ้ำ', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 });
+    return;
+  }
+
+  const totalDupGroups = Object.values(byProdId).reduce((s, arr) => s + arr.length, 0);
+  const res = await Swal.fire({
+    title: 'ลบรายการวัตถุดิบซ้ำ?',
+    html: `<div class="text-start">พบวัตถุดิบซ้ำ <b>${totalDupGroups}</b> กลุ่ม ใน <b>${affectedProdIds.length}</b> บันทึกผลิต<br>
+      <span class="text-muted">จะเก็บแถวล่าสุดไว้ 1 แถวต่อกลุ่ม (วัตถุดิบ+Lot เดียวกัน) ลบแถวซ้ำที่เหลือทิ้ง แล้วคำนวณ
+      "ต้นทุนวัตถุดิบ" ใหม่ให้เฉพาะบันทึกที่ยังไม่อนุมัติต้นทุน — บันทึกที่อนุมัติแล้วจะลบแค่แถวซ้ำ ไม่แตะต้นทุนที่ล็อกไว้
+      (ต้อง "เปิดกลับ" แล้วอนุมัติใหม่เองถ้าต้องแก้ต้นทุนของบันทึกเหล่านั้น)</span></div>`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonText: `ลบรายการซ้ำทั้งหมด`, cancelButtonText: 'ยกเลิก', confirmButtonColor: '#b45309',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { data: prodRows } = await _sb.from('production_records').select('_row_id,ProdRecord_ID,Status').in('ProdRecord_ID', affectedProdIds);
+  const prodMap = Object.fromEntries((prodRows || []).map(r => [r.ProdRecord_ID, r]));
+
+  let deletedRows = 0, fixedRecords = 0, skippedApproved = 0, failed = 0;
+  for (const [prodId, groupsForThisRecord] of Object.entries(byProdId)) {
+    const idsToDelete = [];
+    groupsForThisRecord.forEach(g => {
+      const sorted = g.slice().sort((a, b) => (b._row_id || 0) - (a._row_id || 0));
+      sorted.slice(1).forEach(row => idsToDelete.push(row._row_id));
+    });
+    if (!idsToDelete.length) continue;
+    const { error: delErr } = await _sb.from('production_record_details').delete().in('_row_id', idsToDelete);
+    if (delErr) { failed++; continue; }
+    deletedRows += idsToDelete.length;
+
+    const prodRow = prodMap[prodId];
+    if (!prodRow) continue;
+    if (prodRow.Status === 'อนุมัติแล้ว') { skippedApproved++; continue; }
+    const { data: remaining } = await _sb.from('production_record_details').select('TotalCost').eq('ProdRecord_ID', prodId);
+    const newMaterialCost = (remaining || []).reduce((s, row) => s + (parseFloat(row.TotalCost) || 0), 0);
+    await _sb.from('production_records').update({ MaterialCost: newMaterialCost }).eq('_row_id', prodRow._row_id);
+    fixedRecords++;
+  }
+  _hideLoader();
+
+  _logAudit('DEDUPE_DETAILS', 'production_record_details', 'BULK',
+    `ลบ ${deletedRows} แถวซ้ำ จาก ${affectedProdIds.length} บันทึก, แก้ต้นทุนวัตถุดิบ ${fixedRecords} บันทึก, ข้าม(อนุมัติแล้ว) ${skippedApproved} บันทึก, ล้มเหลว ${failed} บันทึก`);
+
+  Swal.fire({
+    icon: failed ? 'warning' : 'success',
+    title: 'ลบรายการซ้ำเสร็จแล้ว',
+    html: `ลบไป <b>${deletedRows}</b> แถว จาก <b>${affectedProdIds.length}</b> บันทึก<br>
+      แก้ "ต้นทุนวัตถุดิบ" ให้ <b>${fixedRecords}</b> บันทึก (ยังไม่อนุมัติ)<br>
+      ${skippedApproved ? `<span class="text-warning">ข้าม ${skippedApproved} บันทึกที่อนุมัติแล้ว (ลบแค่แถวซ้ำ) — เปิดกลับแล้วอนุมัติใหม่เองถ้าต้องแก้ต้นทุน</span><br>` : ''}
+      ${failed ? `<span class="text-danger">ลบไม่สำเร็จ ${failed} บันทึก (เช็ค console/SQL trigger)</span>` : ''}`,
+  });
+  prodrecordLoadData();
+}
+
 // ── ปุ่ม admin "คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด" (หน้าบันทึกผลิต) — สูตร Overhead เปลี่ยนจาก "อัตรา/วัน ×
 // จำนวนวันปฏิทิน" เป็น "อัตรา/ชม. × ชม.ทำงานจริง" เมื่อ 2026-08-27 (ดู _prodrecordComputeOverheadHours) และ
 // สูตรค่าแรง FT/PT เพิ่ม _prodrecordFillShiftGap วันเดียวกัน (FT/PT เงินเดือนคงที่ ได้เต็มกะไม่ว่างานเสร็จเร็ว
@@ -26980,6 +27073,9 @@ function _renderCurrentUserBadge() {
   // ที่อนุมัติต้นทุนไปแล้วทุกใบ admin เท่านั้น เหตุผลเดียวกับปุ่มอนุมัติต้นทุน/ดูต้นทุนที่อนุมัติ (2026-08-27)
   const recalcOhBtn = document.getElementById('prodrecord-recalc-oh-btn');
   if (recalcOhBtn) recalcOhBtn.style.display = _currentUser.isAdmin ? '' : 'none';
+  // ปุ่ม "ลบรายการวัตถุดิบซ้ำ" (หน้าบันทึกผลิต) — เหตุผลเดียวกับปุ่มข้างบน admin เท่านั้น (2026-09-02)
+  const dedupeBtn = document.getElementById('prodrecord-dedupe-btn');
+  if (dedupeBtn) dedupeBtn.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
