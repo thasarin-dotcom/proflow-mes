@@ -4290,6 +4290,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </select>
           </div>
           <div class="col-md-3 d-flex gap-2 justify-content-end">
+            <button class="btn btn-sm btn-danger" id="holdstock-bulk-report-btn" style="display:none" disabled onclick="holdstockOpenBulkScrapModal()">
+              <i class="fas fa-file-invoice me-1"></i>ทิ้ง + ออกรายงาน
+            </button>
             <button class="btn btn-sm btn-primary" onclick="holdstockLoadData()">
               <i class="fas fa-sync-alt me-1"></i>รีเฟรช
             </button>
@@ -4323,6 +4326,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <table class="table table-hover mb-0">
             <thead>
               <tr>
+                <th id="holdstock-th-check" style="width:32px;display:none"><input type="checkbox" id="holdstock-check-all" onchange="holdstockToggleAll(this)"></th>
                 <th class="wh-col-xs">ประเภท</th><th class="wh-hide-code">รหัส</th><th class="wh-col-lg">ชื่อ</th>
                 <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-xs">หน่วย</th>
                 <th class="text-end wh-col-sm">มูลค่า (฿)</th><th class="wh-col-xs">อายุ (วัน)</th>
@@ -4331,7 +4335,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               </tr>
             </thead>
             <tbody id="holdstock-tbody">
-              <tr><td colspan="10" class="text-center py-4 text-muted">
+              <tr><td colspan="11" class="text-center py-4 text-muted">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -4574,6 +4578,37 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
   </div>
   <div id="holdstockreport-print-root"></div>
+
+  <!-- ════════════ Hold Stock: "ทิ้ง + ออกรายงาน" แบบเลือกหลายแถวจากตารางหลัก ════════════ -->
+  <div class="modal fade" id="holdstockBulkScrapModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title"><i class="fas fa-trash me-2"></i>ทิ้ง/Scrap หลายรายการ + ออกรายงาน</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="holdstockBulkScrapForm" onsubmit="holdstockBulkScrapSubmit(event)">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">วิธีจัดการ (ใช้ร่วมกันทั้งชุด เพราะออกเป็นเอกสารใบเดียว) <span class="text-danger">*</span></label>
+              <select id="holdstock-bulkscrap-disposal" class="form-select">
+                <option value="ทำลาย">ทำลาย</option>
+                <option value="คืนลูกค้า">คืนลูกค้า</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
+            </div>
+            <div id="holdstock-bulkscrap-rows"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-danger" id="holdstock-bulkscrap-save-btn">
+              <i class="fas fa-trash me-1"></i>ยืนยันทิ้งทั้งหมด แล้วไปออกรายงาน
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <div class="page-view" id="page-bom">
     <div class="page-header">
@@ -24692,6 +24727,7 @@ const _HOLDSTOCK_MOVE_LABELS = { IN: 'ย้ายเข้า', SCRAP: 'ทิ�
 let _holdstockFgCostByLot = {};   // `${ProductCode}|${Lot_FG}` → CostPerUnit จาก production_records ที่อนุมัติแล้ว
                                     // (โครงเดียวกับ costByLot ของหน้าแดชบอร์ดต้นทุน&กำไร — ดู _admindashLotKey)
 let _holdstockPendingReportMoves = [];   // SCRAP moves ที่ยังไม่เคยออกเอกสาร (ReportNo IS NULL)
+let _holdstockBulkScrapModal = null;
 let _holdstockReportModal = null;
 let _holdstockReportIds = [];
 let _holdstockReportConfirmed = false;
@@ -24782,7 +24818,12 @@ function _holdstockRenderRow(r) {
   }
   actions += `</div>`;
 
+  const checkCell = r.HoldType === 'DEFECT'
+    ? `<td><input type="checkbox" class="holdstock-row-check" value="${r._row_id}" ${(parseFloat(r.QtyBalance) || 0) <= 0 ? 'disabled' : ''} onchange="holdstockUpdateBulkReportBtn()"></td>`
+    : `<td></td>`;
+
   return `<tr>
+    ${checkCell}
     <td><span class="badge ${typeBadge[r.ItemType] || 'bg-secondary'}">${r.ItemType}</span></td>
     <td>${r.ItemCode || ''}</td><td>${nameCell}</td><td>${r.Lot || ''}</td>
     <td class="text-end">${(parseFloat(r.QtyBalance) || 0).toLocaleString()}</td><td>${r.UOM || ''}</td>
@@ -24790,6 +24831,76 @@ function _holdstockRenderRow(r) {
     <td>${dueCell}</td>
     <td class="text-center">${actions}</td>
   </tr>`;
+}
+
+function holdstockToggleAll(cb) {
+  document.querySelectorAll('.holdstock-row-check:not(:disabled)').forEach(c => c.checked = cb.checked);
+  holdstockUpdateBulkReportBtn();
+}
+
+function holdstockUpdateBulkReportBtn() {
+  const btn = document.getElementById('holdstock-bulk-report-btn');
+  btn.style.display = _holdstockMode === 'DEFECT' ? '' : 'none';
+  btn.disabled = document.querySelectorAll('.holdstock-row-check:checked').length === 0;
+}
+
+// ── "ทิ้ง + ออกรายงาน" แบบเลือกหลายแถวจากตารางหลักโดยตรง (ตามคำขอผู้ใช้ 2026-09-03 — ทางเดิมที่ต้อง Scrap
+// ทีละแถวก่อนแล้วค่อยไปเลือกจากลิสต์ "รอออกรายงาน" ยังใช้ได้อยู่ ทางนี้เป็นทางลัดรวบ 2 ขั้นตอนเป็นครั้งเดียว) ──
+function holdstockOpenBulkScrapModal() {
+  const ids = Array.from(document.querySelectorAll('.holdstock-row-check:checked')).map(c => parseInt(c.value));
+  if (!ids.length) return;
+  const rows = _holdstockData.filter(r => ids.includes(r._row_id));
+  if (!_holdstockBulkScrapModal) _holdstockBulkScrapModal = new bootstrap.Modal(document.getElementById('holdstockBulkScrapModal'));
+  document.getElementById('holdstock-bulkscrap-disposal').value = 'ทำลาย';
+  document.getElementById('holdstock-bulkscrap-rows').innerHTML = rows.map(r => `
+    <div class="row g-2 align-items-end border-bottom pb-2 mb-2">
+      <div class="col-md-5">
+        <small class="d-block">${r.ItemCode} — ${r.ItemName || ''} (Lot ${r.Lot})</small>
+        <small class="text-muted">คงเหลือ ${(parseFloat(r.QtyBalance) || 0).toLocaleString()} ${r.UOM || ''}</small>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-0">จำนวน</label>
+        <input type="number" class="form-control form-control-sm holdstock-bulkscrap-qty" data-rowid="${r._row_id}"
+          value="${r.QtyBalance}" max="${r.QtyBalance}" min="0.001" step="0.001" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-0">เหตุผล</label>
+        <input type="text" class="form-control form-control-sm holdstock-bulkscrap-reason" data-rowid="${r._row_id}" required>
+      </div>
+    </div>
+  `).join('');
+  _holdstockBulkScrapModal.show();
+}
+
+async function holdstockBulkScrapSubmit(e) {
+  e.preventDefault();
+  const disposalMethod = document.getElementById('holdstock-bulkscrap-disposal').value;
+  const items = Array.from(document.querySelectorAll('.holdstock-bulkscrap-qty')).map(inp => {
+    const rowId = parseInt(inp.dataset.rowid);
+    const qty = parseFloat(inp.value) || 0;
+    const reason = document.querySelector(`.holdstock-bulkscrap-reason[data-rowid="${rowId}"]`).value.trim();
+    return { rowId, qty, reason };
+  });
+  if (items.some(it => it.qty <= 0 || !it.reason)) { _err('กรอกไม่ครบ', 'กรุณากรอกจำนวนและเหตุผลให้ครบทุกรายการ'); return; }
+
+  _showLoader();
+  const moveIds = [];
+  let failed = false;
+  for (const it of items) {
+    const moveId = await holdstockScrap(it.rowId, it.qty, it.reason, disposalMethod);
+    if (!moveId) { failed = true; break; }
+    moveIds.push(moveId);
+  }
+  await holdstockLoadData();
+  _hideLoader();
+  if (failed) {
+    _err('ทิ้งบางรายการไม่สำเร็จ', 'รายการที่ทำสำเร็จไปก่อนหน้ายังมีผลอยู่จริง — ตรวจสอบที่ตาราง "รอออกรายงาน" แล้วออกรายงานสำหรับรายการที่เหลือแยกต่างหากได้');
+  }
+  if (!moveIds.length) return;
+
+  document.getElementById('holdstock-check-all').checked = false;
+  bootstrap.Modal.getInstance(document.getElementById('holdstockBulkScrapModal'))?.hide();
+  holdstockReportOpenModal(moveIds);
 }
 
 function _holdstockRenderKPIs(rows) {
@@ -24824,7 +24935,10 @@ function holdstockRenderTable() {
   const tbody = document.getElementById('holdstock-tbody');
   tbody.innerHTML = rows.length
     ? rows.map(r => _holdstockRenderRow(r)).join('')
-    : `<tr><td colspan="10" class="text-center py-4 text-muted">ไม่มีรายการ</td></tr>`;
+    : `<tr><td colspan="11" class="text-center py-4 text-muted">ไม่มีรายการ</td></tr>`;
+  document.getElementById('holdstock-th-check').style.display = _holdstockMode === 'DEFECT' ? '' : 'none';
+  document.getElementById('holdstock-check-all').checked = false;
+  holdstockUpdateBulkReportBtn();
   _holdstockRenderKPIs(rows);
 }
 
@@ -25090,33 +25204,38 @@ async function _holdstockAdjustBalance(holdRowId, qty, mode) {
 // คืนค่า true/false เสมอ — ผู้เรียกต้องเช็คแล้วย้อนยอด hold_stock/สต็อกดีที่เพิ่งตัดไปกลับ ถ้าบันทึกประวัติ
 // ไม่สำเร็จ (เช่น ยังไม่ได้รัน SQL migration ที่เพิ่มคอลัมน์ใหม่) กันสต็อกเพี้ยนแบบไม่มีร่องรอยในประวัติ —
 // จุดนี้เป็นบันทึกธุรกรรมหลัก ไม่ใช่แค่ audit log เสริมแบบ _logAudit ที่ยอมรับ fire-and-forget ได้
+// คืน _row_id ของแถวที่เพิ่ง insert (ใช้ preselect รายการเข้าโมดัลออกรายงานได้ทันทีหลัง Scrap แบบกลุ่ม) หรือ
+// null ถ้าล้มเหลว — ผู้เรียกต้องเช็คแล้วย้อนยอด hold_stock/สต็อกดีที่เพิ่งตัดไปกลับถ้าเป็น null (ดูหมายเหตุเดิม)
 async function _holdstockLogMove(payload) {
-  const { error } = await _sb.from('hold_stock_moves').insert(payload);
-  if (error) { _err('บันทึกประวัติการเคลื่อนไหวไม่สำเร็จ', error.message); return false; }
-  return true;
+  const { data, error } = await _sb.from('hold_stock_moves').insert(payload).select('_row_id').maybeSingle();
+  if (error) { _err('บันทึกประวัติการเคลื่อนไหวไม่สำเร็จ', error.message); return null; }
+  return data?._row_id || null;
 }
 
 // ── Scrap/Rework/Dispose — primitive ร่วม _holdstockRemoveFromHold ใช้กลไกเดียวกันสำหรับ Scrap/Dispose
 // ต่างกันแค่ MoveType ที่บันทึก ตาม wrapper ที่เช็ค HoldType ก่อนเรียกเสมอ (กันเผลอ Scrap แถว Retain หรือกลับกัน)
+// คืน _row_id ของ move ที่เพิ่งสร้าง หรือ null ถ้าล้มเหลว (เกินยอด/บันทึกประวัติไม่สำเร็จ)
 async function _holdstockRemoveFromHold(row, qty, moveType, reason, disposalMethod) {
-  if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
+  if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return null; }
   await _holdstockAdjustBalance(row._row_id, qty, 'OUT');
-  const logged = await _holdstockLogMove({
+  const moveId = await _holdstockLogMove({
     MoveDate: new Date().toISOString().split('T')[0], HoldType: row.HoldType, ItemType: row.ItemType,
     ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: moveType,
     Qty: qty, UnitCost: row.UnitCost, Reason: reason, RefHoldStockId: row._row_id,
     DisposalMethod: disposalMethod || null, CreatedBy: _currentUser?.email || null,
   });
-  if (!logged) { await _holdstockAdjustBalance(row._row_id, qty, 'UNDO_OUT'); return false; }
-  return true;
+  if (!moveId) { await _holdstockAdjustBalance(row._row_id, qty, 'UNDO_OUT'); return null; }
+  return moveId;
 }
 
+// คืน _row_id ของ SCRAP move ที่เพิ่งสร้าง (หรือ null ถ้าล้มเหลว) — ใช้ preselect เข้าโมดัลออกรายงานได้เลย
+// จากปุ่ม "ทิ้ง + ออกรายงาน" แบบกลุ่ม (holdstockBulkScrapSubmit) โดยไม่ต้องไปหาในลิสต์รอออกรายงานอีกที
 async function holdstockScrap(rowId, qty, reason, disposalMethod) {
   const row = _holdstockData.find(d => d._row_id === rowId);
-  if (!row || row.HoldType !== 'DEFECT') return false;
-  const ok = await _holdstockRemoveFromHold(row, qty, 'SCRAP', reason, disposalMethod);
-  if (ok) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง/Scrap (${disposalMethod||''}) จำนวน ${qty} — ${reason}`);
-  return ok;
+  if (!row || row.HoldType !== 'DEFECT') return null;
+  const moveId = await _holdstockRemoveFromHold(row, qty, 'SCRAP', reason, disposalMethod);
+  if (moveId) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง/Scrap (${disposalMethod||''}) จำนวน ${qty} — ${reason}`);
+  return moveId;
 }
 
 async function holdstockDispose(rowId, qty, reason) {
@@ -25461,8 +25580,10 @@ function _holdstockReportScopeRows() {
   return _holdstockPendingReportMoves.filter(m => _holdstockReportIds.includes(m._row_id));
 }
 
-function holdstockReportOpenModal() {
-  _holdstockReportIds = Array.from(document.querySelectorAll('.holdstock-pending-check:checked')).map(c => parseInt(c.value));
+function holdstockReportOpenModal(explicitIds) {
+  _holdstockReportIds = (explicitIds && explicitIds.length)
+    ? explicitIds.slice()
+    : Array.from(document.querySelectorAll('.holdstock-pending-check:checked')).map(c => parseInt(c.value));
   if (!_holdstockReportIds.length) return;
   const rows = _holdstockReportScopeRows();
   // เอกสาร 1 ใบ = วิธีจัดการเดียวกันเท่านั้น (ทำลาย/คืนลูกค้า ต้องคนละใบ เพราะหัวเอกสาร/กล่องลูกค้าต่างกัน)
