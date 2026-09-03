@@ -792,7 +792,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
      บั๊กจริงที่ผู้ใช้เจอ 2026-08-26 บนใบส่งสินค้า FG (เห็นแถบพื้นหลังสีน้ำเงินปนบนกระดาษที่พิมพ์จริง) ต้อง reset
      ให้ผืนกระดาษเป็นพื้นขาวล้วนและไม่ยึด flex layout เดิมของหน้าจอ ก่อน selector อื่นด้านล่างเสมอ */
   html, body{background:#fff !important;display:block !important;height:auto !important;min-height:0 !important;overflow:visible !important}
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root):not(#purchasereq-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root):not(#purchasereq-print-root):not(#holdstockreport-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -807,6 +807,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   #admindash-report-print-root{display:none !important}
   #planweek-print-root{display:none !important}
   #purchasereq-print-root{display:none !important}
+  #holdstockreport-print-root{display:none !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -821,6 +822,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   body.print-mode-admindash #admindash-report-print-root{display:block !important}
   body.print-mode-planweek #planweek-print-root{display:block !important}
   body.print-mode-purchasereq #purchasereq-print-root{display:block !important}
+  body.print-mode-holdstockreport #holdstockreport-print-root{display:block !important}
   #bpr-print-root .bpr-page{box-shadow:none !important;margin:0 !important;min-height:0 !important}
   /* ห้ามใส่ min-height:0 ให้ .mrrpt-page ตอนพิมพ์ (ต่างจาก .bpr-page) — .mrrpt-page ใช้ display:flex column +
      margin-top:auto บน .mrrpt-footer เพื่อดันช่องเซ็นชื่อให้จมด้านล่างกระดาษ ถ้า min-height ถูกบังคับเป็น 0
@@ -4336,6 +4338,31 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </table>
         </div>
       </div>
+
+      <!-- รายการ Scrap ที่ยังไม่เคยออกเอกสาร (ทำลาย/คืนลูกค้า) — โชว์เฉพาะโหมด Defect เพราะรอบนี้ Retain
+           (Dispose) ยังไม่ต้องออกเอกสารแบบนี้ (ยืนยันกับผู้ใช้แล้ว) -->
+      <div id="holdstock-pending-report-box" class="mt-3" style="display:none">
+        <div class="glass-card p-0 overflow-hidden">
+          <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+            <b class="small">รายการรอออกรายงาน (ทิ้ง/Scrap ที่ยังไม่ได้ออกใบทำลาย/ใบส่งคืน)</b>
+            <button class="btn btn-sm btn-primary" id="holdstock-report-btn" disabled onclick="holdstockReportOpenModal()">
+              <i class="fas fa-file-invoice me-1"></i>ออกรายงาน
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead>
+                <tr>
+                  <th style="width:32px"><input type="checkbox" id="holdstock-pending-check-all" onchange="holdstockPendingToggleAll(this)"></th>
+                  <th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>Lot</th><th class="text-end">จำนวน</th>
+                  <th>วิธีจัดการ</th><th>เหตุผล</th>
+                </tr>
+              </thead>
+              <tbody id="holdstock-pending-report-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4466,9 +4493,18 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <input type="number" id="holdstock-action-qty" class="form-control" min="0.001" step="0.001" required>
               <small id="holdstock-action-hint" class="text-muted"></small>
             </div>
-            <div class="mb-0">
+            <div class="mb-3">
               <label class="form-label">เหตุผล/หมายเหตุ <span class="text-danger">*</span></label>
               <input type="text" id="holdstock-action-reason" class="form-control" required>
+            </div>
+            <div class="mb-0" id="holdstock-action-disposal-wrap" style="display:none">
+              <label class="form-label">วิธีจัดการ <span class="text-danger">*</span></label>
+              <select id="holdstock-action-disposal" class="form-select">
+                <option value="ทำลาย">ทำลาย</option>
+                <option value="คืนลูกค้า">คืนลูกค้า</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
+              <small class="text-muted">ใช้เลือกรายการเพื่อออกเอกสาร (ใบทำลาย/ใบส่งคืน) ทีหลังได้ที่ปุ่ม "ออกรายงาน"</small>
             </div>
           </div>
           <div class="modal-footer">
@@ -4479,6 +4515,65 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       </div>
     </div>
   </div>
+
+  <!-- ════════════ Hold Stock: ออกรายงาน (ใบทำลาย/ใบส่งคืนลูกค้า) Modal ════════════ -->
+  <div class="modal fade" id="holdstockReportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title"><i class="fas fa-file-invoice me-2"></i>ออกรายงาน Defect (ทำลาย/ส่งคืนลูกค้า)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="mrrpt-step">
+          <div class="mrrpt-step-title"><span class="n">1</span>รายการที่เลือก</div>
+          <div id="holdstockreport-selected-summary" class="small text-muted"></div>
+        </div>
+
+        <div class="mrrpt-step" id="holdstockreport-customer-step" style="display:none">
+          <div class="mrrpt-step-title"><span class="n">2</span>ข้อมูลลูกค้า (สำหรับใบส่งคืน)</div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label small mb-0">ชื่อบริษัทลูกค้า</label>
+              <input type="text" id="holdstockreport-customer-name" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-0">ที่อยู่</label>
+              <input type="text" id="holdstockreport-customer-address" class="form-control form-control-sm">
+            </div>
+          </div>
+        </div>
+
+        <div class="mrrpt-step">
+          <div class="mrrpt-step-title"><span class="n">3</span>เลขที่เอกสาร</div>
+          <div class="mrrpt-step-row">
+            <div class="mrrpt-field">
+              <label>เลขที่ (แก้ไขได้ก่อนยืนยัน)</label>
+              <input type="text" id="holdstockreport-no-input" class="form-control form-control-sm mrrpt-rcno-input">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="holdstockreport-confirm-btn" onclick="holdstockReportConfirmNo()">
+              <i class="fas fa-check me-1"></i>ยืนยันเลขที่
+            </button>
+            <span class="mrrpt-pill mrrpt-pill-unconfirmed" id="holdstockreport-status">● ยังไม่ยืนยัน</span>
+          </div>
+          <div class="mrrpt-error" id="holdstockreport-error"></div>
+        </div>
+
+        <div class="modal-body" id="holdstockreport-preview-body" style="background:#525659;padding:24px;max-height:50vh;overflow:auto;position:relative"></div>
+
+        <div class="modal-footer justify-content-between">
+          <span class="text-danger small fw-bold" id="holdstockreport-print-hint">ต้องยืนยันเลขที่เอกสารก่อนพิมพ์</span>
+          <div>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="button" class="btn btn-primary" id="holdstockreport-print-btn" onclick="window.print()" disabled>
+              <i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="holdstockreport-print-root"></div>
 
   <div class="page-view" id="page-bom">
     <div class="page-header">
@@ -9463,7 +9558,8 @@ function purchasereqOpenPrintModal(prNo) {
   document.getElementById('purchasereq-preview-body').innerHTML = html;
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-planweek');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-planweek',
+    'print-mode-holdstockreport');
   document.body.classList.add('print-mode-purchasereq');
   if (!_purchasereqPrintModal) _purchasereqPrintModal = new bootstrap.Modal(document.getElementById('purchasereqPrintModal'));
   _purchasereqPrintModal.show();
@@ -13694,7 +13790,8 @@ async function planPrintTwoWeeksOpen() {
 
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-purchasereq');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-purchasereq',
+    'print-mode-holdstockreport');
   document.body.classList.add('print-mode-planweek');
 
   if (!_planWeekPrintModal) _planWeekPrintModal = new bootstrap.Modal(document.getElementById('planWeekPrintModal'));
@@ -22235,7 +22332,8 @@ function admindashOpenReportPreview() {
   document.getElementById('admindash-report-preview-body').innerHTML = html;
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-purchasereq');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-purchasereq',
+    'print-mode-holdstockreport');
   document.body.classList.add('print-mode-admindash');
   if (!_admindashReportModal) _admindashReportModal = new bootstrap.Modal(document.getElementById('admindashReportModal'));
   _admindashReportModal.show();
@@ -24427,7 +24525,8 @@ function _miscSlipBuildGroups(rows) {
 async function miscSlipRenderPreview() {
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash', 'print-mode-purchasereq');
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash', 'print-mode-purchasereq',
+    'print-mode-holdstockreport');
   document.body.classList.add('print-mode-miscslip');
 
   const rows = _miscSlipScopeRows();
@@ -24592,11 +24691,19 @@ let _holdstockHistoryRowKey = null;
 const _HOLDSTOCK_MOVE_LABELS = { IN: 'ย้ายเข้า', SCRAP: 'ทิ้ง/Scrap', REWORK: 'Rework', DISPOSE: 'ทิ้ง (Retain)' };
 let _holdstockFgCostByLot = {};   // `${ProductCode}|${Lot_FG}` → CostPerUnit จาก production_records ที่อนุมัติแล้ว
                                     // (โครงเดียวกับ costByLot ของหน้าแดชบอร์ดต้นทุน&กำไร — ดู _admindashLotKey)
+let _holdstockPendingReportMoves = [];   // SCRAP moves ที่ยังไม่เคยออกเอกสาร (ReportNo IS NULL)
+let _holdstockReportModal = null;
+let _holdstockReportIds = [];
+let _holdstockReportConfirmed = false;
+let _holdstockReportConfirmedNo = '';
 
 async function holdstockLoadData() {
-  const [hsRes, prodRes] = await Promise.all([
+  const [hsRes, prodRes, pendingRes] = await Promise.all([
     _fetchAllPaged('hold_stock', '*'),
     _fetchAllPagedEq('production_records', 'ProductCode,Lot_FG,CostPerUnit', 'Status', 'อนุมัติแล้ว'),
+    // SCRAP ที่ยังไม่เคยออกเอกสาร (ทำลาย/คืนลูกค้า) — .is('ReportNo',null) จะ error เงียบๆ ถ้ายังไม่ได้รัน
+    // alter_hold_stock_add_report_fields.sql (คอลัมน์ยังไม่มี) ปล่อยผ่านเป็นลิสต์ว่างแทนที่จะพังทั้งหน้า
+    _sb.from('hold_stock_moves').select('*').eq('MoveType', 'SCRAP').is('ReportNo', null).order('MoveDate', { ascending: false }),
   ]);
   if (hsRes.error) { _err('โหลดสต็อก Defect/Retain ไม่ได้', hsRes.error.message); return; }
   _holdstockData = hsRes.data || [];
@@ -24604,12 +24711,15 @@ async function holdstockLoadData() {
   (prodRes.data || []).forEach(r => {
     if (r.CostPerUnit != null) _holdstockFgCostByLot[`${r.ProductCode}|${r.Lot_FG}`] = parseFloat(r.CostPerUnit) || 0;
   });
+  _holdstockPendingReportMoves = pendingRes.error ? [] : (pendingRes.data || []);
   holdstockRenderTable();
+  holdstockRenderPendingReportBox();
 }
 
 function holdstockOnModeChange() {
   _holdstockMode = document.querySelector('input[name="holdstock-mode"]:checked').value;
   holdstockRenderTable();
+  holdstockRenderPendingReportBox();
 }
 
 function _holdstockAgeDays(r) {
@@ -24898,12 +25008,20 @@ async function holdstockMoveInSubmit(e) {
   else await miscUpdateStock(itemCode, lot, qty);
 
   const holdRowId = await _holdstockUpsertIn(holdType, itemType, itemCode, itemName, lot, uom, qty, unitCost, holdType === 'RETAIN' ? retainDue : null);
-  await _holdstockLogMove({
+  const logged = await _holdstockLogMove({
     MoveDate: new Date().toISOString().split('T')[0], HoldType: holdType, ItemType: itemType,
     ItemCode: itemCode, ItemName: itemName, Lot: lot, UOM: uom, MoveType: 'IN', Qty: qty,
     UnitCost: unitCost, Reason: reason, RetainDueDate: holdType === 'RETAIN' ? retainDue : null,
     RefHoldStockId: holdRowId, Remark: remark, CreatedBy: _currentUser?.email || null,
   });
+  if (!logged) {
+    // ย้อนทั้งสต็อกดีที่เพิ่งตัดไปและยอดที่เพิ่ง upsert เข้า hold_stock กลับ กันสต็อกเพี้ยนแบบไม่มีร่องรอย
+    if (itemType === 'FG') await fgUpdateStock(itemCode, itemName, lot, qty, uom, null, null, true);
+    else await _miscReverseStock(itemCode, lot, qty);
+    await _holdstockAdjustBalance(holdRowId, qty, 'UNDO_IN');
+    _hideLoader();
+    return;
+  }
   _hideLoader();
   _logAudit('CREATE', 'hold_stock_moves', `${itemCode}/${lot}`, `ย้ายเข้า ${holdType} จำนวน ${qty}`);
   _holdstockModal.hide();
@@ -24969,30 +25087,35 @@ async function _holdstockAdjustBalance(holdRowId, qty, mode) {
   await _sb.from('hold_stock').update(payload).eq('_row_id', holdRowId);
 }
 
+// คืนค่า true/false เสมอ — ผู้เรียกต้องเช็คแล้วย้อนยอด hold_stock/สต็อกดีที่เพิ่งตัดไปกลับ ถ้าบันทึกประวัติ
+// ไม่สำเร็จ (เช่น ยังไม่ได้รัน SQL migration ที่เพิ่มคอลัมน์ใหม่) กันสต็อกเพี้ยนแบบไม่มีร่องรอยในประวัติ —
+// จุดนี้เป็นบันทึกธุรกรรมหลัก ไม่ใช่แค่ audit log เสริมแบบ _logAudit ที่ยอมรับ fire-and-forget ได้
 async function _holdstockLogMove(payload) {
   const { error } = await _sb.from('hold_stock_moves').insert(payload);
-  if (error) _err('บันทึกประวัติการเคลื่อนไหวไม่สำเร็จ', error.message);
+  if (error) { _err('บันทึกประวัติการเคลื่อนไหวไม่สำเร็จ', error.message); return false; }
+  return true;
 }
 
 // ── Scrap/Rework/Dispose — primitive ร่วม _holdstockRemoveFromHold ใช้กลไกเดียวกันสำหรับ Scrap/Dispose
 // ต่างกันแค่ MoveType ที่บันทึก ตาม wrapper ที่เช็ค HoldType ก่อนเรียกเสมอ (กันเผลอ Scrap แถว Retain หรือกลับกัน)
-async function _holdstockRemoveFromHold(row, qty, moveType, reason) {
+async function _holdstockRemoveFromHold(row, qty, moveType, reason, disposalMethod) {
   if (qty > (parseFloat(row.QtyBalance) || 0)) { _err('จำนวนเกินยอดคงเหลือ', `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()}`); return false; }
   await _holdstockAdjustBalance(row._row_id, qty, 'OUT');
-  await _holdstockLogMove({
+  const logged = await _holdstockLogMove({
     MoveDate: new Date().toISOString().split('T')[0], HoldType: row.HoldType, ItemType: row.ItemType,
     ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: moveType,
     Qty: qty, UnitCost: row.UnitCost, Reason: reason, RefHoldStockId: row._row_id,
-    CreatedBy: _currentUser?.email || null,
+    DisposalMethod: disposalMethod || null, CreatedBy: _currentUser?.email || null,
   });
+  if (!logged) { await _holdstockAdjustBalance(row._row_id, qty, 'UNDO_OUT'); return false; }
   return true;
 }
 
-async function holdstockScrap(rowId, qty, reason) {
+async function holdstockScrap(rowId, qty, reason, disposalMethod) {
   const row = _holdstockData.find(d => d._row_id === rowId);
   if (!row || row.HoldType !== 'DEFECT') return false;
-  const ok = await _holdstockRemoveFromHold(row, qty, 'SCRAP', reason);
-  if (ok) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง/Scrap จำนวน ${qty} — ${reason}`);
+  const ok = await _holdstockRemoveFromHold(row, qty, 'SCRAP', reason, disposalMethod);
+  if (ok) _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `ทิ้ง/Scrap (${disposalMethod||''}) จำนวน ${qty} — ${reason}`);
   return ok;
 }
 
@@ -25011,12 +25134,19 @@ async function holdstockRework(rowId, qty, reason) {
   await _holdstockAdjustBalance(row._row_id, qty, 'OUT');
   if (row.ItemType === 'FG') await fgUpdateStock(row.ItemCode, row.ItemName, row.Lot, qty, row.UOM, null, null, true);
   else await _miscReverseStock(row.ItemCode, row.Lot, qty);
-  await _holdstockLogMove({
+  const logged = await _holdstockLogMove({
     MoveDate: new Date().toISOString().split('T')[0], HoldType: 'DEFECT', ItemType: row.ItemType,
     ItemCode: row.ItemCode, ItemName: row.ItemName, Lot: row.Lot, UOM: row.UOM, MoveType: 'REWORK',
     Qty: qty, UnitCost: row.UnitCost, Reason: reason, RefHoldStockId: row._row_id,
     CreatedBy: _currentUser?.email || null,
   });
+  if (!logged) {
+    // ย้อนทั้ง 2 จุดที่เพิ่งเขียนไปกลับ — คืนสต็อกดี (ตัดออกอีกที) + คืนยอดเข้า hold_stock
+    if (row.ItemType === 'FG') await fgUpdateStock(row.ItemCode, row.ItemName, row.Lot, qty, row.UOM, null, null, false);
+    else await miscUpdateStock(row.ItemCode, row.Lot, qty);
+    await _holdstockAdjustBalance(row._row_id, qty, 'UNDO_OUT');
+    return false;
+  }
   _logAudit('EDIT', 'hold_stock', `${row.ItemCode}/${row.Lot}`, `Rework คืนสต็อกดี จำนวน ${qty} — ${reason}`);
   return true;
 }
@@ -25130,6 +25260,10 @@ function holdstockOpenActionModal(rowId, moveType) {
   document.getElementById('holdstock-action-qty').max = row.QtyBalance;
   document.getElementById('holdstock-action-hint').textContent = `คงเหลือ: ${(parseFloat(row.QtyBalance) || 0).toLocaleString()} ${row.UOM || ''}`;
   document.getElementById('holdstock-action-reason').value = '';
+  // "วิธีจัดการ" มีความหมายเฉพาะตอนทิ้ง/Scrap เท่านั้น — ใช้เลือกรายการไปออกใบทำลาย/ใบส่งคืนทีหลัง
+  // (Rework ไม่เกี่ยวเพราะของกลับเข้าสต็อกดี ไม่ได้ออกจากโรงงาน, Retain→Dispose รอบนี้ยังไม่ทำ ตามที่ยืนยัน)
+  document.getElementById('holdstock-action-disposal-wrap').style.display = moveType === 'SCRAP' ? '' : 'none';
+  document.getElementById('holdstock-action-disposal').value = 'ทำลาย';
   _holdstockActionModal.show();
 }
 
@@ -25139,11 +25273,12 @@ async function holdstockActionSubmit(e) {
   const moveType = document.getElementById('holdstock-action-movetype').value;
   const qty = parseFloat(document.getElementById('holdstock-action-qty').value) || 0;
   const reason = document.getElementById('holdstock-action-reason').value.trim();
+  const disposalMethod = moveType === 'SCRAP' ? document.getElementById('holdstock-action-disposal').value : null;
   if (qty <= 0) { _err('จำนวนต้องมากกว่า 0', ''); return; }
 
   _showLoader();
   let ok = false;
-  if (moveType === 'SCRAP') ok = await holdstockScrap(rowId, qty, reason);
+  if (moveType === 'SCRAP') ok = await holdstockScrap(rowId, qty, reason, disposalMethod);
   else if (moveType === 'REWORK') ok = await holdstockRework(rowId, qty, reason);
   else if (moveType === 'DISPOSE') ok = await holdstockDispose(rowId, qty, reason);
   _hideLoader();
@@ -25293,6 +25428,256 @@ async function holdstockMoveRemove(moveId) {
   _logAudit('DELETE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ลบรายการ ${m.MoveType} จำนวน ${m.Qty}`);
   await _holdstockLoadHistory();
   holdstockLoadData();
+}
+
+// ── รายการรอออกรายงาน (SCRAP ที่ยังไม่ได้ออกใบทำลาย/ใบส่งคืน) + ออกเอกสารเลขที่รันเอง (ไม่ปนกับใบส่งสินค้า
+// FG/เบิกเบ็ดเตล็ด — คนละประเภทเอกสาร) โครง confirm-number เหมือน miscSlipConfirmNo ทุกอย่าง ──
+function holdstockRenderPendingReportBox() {
+  const box = document.getElementById('holdstock-pending-report-box');
+  box.style.display = _holdstockMode === 'DEFECT' ? '' : 'none';
+  const tbody = document.getElementById('holdstock-pending-report-tbody');
+  tbody.innerHTML = _holdstockPendingReportMoves.length
+    ? _holdstockPendingReportMoves.map(m => `<tr>
+        <td><input type="checkbox" class="holdstock-pending-check" value="${m._row_id}" onchange="holdstockPendingUpdateBtn()"></td>
+        <td>${_fmtDate(m.MoveDate)}</td><td>${m.ItemCode || ''}</td><td>${m.ItemName || ''}</td><td>${m.Lot || ''}</td>
+        <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td>
+        <td>${m.DisposalMethod || '—'}</td><td>${m.Reason || ''}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="8" class="text-center text-muted py-3">ไม่มีรายการรอออกรายงาน</td></tr>`;
+  document.getElementById('holdstock-pending-check-all').checked = false;
+  holdstockPendingUpdateBtn();
+}
+
+function holdstockPendingToggleAll(cb) {
+  document.querySelectorAll('.holdstock-pending-check').forEach(c => c.checked = cb.checked);
+  holdstockPendingUpdateBtn();
+}
+
+function holdstockPendingUpdateBtn() {
+  document.getElementById('holdstock-report-btn').disabled = document.querySelectorAll('.holdstock-pending-check:checked').length === 0;
+}
+
+function _holdstockReportScopeRows() {
+  return _holdstockPendingReportMoves.filter(m => _holdstockReportIds.includes(m._row_id));
+}
+
+function holdstockReportOpenModal() {
+  _holdstockReportIds = Array.from(document.querySelectorAll('.holdstock-pending-check:checked')).map(c => parseInt(c.value));
+  if (!_holdstockReportIds.length) return;
+  const rows = _holdstockReportScopeRows();
+  // เอกสาร 1 ใบ = วิธีจัดการเดียวกันเท่านั้น (ทำลาย/คืนลูกค้า ต้องคนละใบ เพราะหัวเอกสาร/กล่องลูกค้าต่างกัน)
+  // แม้จะรวมหลาย Lot/สินค้าในใบเดียวได้ตามที่ยืนยัน แต่ต้องเป็นวิธีจัดการเดียวกันทั้งหมด
+  const methods = [...new Set(rows.map(r => r.DisposalMethod))];
+  if (methods.length > 1) {
+    _err('เลือกได้เฉพาะวิธีจัดการเดียวกัน', `รายการที่เลือกมีทั้ง ${methods.join(', ')} — ออกเอกสาร 1 ใบต้องเป็นวิธีจัดการเดียวกันทั้งหมด`);
+    return;
+  }
+  if (!_holdstockReportModal) _holdstockReportModal = new bootstrap.Modal(document.getElementById('holdstockReportModal'));
+  document.getElementById('holdstockreport-customer-step').style.display = methods[0] === 'คืนลูกค้า' ? '' : 'none';
+  document.getElementById('holdstockreport-customer-name').value = '';
+  document.getElementById('holdstockreport-customer-address').value = '';
+  holdstockReportOnScopeChange();
+  _holdstockReportModal.show();
+}
+
+function holdstockReportOnScopeChange() {
+  const rows = _holdstockReportScopeRows();
+  document.getElementById('holdstockreport-selected-summary').innerHTML = rows.map(r =>
+    `<div>${_fmtDate(r.MoveDate) || ''} — ${r.ItemName || ''} (Lot ${r.Lot || '—'}) — ${(parseFloat(r.Qty) || 0).toLocaleString()} ${r.UOM || ''}</div>`
+  ).join('') || '<div>ไม่พบรายการที่เลือก</div>';
+  holdstockReportSuggestNo().then(v => { document.getElementById('holdstockreport-no-input').value = v; });
+  holdstockReportResetConfirmState();
+}
+
+// เลขที่เอกสารรันของตัวเอง แยกจาก _billNoNextSuggest (ใบส่งสินค้า FG/เบิกเบ็ดเตล็ด) โดยตั้งใจ — คนละประเภท
+// เอกสาร (ใบทำลาย/ใบส่งคืนของเสีย ไม่ใช่ใบส่งสินค้าขาย) ดู alter_hold_stock_add_report_fields.sql
+async function holdstockReportSuggestNo() {
+  const year = new Date().getFullYear();
+  const { data, error } = await _sb.from('hold_stock_report_numbers').select('ReportNo').eq('Year', year);
+  if (error) return `${year}/001`;
+  const parseSeq = (no) => { const m = /^\d+\/(\d+)$/.exec(no || ''); return m ? parseInt(m[1], 10) : 0; };
+  const maxSeq = (data || []).reduce((max, r) => Math.max(max, parseSeq(r.ReportNo)), 0);
+  return `${year}/${String(maxSeq + 1).padStart(3, '0')}`;
+}
+
+function holdstockReportResetConfirmState() {
+  _holdstockReportConfirmed = false;
+  _holdstockReportConfirmedNo = '';
+  document.getElementById('holdstockreport-status').textContent = '● ยังไม่ยืนยัน';
+  document.getElementById('holdstockreport-status').className = 'mrrpt-pill mrrpt-pill-unconfirmed';
+  document.getElementById('holdstockreport-no-input').disabled = false;
+  document.getElementById('holdstockreport-print-btn').disabled = true;
+  document.getElementById('holdstockreport-print-hint').style.display = '';
+  document.getElementById('holdstockreport-error').style.display = 'none';
+  holdstockReportRenderPreview();
+}
+
+async function holdstockReportConfirmNo() {
+  const val = document.getElementById('holdstockreport-no-input').value.trim();
+  const errEl = document.getElementById('holdstockreport-error');
+  errEl.style.display = 'none';
+  if (!val) { errEl.textContent = 'กรุณากรอกเลขที่เอกสาร'; errEl.style.display = 'block'; return; }
+  const rows = _holdstockReportScopeRows();
+  if (!rows.length) { errEl.textContent = 'ไม่พบรายการที่เลือก'; errEl.style.display = 'block'; return; }
+  const year = new Date().getFullYear();
+
+  _showLoader();
+  const { data: clashRows, error: clashErr } = await _sb.from('hold_stock_report_numbers').select('_row_id,CancelledAt').eq('ReportNo', val);
+  if (clashErr) { _hideLoader(); _err('เช็คเลขที่เอกสารไม่ได้', clashErr.message); return; }
+  const activeClash = (clashRows || []).find(r => !r.CancelledAt);
+  if (activeClash) {
+    _hideLoader();
+    errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // เลขนี้เคย "ยกเลิก" ไปแล้ว → นำเลขเดิมมาออกใบใหม่แทนได้ (UPDATE แถวเดิมทับ ไม่ INSERT ซ้ำ) เหมือน
+  // miscSlipConfirmNo/dlvbillConfirmNo ทุกประการ
+  const cancelledRow = (clashRows || []).find(r => r.CancelledAt);
+  const writeErr = cancelledRow
+    ? (await _sb.from('hold_stock_report_numbers').update({
+        Year: year, MoveRowIds: _holdstockReportIds.join(','), CancelledAt: null, CreatedAt: new Date().toISOString(),
+      }).eq('_row_id', cancelledRow._row_id)).error
+    : (await _sb.from('hold_stock_report_numbers').insert({
+        ReportNo: val, Year: year, MoveRowIds: _holdstockReportIds.join(','),
+      })).error;
+  if (writeErr) {
+    _hideLoader();
+    if (writeErr.code === '23505') { errEl.textContent = `เลขที่ "${val}" ถูกใช้ไปแล้ว — กรุณาแก้เลขใหม่แล้วลองอีกครั้ง`; errEl.style.display = 'block'; return; }
+    _err('บันทึกเลขที่เอกสารไม่สำเร็จ', writeErr.message);
+    return;
+  }
+
+  const stampPayload = { ReportNo: val };
+  if (document.getElementById('holdstockreport-customer-step').style.display !== 'none') {
+    stampPayload.ReportCustomerName = document.getElementById('holdstockreport-customer-name').value.trim() || null;
+    stampPayload.ReportCustomerAddress = document.getElementById('holdstockreport-customer-address').value.trim() || null;
+  }
+  const { error: stampErr } = await _sb.from('hold_stock_moves').update(stampPayload).in('_row_id', _holdstockReportIds);
+  _hideLoader();
+  if (stampErr) { _err('บันทึกเลขที่ลงรายการไม่สำเร็จ', stampErr.message); return; }
+
+  _holdstockReportConfirmed = true;
+  _holdstockReportConfirmedNo = val;
+  document.getElementById('holdstockreport-status').textContent = '● ยืนยันแล้ว';
+  document.getElementById('holdstockreport-status').className = 'mrrpt-pill mrrpt-pill-confirmed';
+  document.getElementById('holdstockreport-no-input').disabled = true;
+  document.getElementById('holdstockreport-print-btn').disabled = false;
+  document.getElementById('holdstockreport-print-hint').style.display = 'none';
+  _logAudit('CREATE', 'hold_stock_report_numbers', val, `ออกเอกสาร ${_holdstockReportIds.length} รายการ`);
+  holdstockReportRenderPreview();
+  holdstockLoadData();   // รีเฟรชรายการรอออกรายงาน — รายการที่เพิ่งออกไปต้องหายจากลิสต์ทันที
+}
+
+function _holdstockReportBuildGroups(rows) {
+  const groups = {};
+  const order = [];
+  rows.forEach(r => {
+    const key = `${r.ItemCode}|${r.ItemName}`;
+    if (!groups[key]) { groups[key] = { code: r.ItemCode, name: r.ItemName, uom: r.UOM, lots: [] }; order.push(key); }
+    groups[key].lots.push({ lotLabel: r.Lot || '—', qty: parseFloat(r.Qty) || 0, reason: r.Reason || '' });
+  });
+  return { groups, order };
+}
+
+// พิมพ์ด้วยเทมเพลตเดียวกับใบส่งสินค้า FG/เบิกเบ็ดเตล็ด (.dlvbill-page) — reuse CSS class เดิม ไม่สร้างใหม่ เปลี่ยน
+// แค่หัวเรื่อง/กล่องลูกค้า/หมายเหตุ/ผู้เซ็นชื่อ ตามวิธีจัดการ (ทำลาย/คืนลูกค้า)
+function holdstockReportRenderPreview() {
+  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
+    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
+    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash',
+    'print-mode-planweek', 'print-mode-purchasereq');
+  document.body.classList.add('print-mode-holdstockreport');
+
+  const rows = _holdstockReportScopeRows();
+  const wrap = document.getElementById('holdstockreport-preview-body');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="mrrpt-empty">ไม่พบรายการที่เลือก</div>';
+    document.getElementById('holdstockreport-print-root').innerHTML = '';
+    return;
+  }
+
+  const method = rows[0].DisposalMethod;
+  const isReturn = method === 'คืนลูกค้า';
+  const title = isReturn ? 'ใบส่งคืนสินค้าเสีย / Defect Return Note' : 'ใบรับรองการทำลาย / Certificate of Destruction';
+  const customerName = document.getElementById('holdstockreport-customer-name').value.trim();
+  const customerAddress = document.getElementById('holdstockreport-customer-address').value.trim();
+
+  const { groups, order } = _holdstockReportBuildGroups(rows);
+  let itemNo = 0;
+  const groupHtml = order.map(key => {
+    const g = groups[key];
+    itemNo++;
+    const total = g.lots.reduce((s, l) => s + l.qty, 0);
+    const bodyRows = g.lots.map(l =>
+      `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel}${l.reason ? ` (${l.reason})` : ''}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom || ''}</td></tr>`
+    ).join('');
+    return `
+      <tr class="dlvbill-prod-row"><td class="num">${itemNo}</td><td>${g.name || ''}${g.code ? ` (${g.code})` : ''}</td><td class="qty"></td><td></td></tr>
+      ${bodyRows}
+      <tr class="dlvbill-total-row"><td></td><td>รวม</td><td class="qty">${total.toLocaleString()}</td><td>${g.uom || ''}</td></tr>
+    `;
+  }).join('');
+
+  const docNo = _holdstockReportConfirmed ? _holdstockReportConfirmedNo : '(ยังไม่ยืนยัน)';
+  const docDate = _fmtDate(new Date().toISOString().split('T')[0]);
+
+  const buildPage = (copyLabel) => `
+    <div class="dlvbill-page">
+      <div class="dlvbill-head">
+        <div class="dlvbill-brand">
+          <img class="dlvbill-logo-img" src="wisenovation_LOGO%20-Cut.png" alt="WISE NOVATION">
+          <div class="dlvbill-company">
+            <b>ที่อยู่:</b> บริษัท ไวส์ โนเวชั่น จำกัด (สำนักงานใหญ่)<br>
+            959 อาคารไซเบอร์พริ้นท์ ชั้นที่ 3 ซอยรัชดาภิเษก 3 (ซอยสุทธิพร)<br>
+            ถนนรัชดาภิเษก แขวงดินแดง เขตดินแดง กรุงเทพมหานคร 10400<br>
+            TAX ID: 0105544078636 ติดต่อ: 086-355-0358, 02-056-1692-4
+          </div>
+        </div>
+        <div class="dlvbill-meta">
+          <div class="dlvbill-copytag">${copyLabel}</div>
+          <div>เอกสารเลขที่ (Document No.): <b>${docNo}</b></div>
+          <div>วันที่ (Date): <b>${docDate}</b></div>
+        </div>
+      </div>
+
+      <div class="dlvbill-title">${title}</div>
+
+      ${isReturn ? `
+      <div class="dlvbill-cust-box">
+        <div class="dlvbill-cust-row"><span class="lbl">ชื่อบริษัทลูกค้า (Company Name)</span><span class="val">${customerName || '—'}</span></div>
+        <div class="dlvbill-cust-row"><span class="lbl">ที่อยู่ (Address)</span><span class="val">${customerAddress || '—'}</span></div>
+      </div>` : ''}
+
+      <table class="dlvbill-table">
+        <thead><tr>
+          <th style="width:6%">ลำดับ<br>(No.)</th><th style="width:56%">รายละเอียดสินค้า<br>(Description)</th>
+          <th class="qty" style="width:19%">จำนวน<br>(Quantity)</th><th style="width:19%">หน่วย<br>(Unit)</th>
+        </tr></thead>
+        <tbody>${groupHtml}</tbody>
+      </table>
+
+      <div class="dlvbill-notes">
+        <div>หมายเหตุ: ${isReturn ? 'สินค้ารายการข้างต้นเป็นสินค้าชำรุด/ไม่ผ่านมาตรฐาน ขอส่งคืนตามรายละเอียดนี้' : 'สินค้ารายการข้างต้นได้ทำการทำลายตามขั้นตอนของบริษัทเรียบร้อยแล้ว'}</div>
+      </div>
+
+      <div class="dlvbill-footer">
+        <div class="dlvbill-sign"><div class="line">${isReturn ? 'ผู้รับคืนสินค้า' : 'ผู้ทำลาย'}</div><div class="date">วันที่ ...../...../.....</div></div>
+        <div class="dlvbill-sign"><div class="line">${isReturn ? 'ผู้ส่งคืนสินค้า' : 'ผู้ตรวจสอบ'}</div><div class="date">วันที่ ...../...../.....</div></div>
+        <div class="dlvbill-sign"><div class="line">ผู้อนุมัติ</div><div class="date">วันที่ ...../...../.....</div></div>
+      </div>
+    </div>`;
+
+  const html = buildPage('ต้นฉบับ') + buildPage('สำเนา');
+  wrap.innerHTML = html;
+  document.getElementById('holdstockreport-print-root').innerHTML = _holdstockReportConfirmed ? html : '';
+  if (!_holdstockReportConfirmed) {
+    const overlay = document.createElement('div');
+    overlay.className = 'mrrpt-lock-overlay';
+    overlay.innerHTML = '<div class="box">🔒 กรุณายืนยันเลขที่เอกสารก่อน<br>จึงจะพิมพ์ได้ (ดูตัวอย่างข้อมูลได้ตามปกติ)</div>';
+    wrap.appendChild(overlay);
+  }
 }
 
 // ══════════════════════════════════════════════
