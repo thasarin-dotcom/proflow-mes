@@ -17232,6 +17232,13 @@ function prodrecordRenderTable() {
     // ยังคงจำกัดเฉพาะที่ยังไม่อนุมัติต้นทุนเสมอ (ไม่มีข้อมูลการเงินที่ล็อกไว้ต้องกังวล)
     const isOrphan = !!r.MO_Ref && _prodrecordMOStatusMap[r.MO_Ref] === undefined;
     const canDelete = !approved && (isOrphan || !hasActual);
+    // ป้าย "เพิ่งอัปเดต" — โชว์เมื่อ UpdatedAt ห่างจากตอนนี้ไม่ถึง 24 ชม. (2026-09-02 ตามคำขอผู้ใช้ ต่อจาก
+    // ฟีเจอร์ "แก้ไขล่าสุด" — อยากได้สัญลักษณ์เตะตาแยกจากตัวหนังสือเวลา ไม่ต้องมานั่งอ่าน/เทียบเวลาทีละใบเอง)
+    // ไม่ใช้ขอบเขต "วันนี้" ตามปฏิทิน เพราะ 23:59 กับ 00:01 คนละวันปฏิทินแต่ห่างกันแค่ 2 นาที ควรนับว่า "เพิ่ง
+    // แก้" เหมือนกัน — ใช้ระยะห่างจริงแทน ไม่สนใจว่าเป็น UpdatedAt จริงหรือ fallback มาจาก CreatedAt (ทั้งคู่คือ
+    // "เวลาที่แถวนี้เปลี่ยนแปลงล่าสุดเท่าที่รู้")
+    const _updatedTs = new Date(r.UpdatedAt || r.CreatedAt || 0).getTime();
+    const isRecentlyUpdated = _updatedTs > 0 && (Date.now() - _updatedTs) < 24 * 60 * 60 * 1000;
     return `<div class="glass-card mb-2" data-rt-key="${(r.ProdRecord_ID||'').replace(/"/g,'&quot;')}">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="cursor:pointer" onclick="prodrecordToggleExpand(${gi})">
         <div>
@@ -17239,6 +17246,7 @@ function prodrecordRenderTable() {
           <b>${r.ProductName||'—'}</b>
           <span class="badge bg-light text-dark border ms-2">Lot FG: ${r.Lot_FG ?? '—'}</span>
           <span class="text-muted ms-2 small">MO: ${r.MO_Ref||'—'}</span>${_prodrecordStatusBadge(r.Status)}
+          ${isRecentlyUpdated ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="แก้ไข/อัปเดตภายใน 24 ชม.ที่ผ่านมา"><i class="fas fa-bolt me-1"></i>เพิ่งอัปเดต</span>` : ''}
           ${isOrphan ? `<span class="badge bg-danger ms-2" title="MO นี้ถูกลบไปจากระบบแล้ว บันทึกผลิตนี้ค้างเป็นข้อมูลกำพร้า"><i class="fas fa-triangle-exclamation me-1"></i>MO ถูกลบแล้ว</span>` : ''}
           ${r.DeleteRequested ? `<span class="badge bg-secondary ms-2" title="ขอลบโดย ${r.DeleteRequestedBy||'—'} เมื่อ ${_fmtDate(r.DeleteRequestedAt)} — รอแอดมินอนุมัติ"><i class="fas fa-hourglass-half me-1"></i>รออนุมัติการลบ</span>` : ''}
         </div>
@@ -17255,6 +17263,7 @@ function prodrecordRenderTable() {
             <button class="btn btn-sm btn-outline-secondary" onclick="prodrecordRejectDeleteRequest(${gi})" title="ปฏิเสธคำขอลบ"><i class="fas fa-ban me-1"></i>ปฏิเสธ</button>` : ''}
         </div>
       </div>
+      <div class="${isRecentlyUpdated ? 'text-info fw-semibold' : 'text-muted'}" style="font-size:.7rem"><i class="fas fa-clock me-1"></i>แก้ไขล่าสุด: ${_fmtDateTime(r.UpdatedAt || r.CreatedAt)}</div>
       ${!expanded ? '' : _prodrecordRenderExpanded(r)}
     </div>`;
   }).join('');
