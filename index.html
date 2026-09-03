@@ -4561,6 +4561,13 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <span class="mrrpt-pill mrrpt-pill-unconfirmed" id="holdstockreport-status">● ยังไม่ยืนยัน</span>
           </div>
           <div class="mrrpt-error" id="holdstockreport-error"></div>
+          <details class="mrrpt-history">
+            <summary>ประวัติเลขที่เอกสารล่าสุด (แก้ไข/ยกเลิกได้)</summary>
+            <table>
+              <thead><tr><th>เลขที่</th><th>วันที่ออก</th><th>จำนวนรายการ</th><th></th></tr></thead>
+              <tbody id="holdstockreport-history-body"></tbody>
+            </table>
+          </details>
         </div>
 
         <div class="modal-body" id="holdstockreport-preview-body" style="background:#525659;padding:24px;max-height:50vh;overflow:auto;position:relative"></div>
@@ -25452,7 +25459,11 @@ function _holdstockRenderHistoryTable(editingId) {
     // เท่านั้น — ย้อนการกระทำได้ก็ต้องมีสิทธิ์ระดับเดียวกับที่ทำมันได้ (เจตนาไม่ตั้งชื่อฟังก์ชันลบว่า
     // "...Delete(" เพื่อไม่ให้โดน CSS blanket-hide ของทั้งแอปบัง IN ที่ควรแก้ได้ทุก role ไปด้วย)
     const canManage = m.MoveType === 'IN' || _hasRole('supervisor');
-    const actions = canManage
+    // ออกรายงาน (เลขที่เอกสารทำลาย/ส่งคืน) ไปแล้ว ห้ามแก้ไข/ลบตรงนี้ตรงๆ — ต้อง "ยกเลิกเอกสาร" ที่ปุ่ม
+    // ออกรายงาน (holdstockReportCancel) ก่อน ไม่งั้นเอกสารที่พิมพ์ไปแล้วจะไม่ตรงกับข้อมูลจริงอีกต่อไปแบบเงียบๆ
+    const actions = m.ReportNo
+      ? `<span class="badge bg-secondary" title="แก้ไข/ลบไม่ได้ — ต้องยกเลิกเอกสารที่ปุ่ม 'ออกรายงาน' ก่อน">ออกรายงานแล้ว (${m.ReportNo})</span>`
+      : canManage
       ? `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockMoveEditStart(${m._row_id})" title="แก้ไข"><i class="fas fa-pen"></i></button> ` +
         `<button class="btn btn-sm btn-outline-danger" onclick="holdstockMoveRemove(${m._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>`
       : '';
@@ -25500,6 +25511,7 @@ async function _holdstockReverseMove(m) {
 async function holdstockMoveEditSubmit(moveId) {
   const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
   if (!m) return;
+  if (m.ReportNo) { _err('แก้ไขไม่ได้', `รายการนี้ออกเอกสารแล้ว (${m.ReportNo}) — ต้องยกเลิกเอกสารที่ปุ่ม "ออกรายงาน" ก่อน`); return; }
   const newDate = document.getElementById('holdstock-hedit-date').value;
   const newQty = parseFloat(document.getElementById('holdstock-hedit-qty').value) || 0;
   const newReason = document.getElementById('holdstock-hedit-reason').value.trim();
@@ -25530,6 +25542,7 @@ async function holdstockMoveEditSubmit(moveId) {
 async function holdstockMoveRemove(moveId) {
   const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
   if (!m) return;
+  if (m.ReportNo) { _err('ลบไม่ได้', `รายการนี้ออกเอกสารแล้ว (${m.ReportNo}) — ต้องยกเลิกเอกสารที่ปุ่ม "ออกรายงาน" ก่อน`); return; }
   const conf = await Swal.fire({
     title: 'ลบรายการนี้?', text: `${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType} จำนวน ${m.Qty}`,
     icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
@@ -25598,6 +25611,7 @@ function holdstockReportOpenModal(explicitIds) {
   document.getElementById('holdstockreport-customer-name').value = '';
   document.getElementById('holdstockreport-customer-address').value = '';
   holdstockReportOnScopeChange();
+  holdstockReportRenderHistory();
   _holdstockReportModal.show();
 }
 
@@ -25688,7 +25702,83 @@ async function holdstockReportConfirmNo() {
   document.getElementById('holdstockreport-print-hint').style.display = 'none';
   _logAudit('CREATE', 'hold_stock_report_numbers', val, `ออกเอกสาร ${_holdstockReportIds.length} รายการ`);
   holdstockReportRenderPreview();
+  holdstockReportRenderHistory();
   holdstockLoadData();   // รีเฟรชรายการรอออกรายงาน — รายการที่เพิ่งออกไปต้องหายจากลิสต์ทันที
+}
+
+async function holdstockReportRenderHistory() {
+  const { data, error } = await _sb.from('hold_stock_report_numbers').select('*').order('_row_id', { ascending: false }).limit(15);
+  const body = document.getElementById('holdstockreport-history-body');
+  if (error) { body.innerHTML = `<tr><td colspan="4" class="text-danger">โหลดประวัติไม่ได้ (${error.message})</td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="4" class="text-muted">ยังไม่มีเลขที่เอกสาร</td></tr>`; return; }
+  body.innerHTML = data.map(r => `
+    <tr${r.CancelledAt ? ' class="text-decoration-line-through text-muted"' : ''}>
+      <td>${r.ReportNo}${r.CancelledAt ? ' <span class="badge bg-danger">ยกเลิกแล้ว</span>' : ''}</td>
+      <td>${_fmtDate((r.CreatedAt || '').slice(0, 10))}</td>
+      <td>${(r.MoveRowIds || '').split(',').filter(Boolean).length}</td>
+      <td>${r.CancelledAt ? '' : `
+        <button class="btn btn-sm btn-outline-secondary" onclick="holdstockReportEditNo(${r._row_id},'${r.ReportNo}')">แก้ไข</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="holdstockReportCancel('${r.ReportNo}')">ยกเลิก</button>`}
+      </td>
+    </tr>`).join('');
+}
+
+// แก้ไขแค่ตัว "เลขที่" เอกสารที่เคยยืนยันไปแล้ว (เช่น พิมพ์ผิด) — ไม่กระทบรายการ/สถานะยกเลิก sync กลับ
+// hold_stock_moves.ReportNo ทุกแถวที่ใช้เลขเดิม เหมือน miscSlipEditNo/dlvbillEditNo ทุกประการ
+async function holdstockReportEditNo(rowId, currentVal) {
+  const { value: next } = await Swal.fire({
+    title: 'แก้ไขเลขที่เอกสาร', input: 'text', inputValue: currentVal,
+    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v?.trim() ? 'กรุณากรอกเลขที่เอกสาร' : undefined,
+  });
+  if (!next) return;
+  const newVal = next.trim();
+  if (newVal === currentVal) return;
+
+  _showLoader();
+  const { data: clashRows, error: clashErr } = await _sb.from('hold_stock_report_numbers').select('_row_id,CancelledAt').eq('ReportNo', newVal);
+  if (clashErr) { _hideLoader(); _err('เช็คเลขที่เอกสารไม่ได้', clashErr.message); return; }
+  const activeClash = (clashRows || []).find(r => !r.CancelledAt && r._row_id !== rowId);
+  if (activeClash) { _hideLoader(); Swal.fire('เลขซ้ำ', `เลขที่ "${newVal}" ถูกใช้ไปแล้ว`, 'error'); return; }
+
+  const { error } = await _sb.from('hold_stock_report_numbers').update({ ReportNo: newVal }).eq('_row_id', rowId);
+  if (error) { _hideLoader(); _err('แก้ไขไม่สำเร็จ', error.message); return; }
+  const { error: syncErr } = await _sb.from('hold_stock_moves').update({ ReportNo: newVal }).eq('ReportNo', currentVal);
+  _hideLoader();
+  if (syncErr) { _err('แก้ไขเลขในทะเบียนสำเร็จ แต่ sync ไปที่รายการเคลื่อนไหวไม่สำเร็จ', syncErr.message); return; }
+
+  if (_holdstockReportConfirmedNo === currentVal) { _holdstockReportConfirmedNo = newVal; holdstockReportRenderPreview(); }
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'แก้ไขสำเร็จ', showConfirmButton: false, timer: 2000 });
+  holdstockReportRenderHistory();
+  holdstockLoadData();
+}
+
+// "เปิดกลับ" เอกสารที่ออกไปแล้ว — ล้าง ReportNo/ข้อมูลลูกค้าออกจากทุก move ที่ผูกเลขนี้ กลับไปเป็น "รอออกรายงาน"
+// แก้ไข/ลบทีละรายการในหน้า "ดูรายการเคลื่อนไหว" ได้ตามปกติอีกครั้ง แล้วค่อยออกเลขใหม่ทีหลัง — ไม่ลบทะเบียนเลขที่
+// ทิ้ง แค่ stamp CancelledAt ไว้กันเอาเลขเดิมมาใช้ซ้ำโดยไม่ได้ตั้งใจ เหมือน miscCancelSlip ทุกประการ
+async function holdstockReportCancel(reportNo) {
+  const res = await Swal.fire({
+    title: `ยืนยันยกเลิกเอกสารเลขที่ ${reportNo}?`,
+    html: 'รายการในเอกสารนี้จะกลับไปเป็น "รอออกรายงาน" แก้ไข/ลบทีละรายการได้ตามปกติอีกครั้ง<br>' +
+          `<b class="text-danger">เลขที่ ${reportNo} จะถูกยกเลิก ไม่สามารถนำมาออกซ้ำได้จนกว่าจะยกเลิกก่อน</b>`,
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันยกเลิกเอกสาร', cancelButtonText: 'ปิด',
+    confirmButtonColor: '#dc3545',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error: clearErr } = await _sb.from('hold_stock_moves')
+    .update({ ReportNo: null, ReportCustomerName: null, ReportCustomerAddress: null }).eq('ReportNo', reportNo);
+  if (clearErr) { _hideLoader(); _err('ยกเลิกเอกสารไม่สำเร็จ', clearErr.message); return; }
+
+  const { error: cancelErr } = await _sb.from('hold_stock_report_numbers').update({ CancelledAt: new Date().toISOString() }).eq('ReportNo', reportNo);
+  _hideLoader();
+  if (cancelErr) console.error('stamp CancelledAt ไม่สำเร็จ (ล้าง ReportNo ไปแล้ว)', cancelErr);
+
+  _logAudit('CANCEL', 'hold_stock_report_numbers', reportNo, 'ยกเลิกเอกสาร Defect — รายการกลับไปรอออกรายงาน');
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ยกเลิกเอกสาร ${reportNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  holdstockReportRenderHistory();
+  holdstockLoadData();
 }
 
 function _holdstockReportBuildGroups(rows) {
