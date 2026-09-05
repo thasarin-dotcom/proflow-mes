@@ -4682,6 +4682,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <div class="kpi-num text-warning" id="bom-kpi-nolines">—</div><div class="kpi-label">ยังไม่ระบุไลน์ผลิต</div>
           </div>
         </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" id="bom-kpi-noworkers-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterNoWorkers()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ได้ระบุจำนวนคนครบทั้ง 3 ขั้นตอน">
+            <div class="kpi-num text-warning" id="bom-kpi-noworkers">—</div><div class="kpi-label">ยังไม่ระบุจำนวนคน</div>
+          </div>
+        </div>
       </div>
       <div id="bom-cards"><div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div></div>
     </div>
@@ -17224,6 +17229,11 @@ function _bomHasAllowedLines(g) {
   return !!(g.AllowedLines && g.AllowedLines.trim());
 }
 
+// เหมือน _bomHasFullCapacity แต่เช็คครบทั้ง 3 ขั้นตอนของ "จำนวนคนที่ต้องใช้" แทน
+function _bomHasFullRequiredWorkers(g) {
+  return g.RequiredWorkersFill != null && g.RequiredWorkersLot != null && g.RequiredWorkersInspectPack != null;
+}
+
 function bomUpdateKPIs() {
   const products = new Set(_bomData.map(r => r.ProductCode));
   const el = id => document.getElementById(id);
@@ -17235,6 +17245,8 @@ function bomUpdateKPIs() {
   if (el('bom-kpi-incompletecap')) el('bom-kpi-incompletecap').textContent = incompleteCount.toLocaleString();
   const noLinesCount = groups.filter(g => !_bomHasAllowedLines(g)).length;
   if (el('bom-kpi-nolines')) el('bom-kpi-nolines').textContent = noLinesCount.toLocaleString();
+  const noWorkersCount = groups.filter(g => !_bomHasFullRequiredWorkers(g)).length;
+  if (el('bom-kpi-noworkers')) el('bom-kpi-noworkers').textContent = noWorkersCount.toLocaleString();
 }
 
 // จัดกลุ่มตามสินค้า แล้ว dedupe รายการวัตถุดิบซ้ำ (ข้อมูลจริงบางสินค้าถูก import ซ้ำหลายรอบ)
@@ -17307,11 +17319,20 @@ function bomToggleFilterNoLines() {
   bomRenderCards();
 }
 
+// เดียวกับด้านบน แต่กรองเฉพาะสินค้าที่ยังไม่ได้ระบุ "จำนวนคนที่ต้องใช้" ครบทั้ง 3 ขั้นตอน
+let _bomFilterNoWorkers = false;
+function bomToggleFilterNoWorkers() {
+  _bomFilterNoWorkers = !_bomFilterNoWorkers;
+  document.getElementById('bom-kpi-noworkers-card')?.classList.toggle('bom-kpi-active', _bomFilterNoWorkers);
+  bomRenderCards();
+}
+
 function bomRenderCards() {
   const q = (document.getElementById('bom-search')?.value || '').toLowerCase();
   const groups = _bomGroupByProduct(_bomData).filter(g => {
     if (_bomFilterIncompleteCap && _bomHasFullCapacity(g)) return false;
     if (_bomFilterNoLines && _bomHasAllowedLines(g)) return false;
+    if (_bomFilterNoWorkers && _bomHasFullRequiredWorkers(g)) return false;
     if (!q) return true;
     const prodHay = [g.ProductCode, g.ProductName].join(' ').toLowerCase();
     if (prodHay.includes(q)) return true;
@@ -17359,6 +17380,7 @@ function bomRenderCards() {
           ${g.SellingPrice2 != null && g.SellingPrice2_CustomerName ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="ราคาขายพิเศษสำหรับลูกค้านี้เท่านั้น"><i class="fas fa-user-tag me-1"></i>${g.SellingPrice2_CustomerName} ฿${parseFloat(g.SellingPrice2).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           ${!_bomHasFullCapacity(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
           ${!_bomHasAllowedLines(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กำหนด 'ไลน์ที่ผลิตได้' ไว้ — หน้าแผนผลิตจะให้เลือกได้ทุกไลน์ตามปกติ ไม่บล็อกอะไร แค่ยังไม่ได้จำกัด"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ระบุไลน์ผลิต</span>` : ''}
+          ${!_bomHasFullRequiredWorkers(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกจำนวนคนที่ต้องใช้ครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — ขั้นตอนที่ยังว่างอยู่ หน้าแผนผลิตจะข้ามไม่เช็คให้ (ขั้นที่กรอกไว้แล้วยังเช็คตามปกติ)"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ระบุจำนวนคน</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
         </div>
         <div class="d-flex gap-1">
