@@ -2373,6 +2373,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <div id="plan-f-workers-select" class="border rounded p-2" style="max-height:160px;overflow-y:auto"></div>
                 <div class="small text-muted" id="plan-f-workers-legacy-note" style="display:none"></div>
               </div>
+              <div class="col-12" id="plan-worker-requirement-check"></div>
               <div class="col-12" id="plan-skill-check"></div>
               <div class="col-md-8">
                 <label class="form-label">ช่วงเวลา <span class="text-danger">*</span></label>
@@ -4742,6 +4743,22 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <div class="col-md-4">
                 <label class="form-label">ตรวจสอบ/แพ็ค / วัน</label>
                 <input type="number" id="bomprod-f-cap-inspect" class="form-control" min="0" step="0.001" placeholder="เช่น 6000">
+              </div>
+              <div class="col-12"><hr class="my-1"></div>
+              <div class="col-12">
+                <div class="fw-bold small text-muted mb-1"><i class="fas fa-users me-1"></i>จำนวนคนที่ต้องใช้ (ต่อขั้นตอน) — ไว้เทียบกับผู้ปฏิบัติงานที่เลือกไว้ตอนวางแผนผลิต</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">บรรจุ (คน)</label>
+                <input type="number" id="bomprod-f-workers-fill" class="form-control" min="0" step="1" placeholder="เช่น 3">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">ยิง Lot (คน)</label>
+                <input type="number" id="bomprod-f-workers-lot" class="form-control" min="0" step="1" placeholder="เช่น 1">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">ตรวจสอบ/แพ็ค (คน)</label>
+                <input type="number" id="bomprod-f-workers-inspect" class="form-control" min="0" step="1" placeholder="เช่น 2">
               </div>
               <div class="col-12"><hr class="my-1"></div>
               <div class="col-12">
@@ -13229,10 +13246,38 @@ function planApplyAllowedLines(preferredValue) {
     : `<span class="text-warning"><i class="fas fa-triangle-exclamation me-1"></i>กำลังแสดงไลน์ทั้งหมด (โหมดฉุกเฉิน) — ปกติสินค้านี้ผลิตเฉพาะไลน์ที่กำหนดไว้เท่านั้น</span>`;
 }
 
+// เทียบ "จำนวนคนที่ต้องใช้" (bom.RequiredWorkersFill/Lot/InspectPack — ผูกกับสินค้า ไม่ใช่ไลน์ ยืนยันกับ
+// ผู้ใช้แล้วว่าสินค้าต่างกันอาจใช้จำนวนคนไม่เท่ากันแม้อยู่ไลน์เดียวกัน) กับจำนวนผู้ปฏิบัติงานที่เลือกไว้จริง
+// — เตือนเฉยๆ ไม่บล็อกการบันทึก เหมือนการเช็คสกิล/ไลน์ที่ผลิตได้
+function planUpdateWorkerRequirementCheck() {
+  const box = document.getElementById('plan-worker-requirement-check');
+  if (!box) return;
+  const code = document.getElementById('plan-f-prodcode')?.value || '';
+  const prod = _planBOMList.find(b => b.ProductCode === code);
+  if (!prod) { box.innerHTML = ''; return; }
+
+  const steps = [
+    { label: 'บรรจุ',           need: prod.RequiredWorkersFill },
+    { label: 'ยิง Lot',         need: prod.RequiredWorkersLot },
+    { label: 'ตรวจสอบ/แพ็ค',   need: prod.RequiredWorkersInspectPack },
+  ].filter(s => s.need != null && s.need > 0);
+  if (!steps.length) { box.innerHTML = ''; return; }
+
+  const selectedCount = _planGetSelectedWorkerCodes().length;
+  const parts = steps.map(s => {
+    const ok = selectedCount >= s.need;
+    return `<span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'} me-1 mb-1">
+      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${s.label} ต้องใช้ ${s.need} คน
+    </span>`;
+  }).join('');
+  box.innerHTML = `<div class="small text-muted mb-1"><i class="fas fa-users me-1"></i>จำนวนคนที่สินค้านี้ต้องใช้ (เลือกไว้ตอนนี้ ${selectedCount} คน):</div>${parts}`;
+}
+
 // แสดงว่าไลน์ที่เลือกต้องการทักษะอะไรบ้าง (Lines คั่นด้วย comma บน skills) แล้วเทียบกับ Level สูงสุด
 // ของผู้ปฏิบัติงานที่เลือกไว้ — ≥2 (ทำได้เอง) ถือว่าโอเค ต่ำกว่านั้นเตือนเป็นสีเหลือง (advisory only)
 function planCheckSkillCoverage() {
   _planUpdateWorkersSelectedCount();
+  planUpdateWorkerRequirementCheck();
   const box = document.getElementById('plan-skill-check');
   if (!box) return;
   const line = document.getElementById('plan-f-line')?.value || '';
@@ -13297,7 +13342,7 @@ async function planLoadData() {
     _sb.from('production_plan').select('*').gte('PlanDate', start).lte('PlanDate', end).order('PlanDate'),
     // สถานะ "เสร็จสิ้น" จริงมีทั้ง 'Finished' (ข้อมูลเก่า) และ 'เสร็จสิ้น' (ค่าใหม่) — ต้องกันทั้งคู่ไม่งั้น MO เก่าที่เสร็จแล้วจะโผล่ในตัวเลือกแผนผลิต
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,UOM,LOT,Pending,Status').not('Status', 'in', '("Finished","เสร็จสิ้น")').order('_row_id', { ascending: false }),
-    _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay,AllowedLines'),
+    _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay,AllowedLines,RequiredWorkersFill,RequiredWorkersLot,RequiredWorkersInspectPack'),
     // ใช้ชุด BOM/สต็อก/ยอดจองเดียวกับหน้า MO เพื่อให้ปุ่ม "เช็ควัตถุดิบ" บนแถวแผนที่ยังไม่มี MO (planCheckMaterial)
     // คำนวณด้วยสูตรเดียวกันเป๊ะ ไม่ใช่สูตรที่ 4 แยกต่างหาก (ดู _moLoadMaterialCheckData/_moComputeMaterialCheck)
     _moLoadMaterialCheckData(),
@@ -13714,6 +13759,7 @@ function planMOSelect() {
   }
   _planLineAllowedOverride = false;
   planApplyAllowedLines();
+  planCheckSkillCoverage();
   planUpdateCapacityEstimate();
 }
 
@@ -13743,6 +13789,7 @@ function planSelectProduct(code, name, uom) {
   document.getElementById('plan-mat-dropdown').style.display = 'none';
   _planLineAllowedOverride = false;
   planApplyAllowedLines();
+  planCheckSkillCoverage();
   planUpdateCapacityEstimate();
 }
 
@@ -17205,6 +17252,9 @@ function _bomGroupByProduct(rows) {
         SellingPrice2: r.SellingPrice2,
         SellingPrice2_CustomerName: r.SellingPrice2_CustomerName,
         AllowedLines: r.AllowedLines,
+        RequiredWorkersFill: r.RequiredWorkersFill,
+        RequiredWorkersLot: r.RequiredWorkersLot,
+        RequiredWorkersInspectPack: r.RequiredWorkersInspectPack,
         lineMap: new Map(),
       });
     }
@@ -17224,6 +17274,9 @@ function _bomGroupByProduct(rows) {
     SellingPrice2: p.SellingPrice2,
     SellingPrice2_CustomerName: p.SellingPrice2_CustomerName,
     AllowedLines: p.AllowedLines,
+    RequiredWorkersFill: p.RequiredWorkersFill,
+    RequiredWorkersLot: p.RequiredWorkersLot,
+    RequiredWorkersInspectPack: p.RequiredWorkersInspectPack,
     lines: Array.from(p.lineMap.values()),
   }));
 }
@@ -17701,6 +17754,9 @@ function bomOpenProductModal(groupIdx) {
   document.getElementById('bomprod-f-cap-fill').value    = group.CapacityFillPerDay ?? '';
   document.getElementById('bomprod-f-cap-lot').value     = group.CapacityLotPerDay ?? '';
   document.getElementById('bomprod-f-cap-inspect').value = group.CapacityInspectPackPerDay ?? '';
+  document.getElementById('bomprod-f-workers-fill').value    = group.RequiredWorkersFill ?? '';
+  document.getElementById('bomprod-f-workers-lot').value     = group.RequiredWorkersLot ?? '';
+  document.getElementById('bomprod-f-workers-inspect').value = group.RequiredWorkersInspectPack ?? '';
   document.getElementById('bomprod-f-sellprice').value   = group.SellingPrice ?? '';
   document.getElementById('bomprod-f-sellprice2').value  = group.SellingPrice2 ?? '';
   document.getElementById('bomprod-f-sellprice2-customer').value = group.SellingPrice2_CustomerName ?? '';
@@ -17727,6 +17783,9 @@ async function bomProductSubmit(e) {
   const sellPrice2 = document.getElementById('bomprod-f-sellprice2').value;
   const sellPrice2Customer = document.getElementById('bomprod-f-sellprice2-customer').value.trim();
   const allowedLines = Array.from(document.querySelectorAll('.bomprod-line-chk:checked')).map(c => c.value);
+  const workersFill    = document.getElementById('bomprod-f-workers-fill').value;
+  const workersLot     = document.getElementById('bomprod-f-workers-lot').value;
+  const workersInspect = document.getElementById('bomprod-f-workers-inspect').value;
   const payload = {
     ProductCode : document.getElementById('bomprod-f-code').value.trim(),
     ProductName : document.getElementById('bomprod-f-name').value.trim(),
@@ -17734,6 +17793,9 @@ async function bomProductSubmit(e) {
     CapacityFillPerDay        : capFill    !== '' ? parseFloat(capFill)    : null,
     CapacityLotPerDay         : capLot     !== '' ? parseFloat(capLot)     : null,
     CapacityInspectPackPerDay : capInspect !== '' ? parseFloat(capInspect) : null,
+    RequiredWorkersFill        : workersFill    !== '' ? parseInt(workersFill)    : null,
+    RequiredWorkersLot         : workersLot     !== '' ? parseInt(workersLot)     : null,
+    RequiredWorkersInspectPack : workersInspect !== '' ? parseInt(workersInspect) : null,
     SellingPrice              : sellPrice  !== '' ? parseFloat(sellPrice)  : null,
     // ราคาขายพิเศษต้องมีทั้งราคาและชื่อลูกค้าคู่กันเสมอ — มีแค่ฝั่งเดียวถือว่ายังไม่สมบูรณ์ ไม่บันทึก (กัน
     // _bomResolveSellingPrice เจอราคาไม่มีชื่อลูกค้า หรือชื่อลูกค้าไม่มีราคาไปคิดผิดที่หน้าอื่น)
