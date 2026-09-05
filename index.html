@@ -1648,6 +1648,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-material" onclick="showPage('material',this)" title="Master Material">
       <i class="fas fa-vial me-2"></i><span>Master Material</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
+      <i class="fas fa-users me-2"></i><span>พนักงาน</span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
     </a>
@@ -4937,6 +4940,171 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
   </div>
 
+  <div class="page-view" id="page-employee">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-users me-2"></i>พนักงาน (Employee Master)
+        </h4>
+        <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="employeeOpenModal()">
+          <i class="fas fa-plus-circle me-2"></i>เพิ่มพนักงานใหม่
+        </button>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-4">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="employee-search" class="form-control border-start-0 search-input"
+                placeholder="ค้นหา รหัส / ชื่อ / ชื่อเล่น / ตำแหน่ง..." oninput="employeeRenderTable()">
+              <button type="button" class="btn btn-outline-secondary border-start-0 search-clear-btn" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา" tabindex="-1"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <select id="employee-filter-type" class="form-select form-select-sm" onchange="employeeRenderTable()">
+              <option value="">ทุกประเภท</option>
+              <option value="FT">พนักงานประจำ (FT)</option>
+              <option value="PT">พาร์ทไทม์ (PT)</option>
+              <option value="OS">เอาท์ซอร์ส (OS)</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select id="employee-filter-status" class="form-select form-select-sm" onchange="employeeRenderTable()">
+              <option value="ทำงานอยู่">ทำงานอยู่</option>
+              <option value="">ทุกสถานะ</option>
+              <option value="ลาออก">ลาออก</option>
+            </select>
+          </div>
+          <div class="col-md-4 d-flex align-items-center gap-2 justify-content-end">
+            <button class="btn btn-sm btn-primary" onclick="loadEmployeeData()">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card"><div class="kpi-num" id="employee-kpi-total">—</div><div class="kpi-label">พนักงานทำงานอยู่</div></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#0d6efd">
+            <div class="kpi-num text-primary" id="employee-kpi-ft">—</div><div class="kpi-label">พนักงานประจำ (FT)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#198754">
+            <div class="kpi-num text-success" id="employee-kpi-pt">—</div><div class="kpi-label">พาร์ทไทม์ (PT)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#8b5cf6">
+            <div class="kpi-num" style="color:#8b5cf6" id="employee-kpi-os">—</div><div class="kpi-label">เอาท์ซอร์ส (OS)</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th class="wh-col-sm">รหัส</th><th class="wh-col-lg">ชื่อ-นามสกุล</th><th class="wh-col-xs">ประเภท</th>
+                <th class="wh-col-md">ตำแหน่ง</th><th class="wh-col-md">แผนก</th><th class="wh-col-xs">สถานะ</th>
+                <th class="wh-hide-remark">เบอร์โทร</th>
+                <th class="text-center" style="width:70px">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="employee-tbody">
+              <tr><td colspan="8" class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Employee: Add/Edit Modal ════════════ -->
+  <div class="modal fade" id="employeeModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="employeeModalTitle"><i class="fas fa-users me-2"></i>เพิ่มพนักงานใหม่</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="employeeForm" onsubmit="employeeSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="employee-edit-id">
+            <input type="hidden" id="employee-orig-code">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">รหัสพนักงาน <span class="text-danger">*</span></label>
+                <input type="text" id="employee-f-code" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">ประเภทพนักงาน <span class="text-danger">*</span></label>
+                <select id="employee-f-type" class="form-select" required>
+                  <option value="FT">พนักงานประจำ (FT)</option>
+                  <option value="PT">พาร์ทไทม์ (PT)</option>
+                  <option value="OS">เอาท์ซอร์ส (OS)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">ชื่อจริง <span class="text-danger">*</span></label>
+                <input type="text" id="employee-f-firstname" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">นามสกุล <span class="text-danger">*</span></label>
+                <input type="text" id="employee-f-lastname" class="form-control" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">ชื่อเล่น</label>
+                <input type="text" id="employee-f-nickname" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">ตำแหน่ง</label>
+                <input type="text" id="employee-f-position" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">แผนก / สาย</label>
+                <input type="text" id="employee-f-department" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">วันที่เริ่มงาน</label>
+                <input type="date" id="employee-f-startdate" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">เบอร์โทร</label>
+                <input type="text" id="employee-f-phone" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">สถานะ</label>
+                <select id="employee-f-status" class="form-select">
+                  <option value="ทำงานอยู่">ทำงานอยู่</option>
+                  <option value="ลาออก">ลาออก</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">หมายเหตุ</label>
+                <input type="text" id="employee-f-note" class="form-control">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="employee-save-btn">
+              <i class="fas fa-save me-1"></i>บันทึก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="page-view" id="page-prodrecord">
     <div class="page-header">
       <h4 class="fw-bold mb-1" style="color:white"><i class="fas fa-clipboard-list me-2"></i>บันทึกผลิต</h4>
@@ -7528,6 +7696,7 @@ const _PAGE_LOADERS = {
   'plan'     : planLoadData,
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
+  'employee' : loadEmployeeData,
   'prodrecord': prodrecordLoadData,
   'bpr'       : bprLoadData,
   'stockcard' : stockcardLoadData,
@@ -16251,6 +16420,152 @@ async function materialSubmit(e) {
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่มวัตถุดิบสำเร็จ', showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadMaterialData();
+}
+
+// ══════════════════════════════════════════════
+// PAGE: พนักงาน (Employee Master)
+// ══════════════════════════════════════════════
+let _employeeData = [];
+let _employeeModal = null;
+
+async function loadEmployeeData() {
+  _showLoader();
+  const { data, error } = await _sb.from('employees').select('*').order('EmployeeCode');
+  _hideLoader();
+  if (error) { _err('โหลดข้อมูลพนักงานไม่ได้', error.message); return; }
+  _employeeData = data || [];
+  employeeUpdateKPIs();
+  employeeRenderTable();
+}
+
+function employeeUpdateKPIs() {
+  const el = id => document.getElementById(id);
+  const active = _employeeData.filter(r => r.Status !== 'ลาออก');
+  if (el('employee-kpi-total')) el('employee-kpi-total').textContent = active.length;
+  if (el('employee-kpi-ft'))    el('employee-kpi-ft').textContent    = active.filter(r => r.EmployeeType === 'FT').length;
+  if (el('employee-kpi-pt'))    el('employee-kpi-pt').textContent    = active.filter(r => r.EmployeeType === 'PT').length;
+  if (el('employee-kpi-os'))    el('employee-kpi-os').textContent    = active.filter(r => r.EmployeeType === 'OS').length;
+}
+
+function employeeRenderTable() {
+  const q = (document.getElementById('employee-search')?.value || '').toLowerCase();
+  const type = document.getElementById('employee-filter-type')?.value || '';
+  const status = document.getElementById('employee-filter-status')?.value || '';
+
+  const rows = _employeeData.filter(r => {
+    if (type && r.EmployeeType !== type) return false;
+    if (status && r.Status !== status) return false;
+    if (q) {
+      const hay = [r.EmployeeCode, r.FirstName, r.LastName, r.NickName, r.Position, r.Department].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById('employee-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+
+  const typeBadge = { 'FT': 'background:#0d6efd', 'PT': 'background:#198754', 'OS': 'background:#8b5cf6' };
+  const typeLabel = { 'FT': 'ประจำ (FT)', 'PT': 'พาร์ทไทม์ (PT)', 'OS': 'เอาท์ซอร์ส (OS)' };
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td><span class="badge bg-secondary">${r.EmployeeCode}</span></td>
+    <td>${r.FirstName || ''} ${r.LastName || ''}${r.NickName ? ` <small class="text-muted">(${r.NickName})</small>` : ''}</td>
+    <td><span class="badge text-white" style="${typeBadge[r.EmployeeType] || 'background:#94a3b8'}">${typeLabel[r.EmployeeType] || r.EmployeeType || '—'}</span></td>
+    <td>${r.Position || '—'}</td>
+    <td>${r.Department || '—'}</td>
+    <td><span class="badge ${r.Status === 'ลาออก' ? 'bg-secondary' : 'bg-success'}">${r.Status || 'ทำงานอยู่'}</span></td>
+    <td class="wh-hide-remark">${r.Phone || '—'}</td>
+    <td class="text-center">
+      <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="employeeOpenModal(${r._row_id})" title="แก้ไข">
+        <i class="fas fa-edit"></i>
+      </button>
+    </td>
+  </tr>`).join('');
+}
+
+function employeeOpenModal(rowId = null) {
+  if (!_employeeModal) _employeeModal = new bootstrap.Modal(document.getElementById('employeeModal'));
+  document.getElementById('employeeForm').reset();
+  document.getElementById('employee-edit-id').value = '';
+  document.getElementById('employee-orig-code').value = '';
+
+  const title = document.getElementById('employeeModalTitle');
+  if (rowId) {
+    const r = _employeeData.find(d => d._row_id === rowId);
+    if (!r) return;
+    title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขข้อมูลพนักงาน';
+    document.getElementById('employee-edit-id').value      = rowId;
+    document.getElementById('employee-orig-code').value    = r.EmployeeCode || '';
+    document.getElementById('employee-f-code').value       = r.EmployeeCode || '';
+    document.getElementById('employee-f-type').value       = r.EmployeeType || 'FT';
+    document.getElementById('employee-f-firstname').value  = r.FirstName || '';
+    document.getElementById('employee-f-lastname').value   = r.LastName || '';
+    document.getElementById('employee-f-nickname').value   = r.NickName || '';
+    document.getElementById('employee-f-position').value   = r.Position || '';
+    document.getElementById('employee-f-department').value = r.Department || '';
+    document.getElementById('employee-f-startdate').value  = r.StartDate || '';
+    document.getElementById('employee-f-phone').value      = r.Phone || '';
+    document.getElementById('employee-f-status').value     = r.Status || 'ทำงานอยู่';
+    document.getElementById('employee-f-note').value       = r.Note || '';
+  } else {
+    title.innerHTML = '<i class="fas fa-plus-circle me-2"></i>เพิ่มพนักงานใหม่';
+  }
+  _employeeModal.show();
+}
+
+async function employeeSubmit(e) {
+  e.preventDefault();
+  const editId   = document.getElementById('employee-edit-id').value;
+  const isEdit   = !!editId;
+  const code      = document.getElementById('employee-f-code').value.trim();
+  const firstName = document.getElementById('employee-f-firstname').value.trim();
+  const lastName  = document.getElementById('employee-f-lastname').value.trim();
+
+  if (!code)      { _err('กรุณาระบุรหัสพนักงาน'); return; }
+  if (!firstName) { _err('กรุณาระบุชื่อจริง'); return; }
+  if (!lastName)  { _err('กรุณาระบุนามสกุล'); return; }
+
+  const payload = {
+    EmployeeCode: code,
+    EmployeeType: document.getElementById('employee-f-type').value || 'FT',
+    FirstName:    firstName,
+    LastName:     lastName,
+    NickName:     document.getElementById('employee-f-nickname').value || null,
+    Position:     document.getElementById('employee-f-position').value || null,
+    Department:   document.getElementById('employee-f-department').value || null,
+    StartDate:    document.getElementById('employee-f-startdate').value || null,
+    Phone:        document.getElementById('employee-f-phone').value || null,
+    Status:       document.getElementById('employee-f-status').value || 'ทำงานอยู่',
+    Note:         document.getElementById('employee-f-note').value || null,
+  };
+
+  const saveBtn = document.getElementById('employee-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังบันทึก...';
+  _showLoader();
+
+  let error;
+  const oldRow = isEdit ? _employeeData.find(d => d._row_id === parseInt(editId)) : null;
+  if (isEdit) {
+    ({ error } = await _sb.from('employees').update(payload).eq('_row_id', parseInt(editId)));
+  } else {
+    ({ error } = await _sb.from('employees').insert(payload));
+  }
+
+  _hideLoader();
+  saveBtn.disabled = false;
+  saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
+
+  if (error) {
+    if (error.code === '23505') { _err('รหัสพนักงานนี้มีอยู่แล้ว', `"${code}" ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น`); return; }
+    _err('บันทึกไม่สำเร็จ', error.message); return;
+  }
+
+  if (isEdit) _logAudit('EDIT', 'employees', payload.EmployeeCode, _diffFields(oldRow, payload));
+  _employeeModal.hide();
+  Swal.fire({ toast:true, position:'top-end', icon:'success',
+    title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่มพนักงานสำเร็จ', showConfirmButton:false, timer:2000, timerProgressBar:true });
+  loadEmployeeData();
 }
 
 // ══════════════════════════════════════════════
