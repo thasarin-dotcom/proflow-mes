@@ -1096,6 +1096,10 @@ table.bpr-table td.bpr-sop-pad{padding-top:6.83px;padding-bottom:6.83px}
 .lotscan-badge { display: inline-block; font-size: .68rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; margin-bottom: 8px; }
 .lotscan-badge-mat { background: #eff6ff; color: #1e40af; }
 .lotscan-badge-fg  { background: #ecfdf5; color: #15803d; }
+.skillmatrix-legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-left:6px; }
+.skillmatrix-legend-dot:first-child { margin-left:0; }
+#skillmatrix-table td, #skillmatrix-table th { vertical-align: middle; white-space: nowrap; }
+.skillmatrix-level-select { width: 100%; min-width: 90px; font-size: .78rem; font-weight: 600; border: none; }
 .lotscan-title { font-size: 1.05rem; font-weight: 600; color: #0f172a; }
 .lotscan-subtle { color: #64748b; font-size: .86rem; }
 .lotscan-stats { display: flex; gap: 28px; }
@@ -1650,6 +1654,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </a>
     <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
       <i class="fas fa-users me-2"></i><span>พนักงาน</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน">
+      <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
@@ -2355,14 +2362,18 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <div class="col-12" id="plan-capacity-estimate" style="display:none"></div>
               <div class="col-md-4">
                 <label class="form-label">ไลน์ผลิต <span class="text-danger">*</span></label>
-                <select id="plan-f-line" class="form-select" required onchange="planCheckConflictLive()">
+                <select id="plan-f-line" class="form-select" required onchange="planCheckConflictLive(); planCheckSkillCoverage();">
                   <option value="">— เลือกไลน์ —</option>
                 </select>
+                <div class="small mt-1" id="plan-line-restrict-note"></div>
               </div>
-              <div class="col-md-4">
-                <label class="form-label">ผู้ปฏิบัติงาน</label>
-                <input type="text" id="plan-f-workers" class="form-control" placeholder="เช่น สมชาย, สมหญิง">
+              <div class="col-md-8">
+                <label class="form-label">ผู้ปฏิบัติงาน <small class="text-muted" id="plan-f-workers-count"></small></label>
+                <input type="hidden" id="plan-f-workers-legacy-value">
+                <div id="plan-f-workers-select" class="border rounded p-2" style="max-height:160px;overflow-y:auto"></div>
+                <div class="small text-muted" id="plan-f-workers-legacy-note" style="display:none"></div>
               </div>
+              <div class="col-12" id="plan-skill-check"></div>
               <div class="col-md-8">
                 <label class="form-label">ช่วงเวลา <span class="text-danger">*</span></label>
                 <div class="d-flex gap-2 flex-nowrap border rounded p-2 plan-shift-row">
@@ -4665,6 +4676,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <div class="kpi-num text-warning" id="bom-kpi-incompletecap">—</div><div class="kpi-label">ยังไม่ครบกำลังการผลิต/วัน</div>
           </div>
         </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" id="bom-kpi-nolines-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterNoLines()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ได้กำหนดไลน์ผลิต">
+            <div class="kpi-num text-warning" id="bom-kpi-nolines">—</div><div class="kpi-label">ยังไม่ระบุไลน์ผลิต</div>
+          </div>
+        </div>
       </div>
       <div id="bom-cards"><div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div></div>
     </div>
@@ -4726,6 +4742,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <div class="col-md-4">
                 <label class="form-label">ตรวจสอบ/แพ็ค / วัน</label>
                 <input type="number" id="bomprod-f-cap-inspect" class="form-control" min="0" step="0.001" placeholder="เช่น 6000">
+              </div>
+              <div class="col-12"><hr class="my-1"></div>
+              <div class="col-12">
+                <label class="form-label">ไลน์ที่ผลิตได้ <small class="text-muted">(ไม่ติ๊กเลย = ผลิตได้ทุกไลน์ ไม่จำกัด)</small></label>
+                <div id="bomprod-f-lines" class="d-flex flex-wrap gap-3 border rounded p-2"></div>
               </div>
               <div class="col-12">
                 <div class="alert alert-warning py-2 mb-0" style="font-size:.82rem">
@@ -5097,6 +5118,112 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
             <button type="submit" class="btn btn-primary" id="employee-save-btn">
+              <i class="fas fa-save me-1"></i>บันทึก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-view" id="page-skillmatrix">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-table-cells me-2"></i>แมททริกสกิลพนักงาน
+        </h4>
+        <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="skillmatrixOpenSkillModal()">
+          <i class="fas fa-plus-circle me-2"></i>เพิ่มทักษะ
+        </button>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="skillmatrix-search" class="form-control border-start-0 search-input"
+                placeholder="ค้นหา รหัส / ชื่อพนักงาน..." oninput="skillmatrixRenderGrid()">
+              <button type="button" class="btn btn-outline-secondary border-start-0 search-clear-btn" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา" tabindex="-1"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <select id="skillmatrix-filter-type" class="form-select form-select-sm" onchange="skillmatrixRenderGrid()">
+              <option value="">ทุกประเภท</option>
+              <option value="FT">พนักงานประจำ (FT)</option>
+              <option value="PT">พาร์ทไทม์ (PT)</option>
+              <option value="OS">เอาท์ซอร์ส (OS)</option>
+            </select>
+          </div>
+          <div class="col-md-5 d-flex align-items-center gap-2 justify-content-end">
+            <div class="d-none d-lg-flex align-items-center gap-2 small text-muted me-2">
+              <span class="skillmatrix-legend-dot" style="background:#e2e8f0"></span>0 ยังไม่ฝึก
+              <span class="skillmatrix-legend-dot" style="background:#f59e0b"></span>1 กำลังฝึก
+              <span class="skillmatrix-legend-dot" style="background:#198754"></span>2 ทำได้เอง
+              <span class="skillmatrix-legend-dot" style="background:#0d6efd"></span>3 สอนได้
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="loadSkillMatrixData()">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-hover table-bordered mb-0" id="skillmatrix-table">
+            <thead id="skillmatrix-thead">
+              <tr><th class="text-center py-4 text-muted" colspan="1"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</th></tr>
+            </thead>
+            <tbody id="skillmatrix-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ Skill Matrix: Add/Edit Skill Modal ════════════ -->
+  <div class="modal fade" id="skillmatrixSkillModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="skillmatrixSkillModalTitle"><i class="fas fa-plus-circle me-2"></i>เพิ่มทักษะ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="skillmatrixSkillForm" onsubmit="skillmatrixSkillSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="skillmatrix-skill-edit-id">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">รหัสทักษะ <span class="text-danger">*</span></label>
+                <input type="text" id="skillmatrix-skill-f-code" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">หมวดหมู่</label>
+                <input type="text" id="skillmatrix-skill-f-category" class="form-control" placeholder="ผลิต / คลัง / QC">
+              </div>
+              <div class="col-12">
+                <label class="form-label">ชื่อทักษะ <span class="text-danger">*</span></label>
+                <input type="text" id="skillmatrix-skill-f-name" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">ลำดับคอลัมน์</label>
+                <input type="number" id="skillmatrix-skill-f-sortorder" class="form-control" step="1" value="0">
+              </div>
+              <div class="col-12">
+                <label class="form-label">ไลน์ที่เกี่ยวข้อง <small class="text-muted">(ถ้ามี — ใช้เช็คตอนวางแผนผลิตว่ามีคนชำนาญพอไหม)</small></label>
+                <div id="skillmatrix-skill-f-lines" class="d-flex flex-wrap gap-3 border rounded p-2"></div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger me-auto" id="skillmatrix-skill-delete-btn" style="display:none" onclick="skillmatrixSkillDelete()">
+              <i class="fas fa-trash me-1"></i>ลบทักษะนี้
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="skillmatrix-skill-save-btn">
               <i class="fas fa-save me-1"></i>บันทึก
             </button>
           </div>
@@ -7697,6 +7824,7 @@ const _PAGE_LOADERS = {
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
   'employee' : loadEmployeeData,
+  'skillmatrix': loadSkillMatrixData,
   'prodrecord': prodrecordLoadData,
   'bpr'       : bprLoadData,
   'stockcard' : stockcardLoadData,
@@ -12987,11 +13115,143 @@ const PLAN_LINES = [
   'ห้องบรรจุครีมโลชั่น',
   'ห้องบรรจุแชมพูครีมอาบน้ำ',
   'ห้องบรรจุน้ำมัน Aroma',
+  // ห้องแพ็ค แยกต่างหากต่อไลน์ (added 2026-09-05, ตามคำขอผู้ใช้ — เป็นไลน์จริงในระบบ ใช้จองคิว/เช็คชนกัน
+  // เหมือน 4 ไลน์เดิมทุกอย่าง ไม่ใช่แค่ tag ในหน้าแมททริกสกิล)
+  'ห้องแพ็ค (ห้องผสมใหญ่)',
+  'ห้องแพ็ค (ห้องบรรจุครีมโลชั่น)',
+  'ห้องแพ็ค (ห้องบรรจุแชมพูครีมอาบน้ำ)',
+  'ห้องแพ็ค (ห้องบรรจุน้ำมัน Aroma)',
+  // "ยิง Lot" เพิ่มเป็นไลน์จริงใน PLAN_LINES ด้วย (added 2026-09-05, ตามคำขอผู้ใช้ "เพิ่มไลน์ยิง Lot
+  // ให้อีก 1") — คนละเรื่องกับหน้า "คิวห้องยิง Lot" (nav-lotqueue)/computeLotQueueSchedule ที่มีอยู่แล้ว
+  // ซึ่งยังคงโมเดล "ยิง Lot" เป็นเครื่อง/สถานีเดียวใช้ร่วมกันทุกไลน์แบบคิว FCFS เหมือนเดิมทุกอย่าง ไม่ได้
+  // ถูกแก้ไข — เอนทรีนี้ใน PLAN_LINES ใช้แค่กับระบบวางแผน/จองคิวไลน์ (แผนผลิต) และการ tag ทักษะ
+  // (แมททริกสกิล) เหมือน 8 ไลน์ข้างบนทุกอย่าง เป็นคนละ concept กับคิวยิง Lot จริงที่คำนวณจาก BOM Capacity
+  'ยิง Lot',
 ];
-const PLAN_LINE_COLORS = ['#3b82f6', '#f59e0b', '#a855f7', '#14b8a6'];
+const PLAN_LINE_COLORS = ['#3b82f6', '#f59e0b', '#a855f7', '#14b8a6', '#ec4899', '#84cc16', '#06b6d4', '#f97316', '#6366f1'];
 function _planLineColor(line) {
   const idx = PLAN_LINES.indexOf(line);
   return idx >= 0 ? PLAN_LINE_COLORS[idx] : '#94a3b8';
+}
+
+// ── ผูกแมททริกสกิลพนักงานเข้ากับหน้าแผนผลิต (added 2026-09-05) ──
+// เช็คว่าผู้ปฏิบัติงานที่เลือกไว้มีทักษะพอสำหรับไลน์ที่แพลนไหม (เตือนเฉยๆ ไม่บล็อกการบันทึก — ตกลงกับ
+// ผู้ใช้แล้ว) โหลดข้อมูลแบบ graceful-degrade: ถ้า employees/skills/employee_skills ยังไม่ถูกสร้าง
+// (SQL ยังไม่รัน) จะได้ array ว่างเงียบๆ ไม่ _err() ขวางการวางแผนหลัก เพราะนี่เป็นแค่ชั้นเสริม ไม่ใช่ core
+let _planEmployees = [];
+let _planSkills = [];
+let _planSkillLevels = {}; // key `${EmployeeCode}|${SkillCode}` -> Level
+let _planSkillDataLoaded = false;
+
+async function _planLoadSkillData(force = false) {
+  if (_planSkillDataLoaded && !force) return;
+  const [empRes, skillRes, levelRes] = await Promise.all([
+    _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
+    _sb.from('skills').select('SkillCode,SkillName,Lines'),
+    _sb.from('employee_skills').select('EmployeeCode,SkillCode,Level'),
+  ]);
+  _planEmployees = empRes.error ? [] : (empRes.data || []);
+  _planSkills    = skillRes.error ? [] : (skillRes.data || []);
+  _planSkillLevels = {};
+  (levelRes.error ? [] : (levelRes.data || [])).forEach(r => { _planSkillLevels[`${r.EmployeeCode}|${r.SkillCode}`] = r.Level; });
+  _planSkillDataLoaded = true;
+}
+
+// เปลี่ยนจาก <select multiple> เป็นรายการติ๊ก checkbox (2026-09-05, ผู้ใช้แจ้งว่า multi-select
+// กด Ctrl/Cmd ค้างเลือกยาก) — ต่อ 1 พนักงาน 1 checkbox แทน 1 option
+function _planPopulateWorkersSelect(selectedCodes = []) {
+  const wrap = document.getElementById('plan-f-workers-select');
+  if (!wrap) return;
+  const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
+  wrap.innerHTML = _planEmployees.length ? _planEmployees.map(e => {
+    const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
+    const id = `plan-worker-chk-${e.EmployeeCode}`;
+    return `<div class="form-check mb-1">
+      <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" id="${id}"
+        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="planCheckSkillCoverage()">
+      <label class="form-check-label small" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
+    </div>`;
+  }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานในระบบ (เพิ่มได้ที่หน้า "พนักงาน")</div>';
+  _planUpdateWorkersSelectedCount();
+}
+
+function _planGetSelectedWorkerCodes() {
+  return Array.from(document.querySelectorAll('#plan-f-workers-select .plan-worker-chk:checked')).map(c => c.value);
+}
+
+function _planUpdateWorkersSelectedCount() {
+  const el = document.getElementById('plan-f-workers-count');
+  if (!el) return;
+  const n = _planGetSelectedWorkerCodes().length;
+  el.textContent = n ? `(เลือกแล้ว ${n} คน)` : '';
+}
+
+// ── จำกัดไลน์ที่เลือกได้ตามสินค้า (added 2026-09-05) ──
+// bom.AllowedLines (comma-separated) กำหนดตายตัวว่าสินค้านี้ผลิตได้เฉพาะไลน์ไหนบ้าง — เป็นแค่ตัวช่วยกัน
+// เลือกผิดห้องโดยไม่ตั้งใจเท่านั้น ไม่ใช่การบล็อกจริงจัง กดปุ่ม "แสดงไลน์อื่น (กรณีฉุกเฉิน)" เพื่อดูไลน์
+// ทั้งหมดได้เสมอ — รีเซ็ตทุกครั้งที่เลือกสินค้าใหม่ (planMOSelect/planSelectProduct) หรือเปิด modal ใหม่
+let _planLineAllowedOverride = false;
+
+function _planAllowedLinesForProduct(code) {
+  const prod = _planBOMList.find(b => b.ProductCode === code);
+  if (!prod || !prod.AllowedLines) return null;
+  const lines = (prod.AllowedLines || '').split(',').map(x => x.trim()).filter(Boolean);
+  return lines.length ? lines : null;
+}
+
+function planShowAllLinesOverride() {
+  _planLineAllowedOverride = true;
+  planApplyAllowedLines();
+}
+
+// preferredValue: ค่าที่อยากให้เลือกไว้หลัง rebuild ตัวเลือก (ไม่ระบุ = ใช้ค่าที่เลือกอยู่ในช่องปัจจุบัน)
+function planApplyAllowedLines(preferredValue) {
+  const lineSel = document.getElementById('plan-f-line');
+  const note = document.getElementById('plan-line-restrict-note');
+  if (!lineSel) return;
+  const wantValue = preferredValue !== undefined ? preferredValue : lineSel.value;
+  const code = document.getElementById('plan-f-prodcode').value;
+  const allowed = _planAllowedLinesForProduct(code);
+
+  const buildOptions = lines => '<option value="">— เลือกไลน์ —</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
+  // โชว์ลิสต์ที่จำกัดไว้ ถ้ามีข้อจำกัด + ยังไม่ได้กด "แสดงไลน์อื่น" + ค่าที่จะตั้ง (ถ้ามี) อยู่ในลิสต์นั้นจริง
+  // — ถ้าค่าที่จะตั้งอยู่นอกลิสต์ (เช่นแผนเก่าที่เคยเลือกไลน์อื่นไว้ก่อนตั้งข้อจำกัดนี้) โชว์ทั้งหมดแทนอัตโนมัติ
+  // เพื่อไม่ให้ค่าที่เคยเลือกไว้หายไปเงียบๆ
+  const showRestricted = !!allowed && !_planLineAllowedOverride && (!wantValue || allowed.includes(wantValue));
+  lineSel.innerHTML = buildOptions(showRestricted ? allowed : PLAN_LINES);
+  lineSel.value = wantValue || '';
+
+  if (!note) return;
+  if (!allowed) { note.innerHTML = ''; return; }
+  note.innerHTML = showRestricted
+    ? `<i class="fas fa-lock me-1 text-muted"></i>สินค้านี้กำหนดให้ผลิตเฉพาะไลน์ข้างต้น —
+       <a href="#" onclick="planShowAllLinesOverride(); return false;">แสดงไลน์อื่น (กรณีฉุกเฉิน)</a>`
+    : `<span class="text-warning"><i class="fas fa-triangle-exclamation me-1"></i>กำลังแสดงไลน์ทั้งหมด (โหมดฉุกเฉิน) — ปกติสินค้านี้ผลิตเฉพาะไลน์ที่กำหนดไว้เท่านั้น</span>`;
+}
+
+// แสดงว่าไลน์ที่เลือกต้องการทักษะอะไรบ้าง (Lines คั่นด้วย comma บน skills) แล้วเทียบกับ Level สูงสุด
+// ของผู้ปฏิบัติงานที่เลือกไว้ — ≥2 (ทำได้เอง) ถือว่าโอเค ต่ำกว่านั้นเตือนเป็นสีเหลือง (advisory only)
+function planCheckSkillCoverage() {
+  _planUpdateWorkersSelectedCount();
+  const box = document.getElementById('plan-skill-check');
+  if (!box) return;
+  const line = document.getElementById('plan-f-line')?.value || '';
+  const selectedCodes = _planGetSelectedWorkerCodes();
+
+  if (!line || !_planSkills.length) { box.innerHTML = ''; return; }
+  const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(line));
+  if (!required.length) { box.innerHTML = ''; return; }
+
+  const badges = required.map(s => {
+    const maxLevel = selectedCodes.length
+      ? Math.max(0, ...selectedCodes.map(code => _planSkillLevels[`${code}|${s.SkillCode}`] || 0))
+      : 0;
+    const ok = maxLevel >= 2;
+    return `<span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'} me-1 mb-1">
+      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${s.SkillName}${ok ? '' : ' — ไม่มีคนชำนาญ'}
+    </span>`;
+  }).join('');
+  box.innerHTML = `<div class="small text-muted mb-1"><i class="fas fa-clipboard-check me-1"></i>ทักษะที่ไลน์นี้ต้องใช้:</div>${badges}`;
 }
 
 // ── ช่วงเวลาแบบเลือกง่าย (เช้า/บ่าย/โอที) — ติ๊กทั้งเช้า+บ่ายพร้อมกัน = "เช้าบ่าย" 08:30–17:30 อัตโนมัติ
@@ -13037,7 +13297,7 @@ async function planLoadData() {
     _sb.from('production_plan').select('*').gte('PlanDate', start).lte('PlanDate', end).order('PlanDate'),
     // สถานะ "เสร็จสิ้น" จริงมีทั้ง 'Finished' (ข้อมูลเก่า) และ 'เสร็จสิ้น' (ค่าใหม่) — ต้องกันทั้งคู่ไม่งั้น MO เก่าที่เสร็จแล้วจะโผล่ในตัวเลือกแผนผลิต
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,UOM,LOT,Pending,Status').not('Status', 'in', '("Finished","เสร็จสิ้น")').order('_row_id', { ascending: false }),
-    _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay'),
+    _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay,AllowedLines'),
     // ใช้ชุด BOM/สต็อก/ยอดจองเดียวกับหน้า MO เพื่อให้ปุ่ม "เช็ควัตถุดิบ" บนแถวแผนที่ยังไม่มี MO (planCheckMaterial)
     // คำนวณด้วยสูตรเดียวกันเป๊ะ ไม่ใช่สูตรที่ 4 แยกต่างหาก (ดู _moLoadMaterialCheckData/_moComputeMaterialCheck)
     _moLoadMaterialCheckData(),
@@ -13452,6 +13712,8 @@ function planMOSelect() {
   if (!document.getElementById('plan-f-qty').value) {
     document.getElementById('plan-f-qty').value = opt.dataset.pending || '';
   }
+  _planLineAllowedOverride = false;
+  planApplyAllowedLines();
   planUpdateCapacityEstimate();
 }
 
@@ -13479,6 +13741,8 @@ function planSelectProduct(code, name, uom) {
   document.getElementById('plan-f-prodcode-display').value = code;
   document.getElementById('plan-f-uom').value              = uom;
   document.getElementById('plan-mat-dropdown').style.display = 'none';
+  _planLineAllowedOverride = false;
+  planApplyAllowedLines();
   planUpdateCapacityEstimate();
 }
 
@@ -13522,7 +13786,7 @@ function _planUpdateCORefBadge() {
   document.getElementById('plan-co-ref-label').textContent = coRef || '';
 }
 
-function planOpenAddModal(dateStr = null, rowId = null) {
+async function planOpenAddModal(dateStr = null, rowId = null) {
   if (!_planModal) _planModal = new bootstrap.Modal(document.getElementById('planModal'));
   if (_planDayModal) _planDayModal.hide();
   document.getElementById('planForm').reset();
@@ -13530,6 +13794,7 @@ function planOpenAddModal(dateStr = null, rowId = null) {
   document.getElementById('plan-f-conflict-hint').style.display = 'none';
   document.querySelectorAll('.plan-shift-chk').forEach(c => c.checked = false);
   document.getElementById('plan-shift-preview').textContent = 'เลือกช่วงเวลาอย่างน้อย 1 ช่วง';
+  await _planLoadSkillData();
 
   const title  = document.getElementById('planModalTitle');
   const editId = document.getElementById('plan-edit-id');
@@ -13548,13 +13813,26 @@ function planOpenAddModal(dateStr = null, rowId = null) {
     document.getElementById('plan-f-prodname').value = r.ProductName || '';
     document.getElementById('plan-f-uom').value = r.UOM || '';
     document.getElementById('plan-f-qty').value = r.PlanQty || '';
-    document.getElementById('plan-f-line').value = r.Line || '';
+    _planLineAllowedOverride = false;
+    planApplyAllowedLines(r.Line || '');
     _planShiftKeysFromLabel(r.Shift).forEach(k => {
       const chk = document.querySelector(`.plan-shift-chk[value="${k}"]`);
       if (chk) chk.checked = true;
     });
     planShiftChanged();
-    document.getElementById('plan-f-workers').value = r.Workers || '';
+    document.getElementById('plan-f-workers-legacy-value').value = r.Workers || '';
+    { // ผู้ปฏิบัติงาน: ถ้าแผนนี้ผูก WorkerCodes ไว้แล้ว (แผนใหม่ตั้งแต่เชื่อม Master พนักงาน) เลือกให้ตรง
+      // ถ้าเป็นแผนเก่า (Workers เป็น text อิสระ ไม่มี WorkerCodes) โชว์ข้อความเดิมไว้เฉยๆ ให้เลือกใหม่เอง
+      const workerCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+      _planPopulateWorkersSelect(workerCodes);
+      const legacyNote = document.getElementById('plan-f-workers-legacy-note');
+      if (!workerCodes.length && r.Workers) {
+        legacyNote.style.display = 'block';
+        legacyNote.innerHTML = `<i class="fas fa-clock-rotate-left me-1"></i>ข้อมูลเดิม (ก่อนเชื่อม Master พนักงาน): <b>${r.Workers}</b> — เลือกพนักงานจริงด้านบนถ้าต้องการอัปเดต`;
+      } else {
+        legacyNote.style.display = 'none';
+      }
+    }
     document.getElementById('plan-f-remark').value = r.Remark || '';
     document.getElementById('plan-f-co-ref').value = r.CO_Ref || '';
     if (mode === 'mo' && r.MO_Ref) {
@@ -13570,9 +13848,15 @@ function planOpenAddModal(dateStr = null, rowId = null) {
     title.innerHTML = '<i class="fas fa-calendar-plus me-2"></i>เพิ่มแผนผลิต';
     document.getElementById('plan-f-date').value = dateStr || new Date().toISOString().split('T')[0];
     planToggleMode('mo');
+    document.getElementById('plan-f-workers-legacy-value').value = '';
+    document.getElementById('plan-f-workers-legacy-note').style.display = 'none';
+    _planPopulateWorkersSelect([]);
+    _planLineAllowedOverride = false;
+    planApplyAllowedLines('');
   }
   _planUpdateCORefBadge();
   planUpdateCapacityEstimate();
+  planCheckSkillCoverage();
   _planModal.show();
 }
 
@@ -13644,6 +13928,24 @@ async function planSubmit(e) {
     return;
   }
 
+  // ผู้ปฏิบัติงาน: ถ้าเลือกจาก Master พนักงานจริง (multi-select) ให้ derive ทั้งชื่อที่โชว์ (Workers,
+  // format เดิมทุกจุดที่อ่านอยู่แล้ว) และรหัสอ้างอิง (WorkerCodes, ใหม่ — ใช้เช็คสกิลเท่านั้น) — ถ้าไม่ได้
+  // เลือกใครจาก Master เลย (เช่นแผนเก่าที่ยังไม่ได้เลือกใหม่) ให้คงข้อความเดิม (ถ้ามี) ไว้ ไม่บังคับล้าง
+  const _planSelectedWorkerCodes = _planGetSelectedWorkerCodes();
+  let workersDisplay, workerCodesValue;
+  if (_planSelectedWorkerCodes.length) {
+    // ใช้ชื่อเล่นพอ (ไม่ใช่ชื่อจริง+นามสกุล) ตามคำขอผู้ใช้ — นามสกุลพนักงานหลายคน (โดยเฉพาะ Outsource)
+    // เก็บเป็น "-" ไว้แทนนามสกุลจริงที่ไม่มี ทำให้ชื่อ+นามสกุลออกมาดูแปลกๆ เช่น "JOE -"
+    workersDisplay = _planSelectedWorkerCodes.map(code => {
+      const e = _planEmployees.find(x => x.EmployeeCode === code);
+      return e ? (e.NickName || e.FirstName || code) : code;
+    }).join(', ');
+    workerCodesValue = _planSelectedWorkerCodes.join(',');
+  } else {
+    workersDisplay = document.getElementById('plan-f-workers-legacy-value').value || null;
+    workerCodesValue = null;
+  }
+
   const payload = {
     PlanDate    : date,
     ProductCode : prodCode,
@@ -13656,7 +13958,8 @@ async function planSubmit(e) {
     Shift       : shift.shiftLabel,
     TimeStart   : shift.timeStart,
     TimeEnd     : shift.timeEnd,
-    Workers     : document.getElementById('plan-f-workers').value || null,
+    Workers     : workersDisplay,
+    WorkerCodes : workerCodesValue,
     Remark      : document.getElementById('plan-f-remark').value || null,
   };
 
@@ -16569,6 +16872,216 @@ async function employeeSubmit(e) {
 }
 
 // ══════════════════════════════════════════════
+// PAGE: แมททริกสกิลพนักงาน (Employee Skill Matrix)
+// ══════════════════════════════════════════════
+let _skillmatrixEmployees = [];
+let _skillmatrixSkills = [];
+let _skillmatrixLevels = {}; // key `${EmployeeCode}|${SkillCode}` -> employee_skills row
+let _skillmatrixModal = null;
+
+async function loadSkillMatrixData() {
+  _showLoader();
+  const [empRes, skillRes, levelRes] = await Promise.all([
+    _sb.from('employees').select('*').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
+    _sb.from('skills').select('*').order('SortOrder'),
+    _sb.from('employee_skills').select('*'),
+  ]);
+  _hideLoader();
+  if (empRes.error)   { _err('โหลดข้อมูลพนักงานไม่ได้', empRes.error.message); return; }
+  if (skillRes.error) { _err('โหลดข้อมูลทักษะไม่ได้', skillRes.error.message); return; }
+  if (levelRes.error) { _err('โหลดข้อมูลระดับทักษะไม่ได้', levelRes.error.message); return; }
+
+  _skillmatrixEmployees = empRes.data || [];
+  _skillmatrixSkills = skillRes.data || [];
+  _skillmatrixLevels = {};
+  (levelRes.data || []).forEach(r => { _skillmatrixLevels[`${r.EmployeeCode}|${r.SkillCode}`] = r; });
+  skillmatrixRenderGrid();
+}
+
+function _skillmatrixLevelColor(level)     { return { 0: '#e2e8f0', 1: '#f59e0b', 2: '#198754', 3: '#0d6efd' }[level] || '#e2e8f0'; }
+function _skillmatrixLevelTextColor(level) { return level === 0 ? '#334155' : '#fff'; }
+
+function _skillmatrixCellHTML(employeeCode, skillCode) {
+  const rec = _skillmatrixLevels[`${employeeCode}|${skillCode}`];
+  const level = rec ? rec.Level : 0;
+  return `<td class="text-center p-1">
+    <select class="form-select form-select-sm skillmatrix-level-select"
+      style="background:${_skillmatrixLevelColor(level)};color:${_skillmatrixLevelTextColor(level)}"
+      onchange="skillmatrixSetLevel('${employeeCode}','${skillCode}',this)">
+      <option value="0" ${level === 0 ? 'selected' : ''}>0 ยังไม่ฝึก</option>
+      <option value="1" ${level === 1 ? 'selected' : ''}>1 กำลังฝึก</option>
+      <option value="2" ${level === 2 ? 'selected' : ''}>2 ทำได้เอง</option>
+      <option value="3" ${level === 3 ? 'selected' : ''}>3 สอนได้</option>
+    </select>
+  </td>`;
+}
+
+function skillmatrixRenderGrid() {
+  const q    = (document.getElementById('skillmatrix-search')?.value || '').toLowerCase();
+  const type = document.getElementById('skillmatrix-filter-type')?.value || '';
+  const thead = document.getElementById('skillmatrix-thead');
+  const tbody = document.getElementById('skillmatrix-tbody');
+
+  if (!_skillmatrixSkills.length) {
+    thead.innerHTML = '<tr><th class="text-center py-4 text-muted">ยังไม่มีทักษะ — กด "เพิ่มทักษะ" ก่อน</th></tr>';
+    tbody.innerHTML = '';
+    return;
+  }
+
+  thead.innerHTML = '<tr><th style="min-width:200px">พนักงาน</th>' +
+    _skillmatrixSkills.map(s => {
+      const lines = (s.Lines || '').split(',').map(x => x.trim()).filter(Boolean);
+      const dots = lines.map(l => `<span class="skillmatrix-legend-dot" style="background:${_planLineColor(l)}" title="${l}"></span>`).join('');
+      return `<th class="text-center" style="min-width:110px">
+      <div>${s.SkillName}</div>
+      ${s.Category ? `<div class="small text-muted fw-normal">${s.Category}</div>` : ''}
+      ${dots ? `<div class="mt-1">${dots}</div>` : ''}
+      <button type="button" class="btn btn-link btn-sm p-0" onclick="skillmatrixOpenSkillModal(${s._row_id})" title="แก้ไขทักษะนี้"><i class="fas fa-pen fa-xs"></i></button>
+    </th>`;
+    }).join('') + '</tr>';
+
+  const employees = _skillmatrixEmployees.filter(r => {
+    if (type && r.EmployeeType !== type) return false;
+    if (q) {
+      const hay = [r.EmployeeCode, r.FirstName, r.LastName, r.NickName].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  if (!employees.length) {
+    tbody.innerHTML = `<tr><td colspan="${_skillmatrixSkills.length + 1}" class="text-center py-4 text-muted">ไม่พบข้อมูลพนักงาน</td></tr>`;
+    return;
+  }
+
+  const typeBadge = { 'FT': 'background:#0d6efd', 'PT': 'background:#198754', 'OS': 'background:#8b5cf6' };
+  tbody.innerHTML = employees.map(emp => `<tr>
+    <td>
+      <div class="fw-bold">${emp.FirstName || ''} ${emp.LastName || ''}${emp.NickName ? ` <small class="text-muted">(${emp.NickName})</small>` : ''}</div>
+      <span class="badge bg-secondary">${emp.EmployeeCode}</span>
+      <span class="badge text-white" style="${typeBadge[emp.EmployeeType] || 'background:#94a3b8'}">${emp.EmployeeType || '—'}</span>
+    </td>
+    ${_skillmatrixSkills.map(s => _skillmatrixCellHTML(emp.EmployeeCode, s.SkillCode)).join('')}
+  </tr>`).join('');
+}
+
+async function skillmatrixSetLevel(employeeCode, skillCode, selectEl) {
+  const level = parseInt(selectEl.value);
+  selectEl.disabled = true;
+  const payload = {
+    EmployeeCode: employeeCode, SkillCode: skillCode, Level: level,
+    UpdatedAt: new Date().toISOString(), UpdatedBy: _currentUser?.email || null,
+  };
+  const { data, error } = await _sb.from('employee_skills')
+    .upsert(payload, { onConflict: 'EmployeeCode,SkillCode' }).select();
+  selectEl.disabled = false;
+  if (error) { _err('บันทึกระดับทักษะไม่สำเร็จ', error.message); return; }
+  const saved = (data && data[0]) || payload;
+  _skillmatrixLevels[`${employeeCode}|${skillCode}`] = saved;
+  selectEl.style.background = _skillmatrixLevelColor(level);
+  selectEl.style.color = _skillmatrixLevelTextColor(level);
+}
+
+function _skillmatrixRenderLinesCheckboxes(selectedLines) {
+  const wrap = document.getElementById('skillmatrix-skill-f-lines');
+  wrap.innerHTML = PLAN_LINES.map(line => `
+    <div class="form-check mb-0">
+      <input class="form-check-input skillmatrix-line-chk" type="checkbox" value="${line}" id="skillmatrix-line-${PLAN_LINES.indexOf(line)}"
+        ${selectedLines.includes(line) ? 'checked' : ''}>
+      <label class="form-check-label small" for="skillmatrix-line-${PLAN_LINES.indexOf(line)}">
+        <span class="skillmatrix-legend-dot" style="background:${_planLineColor(line)}"></span>${line}
+      </label>
+    </div>`).join('');
+}
+
+function skillmatrixOpenSkillModal(rowId = null) {
+  if (!_skillmatrixModal) _skillmatrixModal = new bootstrap.Modal(document.getElementById('skillmatrixSkillModal'));
+  document.getElementById('skillmatrixSkillForm').reset();
+  document.getElementById('skillmatrix-skill-edit-id').value = '';
+  const title  = document.getElementById('skillmatrixSkillModalTitle');
+  const delBtn = document.getElementById('skillmatrix-skill-delete-btn');
+  if (rowId) {
+    const s = _skillmatrixSkills.find(x => x._row_id === rowId);
+    if (!s) return;
+    title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขทักษะ';
+    document.getElementById('skillmatrix-skill-edit-id').value       = rowId;
+    document.getElementById('skillmatrix-skill-f-code').value        = s.SkillCode || '';
+    document.getElementById('skillmatrix-skill-f-name').value        = s.SkillName || '';
+    document.getElementById('skillmatrix-skill-f-category').value    = s.Category || '';
+    document.getElementById('skillmatrix-skill-f-sortorder').value   = s.SortOrder ?? 0;
+    _skillmatrixRenderLinesCheckboxes((s.Lines || '').split(',').map(x => x.trim()).filter(Boolean));
+    delBtn.style.display = '';
+  } else {
+    title.innerHTML = '<i class="fas fa-plus-circle me-2"></i>เพิ่มทักษะ';
+    _skillmatrixRenderLinesCheckboxes([]);
+    delBtn.style.display = 'none';
+  }
+  _skillmatrixModal.show();
+}
+
+async function skillmatrixSkillSubmit(e) {
+  e.preventDefault();
+  const editId = document.getElementById('skillmatrix-skill-edit-id').value;
+  const isEdit = !!editId;
+  const code = document.getElementById('skillmatrix-skill-f-code').value.trim();
+  const name = document.getElementById('skillmatrix-skill-f-name').value.trim();
+  if (!code) { _err('กรุณาระบุรหัสทักษะ'); return; }
+  if (!name) { _err('กรุณาระบุชื่อทักษะ'); return; }
+
+  const lines = Array.from(document.querySelectorAll('.skillmatrix-line-chk:checked')).map(c => c.value);
+  const payload = {
+    SkillCode: code,
+    SkillName: name,
+    Category:  document.getElementById('skillmatrix-skill-f-category').value || null,
+    SortOrder: parseInt(document.getElementById('skillmatrix-skill-f-sortorder').value) || 0,
+    Lines:     lines.length ? lines.join(',') : null,
+  };
+
+  const saveBtn = document.getElementById('skillmatrix-skill-save-btn');
+  saveBtn.disabled = true;
+  _showLoader();
+  let error;
+  if (isEdit) {
+    ({ error } = await _sb.from('skills').update(payload).eq('_row_id', parseInt(editId)));
+  } else {
+    ({ error } = await _sb.from('skills').insert(payload));
+  }
+  _hideLoader();
+  saveBtn.disabled = false;
+
+  if (error) {
+    if (error.code === '23505') { _err('รหัสทักษะนี้มีอยู่แล้ว', `"${code}" ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น`); return; }
+    _err('บันทึกไม่สำเร็จ', error.message); return;
+  }
+  _skillmatrixModal.hide();
+  Swal.fire({ toast:true, position:'top-end', icon:'success',
+    title: isEdit ? 'แก้ไขทักษะสำเร็จ' : 'เพิ่มทักษะสำเร็จ', showConfirmButton:false, timer:2000, timerProgressBar:true });
+  loadSkillMatrixData();
+}
+
+async function skillmatrixSkillDelete() {
+  const editId = document.getElementById('skillmatrix-skill-edit-id').value;
+  if (!editId) return;
+  const s = _skillmatrixSkills.find(x => x._row_id === parseInt(editId));
+  if (!s) return;
+  const res = await Swal.fire({
+    icon: 'warning', title: `ลบทักษะ "${s.SkillName}"?`,
+    html: 'ระดับความชำนาญของทุกคนที่เคยประเมินทักษะนี้ไว้จะถูกลบไปด้วย',
+    showCancelButton: true, confirmButtonText: 'ลบเลย', confirmButtonColor: '#dc3545', cancelButtonText: 'ยกเลิก'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  await _sb.from('employee_skills').delete().eq('SkillCode', s.SkillCode);
+  const { error } = await _sb.from('skills').delete().eq('_row_id', parseInt(editId));
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  _skillmatrixModal.hide();
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ลบทักษะสำเร็จ', showConfirmButton:false, timer:2000, timerProgressBar:true });
+  loadSkillMatrixData();
+}
+
+// ══════════════════════════════════════════════
 // PAGE: BOM (Bill of Materials)
 // ══════════════════════════════════════════════
 let _bomData      = [];
@@ -16658,14 +17171,23 @@ function _bomHasFullCapacity(g) {
   return g.CapacityFillPerDay != null && g.CapacityLotPerDay != null && g.CapacityInspectPackPerDay != null;
 }
 
+// สินค้ายังไม่ได้กำหนด "ไลน์ที่ผลิตได้" เลย (bom.AllowedLines ว่าง/null) — ไม่ใช่ปัญหา (แผนผลิตจะเลือกได้
+// ทุกไลน์ตามปกติ) แค่เตือนให้รู้ว่ายังไม่ได้ตั้งค่าไว้ เผื่ออยากจำกัดไลน์ให้สินค้านี้
+function _bomHasAllowedLines(g) {
+  return !!(g.AllowedLines && g.AllowedLines.trim());
+}
+
 function bomUpdateKPIs() {
   const products = new Set(_bomData.map(r => r.ProductCode));
   const el = id => document.getElementById(id);
   if (el('bom-kpi-products')) el('bom-kpi-products').textContent = products.size.toLocaleString();
   if (el('bom-kpi-lines'))    el('bom-kpi-lines').textContent    = _bomGroupByProduct(_bomData)
     .reduce((s, g) => s + g.lines.length, 0).toLocaleString();
-  const incompleteCount = _bomGroupByProduct(_bomData).filter(g => !_bomHasFullCapacity(g)).length;
+  const groups = _bomGroupByProduct(_bomData);
+  const incompleteCount = groups.filter(g => !_bomHasFullCapacity(g)).length;
   if (el('bom-kpi-incompletecap')) el('bom-kpi-incompletecap').textContent = incompleteCount.toLocaleString();
+  const noLinesCount = groups.filter(g => !_bomHasAllowedLines(g)).length;
+  if (el('bom-kpi-nolines')) el('bom-kpi-nolines').textContent = noLinesCount.toLocaleString();
 }
 
 // จัดกลุ่มตามสินค้า แล้ว dedupe รายการวัตถุดิบซ้ำ (ข้อมูลจริงบางสินค้าถูก import ซ้ำหลายรอบ)
@@ -16682,6 +17204,7 @@ function _bomGroupByProduct(rows) {
         SellingPrice: r.SellingPrice,
         SellingPrice2: r.SellingPrice2,
         SellingPrice2_CustomerName: r.SellingPrice2_CustomerName,
+        AllowedLines: r.AllowedLines,
         lineMap: new Map(),
       });
     }
@@ -16700,6 +17223,7 @@ function _bomGroupByProduct(rows) {
     SellingPrice: p.SellingPrice,
     SellingPrice2: p.SellingPrice2,
     SellingPrice2_CustomerName: p.SellingPrice2_CustomerName,
+    AllowedLines: p.AllowedLines,
     lines: Array.from(p.lineMap.values()),
   }));
 }
@@ -16722,10 +17246,19 @@ function bomToggleFilterIncompleteCap() {
   bomRenderCards();
 }
 
+// เดียวกับด้านบน แต่กรองเฉพาะสินค้าที่ยังไม่ได้กำหนด "ไลน์ที่ผลิตได้" (bom.AllowedLines)
+let _bomFilterNoLines = false;
+function bomToggleFilterNoLines() {
+  _bomFilterNoLines = !_bomFilterNoLines;
+  document.getElementById('bom-kpi-nolines-card')?.classList.toggle('bom-kpi-active', _bomFilterNoLines);
+  bomRenderCards();
+}
+
 function bomRenderCards() {
   const q = (document.getElementById('bom-search')?.value || '').toLowerCase();
   const groups = _bomGroupByProduct(_bomData).filter(g => {
     if (_bomFilterIncompleteCap && _bomHasFullCapacity(g)) return false;
+    if (_bomFilterNoLines && _bomHasAllowedLines(g)) return false;
     if (!q) return true;
     const prodHay = [g.ProductCode, g.ProductName].join(' ').toLowerCase();
     if (prodHay.includes(q)) return true;
@@ -16772,6 +17305,7 @@ function bomRenderCards() {
           ${g.SellingPrice != null ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">ราคาขาย ฿${parseFloat(g.SellingPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           ${g.SellingPrice2 != null && g.SellingPrice2_CustomerName ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="ราคาขายพิเศษสำหรับลูกค้านี้เท่านั้น"><i class="fas fa-user-tag me-1"></i>${g.SellingPrice2_CustomerName} ฿${parseFloat(g.SellingPrice2).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           ${!_bomHasFullCapacity(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
+          ${!_bomHasAllowedLines(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กำหนด 'ไลน์ที่ผลิตได้' ไว้ — หน้าแผนผลิตจะให้เลือกได้ทุกไลน์ตามปกติ ไม่บล็อกอะไร แค่ยังไม่ได้จำกัด"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ระบุไลน์ผลิต</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
         </div>
         <div class="d-flex gap-1">
@@ -17170,6 +17704,16 @@ function bomOpenProductModal(groupIdx) {
   document.getElementById('bomprod-f-sellprice').value   = group.SellingPrice ?? '';
   document.getElementById('bomprod-f-sellprice2').value  = group.SellingPrice2 ?? '';
   document.getElementById('bomprod-f-sellprice2-customer').value = group.SellingPrice2_CustomerName ?? '';
+  const allowedLines = (group.AllowedLines || '').split(',').map(x => x.trim()).filter(Boolean);
+  const linesWrap = document.getElementById('bomprod-f-lines');
+  linesWrap.innerHTML = PLAN_LINES.map((line, i) => `
+    <div class="form-check mb-0">
+      <input class="form-check-input bomprod-line-chk" type="checkbox" value="${line}" id="bomprod-line-${i}"
+        ${allowedLines.includes(line) ? 'checked' : ''}>
+      <label class="form-check-label small" for="bomprod-line-${i}">
+        <span class="skillmatrix-legend-dot" style="background:${_planLineColor(line)}"></span>${line}
+      </label>
+    </div>`).join('');
   _bomProductModal.show();
 }
 
@@ -17182,6 +17726,7 @@ async function bomProductSubmit(e) {
   const sellPrice  = document.getElementById('bomprod-f-sellprice').value;
   const sellPrice2 = document.getElementById('bomprod-f-sellprice2').value;
   const sellPrice2Customer = document.getElementById('bomprod-f-sellprice2-customer').value.trim();
+  const allowedLines = Array.from(document.querySelectorAll('.bomprod-line-chk:checked')).map(c => c.value);
   const payload = {
     ProductCode : document.getElementById('bomprod-f-code').value.trim(),
     ProductName : document.getElementById('bomprod-f-name').value.trim(),
@@ -17194,6 +17739,8 @@ async function bomProductSubmit(e) {
     // _bomResolveSellingPrice เจอราคาไม่มีชื่อลูกค้า หรือชื่อลูกค้าไม่มีราคาไปคิดผิดที่หน้าอื่น)
     SellingPrice2              : (sellPrice2 !== '' && sellPrice2Customer) ? parseFloat(sellPrice2) : null,
     SellingPrice2_CustomerName : (sellPrice2 !== '' && sellPrice2Customer) ? sellPrice2Customer : null,
+    // ไม่ติ๊กเลย = ไม่จำกัดไลน์ (null) — ตั้งใจ ไม่ใช่ error
+    AllowedLines               : allowedLines.length ? allowedLines.join(',') : null,
   };
 
   const saveBtn = document.getElementById('bomprod-save-btn');
