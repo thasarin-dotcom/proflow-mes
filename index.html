@@ -13380,13 +13380,20 @@ function _planAddDays(dateStr, delta) {
 // ล่วงหน้า 1 วันก่อนไลน์บรรจุ แต่ถ้าวันที่แนะนำนั้นตรงกับวันอาทิตย์ (หยุดตามปฏิทินนี้ — ดู isSunday ใน
 // planRenderCalendar) เลื่อนล่วงหน้าเพิ่มอีก 1 วัน (รวมเป็น 2 วันก่อน) สินค้าอื่นที่ไม่ใช่ขวดแนะนำวันเดียว
 // กับไลน์บรรจุเหมือนเดิม (ไม่ต้องล่วงหน้า) — เป็นแค่คำแนะนำเริ่มต้น แก้ไขเป็นวันอื่นเองได้เสมอ
-function _planSuggestLotDate() {
-  const mainDate = document.getElementById('plan-f-date')?.value || '';
+// แยก core ออกจาก _planSuggestLotDate ให้เป็น pure function (added 2026-09-08) — เดิมอ่านฟิลด์ DOM ตรงๆ
+// เรียกได้แค่ตอนฟอร์มเพิ่ม/แก้แผนเปิดอยู่เท่านั้น แต่ _planCascadeSharedFieldsToSiblings ต้องคำนวณ "ควรจะ
+// เป็นวันไหน" ทั้งวันเดิม (ก่อนแก้) และวันใหม่ (หลังแก้) โดยไม่มีฟอร์มเปิดอยู่เลย (cascade เกิดหลัง submit
+// เสร็จแล้ว) จึงต้องรับ mainDate/uom เป็นพารามิเตอร์ตรงๆ แทน
+function _planComputeLotDateSuggestion(mainDate, uom) {
   if (!mainDate) return '';
-  const uom = document.getElementById('plan-f-uom')?.value || '';
   if (uom !== 'ขวด') return mainDate;
   const oneDayBefore = _planAddDays(mainDate, -1);
   return _planIsSunday(oneDayBefore) ? _planAddDays(mainDate, -2) : oneDayBefore;
+}
+function _planSuggestLotDate() {
+  const mainDate = document.getElementById('plan-f-date')?.value || '';
+  const uom = document.getElementById('plan-f-uom')?.value || '';
+  return _planComputeLotDateSuggestion(mainDate, uom);
 }
 
 // เติมคำแนะนำวันที่ยิง Lot ให้บล็อก b — ข้ามถ้าผู้ใช้แก้เองไปแล้ว (_planLotDateManuallySet) หรือบล็อกนี้ไม่มี
@@ -14604,10 +14611,13 @@ function planCheckConflictLive(b) {
 // `oldRow.ProductCode`+`oldRow.PlanDate` ตรงๆ ซึ่งพังทันทีที่แก้จากไลน์ "ยิง Lot" ที่มีวันที่ของตัวเอง (คนละ
 // วันกับไลน์บรรจุ/แพ็คโดยเจตนา ดู independent-Lot-date feature) — บั๊กจริงที่ผู้ใช้เจอ: "แก้ไขจำนวนสั่งผลิต
 // จากหน้าไลน์ยิงล็อต ไลน์บรรจุข้อมูลไม่เปลี่ยนตาม" เพราะจับคู่ไม่เจอเลย จึงไม่เผยแพร่อะไรทั้งนั้น
-// **วันที่ (PlanDate) ยังต้องกันไว้เป็นกรณีพิเศษเสมอ ไม่ให้ไหลเข้า/ออกไลน์ "ยิง Lot"** ต่างจากฟิลด์อื่น —
-// ถ้าเผยแพร่ตามปกติเหมือนฟิลด์อื่น การแก้วันที่จากไลน์บรรจุ (เช่นเลื่อนทั้งงานไปสัปดาห์หน้า) จะไปทับวันที่
-// ล่วงหน้าที่ตั้งใจแยกไว้ของยิง Lot ทันที (ทำลาย independent-Lot-date feature) และถ้าแก้วันที่จากไลน์ยิง Lot
-// เอง ก็ไม่ควรเผยแพร่ออกไปไหนเลย (การแก้วันที่ยิง Lot ควรเป็นเรื่องเฉพาะไลน์นั้น เหมือน planEditLotDate) —
+// **วันที่ (PlanDate) เป็นกรณีพิเศษเสมอสำหรับไลน์ "ยิง Lot"** ต่างจากฟิลด์อื่น — ไม่เผยแพร่ค่าตรงๆ แบบเดียวกับ
+// ไลน์อื่น (การแก้วันที่จากไลน์บรรจุ เช่นเลื่อนทั้งงานไปสัปดาห์หน้า ไม่ควรไปทับวันที่ล่วงหน้าของยิง Lot ตรงๆ
+// ทันที) แต่**ตามไปด้วย -1 วัน (หรือ -2 ถ้าติดวันอาทิตย์) แบบเดียวกับตอนสร้างแผนครั้งแรก ถ้ายังไม่เคยถูกแก้ไข
+// เองมาก่อน** (added 2026-09-08 follow-up ตามคำขอ "เปลี่ยนวันที่ไลน์บรรจุ ให้ไลน์ยิงล็อตตามมาด้วย -1 วัน
+// เหมือนเดิม" — ดูรายละเอียดการตรวจ "เคยแก้เองหรือยัง" แบบย้อนกลับที่ loop ด้านล่าง เพราะไม่มีฟลากนี้เก็บถาวร
+// ในฐานข้อมูลจริง) ถ้าเคยถูกแก้ไขเองแล้ว (ผ่าน `planEditLotDate`) จะไม่แตะเลยไม่ว่าไลน์บรรจุจะย้ายไปไหน — และ
+// ถ้าแก้วันที่จากไลน์ยิง Lot เอง ก็ไม่เผยแพร่ออกไปไหนเลย (การแก้วันที่ยิง Lot ควรเป็นเรื่องเฉพาะไลน์นั้น) —
 // ฟิลด์ระดับงานอื่นๆ (จำนวน/สินค้า/MO/CO/หมายเหตุ) เผยแพร่ครบทุกไลน์รวมยิง Lot ด้วยเสมอ ไม่ว่าจะแก้จากไลน์ไหน
 const _PLAN_JOB_LEVEL_FIELDS = ['PlanDate', 'ProductCode', 'ProductName', 'PlanQty', 'UOM', 'MO_Ref', 'CO_Ref', 'Remark'];
 async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
@@ -14634,6 +14644,35 @@ async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
       const ids = nonLotSiblings.map(s => s._row_id);
       const { error } = await _sb.from('production_plan').update({ PlanDate: payload.PlanDate }).in('_row_id', ids);
       if (error) errors.push({ lines: nonLotSiblings.map(s => s.Line), message: error.message });
+    }
+
+    // ไลน์ยิง Lot ตามวันที่ใหม่ไปด้วย -1 วัน (หรือ -2 ถ้าติดวันอาทิตย์ เหมือนตอนสร้างแผนครั้งแรก) แต่**เฉพาะ
+    // ถ้ายังไม่เคยถูกแก้ไขเอง** (added 2026-09-08 ตามคำขอ "เปลี่ยนวันที่ไลน์บรรจุ ให้ไลน์ยิงล็อตตามมาด้วย -1
+    // วันเหมือนเดิม") — ไม่มีฟลาก "เคยแก้เองไหม" เก็บถาวรในฐานข้อมูลจริง (`_planLotDateManuallySet` เป็นแค่
+    // state ชั่วคราวตอนฟอร์มเปิดอยู่ ไม่ persist) จึงตรวจย้อนกลับแทน: คำนวณว่า "ถ้าไม่เคยแก้เอง วันที่เดิม
+    // ของยิง Lot ควรจะเป็นอะไร" จากวันที่เดิมของไลน์บรรจุ (`oldRow.PlanDate`) — ถ้าตรงกับวันที่จริงที่เก็บไว้
+    // เป๊ะ ถือว่ายังไม่เคยแก้เอง (หรือบังเอิญตรงกับค่าแนะนำ ซึ่งปลอดภัยเหมือนกันที่จะให้ตามต่อ) จึงคำนวณค่า
+    // ใหม่ตามวันที่ใหม่แล้วอัปเดตให้ — ถ้าไม่ตรง แปลว่าผู้ใช้เคยแก้เองผ่าน `planEditLotDate` มาแล้ว ไม่แตะเลย
+    // (เคารพการแก้ไขเองเหมือนเดิม) เช็ค conflict ไลน์/คนซ้ำก่อนเสมอเหมือน `planEditLotDate` — ถ้าชนกัน ไม่บังคับ
+    // ย้ายให้ แค่แจ้งเตือนให้ผู้ใช้ไปแก้วันที่ยิง Lot เอง ดีกว่าสร้างปัญหาจองซ้อนกันเงียบๆ
+    const lotSiblings = siblings.filter(s => _planLineCategoryOf(s.Line || '') === 'lot');
+    for (const s of lotSiblings) {
+      const expectedOldLotDate = _planComputeLotDateSuggestion(oldRow.PlanDate, oldRow.UOM);
+      if (s.PlanDate !== expectedOldLotDate) continue; // เคยแก้เอง ไม่แตะ
+      const newLotDate = _planComputeLotDateSuggestion(payload.PlanDate, payload.UOM ?? oldRow.UOM);
+      if (!newLotDate || newLotDate === s.PlanDate) continue;
+      const timeStart = (s.TimeStart || '').slice(0, 5);
+      const timeEnd   = (s.TimeEnd || '').slice(0, 5);
+      const conflict = _planFindConflict(newLotDate, s.Line, timeStart, timeEnd, s._row_id);
+      const workerCodes = (s.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+      const workerConflicts = conflict ? [] : _planFindWorkerConflicts(newLotDate, timeStart, timeEnd, workerCodes, s._row_id);
+      if (conflict || workerConflicts.length) {
+        errors.push({ lines: [s.Line],
+          message: `วันที่ใหม่ที่ควรตามไป (${_planFmtDateLabel(newLotDate)}) ชนกับแผนอื่นอยู่ — ไม่ได้ปรับวันที่ยิง Lot ให้อัตโนมัติ กรุณาแก้ไขวันที่ยิง Lot เอง` });
+        continue;
+      }
+      const { error } = await _sb.from('production_plan').update({ PlanDate: newLotDate }).eq('_row_id', s._row_id);
+      if (error) errors.push({ lines: [s.Line], message: error.message });
     }
   }
   if (errors.length) {
