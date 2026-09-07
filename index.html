@@ -14260,12 +14260,17 @@ function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
 // ยืนยันกับผู้ใช้แล้วให้เป็นการบล็อกจริงตอนบันทึก (ดู planSubmit) ไม่ใช่แค่เตือนแบบเช็คสกิล/จำนวนคน —
 // คืน array ของ {code, row} หนึ่งรายการต่อคนที่ชนแต่ละคน (ไม่ dedupe — ถ้าคนเดียวชนหลายแผนพร้อมกันจะได้
 // เห็นครบทุกแผนที่ชน)
+// ข้ามแถวไลน์ "ยิง Lot" ไปเลย (added 2026-09-07 ตามคำขอผู้ใช้ "ไลน์ยิงล็อตกับแพ็ค สามารถเลือกคนซ้ำได้
+// เพราะทำคนละวัน") — เวลาที่บันทึกไว้ของบล็อกยิง Lot เป็นแค่เวลา "ยืม" จากบล็อกไลน์บรรจุของแผนเดียวกัน
+// (ดู _planEffectiveShift/planSetupLineBlocksForProduct) ไม่ใช่เวลาที่ยิง Lot จะเกิดขึ้นจริง (ยิง Lot ทำ
+// คนละวันกับบรรจุ/แพ็คเสมอในทางปฏิบัติ) เทียบเวลากับแถวนี้จึงไม่มีความหมายอะไรเลย ไม่ว่าจะเทียบกับไลน์ไหน
 function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, excludeRowId) {
   if (!date || !timeStart || !timeEnd || !workerCodes.length) return [];
   const conflicts = [];
   _planData.forEach(r => {
     if (r._row_id === excludeRowId) return;
     if (r.PlanDate !== date) return;
+    if (_planLineCategoryOf(r.Line || '') === 'lot') return;
     const rStart = (r.TimeStart || '').slice(0, 5);
     const rEnd   = (r.TimeEnd || '').slice(0, 5);
     if (!(rStart < timeEnd && timeStart < rEnd)) return;
@@ -14286,7 +14291,11 @@ function planCheckWorkerConflictLive(b) {
   const date = document.getElementById('plan-f-date')?.value || '';
   const shift = _planEffectiveShift(b);
   const codes = _planGetSelectedWorkerCodes(b);
-  const conflicts = shift ? _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, codes, editId) : [];
+  // บล็อก "ยิง Lot" ไม่เช็คคนซ้ำกับแผนอื่นเลย (added 2026-09-07) — เวลาที่ใช้เป็นแค่เวลายืมจากบล็อกไลน์
+  // บรรจุ ไม่ใช่เวลาจริงที่ยิง Lot จะเกิดขึ้น (ดูหมายเหตุที่ _planFindWorkerConflicts)
+  const line = document.getElementById(`plan-f-line-${b}`)?.value || '';
+  const isLotBlock = _planLineCategoryOf(line) === 'lot';
+  const conflicts = (shift && !isLotBlock) ? _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, codes, editId) : [];
   if (conflicts.length) {
     const names = conflicts.map(c => {
       const e = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -14410,7 +14419,12 @@ async function planSubmit(e) {
 
     // คนซ้ำกัน (ถูกจองไว้ในแผนอื่นที่ชนเวลากันอยู่แล้ว) — บล็อกจริง เหมือนไลน์ชนกันด้านบน (ยืนยันกับผู้ใช้
     // แล้วว่าเป็นข้อจำกัดทางกายภาพ ไม่ใช่แค่เตือน — คนคนเดียวไปทำงาน 2 ที่พร้อมกันไม่ได้จริง)
-    const workerConflicts = _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, workerCodes, excludeRowId);
+    // ยกเว้นบล็อก "ยิง Lot" ไม่เช็คเลย (added 2026-09-07 ตามคำขอผู้ใช้ "ไลน์ยิงล็อตกับแพ็คเลือกคนซ้ำได้
+    // เพราะทำคนละวัน") — เวลาที่บล็อกนี้ใช้เป็นแค่เวลายืมจากบล็อกไลน์บรรจุ ไม่ใช่เวลาที่ยิง Lot จะเกิดขึ้น
+    // จริง (_planFindWorkerConflicts เองก็ข้ามแถวไลน์ยิง Lot ของแผนอื่นอยู่แล้วเช่นกัน — ดูหมายเหตุที่นั่น)
+    const cat = _planLineCategoryOf(line);
+    const isLotBlock = cat === 'lot';
+    const workerConflicts = isLotBlock ? [] : _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, workerCodes, excludeRowId);
     if (workerConflicts.length) {
       const lines = workerConflicts.map(c => {
         const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -14421,12 +14435,18 @@ async function planSubmit(e) {
       return;
     }
     // คนเดียวกันถูกเลือกซ้ำข้ามบล็อกในฟอร์มนี้เอง ที่เวลาทับซ้อนกัน — คนคนเดียวไปทำงาน 2 ไลน์พร้อมกันไม่ได้
+    // ยกเว้นบล็อกใดบล็อกหนึ่งที่เทียบกันเป็น "ยิง Lot" (เหตุผลเดียวกับข้างบน — ทำคนละวัน เทียบเวลากันไม่มี
+    // ความหมาย) ข้ามการเทียบคู่นั้นไปเฉยๆ ไม่ได้ข้ามทั้งบล็อก (บล็อกที่ไม่ใช่ Lot ยังต้องเช็คกับบล็อกอื่นที่
+    // ไม่ใช่ Lot ตามปกติ)
     const sameBatchWorkerConflicts = [];
-    blockPayloads.forEach(p => {
-      if (!((p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''))) return;
-      const pCodes = (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-      workerCodes.forEach(code => { if (pCodes.includes(code)) sameBatchWorkerConflicts.push({ code, line: p.Line }); });
-    });
+    if (!isLotBlock) {
+      blockPayloads.forEach(p => {
+        if (_planLineCategoryOf(p.Line) === 'lot') return;
+        if (!((p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''))) return;
+        const pCodes = (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+        workerCodes.forEach(code => { if (pCodes.includes(code)) sameBatchWorkerConflicts.push({ code, line: p.Line }); });
+      });
+    }
     if (sameBatchWorkerConflicts.length) {
       const lines = sameBatchWorkerConflicts.map(c => {
         const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
