@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -14085,7 +14085,12 @@ async function planOrderProduction(rowId) {
     return;
   }
 
-  const { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).eq('_row_id', rowId);
+  // ผูก MO_Ref ให้ครบทุกไลน์ของงานเดียวกัน (บรรจุ/แพ็ค/ยิง Lot) ไม่ใช่แค่แถวที่กด "สั่งผลิต" — บั๊กคลาสเดียวกับ
+  // ที่พบใน planConfirmSubmit (2026-09-08): เดิมไม่มีปัญหาเพราะไลน์พี่น้องไม่เคยมีปุ่มกดเองเลย จนกว่ายิง Lot
+  // จะมีวันที่ของตัวเองแล้วโผล่เป็นแถวเต็มแยกได้ (บั๊กจริงที่พบ: ไลน์ยิง Lot ไม่มี MO_Ref ของตัวเอง ทำให้ปุ่ม
+  // "ยืนยัน" ของไลน์นั้นไม่โผล่เลยด้วยซ้ำ ดูเงื่อนไข `r.MO_Ref || !r.CO_Ref` ใน _planRowActions)
+  const siblingIds = _planJobSiblingsOf(r).map(s => s._row_id);
+  const { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).in('_row_id', [rowId, ...siblingIds]);
   if (planErr) {
     _hideLoader();
     _err('ผูกแผนกับ MO ไม่สำเร็จ', planErr.message + ` — สร้าง MO ${moId} และโอนยอดจองแล้ว กรุณาผูกแผนนี้กับ MO ด้วยตนเอง`);
@@ -14113,6 +14118,56 @@ function planToggleDaySiblings(rowId) {
   row.style.display = show ? '' : 'none';
   if (chevron) chevron.classList.toggle('fa-chevron-down', show);
   if (chevron) chevron.classList.toggle('fa-chevron-right', !show);
+}
+
+// แก้ไข "วันที่" ของแถวไลน์ยิง Lot ได้แม้เป็นแถวพี่น้องที่ถูกซ่อน (added 2026-09-08 ตามคำขอผู้ใช้ "ยิงLot
+// ให้แก้วันที่ได้") — แถวพี่น้องอื่นๆ (แพ็ค ฯลฯ) ยังไม่มีปุ่มจัดการใดๆ ตามคำขอเดิม "ปุ่มแก้ไข และลบด้วย ให้
+// เอาออก" เจตนา (ดูหมายเหตุที่ _planRowActions) — เฉพาะยิง Lot ได้ปุ่มนี้คืนมาแบบเจาะจง เพราะยิง Lot มีวันที่
+// ของตัวเองที่แก้ไขได้ตั้งแต่ตอนสร้างแผน (_planDateForBlock/planLotDateChanged) แต่หลังบันทึกแผนไปแล้วกลับ
+// ไม่มีช่องทางแก้ไขวันที่นี้อีกเลย (ต่างจากไลน์อื่นที่ไม่มีวันที่ของตัวเองให้ต้องแก้แยก) — เช็ค conflict
+// ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/_planFindWorkerConflicts) ก่อนบันทึกเสมอ ไม่ข้าม
+async function planEditLotDate(rowId) {
+  const r = _planData.find(d => d._row_id === rowId);
+  if (!r) return;
+  const { value: newDate } = await Swal.fire({
+    title: 'แก้ไขวันที่ยิง Lot',
+    html: `<div class="text-start small mb-2">${r.ProductName||''} (${r.ProductCode||''})<br>ไลน์ "${r.Line||''}" · ${r.Shift||'—'} (${_planShiftTimeLabel(r)})</div>`,
+    input: 'date',
+    inputValue: r.PlanDate || '',
+    showCancelButton: true,
+    confirmButtonText: 'บันทึก',
+    cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => !v ? 'กรุณาระบุวันที่' : undefined,
+  });
+  if (!newDate || newDate === r.PlanDate) return;
+
+  const conflict = _planFindConflict(newDate, r.Line, (r.TimeStart||'').slice(0,5), (r.TimeEnd||'').slice(0,5), r._row_id);
+  if (conflict) {
+    _err('ไลน์นี้ถูกจองเวลาซ้อนกันแล้ว',
+      `"${conflict.ProductName}" จองไลน์ "${r.Line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้วที่วันที่นี้ กรุณาเลือกวันอื่น`);
+    return;
+  }
+  const workerCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+  const workerConflicts = _planFindWorkerConflicts(newDate, (r.TimeStart||'').slice(0,5), (r.TimeEnd||'').slice(0,5), workerCodes, r._row_id);
+  if (workerConflicts.length) {
+    const lines = workerConflicts.map(c => {
+      const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
+      const name = emp ? (emp.NickName || emp.FirstName || c.code) : c.code;
+      return `${name} — ชนกับ "${c.row.ProductName || ''}" ไลน์ "${c.row.Line || ''}" (${c.row.Shift || ''})`;
+    }).join('<br>');
+    _err('มีคนซ้ำกับแผนอื่นที่ชนเวลากัน', lines);
+    return;
+  }
+
+  _showLoader();
+  const { error } = await _sb.from('production_plan').update({ PlanDate: newDate }).eq('_row_id', r._row_id);
+  _hideLoader();
+  if (error) { _err('แก้ไขวันที่ไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode, `แก้ไขวันที่ยิง Lot จาก ${_planFmtDateLabel(r.PlanDate)} เป็น ${_planFmtDateLabel(newDate)}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขวันที่สำเร็จ', showConfirmButton:false, timer:1500 });
+  await planLoadData();
+  const openDate = document.getElementById('plan-day-date-value')?.value;
+  if (openDate) _planRenderDayTable(openDate);
 }
 
 function _planRenderDayTable(dateStr) {
@@ -14170,10 +14225,16 @@ function _planRenderDayTable(dateStr) {
                 ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
                 : '<span class="badge bg-secondary">วางแผน</span>';
               // ไม่มี action ให้กดเลย (added 2026-09-08 ตามคำขอผู้ใช้ "ปุ่มแก้ไข และลบด้วย ให้เอาออก") —
-              // แถวนี้เป็นแค่รายการอ่านอย่างเดียว ดูหมายเหตุที่ _planRowActions
+              // แถวนี้เป็นแค่รายการอ่านอย่างเดียว ดูหมายเหตุที่ _planRowActions — ยกเว้นไลน์ "ยิง Lot" ที่มี
+              // วันที่ของตัวเอง (added 2026-09-08 ตามคำขอ "ยิงLot ให้แก้วันที่ได้") ได้ปุ่มแก้ไขวันที่คืนมา
+              // เจาะจงเฉพาะฟิลด์นี้ (ดูหมายเหตุที่ planEditLotDate) — ไลน์อื่นยังไม่มีปุ่มใดๆ เหมือนเดิม
+              const sIsLotEditable = _planLineCategoryOf(s.Line || '') === 'lot' && s.Status === 'วางแผน';
+              const editDateBtn = sIsLotEditable
+                ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่ยิง Lot"><i class="fas fa-pen text-primary"></i></a>`
+                : '';
               return `<tr>
                 <td style="width:40%;border-left:3px solid ${_planLineColor(s.Line)}">
-                  <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)}</small>
+                  <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)} · ${_planFmtDateLabel(s.PlanDate)}${editDateBtn}</small>
                 </td>
                 <td style="width:36%">${s.Workers||'—'}</td>
                 <td style="width:24%">${sBadge}</td>
@@ -14549,6 +14610,21 @@ async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
   }
 }
 
+// ตัวตนของ "งาน" ที่ทนต่อไลน์ยิง Lot ที่มีวันที่ของตัวเอง (added 2026-09-08) — ใช้ BatchRef ถ้ามี (แผนใหม่
+// ทุกแถวของการ submit เดียวกันได้ BatchRef เดียวกันจาก planSubmit) ไม่งั้น fallback กลับไปที่ PlanDate+
+// ProductCode เดิม (แผนเก่าก่อนมี BatchRef) — ใช้ตอน "สั่งผลิต" (ผูก MO_Ref) และ "ยืนยัน" (ต้องหาไลน์พี่น้อง
+// ข้ามวันที่ให้เจอจริงทั้งคู่ ไม่งั้นไลน์ที่ยังไม่มี MO_Ref เองจะไม่มีปุ่ม "ยืนยัน" โผล่มาให้กดด้วยซ้ำ — ดู
+// planOrderProduction) ไม่เหมือน siblingsFor ของตารางรายวัน/_planFilterRowsForDisplay ที่จงใจแยกแสดงยิง Lot
+// เป็นแถวของวันตัวเองอยู่แล้ว ไม่เกี่ยวกัน อย่าเอาไปใช้แทนกัน) ชื่อ _planJobSiblingsOf ไม่ผูกกับ action ใด
+// action หนึ่งเป็นการเฉพาะ ใช้ร่วมกันได้ทุกจุดที่ต้อง "หาไลน์อื่นของงานเดียวกัน" แบบทนวันที่ต่างกัน
+function _planJobKey(row) {
+  return row.BatchRef || `${row.PlanDate}|${row.ProductCode}`;
+}
+function _planJobSiblingsOf(row) {
+  const key = _planJobKey(row);
+  return _planData.filter(d => d._row_id !== row._row_id && _planJobKey(d) === key);
+}
+
 async function planSubmit(e) {
   e.preventDefault();
   const editId   = document.getElementById('plan-edit-id').value;
@@ -14696,7 +14772,10 @@ async function planSubmit(e) {
       if (oldRow) await _planCascadeSharedFieldsToSiblings(oldRow, payload);
     }
   } else {
-    blockPayloads.forEach(p => { p.Status = 'วางแผน'; });
+    // BatchRef เดียวกันทุกบล็อกของงานนี้ (ผูกไลน์บรรจุ/แพ็ค/ยิง Lot เข้าด้วยกันแบบทนวันที่ต่างกัน — ดู
+    // _planJobKey) ต่อให้มีบล็อกเดียวก็ใส่ไว้เผื่ออนาคตมีการเพิ่มไลน์ทีหลัง
+    const batchRef = `B${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    blockPayloads.forEach(p => { p.Status = 'วางแผน'; p.BatchRef = batchRef; });
     ({ error } = await _sb.from('production_plan').insert(blockPayloads));
   }
 
@@ -14767,17 +14846,27 @@ async function planDelete(rowId) {
 function planOpenConfirmModal(rowId) {
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
+  // ไลน์พี่น้องของงานเดียวกัน (บรรจุ/แพ็ค/ยิง Lot) — หาแบบทนวันที่ต่างกัน เพราะยิง Lot อาจล่วงหน้าไปวันอื่น
+  // แล้ว (ดู _planJobKey) กด "ยืนยัน" จากแถวไหนของงานนี้ก็ต้องยืนยันไปพร้อมกันทั้งงาน ไม่ใช่แค่แถวที่กด (บั๊ก
+  // ที่พบจริง 2026-09-07: ยืนยันยิง Lot ที่ล่วงหน้าแล้ว ไลน์บรรจุไม่ยืนยันตาม)
+  const siblings = _planJobSiblingsOf(r);
   if (!_planConfirmModal) _planConfirmModal = new bootstrap.Modal(document.getElementById('planConfirmModal'));
   document.getElementById('planConfirmForm').reset();
   document.getElementById('plan-confirm-id').value = rowId;
+  const siblingNote = siblings.length
+    ? `<div class="alert alert-info py-2 px-2 mt-2 mb-0 small"><i class="fas fa-share me-1"></i>ไลน์อื่นของงานเดียวกันจะถูกยืนยันไปพร้อมกันด้วย:<br>${siblings.map(s => `${s.Line} — ${_planFmtDateLabel(s.PlanDate)}`).join('<br>')}</div>`
+    : '';
   document.getElementById('plan-confirm-summary').innerHTML =
     `<b>${r.ProductName||''}</b> (${r.ProductCode||''})<br>
      วันที่แพลน: ${_planFmtDateLabel(r.PlanDate)} · จำนวน: ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}<br>
      ไลน์: ${r.Line||'—'} · ช่วง: ${r.Shift||'—'} (${_planShiftTimeLabel(r)})
-     ${r.MO_Ref ? '<br>MO อ้างอิง: '+r.MO_Ref : ''}`;
+     ${r.MO_Ref ? '<br>MO อ้างอิง: '+r.MO_Ref : ''}${siblingNote}`;
   const mo = r.MO_Ref ? _planMOList.find(m => m.MO_ID === r.MO_Ref) : null;
   document.getElementById('plan-confirm-lot').value = mo?.LOT || '';
-  document.getElementById('plan-confirm-dateend').value = r.PlanDate || '';
+  // ค่าเริ่มต้น "วันที่สิ้นสุด" = วันที่ล่าสุดของงานนี้ (ถ้ายิง Lot ล่วงหน้าไว้คนละวัน ไลน์บรรจุ/แพ็คที่ตามมา
+  // ทีหลังคือวันที่จบงานจริง ไม่ใช่วันที่ของแถวที่กดยืนยัน)
+  const allDates = [r.PlanDate, ...siblings.map(s => s.PlanDate)].filter(Boolean).sort();
+  document.getElementById('plan-confirm-dateend').value = allDates[allDates.length - 1] || r.PlanDate || '';
   if (_planDayModal) _planDayModal.hide();
   _planConfirmModal.show();
 }
@@ -14825,6 +14914,14 @@ async function planConfirmSubmit(e) {
 
   const dateEnd = document.getElementById('plan-confirm-dateend').value || r.PlanDate;
 
+  // ไลน์พี่น้องของงานเดียวกัน (ดูหมายเหตุที่ planOpenConfirmModal) — ยืนยันทุกไลน์พร้อมกันในใบบันทึกผลิตใบ
+  // เดียวกันใบเดียว ไม่ใช่แค่แถวที่กด (added 2026-09-08)
+  const siblings = _planJobSiblingsOf(r);
+  const allRows = [r, ...siblings];
+  const allIds = allRows.map(x => x._row_id);
+  const allDates = allRows.map(x => x.PlanDate).filter(Boolean).sort();
+  const dateStart = allDates[0] || r.PlanDate;
+
   const saveBtn = document.getElementById('plan-confirm-save-btn');
   saveBtn.disabled = true;
   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังออกใบบันทึก...';
@@ -14837,7 +14934,7 @@ async function planConfirmSubmit(e) {
     MO_Ref          : r.MO_Ref || null,
     ProductCode     : r.ProductCode,
     ProductName     : r.ProductName,
-    Date_Start      : r.PlanDate,
+    Date_Start      : dateStart,
     Date_End        : dateEnd,
     FG_Planned      : r.PlanQty,
     UOM             : r.UOM,
@@ -14855,7 +14952,7 @@ async function planConfirmSubmit(e) {
   }
 
   const { error: updErr } = await _sb.from('production_plan')
-    .update({ Status: 'ยืนยันแล้ว', ProdRecord_Ref: prodId }).eq('_row_id', rowId);
+    .update({ Status: 'ยืนยันแล้ว', ProdRecord_Ref: prodId }).in('_row_id', allIds);
 
   // ยืนยันแผนแล้ว (ออกใบบันทึกผลิตแล้ว) — เลื่อนสถานะ MO จาก "แพลนแล้ว" เป็น "ยืนยันการผลิต" (เลื่อนขึ้นทางเดียว
   // ไม่ทับสถานะที่ไปไกลกว่านั้นแล้ว เช่น เบิกแล้ว/กำลังผลิต ถ้าเผื่อมีการเบิกไปก่อนยืนยันแผน)
