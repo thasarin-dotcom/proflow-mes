@@ -14232,12 +14232,21 @@ function _planRenderDayTable(dateStr) {
               const editDateBtn = sIsLotEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่ยิง Lot"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
+              // เลข Lot ของ MO (added 2026-09-08 ตามคำขอ "พอออก MO มีเลข LOT แล้ว ให้ซิ้งค์เลขกลับมาที่แผนผลิต
+              // ด้วย ไลน์พี่น้องทั้งหมด") — แถวหลักมีคอลัมน์นี้อยู่แล้ว (ดู `lot` ด้านบน) แต่แถวพี่น้องไม่เคยมี
+              // เลย ไม่ใช่ field ที่เก็บแยกใน production_plan (ไม่มีคอลัมน์ Lot เลยด้วยซ้ำ) — ดึงสดจาก
+              // manufacturing_orders.LOT ผ่าน MO_Ref เหมือนแถวหลักทุกอย่าง (_planMOLot อัปเดตอัตโนมัติทันทีที่
+              // planLoadData โหลดใหม่ ไม่ต้องเขียน sync เพิ่มเอง) — ใช้ `s.MO_Ref` ของแถวพี่น้องเองก่อน (ควรมี
+              // ค่าแล้วหลังแก้ planOrderProduction ให้ผูก MO_Ref ครบทุกไลน์) fallback ไปที่ `r.MO_Ref` (แถวหลัก)
+              // เผื่อเป็นข้อมูลเก่าก่อนแก้บั๊กนั้นที่ยังไม่มี MO_Ref ของตัวเอง
+              const sLot = _planMOLot(s.MO_Ref || r.MO_Ref);
               return `<tr>
-                <td style="width:40%;border-left:3px solid ${_planLineColor(s.Line)}">
+                <td style="width:34%;border-left:3px solid ${_planLineColor(s.Line)}">
                   <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)} · ${_planFmtDateLabel(s.PlanDate)}${editDateBtn}</small>
                 </td>
-                <td style="width:36%">${s.Workers||'—'}</td>
-                <td style="width:24%">${sBadge}</td>
+                <td style="width:16%">${sLot ? `<span class="badge bg-light text-dark border">${sLot}</span>` : '—'}</td>
+                <td style="width:30%">${s.Workers||'—'}</td>
+                <td style="width:20%">${sBadge}</td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -14589,24 +14598,47 @@ function planCheckConflictLive(b) {
 // งานที่มีหลายไลน์ (Fill/Pack/Lot คนละแถว production_plan) แชร์ฟิลด์ "ระดับงาน" กันโดยการก่อสร้าง (ตอนเพิ่ม
 // แผนใหม่ blockPayloads ทุกก้อนใน batch เดียวกันมี PlanDate/ProductCode/ProductName/PlanQty/UOM/MO_Ref/
 // CO_Ref/Remark เหมือนกันหมด — ดู planSubmit โหมดเพิ่ม) แต่โหมดแก้ไขแก้ทีละแถว (1 บล็อกเสมอ) เท่านั้น ถ้า
-// แก้ฟิลด์ระดับงานพวกนี้จากไลน์ใดไลน์หนึ่งแล้วไม่เผยแพร่ต่อ จะทำให้งานเดียวกันแยกฟิลด์ระดับงานไม่ตรงกันเอง
-// (เช่นคนละวันที่) — ฟิลด์เฉพาะไลน์ (Line/Shift/เวลา/ผู้ปฏิบัติงาน) และ Status ไม่เผยแพร่ (เป็นของแต่ละไลน์
-// จริง ไม่ใช่ของงาน) — หา sibling จาก "ตัวตนเดิมก่อนแก้" (oldRow.ProductCode/PlanDate) เสมอ ไม่ใช่ค่าใหม่
-// เพราะถ้าผู้ใช้เปลี่ยนวันที่ ไลน์พี่น้องที่ยังผูกกันอยู่จะอยู่ที่วันที่เดิม ไม่ใช่วันที่ใหม่
+// แก้ฟิลด์ระดับงานพวกนี้จากไลน์ใดไลน์หนึ่งแล้วไม่เผยแพร่ต่อ จะทำให้งานเดียวกันแยกฟิลด์ระดับงานไม่ตรงกันเอง —
+// ฟิลด์เฉพาะไลน์ (Line/Shift/เวลา/ผู้ปฏิบัติงาน) และ Status ไม่เผยแพร่ (เป็นของแต่ละไลน์จริง ไม่ใช่ของงาน)
+// **หา sibling ผ่าน `_planJobSiblingsOf` (BatchRef-aware, แก้ 2026-09-08 follow-up)** — เดิมจับคู่ด้วย
+// `oldRow.ProductCode`+`oldRow.PlanDate` ตรงๆ ซึ่งพังทันทีที่แก้จากไลน์ "ยิง Lot" ที่มีวันที่ของตัวเอง (คนละ
+// วันกับไลน์บรรจุ/แพ็คโดยเจตนา ดู independent-Lot-date feature) — บั๊กจริงที่ผู้ใช้เจอ: "แก้ไขจำนวนสั่งผลิต
+// จากหน้าไลน์ยิงล็อต ไลน์บรรจุข้อมูลไม่เปลี่ยนตาม" เพราะจับคู่ไม่เจอเลย จึงไม่เผยแพร่อะไรทั้งนั้น
+// **วันที่ (PlanDate) ยังต้องกันไว้เป็นกรณีพิเศษเสมอ ไม่ให้ไหลเข้า/ออกไลน์ "ยิง Lot"** ต่างจากฟิลด์อื่น —
+// ถ้าเผยแพร่ตามปกติเหมือนฟิลด์อื่น การแก้วันที่จากไลน์บรรจุ (เช่นเลื่อนทั้งงานไปสัปดาห์หน้า) จะไปทับวันที่
+// ล่วงหน้าที่ตั้งใจแยกไว้ของยิง Lot ทันที (ทำลาย independent-Lot-date feature) และถ้าแก้วันที่จากไลน์ยิง Lot
+// เอง ก็ไม่ควรเผยแพร่ออกไปไหนเลย (การแก้วันที่ยิง Lot ควรเป็นเรื่องเฉพาะไลน์นั้น เหมือน planEditLotDate) —
+// ฟิลด์ระดับงานอื่นๆ (จำนวน/สินค้า/MO/CO/หมายเหตุ) เผยแพร่ครบทุกไลน์รวมยิง Lot ด้วยเสมอ ไม่ว่าจะแก้จากไลน์ไหน
 const _PLAN_JOB_LEVEL_FIELDS = ['PlanDate', 'ProductCode', 'ProductName', 'PlanQty', 'UOM', 'MO_Ref', 'CO_Ref', 'Remark'];
 async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
-  const changed = _PLAN_JOB_LEVEL_FIELDS.some(f => (oldRow[f] ?? null) !== (payload[f] ?? null));
-  if (!changed) return;
-  const siblings = _planData.filter(d =>
-    d._row_id !== oldRow._row_id && d.ProductCode === oldRow.ProductCode && d.PlanDate === oldRow.PlanDate);
+  const siblings = _planJobSiblingsOf(oldRow);
   if (!siblings.length) return;
-  const sharedPayload = {};
-  _PLAN_JOB_LEVEL_FIELDS.forEach(f => { sharedPayload[f] = payload[f]; });
-  const ids = siblings.map(s => s._row_id);
-  const { error } = await _sb.from('production_plan').update(sharedPayload).in('_row_id', ids);
-  if (error) {
+
+  const otherFields  = _PLAN_JOB_LEVEL_FIELDS.filter(f => f !== 'PlanDate');
+  const otherChanged = otherFields.some(f => (oldRow[f] ?? null) !== (payload[f] ?? null));
+  const oldIsLot     = _planLineCategoryOf(oldRow.Line || '') === 'lot';
+  const dateChanged  = !oldIsLot && (oldRow.PlanDate ?? null) !== (payload.PlanDate ?? null);
+  if (!otherChanged && !dateChanged) return;
+
+  const errors = [];
+  if (otherChanged) {
+    const sharedPayload = {};
+    otherFields.forEach(f => { sharedPayload[f] = payload[f]; });
+    const ids = siblings.map(s => s._row_id);
+    const { error } = await _sb.from('production_plan').update(sharedPayload).in('_row_id', ids);
+    if (error) errors.push({ lines: siblings.map(s => s.Line), message: error.message });
+  }
+  if (dateChanged) {
+    const nonLotSiblings = siblings.filter(s => _planLineCategoryOf(s.Line || '') !== 'lot');
+    if (nonLotSiblings.length) {
+      const ids = nonLotSiblings.map(s => s._row_id);
+      const { error } = await _sb.from('production_plan').update({ PlanDate: payload.PlanDate }).in('_row_id', ids);
+      if (error) errors.push({ lines: nonLotSiblings.map(s => s.Line), message: error.message });
+    }
+  }
+  if (errors.length) {
     _err('อัปเดตไลน์อื่นของงานเดียวกันไม่สำเร็จ',
-      `แก้ไขไลน์นี้สำเร็จแล้ว แต่ไลน์พี่น้อง (${siblings.map(s => s.Line).join(', ')}) อัปเดตตามไม่สำเร็จ: ${error.message} — กรุณาแก้ไขไลน์เหล่านั้นเองด้วยตนเอง`);
+      errors.map(e => `ไลน์ ${e.lines.join(', ')}: ${e.message}`).join('<br>') + ' — กรุณาแก้ไขไลน์เหล่านั้นเองด้วยตนเอง');
   }
 }
 
