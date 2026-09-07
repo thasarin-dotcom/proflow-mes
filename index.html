@@ -2323,7 +2323,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">วันที่แพลน <span class="text-danger">*</span></label>
-                <input type="date" id="plan-f-date" class="form-control" required onchange="planCheckConflictLive()">
+                <input type="date" id="plan-f-date" class="form-control" required onchange="planOnDateChanged();">
               </div>
 
               <div class="col-md-8" id="plan-mo-section">
@@ -2360,43 +2360,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <input type="number" id="plan-f-qty" class="form-control" min="0.001" step="0.001" required oninput="planUpdateCapacityEstimate()">
               </div>
               <div class="col-12" id="plan-capacity-estimate" style="display:none"></div>
-              <div class="col-md-4">
-                <label class="form-label">ไลน์ผลิต <span class="text-danger">*</span></label>
-                <select id="plan-f-line" class="form-select" required onchange="planCheckConflictLive(); planCheckSkillCoverage();">
-                  <option value="">— เลือกไลน์ —</option>
-                </select>
-                <div class="small mt-1" id="plan-line-restrict-note"></div>
-              </div>
-              <div class="col-md-8">
-                <label class="form-label">ผู้ปฏิบัติงาน <small class="text-muted" id="plan-f-workers-count"></small></label>
-                <input type="hidden" id="plan-f-workers-legacy-value">
-                <div id="plan-f-workers-select" class="border rounded p-2" style="max-height:160px;overflow-y:auto"></div>
-                <div class="small text-muted" id="plan-f-workers-legacy-note" style="display:none"></div>
-              </div>
-              <div class="col-12" id="plan-worker-requirement-check"></div>
-              <div class="col-12" id="plan-skill-check"></div>
-              <div class="col-md-8">
-                <label class="form-label">ช่วงเวลา <span class="text-danger">*</span></label>
-                <div class="d-flex gap-2 flex-nowrap border rounded p-2 plan-shift-row">
-                  <div class="form-check text-nowrap mb-0">
-                    <input class="form-check-input plan-shift-chk" type="checkbox" value="เช้า" id="plan-shift-morning" onchange="planShiftChanged()">
-                    <label class="form-check-label" for="plan-shift-morning">เช้า (08:30–12:00)</label>
-                  </div>
-                  <div class="form-check text-nowrap mb-0">
-                    <input class="form-check-input plan-shift-chk" type="checkbox" value="บ่าย" id="plan-shift-afternoon" onchange="planShiftChanged()">
-                    <label class="form-check-label" for="plan-shift-afternoon">บ่าย (13:00–17:30)</label>
-                  </div>
-                  <div class="form-check text-nowrap mb-0">
-                    <input class="form-check-input plan-shift-chk" type="checkbox" value="โอที" id="plan-shift-ot" onchange="planShiftChanged()">
-                    <label class="form-check-label" for="plan-shift-ot">โอที (18:00 เป็นต้นไป)</label>
-                  </div>
-                </div>
-                <small class="text-muted" id="plan-shift-preview">เลือกช่วงเวลาอย่างน้อย 1 ช่วง (ติ๊กเช้า+บ่ายพร้อมกัน = เช้าบ่าย 08:30–17:30)</small>
-              </div>
-              <div class="col-md-4">
-                <div id="plan-f-conflict-hint" class="text-danger small mt-4" style="display:none">
-                  <i class="fas fa-exclamation-triangle me-1"></i><span></span>
-                </div>
+              <div class="col-12">
+                <div id="plan-line-blocks"></div>
               </div>
               <div class="col-md-12">
                 <label class="form-label">หมายเหตุ</label>
@@ -2743,6 +2708,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </div>
         </div>
         <div id="admindash-drill-labor-summary" class="mb-2"></div>
+        <div id="admindash-drill-step-productivity" class="mb-2"></div>
         <div id="admindash-drill-table"><div class="text-center text-muted py-4">เลือกสินค้าเพื่อดูรายละเอียดกำไรต่อ Lot/เดือน</div></div>
       </div>
 
@@ -9120,9 +9086,15 @@ async function moPlanProduction(rowId) {
 
   // จองวัตถุดิบเสร็จแล้ว ไปต่อที่หน้าแผนผลิตทันที เพื่อเลือกไลน์/กะ/วันที่ลง MO นี้ให้ขึ้นปฏิทินจริง — พรีเซ็ต MO นี้
   // ไว้ในฟอร์มให้เลย (เหมือน moIssueNow ที่เด้งไปหน้าเบิกผลิตพร้อมพรีเซ็ต MO)
+  // **ต้อง await ตรงนี้เสมอ** (bug จริงพบ 2026-09-07) — planOpenAddModal เป็น async function ที่มี
+  // `await _planLoadSkillData()` อยู่ข้างใน ต่อให้ข้อมูลเคยโหลดแคชไว้แล้ว (คืนทันที) ฟังก์ชัน async ก็ยัง
+  // คืน continuation ที่รันหลังจบ microtask ปัจจุบันเสมอ — ถ้าไม่ await ตรงนี้ โค้ดด้านล่าง (setMoSel/
+  // planMOSelect) จะรันแทรกก่อน planOpenAddModal รันจบจริง แล้ว planOpenAddModal (โหมดเพิ่มแผนใหม่) จะมา
+  // เรียก planSetupLineBlocksForProduct('add','')/planToggleMode('mo') ทับ block ที่ planMOSelect เพิ่งสร้าง
+  // ไว้ถูกต้องให้กลายเป็นบล็อกเดียวเปล่าๆ (เหมือน "ข้อมูลไม่ถูกดึงมาให้" ที่ผู้ใช้เจอจากปุ่มเทียบเคียงในหน้า CO)
   showPage('plan', document.getElementById('nav-plan'));
   await planLoadData();
-  planOpenAddModal();
+  await planOpenAddModal();
   const moSel = document.getElementById('plan-f-mo-ref');
   if (moSel) {
     if (!Array.from(moSel.options).find(o => o.value === r.MO_ID)) {
@@ -13156,6 +13128,21 @@ function _planLineColor(line) {
   return idx >= 0 ? PLAN_LINE_COLORS[idx] : '#94a3b8';
 }
 
+// ── 3 หมวดไลน์ตายตัว (added 2026-09-05, ตามคำขอผู้ใช้ "ให้แบ่งเป็น 2 ส่วน...ไลน์บรรจุ/ไลน์แพ็ค") ──
+// แทนที่ระบบ "+เพิ่มไลน์" แบบไดนามิก (เพิ่มได้กี่บล็อกก็ได้ ป้าย "ไลน์ #1/#2") ด้วย 3 หมวดตายตัวเสมอ —
+// ผู้ใช้ยืนยันว่าอยากเห็นชื่อหมวดชัดเจน ("ไลน์บรรจุ"/"ไลน์แพ็ค") ไม่ใช่เลขลำดับ และ "ยิง Lot" เป็นหมวดที่ 3
+// แยกต่างหาก ไม่บังคับกรอก — key ของแต่ละหมวดใช้แทน block id (b) เดิมที่เคยเป็นเลขรัน (เลิกใช้
+// _planLineBlockSeq ไปเลย เพราะหมวดตายตัว ไม่มีการเพิ่ม/ลบบล็อกอีกต่อไป จึงไม่มีปัญหา sequence ไม่ reset)
+const PLAN_LINE_SECTIONS = [
+  { key: 'fill', label: 'ไลน์บรรจุ', icon: 'fa-flask',  lines: PLAN_LINES.slice(0, 4) },
+  { key: 'pack', label: 'ไลน์แพ็ค',  icon: 'fa-box',    lines: PLAN_LINES.slice(4, 8) },
+  { key: 'lot',  label: 'ยิง Lot',   icon: 'fa-bolt',    lines: PLAN_LINES.slice(8) },
+];
+function _planLineCategoryOf(line) {
+  const sec = PLAN_LINE_SECTIONS.find(s => s.lines.includes(line));
+  return sec ? sec.key : null;
+}
+
 // ── ผูกแมททริกสกิลพนักงานเข้ากับหน้าแผนผลิต (added 2026-09-05) ──
 // เช็คว่าผู้ปฏิบัติงานที่เลือกไว้มีทักษะพอสำหรับไลน์ที่แพลนไหม (เตือนเฉยๆ ไม่บล็อกการบันทึก — ตกลงกับ
 // ผู้ใช้แล้ว) โหลดข้อมูลแบบ graceful-degrade: ถ้า employees/skills/employee_skills ยังไม่ถูกสร้าง
@@ -13179,32 +13166,221 @@ async function _planLoadSkillData(force = false) {
   _planSkillDataLoaded = true;
 }
 
-// เปลี่ยนจาก <select multiple> เป็นรายการติ๊ก checkbox (2026-09-05, ผู้ใช้แจ้งว่า multi-select
-// กด Ctrl/Cmd ค้างเลือกยาก) — ต่อ 1 พนักงาน 1 checkbox แทน 1 option
-function _planPopulateWorkersSelect(selectedCodes = []) {
-  const wrap = document.getElementById('plan-f-workers-select');
+// ── หลายไลน์ต่อ 1 แผน (added 2026-09-05, ตามคำขอผู้ใช้ "ทำไมขึ้นไลน์ผลิตเดียว คนก็เลือกชุดเดียว") ──
+// ยืนยันกับผู้ใช้แล้ว (AskUserQuestion): 1 แผนผลิต (1 สินค้า/1 วัน) เลือกได้หลายไลน์พร้อมกัน แต่ละไลน์มี
+// ชุดผู้ปฏิบัติงาน+ช่วงเวลาเป็นของตัวเอง (เช่น ห้องบรรจุ Aroma ชุดหนึ่ง + ห้องแพ็คอีกชุดหนึ่ง คนละคนกัน)
+// **ใช้เฉพาะตอน "เพิ่มแผนผลิต" เท่านั้น** — ตอน "แก้ไขแผนผลิต" ยังเป็น 1 ไลน์ต่อ 1 แถวเหมือนเดิม มิเช่นนั้น
+// ต้องแก้ปัญหา "จะ diff กลุ่มแถวพี่น้องยังไงตอนแก้ไข" ซึ่งซับซ้อนเกินจำเป็นตอนนี้ — เหมือน pattern เดิมที่
+// CO หน้า "เพิ่มคำสั่งซื้อ" ใช้ (multi-line เฉพาะตอนเพิ่ม, แก้ไขทีละแถว)
+//
+// เปลี่ยนจากระบบ "3 หมวดตายตัว ให้เลือกไลน์เองในหมวด" มาเป็น "ดึงจำนวน+รายชื่อไลน์ตรงจาก BOM ของสินค้า
+// นั้นเป๊ะๆ" (added 2026-09-05 ตามคำขอผู้ใช้ "ให้ดูตามสินค้าว่าแต่ละตัวมีกี่ไลน์ผลิต") — สินค้าที่ตั้งค่า
+// bom.AllowedLines ไว้แล้ว (เช่น "ห้องบรรจุน้ำมัน Aroma,ห้องแพ็ค (ห้องบรรจุน้ำมัน Aroma)") จะได้บล็อกไลน์
+// ตายตัวตรงตามนั้นทุกบล็อก (ไม่ต้องเลือกเองอีกต่อไป — มีแค่ปุ่ม "เปลี่ยนไลน์นี้ (ฉุกเฉิน)" ให้แก้กรณีจำเป็น
+// จริงๆ) — สินค้าที่ยังไม่ตั้งค่าไลน์เลย fallback เป็นบล็อกเดียวให้เลือกเอง (เหมือนพฤติกรรมเดิมก่อนฟีเจอร์
+// นี้ทั้งหมด) — ตอนแก้ไขแผนเดิมยังคงเป็น 1 บล็อกเสมอ แบบเลือกเองได้ (ไม่ fix ตายตัว เพราะแก้ไขคือกรณีที่
+// อาจต้องแก้ไลน์ผิดจริง) key ของบล็อกตอนนี้เป็นโทเคนปลอดภัย ('L0','L1',...,'manual','edit') ไม่ใช่ชื่อไลน์
+// จริง (ชื่อไลน์มีเว้นวรรค/วงเล็บ ใช้เป็น HTML id ตรงๆ ไม่ได้) — ผูกกับไลน์จริงผ่าน _planLineBlockFixedLine
+//
+// ช่วงเวลา (กะ) แสดง UI ให้กรอกแค่ที่บล็อกแรกที่เป็นหมวด "ไลน์บรรจุ" เท่านั้น (added 2026-09-05 ตามคำขอ
+// ผู้ใช้ "เวลาทำงานใส่แค่ไลน์บรรจุ") — เก็บไว้ที่ _planPrimaryTimeBlockKey บล็อกอื่นในแผนเดียวกัน (แพ็ค/
+// ยิง Lot) ไม่มี UI เวลาให้กรอกซ้ำ แต่ตอนบันทึก/เช็คชนกัน (planSubmit, _planEffectiveShift) จะ "ยืม" เวลา
+// จากบล็อกหลักนี้มาใช้แทนเสมอ (ทุกไลน์ในแผนเดียวกันวันเดียวกันถือว่าเริ่ม/เลิกพร้อมกัน) — ถ้าสินค้านี้ไม่มี
+// บล็อกไลน์บรรจุเลย (เช่น ตั้งค่าไว้แค่ไลน์แพ็ค) บล็อกแรกสุดที่มีจะเป็นบล็อกหลักแทน
+let _planLineBlockIds = [];          // key ของบล็อกที่กำลังแสดงอยู่ตอนนี้ ตามลำดับ
+let _planLineBlockFixedLine = {};    // key -> ไลน์จริงที่ตายตัวจาก BOM (ไม่มี = บล็อกเลือกเอง)
+let _planLineBlockCategory = {};     // key -> 'fill'/'pack'/'lot'/null (ไว้ทำ header label + หาบล็อกหลัก)
+let _planLineManualOverrideByBlock = {}; // key -> true ถ้ากด "เปลี่ยนไลน์นี้/แสดงไลน์อื่น (ฉุกเฉิน)" แล้ว
+let _planPrimaryTimeBlockKey = null; // key ของบล็อกที่มี UI เวลาให้กรอกจริง
+
+function _planLineBlockHTML(b, opts) {
+  const { optional = false, showTime = true, categoryKey = null } = opts || {};
+  const sec = PLAN_LINE_SECTIONS.find(s => s.key === categoryKey);
+  const headerLabel = sec ? sec.label : 'เลือกไลน์ผลิต';
+  const headerIcon  = sec ? sec.icon : 'fa-industry';
+  // "ใช้ไลน์นี้ในแผนนี้ไหม" (added 2026-09-05) — บล็อกที่ตายตัวจาก BOM มีค่าไลน์เติมไว้ให้ตั้งแต่แรกเสมอ
+  // (นั่นคือประเด็นของฟีเจอร์นี้ — ไม่ต้องเลือกเอง) จึง "ไลน์ว่าง = ไม่ใช้บล็อกนี้" แบบเดิมใช้ไม่ได้อีกต่อไป
+  // (ไลน์ไม่มีทางว่างเลย) ต้องมี toggle แยกต่างหากให้ปิดบล็อกที่ไม่ต้องการในแผนวันนี้ได้ (เช่น สินค้านี้ปกติ
+  // มี 3 ไลน์ แต่วันนี้แค่ต่อยิง Lot อย่างเดียว เพราะบรรจุ/แพ็คทำไปแล้วในแผนอื่นก่อนหน้า) — โชว์ toggle
+  // เฉพาะตอนมีมากกว่า 1 บล็อก (optional=true) บล็อกเดียว (แก้ไข/fallback ไม่ได้ตั้งค่าไลน์ไว้) ไม่มีอะไรให้
+  // เลือกปิด ใช้เสมอเหมือนเดิม — ดู planToggleBlockUse/planSubmit (เช็ค checkbox นี้แทนการเช็คว่าไลน์ว่าง)
+  const useToggle = optional ? `
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input plan-line-use-chk" type="checkbox" data-block="${b}" id="plan-line-use-${b}" checked onchange="planToggleBlockUse('${b}')">
+        <label class="form-check-label small" for="plan-line-use-${b}">ใช้ไลน์นี้ในแผนนี้</label>
+      </div>` : '';
+  return `
+  <div class="plan-line-block border rounded p-2 mb-2" data-block="${b}">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="fw-bold small"><i class="fas ${headerIcon} me-1 text-primary"></i>${headerLabel}</div>
+      ${useToggle}
+    </div>
+    <div class="row g-3" id="plan-line-block-body-${b}">
+      <div class="col-md-5">
+        <label class="form-label">ไลน์ผลิต <span class="text-danger">*</span></label>
+        <input type="hidden" id="plan-f-line-${b}">
+        <div id="plan-f-line-options-${b}" class="border rounded p-2" style="max-height:160px;overflow-y:auto"></div>
+        <div class="small mt-1" id="plan-line-restrict-note-${b}"></div>
+      </div>
+      <div class="col-md-7">
+        <label class="form-label">ผู้ปฏิบัติงาน <small class="text-muted" id="plan-f-workers-count-${b}"></small></label>
+        <input type="hidden" id="plan-f-workers-legacy-value-${b}">
+        <div id="plan-f-workers-select-${b}" class="border rounded p-2" style="max-height:160px;overflow-y:auto"></div>
+        <div class="small mt-1" id="plan-f-workers-filter-note-${b}"></div>
+        <div class="small text-muted" id="plan-f-workers-legacy-note-${b}" style="display:none"></div>
+      </div>
+      <div class="col-12" id="plan-worker-requirement-check-${b}"></div>
+      <div class="col-12" id="plan-skill-check-${b}"></div>
+      <div class="col-12 text-danger small" id="plan-worker-conflict-hint-${b}" style="display:none">
+        <i class="fas fa-user-clock me-1"></i><span></span>
+      </div>
+      ${showTime ? `
+      <div class="col-md-8">
+        <label class="form-label">ช่วงเวลา <span class="text-danger">*</span></label>
+        <div class="d-flex gap-2 flex-nowrap border rounded p-2 plan-shift-row">
+          <div class="form-check text-nowrap mb-0">
+            <input class="form-check-input plan-shift-chk" type="checkbox" value="เช้า" data-block="${b}" id="plan-shift-morning-${b}" onchange="planShiftChanged('${b}')">
+            <label class="form-check-label" for="plan-shift-morning-${b}">เช้า (08:30–12:00)</label>
+          </div>
+          <div class="form-check text-nowrap mb-0">
+            <input class="form-check-input plan-shift-chk" type="checkbox" value="บ่าย" data-block="${b}" id="plan-shift-afternoon-${b}" onchange="planShiftChanged('${b}')">
+            <label class="form-check-label" for="plan-shift-afternoon-${b}">บ่าย (13:00–17:30)</label>
+          </div>
+          <div class="form-check text-nowrap mb-0">
+            <input class="form-check-input plan-shift-chk" type="checkbox" value="โอที" data-block="${b}" id="plan-shift-ot-${b}" onchange="planShiftChanged('${b}')">
+            <label class="form-check-label" for="plan-shift-ot-${b}">โอที (18:00 เป็นต้นไป)</label>
+          </div>
+        </div>
+        <small class="text-muted" id="plan-shift-preview-${b}">เลือกช่วงเวลาอย่างน้อย 1 ช่วง (ติ๊กเช้า+บ่ายพร้อมกัน = เช้าบ่าย 08:30–17:30)</small>
+      </div>` : `
+      <div class="col-md-8 small text-muted d-flex align-items-center">
+        <i class="fas fa-clock me-1"></i>ใช้ช่วงเวลาเดียวกับ "ไลน์บรรจุ" ด้านบน (ไม่ต้องกรอกซ้ำที่นี่)
+      </div>`}
+      <div class="col-md-4">
+        <div id="plan-f-conflict-hint-${b}" class="text-danger small mt-4" style="display:none">
+          <i class="fas fa-exclamation-triangle me-1"></i><span></span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _planRenderLineBlocksContainer() {
+  const optional = _planLineBlockIds.length > 1; // >1 บล็อกแสดง = เลือกใช้ได้อิสระ (ไม่บังคับทุกบล็อก)
+  document.getElementById('plan-line-blocks').innerHTML = _planLineBlockIds.map(b => _planLineBlockHTML(b, {
+    optional, showTime: b === _planPrimaryTimeBlockKey, categoryKey: _planLineBlockCategory[b] || null,
+  })).join('');
+}
+
+// สินค้านี้ "มีกี่ไลน์ผลิต" มาจาก bom.AllowedLines ตรงๆ — [] ถ้ายังไม่ได้ตั้งค่า (ผู้เรียกจะ fallback เป็น
+// บล็อกเดียวให้เลือกเอง)
+function _planDerivedLinesForProduct(code) {
+  return _planAllowedLinesForProduct(code) || [];
+}
+
+// ตั้งค่าบล็อกไลน์ตามสินค้าที่เลือก — mode 'add': จำนวนบล็อก = จำนวนไลน์ใน bom.AllowedLines ของสินค้านั้น
+// เป๊ะๆ (แต่ละบล็อกตายตัวตามไลน์ที่กำหนด) ถ้ายังไม่ได้ตั้งค่าเลย fallback เป็นบล็อกเดียวให้เลือกเอง — mode
+// 'edit': เสมอ 1 บล็อก ตรงกับ Line เดิมของแถวนั้น แบบเลือกเองได้ (ไม่ fix ตายตัว) — ไม่ populate ข้อมูลใดๆ
+// ในบล็อก แค่สร้าง DOM ว่างๆ ให้พร้อม ผู้เรียกต้อง populate เอง (ดู planOpenAddModal)
+function planSetupLineBlocksForProduct(mode, code, matchLine) {
+  _planLineBlockFixedLine = {};
+  _planLineBlockCategory = {};
+  _planLineManualOverrideByBlock = {};
+  let keys;
+  if (mode === 'edit') {
+    keys = ['edit'];
+    _planLineBlockCategory['edit'] = _planLineCategoryOf(matchLine || '');
+  } else {
+    const derived = _planDerivedLinesForProduct(code);
+    if (derived.length) {
+      keys = derived.map((_, i) => `L${i}`);
+      derived.forEach((line, i) => {
+        _planLineBlockFixedLine[`L${i}`] = line;
+        _planLineBlockCategory[`L${i}`] = _planLineCategoryOf(line);
+      });
+    } else {
+      keys = ['manual'];
+    }
+  }
+  _planLineBlockIds = keys;
+  _planPrimaryTimeBlockKey = keys.find(k => _planLineBlockCategory[k] === 'fill') || keys[0];
+  _planRenderLineBlocksContainer();
+}
+
+// เดียวกับก่อนหน้า (ยืมเวลาจากบล็อกหลักถ้าบล็อกนี้ไม่มี UI เวลาของตัวเอง) ใช้แทน
+// _planComputeShift(_planSelectedShiftKeys(b)) ตรงๆ ในทุกจุดที่ต้องรู้ "เวลาที่แท้จริง" ของบล็อกนี้
+// (เช็คชนกัน/auto-pick/conflict คนซ้ำ) เพราะบล็อกที่ไม่ใช่บล็อกหลักไม่มี checkbox เวลาให้อ่านค่าเองแล้ว
+function _planEffectiveShift(b) {
+  const own = _planComputeShift(_planSelectedShiftKeys(b));
+  if (own) return own;
+  if (b !== _planPrimaryTimeBlockKey) return _planComputeShift(_planSelectedShiftKeys(_planPrimaryTimeBlockKey));
+  return null;
+}
+
+// วาดรายชื่อพนักงานเป็น checkbox จาก `pool` ที่ส่งมา (ไม่ใช่ _planEmployees ทั้งหมดเสมอไป — ดู
+// planHighlightQualifiedWorkers ที่กรองเหลือเฉพาะคนมีสกิลตรงไลน์นี้ก่อนส่งมาวาด) เก็บ selectedCodes ไว้ให้
+// ติ๊กถูกต้องแม้กรองใหม่ (เปลี่ยนจาก <select multiple> เป็นรายการติ๊ก checkbox — 2026-09-05, ผู้ใช้แจ้งว่า
+// multi-select กด Ctrl/Cmd ค้างเลือกยาก)
+function _planRenderWorkersPool(b, selectedCodes, pool) {
+  const wrap = document.getElementById(`plan-f-workers-select-${b}`);
   if (!wrap) return;
   const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
-  wrap.innerHTML = _planEmployees.length ? _planEmployees.map(e => {
+  wrap.innerHTML = pool.length ? pool.map(e => {
     const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
-    const id = `plan-worker-chk-${e.EmployeeCode}`;
+    const id = `plan-worker-chk-${b}-${e.EmployeeCode}`;
     return `<div class="form-check mb-1">
-      <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" id="${id}"
-        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="planCheckSkillCoverage()">
+      <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" data-block="${b}" id="${id}"
+        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="planCheckSkillCoverage('${b}')">
       <label class="form-check-label small" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
     </div>`;
-  }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานในระบบ (เพิ่มได้ที่หน้า "พนักงาน")</div>';
-  _planUpdateWorkersSelectedCount();
+  }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานที่ตรงเงื่อนไข</div>';
+  _planUpdateWorkersSelectedCount(b);
+  _planEnforceWorkerCap(b);
 }
 
-function _planGetSelectedWorkerCodes() {
-  return Array.from(document.querySelectorAll('#plan-f-workers-select .plan-worker-chk:checked')).map(c => c.value);
+// เรียกตอน setup บล็อกครั้งแรก (ยังไม่รู้ไลน์แน่ชัดถ้าเป็นบล็อกเลือกเอง) — วาดทุกคนไปก่อนแล้วให้
+// planHighlightQualifiedWorkers กรองซ้ำทันที (บล็อกตายตัวจาก BOM รู้ไลน์อยู่แล้วตั้งแต่แรก จะกรองถูกทันที)
+function _planPopulateWorkersSelect(b, selectedCodes = []) {
+  _planRenderWorkersPool(b, selectedCodes, _planEmployees);
+  planHighlightQualifiedWorkers(b);
 }
 
-function _planUpdateWorkersSelectedCount() {
-  const el = document.getElementById('plan-f-workers-count');
+// ── กรองรายชื่อให้เหลือแค่คนที่มีสกิลตรงกับไลน์ที่เลือกไว้จริง (added 2026-09-05 ตามคำขอผู้ใช้ "แต่ละไลน์
+// ใครมีสกิลตามไลน์ผลิต ให้แสดงชื่อแค่คนนั้น") — เดิม (added 2026-09-05 เช้ากว่านี้) แค่โชว์ badge แนะนำเฉยๆ
+// ไม่ซ่อนใคร ผู้ใช้เห็นแล้วว่ายังงงว่าใครทำได้จริง จึงเปลี่ยนเป็นซ่อนคนที่ไม่ผ่านไปเลย ไม่ใช่แค่ไม่ badge —
+// ถ้าไม่มีใครผ่านเลย (ไลน์นี้ยังไม่มีใครตั้งสกิลไว้ในแมททริกสกิล) fallback โชว์ทุกคน+เตือนแทน ไม่ปล่อยให้
+// เลือกคนไม่ได้เลย (ยังต้องมอบหมายงานได้เสมอ ต่อให้แมททริกสกิลยังไม่สมบูรณ์)
+function planHighlightQualifiedWorkers(b) {
+  const line = document.getElementById(`plan-f-line-${b}`)?.value || '';
+  const selectedCodes = _planGetSelectedWorkerCodes(b);
+  const note = document.getElementById(`plan-f-workers-filter-note-${b}`);
+  if (!line || !_planSkills.length) {
+    _planRenderWorkersPool(b, selectedCodes, _planEmployees);
+    if (note) note.innerHTML = '';
+    return;
+  }
+  const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(line));
+  if (!required.length) {
+    _planRenderWorkersPool(b, selectedCodes, _planEmployees);
+    if (note) note.innerHTML = '';
+    return;
+  }
+  const qualified = _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 2));
+  _planRenderWorkersPool(b, selectedCodes, qualified.length ? qualified : _planEmployees);
+  if (!note) return;
+  note.innerHTML = qualified.length
+    ? `<span class="text-muted"><i class="fas fa-filter me-1"></i>แสดงเฉพาะคนที่มีสกิลตรงกับไลน์นี้ (${qualified.length} คน)</span>`
+    : `<span class="text-warning"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่มีใครมีสกิลตรงกับไลน์นี้ในแมททริกสกิล — แสดงพนักงานทั้งหมดแทนชั่วคราว</span>`;
+}
+
+function _planGetSelectedWorkerCodes(b) {
+  return Array.from(document.querySelectorAll(`#plan-f-workers-select-${b} .plan-worker-chk:checked`)).map(c => c.value);
+}
+
+function _planUpdateWorkersSelectedCount(b) {
+  const el = document.getElementById(`plan-f-workers-count-${b}`);
   if (!el) return;
-  const n = _planGetSelectedWorkerCodes().length;
+  const n = _planGetSelectedWorkerCodes(b).length;
   el.textContent = n ? `(เลือกแล้ว ${n} คน)` : '';
 }
 
@@ -13212,8 +13388,7 @@ function _planUpdateWorkersSelectedCount() {
 // bom.AllowedLines (comma-separated) กำหนดตายตัวว่าสินค้านี้ผลิตได้เฉพาะไลน์ไหนบ้าง — เป็นแค่ตัวช่วยกัน
 // เลือกผิดห้องโดยไม่ตั้งใจเท่านั้น ไม่ใช่การบล็อกจริงจัง กดปุ่ม "แสดงไลน์อื่น (กรณีฉุกเฉิน)" เพื่อดูไลน์
 // ทั้งหมดได้เสมอ — รีเซ็ตทุกครั้งที่เลือกสินค้าใหม่ (planMOSelect/planSelectProduct) หรือเปิด modal ใหม่
-let _planLineAllowedOverride = false;
-
+// (โน้ต Override เก็บแยกต่อบล็อก — บล็อกหนึ่งกด "แสดงไลน์อื่น" แล้ว ไม่กระทบบล็อกอื่น)
 function _planAllowedLinesForProduct(code) {
   const prod = _planBOMList.find(b => b.ProductCode === code);
   if (!prod || !prod.AllowedLines) return null;
@@ -13221,84 +13396,203 @@ function _planAllowedLinesForProduct(code) {
   return lines.length ? lines : null;
 }
 
-function planShowAllLinesOverride() {
-  _planLineAllowedOverride = true;
-  planApplyAllowedLines();
+function planShowAllLinesOverride(b) {
+  _planLineManualOverrideByBlock[b] = true;
+  planApplyAllowedLines(b);
+  planCheckSkillCoverage(b);
+}
+
+// สลับบล็อกที่ตายตัวจาก BOM (_planLineBlockFixedLine[b]) กลับจากโหมดฉุกเฉิน (เลือกเองได้ทุกไลน์) มาใช้
+// ไลน์ที่กำหนดไว้เหมือนเดิม — คู่กับ planShowAllLinesOverride ด้านบน
+function planUseFixedLineAgain(b) {
+  _planLineManualOverrideByBlock[b] = false;
+  planApplyAllowedLines(b, _planLineBlockFixedLine[b] || '');
+  planCheckSkillCoverage(b);
+}
+
+// เปิด/ปิดว่าจะรวมบล็อกนี้ในแผนที่จะบันทึกไหม (added 2026-09-05) — แค่หรี่ opacity ให้ดูออกว่าปิดอยู่ ไม่ล้าง
+// ค่าที่กรอกไว้ (ไลน์/คน/กะ) เผื่อกลับมาติ๊กใช้ใหม่ — planSubmit เช็ค checkbox นี้ (ไม่ใช่ค่าไลน์ว่างเปล่า
+// แบบเดิม) ว่าจะรวมบล็อกนี้เป็น payload หรือข้าม
+function planToggleBlockUse(b) {
+  const used = document.getElementById(`plan-line-use-${b}`)?.checked !== false;
+  const body = document.getElementById(`plan-line-block-body-${b}`);
+  if (body) body.style.opacity = used ? '' : '0.5';
+}
+
+// เลือกไลน์ (เรียกจาก radio button ที่หน้าเว็บ, หรือเรียกเองจาก planAutoPickFreeLine) — ตั้งค่าใน hidden
+// input #plan-f-line-${b} (ที่ทุกฟังก์ชันเดิมในไฟล์นี้อ่าน .value อยู่แล้ว ไม่ต้องแก้จุดอื่น) + sync radio
+// ที่ติ๊กให้ตรงกัน แล้ว trigger เช็คต่างๆ เหมือนตอน onchange ของ select เดิม
+function planSelectLine(b, line) {
+  const lineSel = document.getElementById(`plan-f-line-${b}`);
+  if (!lineSel) return;
+  lineSel.value = line || '';
+  document.querySelectorAll(`.plan-line-radio[data-block="${b}"]`).forEach(r => { r.checked = (r.value === line); });
+  planCheckConflictLive(b);
+  planCheckSkillCoverage(b);
 }
 
 // preferredValue: ค่าที่อยากให้เลือกไว้หลัง rebuild ตัวเลือก (ไม่ระบุ = ใช้ค่าที่เลือกอยู่ในช่องปัจจุบัน)
-function planApplyAllowedLines(preferredValue) {
-  const lineSel = document.getElementById('plan-f-line');
-  const note = document.getElementById('plan-line-restrict-note');
-  if (!lineSel) return;
+// แยก 2 กรณีตาม _planLineBlockFixedLine[b] (ตั้งไว้ตอน planSetupLineBlocksForProduct):
+// (1) บล็อกตายตัวจาก BOM (fixedLine มีค่า) — ปกติมีตัวเลือกเดียว (ไลน์ที่กำหนดไว้) กด "เปลี่ยนไลน์นี้
+//     (ฉุกเฉิน)" เพื่อปลดล็อกเลือกได้ทุกไลน์ชั่วคราว (planShowAllLinesOverride/planUseFixedLineAgain)
+// (2) บล็อกเลือกเอง (fixedLine ไม่มี — ใช้กับสินค้าที่ยังไม่ตั้งค่าไลน์เลย/ตอนแก้ไขแผนเดิม) — เหมือนพฤติกรรม
+//     เดิมทั้งหมดก่อนมีฟีเจอร์ 3 หมวด: จำกัดตาม bom.AllowedLines ถ้ามี ไม่งั้นโชว์ทุกไลน์ กด "แสดงไลน์อื่น
+//     (กรณีฉุกเฉิน)" เพื่อดูไลน์ทั้งหมดได้เสมอ
+function planApplyAllowedLines(b, preferredValue) {
+  const lineSel = document.getElementById(`plan-f-line-${b}`);
+  const optionsWrap = document.getElementById(`plan-f-line-options-${b}`);
+  const note = document.getElementById(`plan-line-restrict-note-${b}`);
+  if (!lineSel || !optionsWrap) return;
   const wantValue = preferredValue !== undefined ? preferredValue : lineSel.value;
   const code = document.getElementById('plan-f-prodcode').value;
-  const allowed = _planAllowedLinesForProduct(code);
+  const fixedLine = _planLineBlockFixedLine[b];
+  const overridden = !!_planLineManualOverrideByBlock[b];
 
-  const buildOptions = lines => '<option value="">— เลือกไลน์ —</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
-  // โชว์ลิสต์ที่จำกัดไว้ ถ้ามีข้อจำกัด + ยังไม่ได้กด "แสดงไลน์อื่น" + ค่าที่จะตั้ง (ถ้ามี) อยู่ในลิสต์นั้นจริง
-  // — ถ้าค่าที่จะตั้งอยู่นอกลิสต์ (เช่นแผนเก่าที่เคยเลือกไลน์อื่นไว้ก่อนตั้งข้อจำกัดนี้) โชว์ทั้งหมดแทนอัตโนมัติ
-  // เพื่อไม่ให้ค่าที่เคยเลือกไว้หายไปเงียบๆ
-  const showRestricted = !!allowed && !_planLineAllowedOverride && (!wantValue || allowed.includes(wantValue));
-  lineSel.innerHTML = buildOptions(showRestricted ? allowed : PLAN_LINES);
+  const buildRadios = lines => lines.map((l, i) => `
+    <div class="form-check mb-1">
+      <input class="form-check-input plan-line-radio" type="radio" name="plan-line-radio-${b}" data-block="${b}" value="${l}" id="plan-line-radio-${b}-${i}"
+        ${l === wantValue ? 'checked' : ''} onchange="planSelectLine('${b}', this.value)">
+      <label class="form-check-label small" for="plan-line-radio-${b}-${i}">
+        <span class="skillmatrix-legend-dot" style="background:${_planLineColor(l)}"></span>${l}
+      </label>
+    </div>`).join('');
+
+  if (fixedLine && !overridden) {
+    optionsWrap.innerHTML = buildRadios([fixedLine]);
+    lineSel.value = fixedLine;
+    if (note) note.innerHTML = `<i class="fas fa-lock me-1 text-muted"></i>กำหนดจากสินค้านี้ (ตั้งค่าที่ BOM) —
+      <a href="#" onclick="planShowAllLinesOverride('${b}'); return false;">เปลี่ยนไลน์นี้ (กรณีฉุกเฉิน)</a>`;
+    return;
+  }
+  if (fixedLine && overridden) {
+    optionsWrap.innerHTML = buildRadios(PLAN_LINES);
+    lineSel.value = wantValue || '';
+    if (note) note.innerHTML = `<span class="text-warning"><i class="fas fa-triangle-exclamation me-1"></i>โหมดฉุกเฉิน กำลังเลือกไลน์เอง —
+      <a href="#" onclick="planUseFixedLineAgain('${b}'); return false;">กลับไปใช้ไลน์ที่กำหนดไว้ ("${fixedLine}")</a></span>`;
+    return;
+  }
+
+  // บล็อกแบบเลือกเอง (ไม่มีไลน์ตายตัว) — เหมือนพฤติกรรมเดิมก่อนฟีเจอร์ 3 หมวด
+  const allowedRaw = _planAllowedLinesForProduct(code); // อาจ null ถ้าไม่ได้ตั้งค่า
+  const showRestricted = !!allowedRaw && !overridden && (!wantValue || allowedRaw.includes(wantValue));
+  optionsWrap.innerHTML = buildRadios(showRestricted ? allowedRaw : PLAN_LINES);
   lineSel.value = wantValue || '';
-
   if (!note) return;
-  if (!allowed) { note.innerHTML = ''; return; }
+  if (!allowedRaw) { note.innerHTML = ''; return; }
   note.innerHTML = showRestricted
     ? `<i class="fas fa-lock me-1 text-muted"></i>สินค้านี้กำหนดให้ผลิตเฉพาะไลน์ข้างต้น —
-       <a href="#" onclick="planShowAllLinesOverride(); return false;">แสดงไลน์อื่น (กรณีฉุกเฉิน)</a>`
+       <a href="#" onclick="planShowAllLinesOverride('${b}'); return false;">แสดงไลน์อื่น (กรณีฉุกเฉิน)</a>`
     : `<span class="text-warning"><i class="fas fa-triangle-exclamation me-1"></i>กำลังแสดงไลน์ทั้งหมด (โหมดฉุกเฉิน) — ปกติสินค้านี้ผลิตเฉพาะไลน์ที่กำหนดไว้เท่านั้น</span>`;
 }
 
-// เทียบ "จำนวนคนที่ต้องใช้" (bom.RequiredWorkersFill/Lot/InspectPack — ผูกกับสินค้า ไม่ใช่ไลน์ ยืนยันกับ
-// ผู้ใช้แล้วว่าสินค้าต่างกันอาจใช้จำนวนคนไม่เท่ากันแม้อยู่ไลน์เดียวกัน) กับจำนวนผู้ปฏิบัติงานที่เลือกไว้จริง
-// — เตือนเฉยๆ ไม่บล็อกการบันทึก เหมือนการเช็คสกิล/ไลน์ที่ผลิตได้
-function planUpdateWorkerRequirementCheck() {
-  const box = document.getElementById('plan-worker-requirement-check');
-  if (!box) return;
+// เลือกไลน์ที่ "ว่าง" ให้อัตโนมัติ จากบรรดาไลน์ที่สินค้านี้ผลิตได้ (bom.AllowedLines) — ใช้ข้อมูลจริง (เช็ค
+// ชนกันแบบเดียวกับ _planFindConflict ที่บล็อกตอนบันทึกอยู่แล้ว) ไม่ใช่การเดา — ใช้กับบล็อกเลือกเองเท่านั้น
+// (บล็อกตายตัวจาก BOM ไม่มีทางเข้าเงื่อนไข "ช่องไลน์ยังว่าง" เพราะ planApplyAllowedLines ตั้งค่าให้ตั้งแต่
+// render แล้ว) — เลือกให้เฉพาะตอนที่ช่องไลน์ยังว่างอยู่เท่านั้น ต้องมีทั้งวันที่+ช่วงเวลาให้เช็คก่อน (ใช้
+// _planEffectiveShift ไม่ใช่ค่าเวลาของบล็อกนี้ตรงๆ เพราะบล็อกที่ไม่ใช่บล็อกหลักไม่มี UI เวลาของตัวเอง) ถ้า
+// ทุกไลน์ที่ทำได้ไม่ว่างเลย หรือสินค้านี้ไม่จำกัดไลน์เลย (AllowedLines ว่าง — ไม่มีฐานให้เดา) ก็ปล่อยว่างไว้
+// ให้เลือกเอง ไม่ฝืนเลือก
+function planAutoPickFreeLine(b) {
+  const lineSel = document.getElementById(`plan-f-line-${b}`);
+  if (!lineSel || lineSel.value) return;
   const code = document.getElementById('plan-f-prodcode')?.value || '';
-  const prod = _planBOMList.find(b => b.ProductCode === code);
-  if (!prod) { box.innerHTML = ''; return; }
+  const allowed = _planAllowedLinesForProduct(code);
+  if (!allowed) return;
+  const date = document.getElementById('plan-f-date')?.value || '';
+  const shift = _planEffectiveShift(b);
+  if (!date || !shift) return;
+  const editId = parseInt(document.getElementById('plan-edit-id')?.value) || null;
+  const free = allowed.find(line => !_planFindConflict(date, line, shift.timeStart, shift.timeEnd, editId));
+  if (!free) return;
 
-  const steps = [
-    { label: 'บรรจุ',           need: prod.RequiredWorkersFill },
-    { label: 'ยิง Lot',         need: prod.RequiredWorkersLot },
-    { label: 'ตรวจสอบ/แพ็ค',   need: prod.RequiredWorkersInspectPack },
-  ].filter(s => s.need != null && s.need > 0);
-  if (!steps.length) { box.innerHTML = ''; return; }
-
-  const selectedCount = _planGetSelectedWorkerCodes().length;
-  const parts = steps.map(s => {
-    const ok = selectedCount >= s.need;
-    return `<span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'} me-1 mb-1">
-      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${s.label} ต้องใช้ ${s.need} คน
-    </span>`;
-  }).join('');
-  box.innerHTML = `<div class="small text-muted mb-1"><i class="fas fa-users me-1"></i>จำนวนคนที่สินค้านี้ต้องใช้ (เลือกไว้ตอนนี้ ${selectedCount} คน):</div>${parts}`;
+  lineSel.value = free;
+  document.querySelectorAll(`.plan-line-radio[data-block="${b}"]`).forEach(r => { r.checked = (r.value === free); });
+  planCheckConflictLive(b);
+  planCheckSkillCoverage(b);
+  const note = document.getElementById(`plan-line-restrict-note-${b}`);
+  if (note) {
+    note.innerHTML = `<i class="fas fa-wand-magic-sparkles me-1 text-primary"></i>เลือกไลน์ "${free}" ให้อัตโนมัติ (ว่างในช่วงเวลานี้) — เปลี่ยนเองได้ตามปกติ`;
+  }
 }
 
-// แสดงว่าไลน์ที่เลือกต้องการทักษะอะไรบ้าง (Lines คั่นด้วย comma บน skills) แล้วเทียบกับ Level สูงสุด
-// ของผู้ปฏิบัติงานที่เลือกไว้ — ≥2 (ทำได้เอง) ถือว่าโอเค ต่ำกว่านั้นเตือนเป็นสีเหลือง (advisory only)
-function planCheckSkillCoverage() {
-  _planUpdateWorkersSelectedCount();
-  planUpdateWorkerRequirementCheck();
-  const box = document.getElementById('plan-skill-check');
+// ดึง {label, need} ของ "จำนวนคนที่ต้องใช้" (bom.RequiredWorkersFill/Lot/InspectPack) ที่ตรงกับหมวดไลน์
+// ของบล็อกนี้จริงๆ เท่านั้น — คืน null ถ้าไม่มีสินค้า/ไม่รู้หมวด/ไม่ได้ตั้งค่าจำนวนไว้ (ใช้ร่วมกันโดย
+// planUpdateWorkerRequirementCheck ที่แสดงผล และ _planEnforceWorkerCap ที่บังคับไม่ให้ติ๊กเกิน)
+function _planRequiredWorkersForBlock(b) {
+  const code = document.getElementById('plan-f-prodcode')?.value || '';
+  const prod = _planBOMList.find(x => x.ProductCode === code);
+  if (!prod) return null;
+  const line = document.getElementById(`plan-f-line-${b}`)?.value || '';
+  const cat  = _planLineCategoryOf(line);
+  const stepByCategory = {
+    fill: { label: 'บรรจุ',           need: prod.RequiredWorkersFill },
+    lot:  { label: 'ยิง Lot',         need: prod.RequiredWorkersLot },
+    pack: { label: 'ตรวจสอบ/แพ็ค',   need: prod.RequiredWorkersInspectPack },
+  };
+  const step = cat ? stepByCategory[cat] : null;
+  return (step && step.need != null && step.need > 0) ? step : null;
+}
+
+// เทียบ "จำนวนคนที่ต้องใช้" กับจำนวนผู้ปฏิบัติงานที่เลือกไว้จริงในบล็อกนี้ — แสดงแค่ตัวเลขที่ตรงกับ "หมวด"
+// ของไลน์ที่บล็อกนี้ใช้จริงเท่านั้น (added 2026-09-05 — เดิมโชว์ครบทั้ง 3 ตัวเลขในทุกบล็อกไม่ว่าบล็อกนั้นจะ
+// เป็นไลน์อะไร ทำให้บล็อก "ไลน์แพ็ค" ก็ขึ้นเตือน "บรรจุ ต้องใช้ 2 คน" ซึ่งไม่เกี่ยวกับบล็อกนั้นเลย) — เตือน
+// เฉยๆ ไม่บล็อกการบันทึก (การห้ามติ๊กเกินจำนวนอยู่ที่ _planEnforceWorkerCap แยกต่างหาก)
+function planUpdateWorkerRequirementCheck(b) {
+  const box = document.getElementById(`plan-worker-requirement-check-${b}`);
   if (!box) return;
-  const line = document.getElementById('plan-f-line')?.value || '';
-  const selectedCodes = _planGetSelectedWorkerCodes();
+  const step = _planRequiredWorkersForBlock(b);
+  if (!step) { box.innerHTML = ''; return; }
+
+  const selectedCount = _planGetSelectedWorkerCodes(b).length;
+  const ok = selectedCount >= step.need;
+  box.innerHTML = `<div class="small text-muted mb-1"><i class="fas fa-users me-1"></i>จำนวนคนที่ไลน์นี้ต้องใช้ (เลือกไว้ตอนนี้ ${selectedCount} คน):</div>
+    <span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'} me-1 mb-1">
+      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${step.label} ต้องใช้ ${step.need} คน
+    </span>`;
+}
+
+// บังคับไม่ให้ติ๊กเกินจำนวนที่สินค้านี้ต้องใช้จริง (added 2026-09-06 ตามคำขอผู้ใช้ "บรรจุใช้ 3 คน ก็ให้เลือก
+// ได้แค่ 3 คน ไม่ให้ติ๊กเกิน") — ปิด (disabled) เฉพาะช่องที่ยังไม่ได้ติ๊กเมื่อครบจำนวนแล้ว ไม่แตะช่องที่ติ๊ก
+// ไว้แล้ว (ถ้าจำนวนที่ต้องใช้ลดลงทีหลังจนน้อยกว่าคนที่เลือกไว้ก่อนหน้า ก็ไม่ไปยกเลิกการเลือกที่มีอยู่เดิม
+// ให้ — แค่ไม่ให้เพิ่มคนใหม่เท่านั้น) ไม่มีจำนวนกำหนดไว้ (step เป็น null) = ไม่จำกัด เหมือนเดิม
+function _planEnforceWorkerCap(b) {
+  const step = _planRequiredWorkersForBlock(b);
+  const boxes = document.querySelectorAll(`#plan-f-workers-select-${b} .plan-worker-chk`);
+  const atCap = step && Array.from(boxes).filter(c => c.checked).length >= step.need;
+  boxes.forEach(c => { if (!c.checked) c.disabled = !!atCap; });
+}
+
+// แสดงว่าไลน์ที่เลือก(ของบล็อกนี้)ต้องการทักษะอะไรบ้าง (Lines คั่นด้วย comma บน skills) แล้วเทียบกับ Level
+// สูงสุดของผู้ปฏิบัติงานที่เลือกไว้ในบล็อกนี้ — ≥2 (ทำได้เอง) ถือว่าโอเค ต่ำกว่านั้นเตือนเป็นสีเหลือง
+// (advisory only) — จุดเดียวที่ trigger ทุกเช็คของบล็อกนี้ (จำนวนคน/สกิล/แนะนำ/คนซ้ำ)
+function planCheckSkillCoverage(b) {
+  _planUpdateWorkersSelectedCount(b);
+  planUpdateWorkerRequirementCheck(b);
+  planHighlightQualifiedWorkers(b);
+  planCheckWorkerConflictLive(b);
+  const box = document.getElementById(`plan-skill-check-${b}`);
+  if (!box) return;
+  const line = document.getElementById(`plan-f-line-${b}`)?.value || '';
+  const selectedCodes = _planGetSelectedWorkerCodes(b);
 
   if (!line || !_planSkills.length) { box.innerHTML = ''; return; }
   const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(line));
   if (!required.length) { box.innerHTML = ''; return; }
 
+  // ยังไม่ได้เลือกผู้ปฏิบัติงานเลย (selectedCodes ว่าง) ≠ "เลือกคนแล้วแต่ไม่มีใครชำนาญ" — สองสถานะนี้เคย
+  // ใช้ป้ายเดียวกัน ("ไม่มีคนชำนาญ" สีเหลือง) ทำให้ผู้ใช้งงว่าทำไมระบบบอกว่า "ไม่มีใครทำได้" ทั้งที่ในแมท
+  // ทริกสกิลมีคนทำได้จริงหลายคน — สาเหตุคือยังไม่ได้ติ๊กเลือกใครในฟอร์มนี้เลยต่างหาก ไม่ใช่ไม่มีคนจริง —
+  // แยกเป็นป้ายเทาเป็นกลาง ("ยังไม่ได้เลือกคน") ก่อน แล้วค่อยขึ้นเหลือง/เขียวจริงหลังเลือกคนแล้ว
   const badges = required.map(s => {
-    const maxLevel = selectedCodes.length
-      ? Math.max(0, ...selectedCodes.map(code => _planSkillLevels[`${code}|${s.SkillCode}`] || 0))
-      : 0;
+    if (!selectedCodes.length) {
+      return `<span class="badge bg-secondary me-1 mb-1">
+        <i class="fas fa-question me-1"></i>${s.SkillName} — ยังไม่ได้เลือกคน
+      </span>`;
+    }
+    const maxLevel = Math.max(0, ...selectedCodes.map(code => _planSkillLevels[`${code}|${s.SkillCode}`] || 0));
     const ok = maxLevel >= 2;
     return `<span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'} me-1 mb-1">
-      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${s.SkillName}${ok ? '' : ' — ไม่มีคนชำนาญ'}
+      <i class="fas fa-${ok ? 'check' : 'triangle-exclamation'} me-1"></i>${s.SkillName}${ok ? '' : ' — คนที่เลือกไว้ยังไม่มีใครชำนาญ'}
     </span>`;
   }).join('');
   box.innerHTML = `<div class="small text-muted mb-1"><i class="fas fa-clipboard-check me-1"></i>ทักษะที่ไลน์นี้ต้องใช้:</div>${badges}`;
@@ -13385,11 +13679,11 @@ async function planLoadData() {
       ).join('');
   }
 
-  const lineSel = document.getElementById('plan-f-line');
-  if (lineSel && lineSel.options.length <= 1) {
-    lineSel.innerHTML = '<option value="">— เลือกไลน์ —</option>' +
-      PLAN_LINES.map(l => `<option value="${l}">${l}</option>`).join('');
-  }
+  // (เดิมมีโค้ด pre-populate #plan-f-line ที่นี่ตอนยังเป็น <select> — ตอนนี้ #plan-f-line เป็น hidden
+  // input แล้ว (เปลี่ยนเป็นปุ่มกดเลือกโดยตรงที่ #plan-f-line-options แทน) ตัวเลือกไลน์ถูก build สดทุกครั้ง
+  // ที่เปิด modal/เปลี่ยนสินค้าอยู่แล้วผ่าน planApplyAllowedLines() — โค้ดเดิมตรงนี้เลยไม่จำเป็นและถูกลบทิ้ง
+  // (ทิ้งไว้จะพัง เพราะ .options ไม่มีอยู่บน <input>, .options.length บนค่า undefined โยน TypeError ทำให้
+  // planLoadData() พังกลางคันก่อนถึง planRenderCalendar() — ทั้งหน้าแผนผลิตเลยว่างเปล่าไปหมด)
 
   planUpdateKPIs();
   planRenderCalendar();
@@ -13743,6 +14037,42 @@ function planToggleMode(mode) {
   }
 }
 
+// เรียกทุกครั้งที่ "สินค้า" เปลี่ยน (planMOSelect/planSelectProduct) — โหมดเพิ่มแผนใหม่ (ไม่ใช่ isEdit):
+// สินค้าใหม่อาจมีจำนวน/รายชื่อไลน์ที่ตั้งค่าไว้ต่างไปจากเดิมโดยสิ้นเชิง (added 2026-09-05 ตามคำขอผู้ใช้
+// "ให้ดูตามสินค้าว่าแต่ละตัวมีกี่ไลน์ผลิต") จึงต้อง rebuild ชุดบล็อกทั้งหมดใหม่ (ไม่ใช่แค่รีเช็คบล็อกเดิม
+// ในที่) — ข้อมูลที่กรอกไว้ในบล็อกเดิม (คน/กะ) หายไปด้วย ซึ่งตั้งใจ เพราะไลน์/คนของสินค้าเดิมอาจไม่เกี่ยว
+// กับสินค้าใหม่เลย — โหมดแก้ไข (isEdit) ยังคงเป็น 1 บล็อกเสมอไม่ว่าสินค้าจะเปลี่ยนยังไง แค่รีเช็คในที่พอ
+function _planRefreshAllBlocksForProductOrDate() {
+  const isEdit = !!document.getElementById('plan-edit-id')?.value;
+  if (!isEdit) {
+    const code = document.getElementById('plan-f-prodcode')?.value || '';
+    planSetupLineBlocksForProduct('add', code);
+    _planLineBlockIds.forEach(b => {
+      document.getElementById(`plan-f-workers-legacy-value-${b}`).value = '';
+      document.getElementById(`plan-f-workers-legacy-note-${b}`).style.display = 'none';
+      _planPopulateWorkersSelect(b, []);
+      planApplyAllowedLines(b, '');
+      planAutoPickFreeLine(b);
+      planCheckSkillCoverage(b);
+    });
+    return;
+  }
+  _planLineBlockIds.forEach(b => {
+    _planLineManualOverrideByBlock[b] = false;
+    planApplyAllowedLines(b);
+    planAutoPickFreeLine(b);
+    planCheckSkillCoverage(b);
+  });
+}
+
+function planOnDateChanged() {
+  _planLineBlockIds.forEach(b => {
+    planCheckConflictLive(b);
+    planAutoPickFreeLine(b);
+    planCheckSkillCoverage(b);
+  });
+}
+
 function planMOSelect() {
   const sel = document.getElementById('plan-f-mo-ref');
   const opt = sel.options[sel.selectedIndex];
@@ -13762,9 +14092,7 @@ function planMOSelect() {
   if (!document.getElementById('plan-f-qty').value) {
     document.getElementById('plan-f-qty').value = opt.dataset.pending || '';
   }
-  _planLineAllowedOverride = false;
-  planApplyAllowedLines();
-  planCheckSkillCoverage();
+  _planRefreshAllBlocksForProductOrDate();
   planUpdateCapacityEstimate();
 }
 
@@ -13792,9 +14120,7 @@ function planSelectProduct(code, name, uom) {
   document.getElementById('plan-f-prodcode-display').value = code;
   document.getElementById('plan-f-uom').value              = uom;
   document.getElementById('plan-mat-dropdown').style.display = 'none';
-  _planLineAllowedOverride = false;
-  planApplyAllowedLines();
-  planCheckSkillCoverage();
+  _planRefreshAllBlocksForProductOrDate();
   planUpdateCapacityEstimate();
 }
 
@@ -13843,9 +14169,6 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
   if (_planDayModal) _planDayModal.hide();
   document.getElementById('planForm').reset();
   document.getElementById('plan-mat-dropdown').style.display = 'none';
-  document.getElementById('plan-f-conflict-hint').style.display = 'none';
-  document.querySelectorAll('.plan-shift-chk').forEach(c => c.checked = false);
-  document.getElementById('plan-shift-preview').textContent = 'เลือกช่วงเวลาอย่างน้อย 1 ช่วง';
   await _planLoadSkillData();
 
   const title  = document.getElementById('planModalTitle');
@@ -13856,6 +14179,10 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
     if (!r) return;
     editId.value = rowId;
     title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขแผนผลิต';
+    // แก้ไข = 1 ไลน์ต่อ 1 แถวเสมอ (เหมือนเดิม) — 1 บล็อกเลือกเองได้ (ไม่ fix ตายตัวจาก BOM เหมือนโหมด
+    // เพิ่มแผน เพราะแก้ไขคือกรณีที่อาจต้องแก้ไลน์ผิดจริง) ดูหมายเหตุที่ planSetupLineBlocksForProduct
+    planSetupLineBlocksForProduct('edit', null, r.Line || '');
+    const b = _planLineBlockIds[0];
     const mode = r.MO_Ref ? 'mo' : 'custom';
     planToggleMode(mode);
     document.getElementById('plan-f-date').value = r.PlanDate || '';
@@ -13865,19 +14192,18 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
     document.getElementById('plan-f-prodname').value = r.ProductName || '';
     document.getElementById('plan-f-uom').value = r.UOM || '';
     document.getElementById('plan-f-qty').value = r.PlanQty || '';
-    _planLineAllowedOverride = false;
-    planApplyAllowedLines(r.Line || '');
+    planApplyAllowedLines(b, r.Line || '');
     _planShiftKeysFromLabel(r.Shift).forEach(k => {
-      const chk = document.querySelector(`.plan-shift-chk[value="${k}"]`);
+      const chk = document.querySelector(`.plan-shift-chk[data-block="${b}"][value="${k}"]`);
       if (chk) chk.checked = true;
     });
-    planShiftChanged();
-    document.getElementById('plan-f-workers-legacy-value').value = r.Workers || '';
+    planShiftChanged(b);
+    document.getElementById(`plan-f-workers-legacy-value-${b}`).value = r.Workers || '';
     { // ผู้ปฏิบัติงาน: ถ้าแผนนี้ผูก WorkerCodes ไว้แล้ว (แผนใหม่ตั้งแต่เชื่อม Master พนักงาน) เลือกให้ตรง
       // ถ้าเป็นแผนเก่า (Workers เป็น text อิสระ ไม่มี WorkerCodes) โชว์ข้อความเดิมไว้เฉยๆ ให้เลือกใหม่เอง
       const workerCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-      _planPopulateWorkersSelect(workerCodes);
-      const legacyNote = document.getElementById('plan-f-workers-legacy-note');
+      _planPopulateWorkersSelect(b, workerCodes);
+      const legacyNote = document.getElementById(`plan-f-workers-legacy-note-${b}`);
       if (!workerCodes.length && r.Workers) {
         legacyNote.style.display = 'block';
         legacyNote.innerHTML = `<i class="fas fa-clock-rotate-left me-1"></i>ข้อมูลเดิม (ก่อนเชื่อม Master พนักงาน): <b>${r.Workers}</b> — เลือกพนักงานจริงด้านบนถ้าต้องการอัปเดต`;
@@ -13898,17 +14224,22 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
   } else {
     editId.value = '';
     title.innerHTML = '<i class="fas fa-calendar-plus me-2"></i>เพิ่มแผนผลิต';
+    // เพิ่มแผนใหม่ = จำนวนบล็อก/ไลน์มาจากสินค้าที่เลือกโดยตรง (ยังไม่รู้จนกว่าจะเลือกสินค้าผ่าน
+    // planMOSelect/planSelectProduct → _planRefreshAllBlocksForProductOrDate) — ตอนเปิด modal เปล่าๆ
+    // ยังไม่มีสินค้า ให้เริ่มด้วย fallback บล็อกเดียวไปก่อนชั่วคราว ดูหมายเหตุที่ planSetupLineBlocksForProduct
+    planSetupLineBlocksForProduct('add', '');
     document.getElementById('plan-f-date').value = dateStr || new Date().toISOString().split('T')[0];
     planToggleMode('mo');
-    document.getElementById('plan-f-workers-legacy-value').value = '';
-    document.getElementById('plan-f-workers-legacy-note').style.display = 'none';
-    _planPopulateWorkersSelect([]);
-    _planLineAllowedOverride = false;
-    planApplyAllowedLines('');
+    _planLineBlockIds.forEach(b => {
+      document.getElementById(`plan-f-workers-legacy-value-${b}`).value = '';
+      document.getElementById(`plan-f-workers-legacy-note-${b}`).style.display = 'none';
+      _planPopulateWorkersSelect(b, []);
+      planApplyAllowedLines(b, '');
+    });
   }
   _planUpdateCORefBadge();
   planUpdateCapacityEstimate();
-  planCheckSkillCoverage();
+  _planLineBlockIds.forEach(b2 => planCheckSkillCoverage(b2));
   _planModal.show();
 }
 
@@ -13924,29 +14255,84 @@ function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
   ) || null;
 }
 
-function _planSelectedShiftKeys() {
-  return Array.from(document.querySelectorAll('.plan-shift-chk:checked')).map(c => c.value);
+// เหมือน _planFindConflict แต่เช็คว่าผู้ปฏิบัติงานคนไหน (จาก workerCodes ที่เลือกไว้ในฟอร์มนี้) ถูกจองไว้
+// ในแผนอื่นที่ชนเวลากันอยู่แล้ว (วันเดียวกัน+เวลาทับซ้อน) — คนเดียวกันทำงาน 2 ที่พร้อมกันไม่ได้จริง จึง
+// ยืนยันกับผู้ใช้แล้วให้เป็นการบล็อกจริงตอนบันทึก (ดู planSubmit) ไม่ใช่แค่เตือนแบบเช็คสกิล/จำนวนคน —
+// คืน array ของ {code, row} หนึ่งรายการต่อคนที่ชนแต่ละคน (ไม่ dedupe — ถ้าคนเดียวชนหลายแผนพร้อมกันจะได้
+// เห็นครบทุกแผนที่ชน)
+function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, excludeRowId) {
+  if (!date || !timeStart || !timeEnd || !workerCodes.length) return [];
+  const conflicts = [];
+  _planData.forEach(r => {
+    if (r._row_id === excludeRowId) return;
+    if (r.PlanDate !== date) return;
+    const rStart = (r.TimeStart || '').slice(0, 5);
+    const rEnd   = (r.TimeEnd || '').slice(0, 5);
+    if (!(rStart < timeEnd && timeStart < rEnd)) return;
+    const rowCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+    workerCodes.forEach(code => {
+      if (rowCodes.includes(code)) conflicts.push({ code, row: r });
+    });
+  });
+  return conflicts;
 }
 
-function planShiftChanged() {
-  const preview = document.getElementById('plan-shift-preview');
-  const keys  = _planSelectedShiftKeys();
+// แสดงคำเตือนล่วงหน้าก่อนกดบันทึก (เหมือน planCheckConflictLive สำหรับไลน์) — เรียกจาก planCheckSkillCoverage
+// (จุดเดียวที่ trigger ทุกครั้งที่ไลน์/ผู้ปฏิบัติงานเปลี่ยน) ไม่ต้อง wire onchange แยกเพิ่ม
+function planCheckWorkerConflictLive(b) {
+  const hint = document.getElementById(`plan-worker-conflict-hint-${b}`);
+  if (!hint) return;
+  const editId = parseInt(document.getElementById('plan-edit-id')?.value) || null;
+  const date = document.getElementById('plan-f-date')?.value || '';
+  const shift = _planEffectiveShift(b);
+  const codes = _planGetSelectedWorkerCodes(b);
+  const conflicts = shift ? _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, codes, editId) : [];
+  if (conflicts.length) {
+    const names = conflicts.map(c => {
+      const e = _planEmployees.find(x => x.EmployeeCode === c.code);
+      const name = e ? (e.NickName || e.FirstName || c.code) : c.code;
+      return `${name} (ชนกับ "${c.row.ProductName || ''}" ไลน์ "${c.row.Line || ''}")`;
+    }).join(', ');
+    hint.querySelector('span').textContent = `คนซ้ำกับแผนอื่นที่ชนเวลากัน: ${names}`;
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function _planSelectedShiftKeys(b) {
+  return Array.from(document.querySelectorAll(`.plan-shift-chk[data-block="${b}"]:checked`)).map(c => c.value);
+}
+
+function planShiftChanged(b) {
+  const preview = document.getElementById(`plan-shift-preview-${b}`);
+  const keys  = _planSelectedShiftKeys(b);
   const shift = _planComputeShift(keys);
   // โอที "18:00 เป็นต้นไป" ไม่มีเวลาสิ้นสุดจริง — ภายในใช้ 20:30 สำหรับเช็คตารางชนกันเท่านั้น
   // หน้าจอ preview นี้ให้โชว์ "เป็นต้นไป" แทนตัวเลข 20:30 เพื่อไม่ให้เข้าใจผิดว่ามีเวลาเลิกจริง
   const includesOT = keys.includes('โอที');
-  preview.textContent = shift
-    ? `รวมเวลา: ${shift.timeStart}–${includesOT ? 'เป็นต้นไป' : shift.timeEnd}${shift.shiftLabel.includes('+') && includesOT && keys.length > 1 ? ' (มีช่วงพักก่อนโอทีที่ไม่นับเป็นเวลาทำงาน)' : ''}`
-    : 'เลือกช่วงเวลาอย่างน้อย 1 ช่วง';
-  planCheckConflictLive();
+  if (preview) {
+    preview.textContent = shift
+      ? `รวมเวลา: ${shift.timeStart}–${includesOT ? 'เป็นต้นไป' : shift.timeEnd}${shift.shiftLabel.includes('+') && includesOT && keys.length > 1 ? ' (มีช่วงพักก่อนโอทีที่ไม่นับเป็นเวลาทำงาน)' : ''}`
+      : 'เลือกช่วงเวลาอย่างน้อย 1 ช่วง';
+  }
+  // บล็อกที่เรียก onchange นี้ได้มี checkbox เวลาของตัวเอง แปลว่าเป็นบล็อกหลัก (_planPrimaryTimeBlockKey)
+  // เสมอ (added 2026-09-05 ตามคำขอผู้ใช้ "เวลาทำงานใส่แค่ไลน์บรรจุ") — บล็อกอื่นในแผนเดียวกัน (แพ็ค/ยิง
+  // Lot) ไม่มี UI เวลาของตัวเอง แต่ "ยืม" เวลานี้ไปใช้ (ดู _planEffectiveShift) จึงต้องรีเช็คทุกบล็อกด้วย
+  // เมื่อเวลาหลักเปลี่ยน ไม่ใช่แค่บล็อกนี้บล็อกเดียว
+  _planLineBlockIds.forEach(other => {
+    planCheckConflictLive(other);
+    planAutoPickFreeLine(other);
+    planCheckSkillCoverage(other);
+  });
 }
 
-function planCheckConflictLive() {
+function planCheckConflictLive(b) {
   const editId   = parseInt(document.getElementById('plan-edit-id').value) || null;
   const date     = document.getElementById('plan-f-date').value;
-  const line     = document.getElementById('plan-f-line').value;
-  const shift    = _planComputeShift(_planSelectedShiftKeys());
-  const hint     = document.getElementById('plan-f-conflict-hint');
+  const line     = document.getElementById(`plan-f-line-${b}`).value;
+  const shift    = _planEffectiveShift(b);
+  const hint     = document.getElementById(`plan-f-conflict-hint-${b}`);
   const conflict = shift ? _planFindConflict(date, line, shift.timeStart, shift.timeEnd, editId) : null;
   if (conflict) {
     hint.querySelector('span').textContent = `ชนกับ "${conflict.ProductName}" (${conflict.Shift||_planShiftTimeLabel(conflict)}) ในไลน์นี้`;
@@ -13965,55 +14351,117 @@ async function planSubmit(e) {
   const prodCode = document.getElementById('plan-f-prodcode').value;
   const prodName = document.getElementById('plan-f-prodname').value;
   const date     = document.getElementById('plan-f-date').value;
-  const line     = document.getElementById('plan-f-line').value;
-  const shift    = _planComputeShift(_planSelectedShiftKeys());
+  const excludeRowId = isEdit ? parseInt(editId) : null;
 
   if (!prodCode) { _err('กรุณาเลือกสินค้า', isMOMode ? 'เลือก MO ก่อน' : 'ค้นหาและเลือกสินค้า'); return; }
   if (qty <= 0) { _err('กรุณาระบุจำนวน', 'จำนวนต้องมากกว่า 0'); return; }
-  if (!line) { _err('กรุณาเลือกไลน์ผลิต', ''); return; }
-  if (!shift) { _err('กรุณาเลือกช่วงเวลา', 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง'); return; }
 
-  const conflict = _planFindConflict(date, line, shift.timeStart, shift.timeEnd, isEdit ? parseInt(editId) : null);
-  if (conflict) {
-    _err('ไลน์นี้ถูกจองเวลาซ้อนกันแล้ว',
-      `"${conflict.ProductName}" จองไลน์ "${line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้ว กรุณาเลือกช่วงเวลาหรือไลน์อื่น`);
+  // สร้าง 1 payload ต่อ 1 บล็อกที่ใช้ — แก้ไข (isEdit) มีเสมอแค่ 1 บล็อก (บังคับใช้เสมอ เหมือนเดิม), เพิ่ม
+  // แผนมีจำนวนบล็อกตามที่สินค้ากำหนด (planSetupLineBlocksForProduct) — บล็อกที่ตายตัวจาก BOM มีค่าไลน์
+  // เติมไว้ให้เสมอตั้งแต่แรก (นั่นคือประเด็นของฟีเจอร์นี้) จึง "ข้ามบล็อกที่ไม่ต้องการ" เช็คจาก checkbox
+  // "ใช้ไลน์นี้ในแผนนี้" (#plan-line-use-${b}, added 2026-09-05) แทนการเช็คว่าไลน์ว่างแบบเดิม (ไลน์ไม่มีทาง
+  // ว่างอีกต่อไปสำหรับบล็อกตายตัว) — ไม่มี checkbox (บล็อกเดียว) แปลว่าใช้เสมอ ถ้าใช้อยู่ต้องมีช่วงเวลาด้วย
+  // เสมอ (ยืมจากบล็อกหลัก "ไลน์บรรจุ" ผ่าน _planEffectiveShift — ดูหมายเหตุที่ planSetupLineBlocksForProduct
+  // เรื่อง "เวลาทำงานใส่แค่ไลน์บรรจุ") — validate ทีละบล็อกก่อนสร้าง payload ถัดไป ถ้าบล็อกไหนไม่ผ่านหยุด
+  // ทั้งหมดทันที ไม่บันทึกบางส่วน
+  const isMultiSection = _planLineBlockIds.length > 1;
+  const blockPayloads = [];
+  for (let i = 0; i < _planLineBlockIds.length; i++) {
+    const b = _planLineBlockIds[i];
+    const useChk = document.getElementById(`plan-line-use-${b}`);
+    const isUsed = !useChk || useChk.checked;
+    const line  = document.getElementById(`plan-f-line-${b}`).value;
+    const label = isMultiSection ? ` (${line || `บล็อก #${i + 1}`})` : '';
+    if (!isUsed) continue; // ปิด "ใช้ไลน์นี้ในแผนนี้" ไว้ตั้งใจ — ข้ามไป ไม่ error
+    const shift = _planEffectiveShift(b);
+    if (!line)  { _err(`กรุณาเลือกไลน์ผลิต${label}`, ''); return; }
+    if (!shift) { _err(`กรุณาเลือกช่วงเวลา${label}`, 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง ที่บล็อก "ไลน์บรรจุ"'); return; }
+
+    const conflict = _planFindConflict(date, line, shift.timeStart, shift.timeEnd, excludeRowId);
+    if (conflict) {
+      _err(`ไลน์นี้ถูกจองเวลาซ้อนกันแล้ว${label}`,
+        `"${conflict.ProductName}" จองไลน์ "${line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้ว กรุณาเลือกช่วงเวลาหรือไลน์อื่น`);
+      return;
+    }
+    // ไลน์เดียวกัน+เวลาทับซ้อนกัน ถูกเลือกซ้ำเองข้ามบล็อกในฟอร์มนี้ (คนละเรื่องกับ conflict ด้านบนที่เช็ค
+    // กับแผนที่บันทึกไปแล้ว) — 2 บล็อกจะจองไลน์เดียวกันพร้อมกันไม่ได้เหมือนกัน
+    const sameBatchLineConflict = blockPayloads.find(p => p.Line === line &&
+      (p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''));
+    if (sameBatchLineConflict) {
+      _err(`ไลน์ชนกันเองในฟอร์มนี้${label}`, `ไลน์ "${line}" ถูกเลือกซ้ำในช่วงเวลาที่ทับซ้อนกันในแผนเดียวกันนี้เอง`);
+      return;
+    }
+
+    // ผู้ปฏิบัติงาน: ถ้าเลือกจาก Master พนักงานจริงให้ derive ทั้งชื่อที่โชว์ (Workers, format เดิมทุกจุด
+    // ที่อ่านอยู่แล้ว) และรหัสอ้างอิง (WorkerCodes) — ถ้าไม่ได้เลือกใครจาก Master เลย (เช่นแผนเก่าที่ยังไม่ได้
+    // เลือกใหม่) ให้คงข้อความเดิม (ถ้ามี) ไว้ ไม่บังคับล้าง
+    const workerCodes = _planGetSelectedWorkerCodes(b);
+    let workersDisplay, workerCodesValue;
+    if (workerCodes.length) {
+      workersDisplay = workerCodes.map(code => {
+        const emp = _planEmployees.find(x => x.EmployeeCode === code);
+        return emp ? (emp.NickName || emp.FirstName || code) : code;
+      }).join(', ');
+      workerCodesValue = workerCodes.join(',');
+    } else {
+      workersDisplay = document.getElementById(`plan-f-workers-legacy-value-${b}`)?.value || null;
+      workerCodesValue = null;
+    }
+
+    // คนซ้ำกัน (ถูกจองไว้ในแผนอื่นที่ชนเวลากันอยู่แล้ว) — บล็อกจริง เหมือนไลน์ชนกันด้านบน (ยืนยันกับผู้ใช้
+    // แล้วว่าเป็นข้อจำกัดทางกายภาพ ไม่ใช่แค่เตือน — คนคนเดียวไปทำงาน 2 ที่พร้อมกันไม่ได้จริง)
+    const workerConflicts = _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, workerCodes, excludeRowId);
+    if (workerConflicts.length) {
+      const lines = workerConflicts.map(c => {
+        const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
+        const name = emp ? (emp.NickName || emp.FirstName || c.code) : c.code;
+        return `${name} — ชนกับ "${c.row.ProductName || ''}" ไลน์ "${c.row.Line || ''}" (${c.row.Shift || ''})`;
+      }).join('<br>');
+      _err(`มีคนซ้ำกับแผนอื่นที่ชนเวลากัน${label}`, lines);
+      return;
+    }
+    // คนเดียวกันถูกเลือกซ้ำข้ามบล็อกในฟอร์มนี้เอง ที่เวลาทับซ้อนกัน — คนคนเดียวไปทำงาน 2 ไลน์พร้อมกันไม่ได้
+    const sameBatchWorkerConflicts = [];
+    blockPayloads.forEach(p => {
+      if (!((p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''))) return;
+      const pCodes = (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+      workerCodes.forEach(code => { if (pCodes.includes(code)) sameBatchWorkerConflicts.push({ code, line: p.Line }); });
+    });
+    if (sameBatchWorkerConflicts.length) {
+      const lines = sameBatchWorkerConflicts.map(c => {
+        const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
+        const name = emp ? (emp.NickName || emp.FirstName || c.code) : c.code;
+        return `${name} — ถูกเลือกซ้ำในไลน์ "${c.line}" ของแผนเดียวกันนี้ที่เวลาทับซ้อนกัน`;
+      }).join('<br>');
+      _err('มีคนซ้ำกันเองในฟอร์มนี้', lines);
+      return;
+    }
+
+    blockPayloads.push({
+      PlanDate    : date,
+      ProductCode : prodCode,
+      ProductName : prodName,
+      PlanQty     : qty,
+      UOM         : document.getElementById('plan-f-uom').value,
+      MO_Ref      : isMOMode ? (document.getElementById('plan-f-mo-ref').value || null) : null,
+      CO_Ref      : document.getElementById('plan-f-co-ref').value || null,
+      Line        : line,
+      Shift       : shift.shiftLabel,
+      TimeStart   : shift.timeStart,
+      TimeEnd     : shift.timeEnd,
+      Workers     : workersDisplay,
+      WorkerCodes : workerCodesValue,
+      Remark      : document.getElementById('plan-f-remark').value || null,
+    });
+  }
+
+  // เพิ่มแผนใหม่ (หลายบล็อกตามที่สินค้ากำหนด) เว้นว่างได้ทีละบล็อก แต่ต้องเลือกอย่างน้อย 1 บล็อก — แก้ไข
+  // (isEdit) ไม่มีทางมาถึงจุดนี้โดย blockPayloads ว่าง เพราะบล็อกเดียวตอนแก้ไขบังคับกรอกอยู่แล้ว (เช็คใน
+  // loop ด้านบน)
+  if (isMultiSection && !blockPayloads.length) {
+    _err('กรุณาเลือกไลน์ผลิตอย่างน้อย 1 ไลน์', 'สินค้านี้ผลิตได้หลายไลน์ — เลือกอย่างน้อย 1 ไลน์ที่ใช้จริงในแผนนี้');
     return;
   }
-
-  // ผู้ปฏิบัติงาน: ถ้าเลือกจาก Master พนักงานจริง (multi-select) ให้ derive ทั้งชื่อที่โชว์ (Workers,
-  // format เดิมทุกจุดที่อ่านอยู่แล้ว) และรหัสอ้างอิง (WorkerCodes, ใหม่ — ใช้เช็คสกิลเท่านั้น) — ถ้าไม่ได้
-  // เลือกใครจาก Master เลย (เช่นแผนเก่าที่ยังไม่ได้เลือกใหม่) ให้คงข้อความเดิม (ถ้ามี) ไว้ ไม่บังคับล้าง
-  const _planSelectedWorkerCodes = _planGetSelectedWorkerCodes();
-  let workersDisplay, workerCodesValue;
-  if (_planSelectedWorkerCodes.length) {
-    // ใช้ชื่อเล่นพอ (ไม่ใช่ชื่อจริง+นามสกุล) ตามคำขอผู้ใช้ — นามสกุลพนักงานหลายคน (โดยเฉพาะ Outsource)
-    // เก็บเป็น "-" ไว้แทนนามสกุลจริงที่ไม่มี ทำให้ชื่อ+นามสกุลออกมาดูแปลกๆ เช่น "JOE -"
-    workersDisplay = _planSelectedWorkerCodes.map(code => {
-      const e = _planEmployees.find(x => x.EmployeeCode === code);
-      return e ? (e.NickName || e.FirstName || code) : code;
-    }).join(', ');
-    workerCodesValue = _planSelectedWorkerCodes.join(',');
-  } else {
-    workersDisplay = document.getElementById('plan-f-workers-legacy-value').value || null;
-    workerCodesValue = null;
-  }
-
-  const payload = {
-    PlanDate    : date,
-    ProductCode : prodCode,
-    ProductName : prodName,
-    PlanQty     : qty,
-    UOM         : document.getElementById('plan-f-uom').value,
-    MO_Ref      : isMOMode ? (document.getElementById('plan-f-mo-ref').value || null) : null,
-    CO_Ref      : document.getElementById('plan-f-co-ref').value || null,
-    Line        : line,
-    Shift       : shift.shiftLabel,
-    TimeStart   : shift.timeStart,
-    TimeEnd     : shift.timeEnd,
-    Workers     : workersDisplay,
-    WorkerCodes : workerCodesValue,
-    Remark      : document.getElementById('plan-f-remark').value || null,
-  };
 
   const saveBtn = document.getElementById('plan-save-btn');
   saveBtn.disabled = true;
@@ -14021,12 +14469,14 @@ async function planSubmit(e) {
   _showLoader();
 
   let error;
-  const oldRow = isEdit ? _planData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
+    const payload = blockPayloads[0]; // แก้ไข = 1 บล็อกเสมอ
+    const oldRow = _planData.find(d => d._row_id === parseInt(editId));
     ({ error } = await _sb.from('production_plan').update(payload).eq('_row_id', parseInt(editId)));
+    if (!error) _logAudit('EDIT', 'production_plan', payload.MO_Ref || payload.ProductCode, _diffFields(oldRow, payload));
   } else {
-    payload.Status = 'วางแผน';
-    ({ error } = await _sb.from('production_plan').insert(payload));
+    blockPayloads.forEach(p => { p.Status = 'วางแผน'; });
+    ({ error } = await _sb.from('production_plan').insert(blockPayloads));
   }
 
   _hideLoader();
@@ -14034,10 +14484,9 @@ async function planSubmit(e) {
   saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึกแผน';
 
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
-  if (isEdit) _logAudit('EDIT', 'production_plan', payload.MO_Ref || payload.ProductCode, _diffFields(oldRow, payload));
   _planModal.hide();
   Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขแผนสำเร็จ' : 'เพิ่มแผนสำเร็จ',
+    title: isEdit ? 'แก้ไขแผนสำเร็จ' : (blockPayloads.length > 1 ? `เพิ่มแผนสำเร็จ (${blockPayloads.length} ไลน์)` : 'เพิ่มแผนสำเร็จ'),
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   await planLoadData();
 }
@@ -18661,9 +19110,14 @@ function _prodrecordUpdateStationSummary(key, seq) {
 // ช่อง ชม.ปกติ/ชม.OT ที่เคยพิมพ์เองได้ กลายเป็น hidden input คำนวณจากเวลาแทน (ดู _prodrecordStationTimeRecalc)
 // ค่าเก่า (ชม.ปกติ/ชม.OT แบบตัวเลข ไม่มีเวลาเข้า-ออกเลย) ยังคงถูกเก็บไว้ใน hidden input เหมือนเดิม
 // (ไม่ให้หายไปเฉยๆ) — ข้อความสรุปที่เคยกำกับ "(บันทึกเก่า)" ย้ายไปอยู่ในแถวสรุปรวมด้านล่างแล้ว
+// ช่อง "จำนวน" เปลี่ยนเป็น readonly (added 2026-09-06 ตามคำขอผู้ใช้ "ช่องที่ใส่จำนวนพนักงาน เปลี่ยนเป็นให้
+// เลือกจากชื่อ...") — ไม่ให้พิมพ์ทับเองอีกต่อไป ค่าคำนวณอัตโนมัติจากรายชื่อที่เลือกในแถว "ผู้ปฏิบัติงาน"
+// ใต้แถวนี้ (ดู _prodrecordRecalcWorkerCounts) แต่ id/ค่าที่ submit อ่านยังเหมือนเดิมทุกอย่าง — ไม่ต้องแก้
+// prodrecordEntrySubmit ตรงจุดอ่านค่า ftWorkers/ptWorkers/osWorkers เลย (ความเสี่ยงต่ำ จุดเดียวที่กระทบคือ
+// การกรอก ไม่ใช่การบันทึก)
 function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, normal, ot) {
   return `
-    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}"></td>
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}" readonly style="background:#f1f5f9" title="คำนวณอัตโนมัติจากรายชื่อที่เลือกด้านล่าง"></td>
     <td><input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')"></td>
     <td>
       <input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')">
@@ -18675,15 +19129,42 @@ function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, nor
 // จำนวนคอลัมน์รวมของตาราง (สำหรับ colspan แถวสรุป): วันที่(1) + 3 ประเภทพนักงาน×3 คอลัมน์(9) + ปุ่มลบ(1)
 const _PRODRECORD_ST_TOTAL_COLS = 11;
 
+// แถว "ผู้ปฏิบัติงาน" ใหม่ (added 2026-09-06 ตามคำขอผู้ใช้ "ช่องที่ใส่จำนวนพนักงาน เปลี่ยนเป็นให้เลือกจาก
+// ชื่อที่บันทึกไว้จากแผน...และให้เพิ่มเองได้อีก...ให้เลือกตามสกิลของแต่ละประเภทงาน") — แทรกไว้ใต้แถวกรอก
+// เวลา/เหนือแถวสรุป: 1 checklist รวม (ไม่แยก FT/PT/OS เป็น 3 ลิสต์ เพราะประเภทของแต่ละคนรู้อยู่แล้วจาก
+// Employee Master — ดู _prodrecordRenderWorkersList) + ช่อง "เพิ่มเอง" 3 ช่องสำหรับคนที่ไม่ได้อยู่ใน
+// Employee Master เลย (ยืนยันกับผู้ใช้แล้วว่ายังต้องมีทางกรอกแบบตัวเลขอิสระได้เผื่อฉุกเฉิน) — ผลรวมของ 2
+// อย่างนี้คือค่าที่ไปเติมช่อง "จำนวน" (readonly) ของ FT/PT/OS ด้านบน (ดู _prodrecordRecalcWorkerCounts)
+function _prodrecordStationWorkersRowHTML(key, seq) {
+  return `<tr class="prodrecord-station-workers-row" data-seq="${seq}">
+    <td colspan="${_PRODRECORD_ST_TOTAL_COLS}" style="background:#fbfbfc;border-top:none">
+      <div class="small text-muted mb-1"><i class="fas fa-users me-1"></i>ผู้ปฏิบัติงาน
+        <span id="prodrecord-st-${key}-${seq}-workers-plan-note" class="fst-italic"></span>
+      </div>
+      <div id="prodrecord-st-${key}-${seq}-workers-list" class="border rounded p-2 bg-white" style="max-height:130px;overflow-y:auto"></div>
+      <div class="d-flex flex-wrap gap-3 mt-1 align-items-center" style="font-size:.75rem">
+        <span class="text-muted">เพิ่มเอง (คนที่ไม่อยู่ใน Employee Master):</span>
+        <span>ประจำ <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
+          id="prodrecord-st-${key}-${seq}-ftextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
+        <span>Part Time <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
+          id="prodrecord-st-${key}-${seq}-ptextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
+        <span>Outsource <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
+          id="prodrecord-st-${key}-${seq}-osextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
+      </div>
+    </td>
+  </tr>`;
+}
+
 function _prodrecordStationDayRowHTML(key, seq, d) {
   d = d || {};
   return `<tr class="prodrecord-station-day-row" data-seq="${seq}">
-    <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}"></td>
+    <td><input type="date" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-date" value="${d.date || ''}" onchange="_prodrecordDateChangedForWorkers('${key}',${seq})"></td>
     ${_prodrecordStationTypeColsHTML(key, seq, 'ft', d.ftWorkers, d.ftStart, d.ftEnd, d.ftNormalHrs, d.ftOtHrs)}
     ${_prodrecordStationTypeColsHTML(key, seq, 'pt', d.ptWorkers, d.ptStart, d.ptEnd, d.ptNormalHrs, d.ptOtHrs)}
     ${_prodrecordStationTypeColsHTML(key, seq, 'os', d.osWorkers, d.osStart, d.osEnd, d.osNormalHrs, d.osOtHrs)}
     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
   </tr>
+  ${_prodrecordStationWorkersRowHTML(key, seq)}
   <tr class="prodrecord-station-summary-row" data-seq="${seq}">
     <td colspan="${_PRODRECORD_ST_TOTAL_COLS}" style="background:#f8fafc;border-top:none">
       <small class="text-muted fst-italic" id="prodrecord-st-${key}-${seq}-summary">${_prodrecordStationSummaryText(d)}</small>
@@ -18691,9 +19172,13 @@ function _prodrecordStationDayRowHTML(key, seq, d) {
   </tr>`;
 }
 
+// คืน {html, entries} แทนแค่ string เดิม (added 2026-09-06) — entries คือ [{seq, d}] ตามลำดับที่สร้างจริง
+// ให้ผู้เรียก (prodrecordOpenEntryModal) เอาไปวน setup ผู้ปฏิบัติงานต่อแถว (_prodrecordSetupStationDayWorkers)
+// หลัง insert เข้า DOM แล้วเท่านั้น (ต้องมี DOM element จริงก่อนถึงจะ query/เขียน checklist ได้)
 function _prodrecordStationBlockHTML(key, label, days) {
-  const rows = days.map(d => _prodrecordStationDayRowHTML(key, _prodrecordStationDaySeq++, d)).join('');
-  return `<div class="prodrecord-station-block border rounded p-2 mb-2" data-key="${key}">
+  const entries = days.map(d => ({ seq: _prodrecordStationDaySeq++, d }));
+  const rows = entries.map(({ seq, d }) => _prodrecordStationDayRowHTML(key, seq, d)).join('');
+  const html = `<div class="prodrecord-station-block border rounded p-2 mb-2" data-key="${key}">
     <div class="d-flex justify-content-between align-items-center mb-1">
       <div class="fw-bold" style="font-size:.85rem"><i class="fas fa-industry me-1 text-primary"></i>${label}</div>
       <button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="prodrecordAddStationDay('${key}')"><i class="fas fa-plus me-1"></i>เพิ่มวัน</button>
@@ -18726,6 +19211,7 @@ function _prodrecordStationBlockHTML(key, label, days) {
     <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เวลาทำงานปกติ: ประจำ/Part Time 08:30–17:30, Outsource 08:30–19:00 · OT นับจากหลัง: ประจำ/Part Time 18:00 น., Outsource 19:00 น.</div>
     <div class="text-muted text-center prodrecord-station-empty ${days.length ? 'd-none' : ''}" style="font-size:.75rem">ยังไม่มีข้อมูลวันทำงาน — กด "เพิ่มวัน"</div>
   </div>`;
+  return { html, entries };
 }
 
 function _prodrecordUpdateStationEmptyState(key) {
@@ -18744,6 +19230,9 @@ function prodrecordAddStationDay(key, day) {
   // insertAdjacentHTML บน <tbody> จริงจะ parse <tr> ถูกต้องตาม table context — ต่างจากตั้ง innerHTML ผ่าน
   // <div> ธรรมดาซึ่งเบราว์เซอร์จะตัด <tr> ทิ้งเพราะไม่มี table context ห่อ
   tbody.insertAdjacentHTML('beforeend', _prodrecordStationDayRowHTML(key, seq, day || {}));
+  // setup ผู้ปฏิบัติงานของแถวนี้หลัง insert เข้า DOM แล้ว (added 2026-09-06) — แถวใหม่ที่เพิ่มเองผ่านปุ่ม
+  // "เพิ่มวัน" ไม่มี WorkerCodes เดิมเลย ให้ auto pre-fill จากแผนผลิตทันทีถ้าวันที่ (day.date) ตรงกับแผนอยู่แล้ว
+  _prodrecordSetupStationDayWorkers(key, seq, day || {});
   _prodrecordUpdateStationEmptyState(key);
   return seq;
 }
@@ -18752,9 +19241,124 @@ function prodrecordRemoveStationDay(seq) {
   const el = document.querySelector(`.prodrecord-station-day-row[data-seq="${seq}"]`);
   if (!el) return;
   const key = el.closest('.prodrecord-station-block')?.dataset.key;
+  document.querySelector(`.prodrecord-station-workers-row[data-seq="${seq}"]`)?.remove(); // แถวผู้ปฏิบัติงานคู่กัน
   document.querySelector(`.prodrecord-station-summary-row[data-seq="${seq}"]`)?.remove(); // แถวสรุปคู่กัน
   el.remove();
   if (key) _prodrecordUpdateStationEmptyState(key);
+}
+
+// ══════ ผู้ปฏิบัติงานต่อแถววัน — เลือกจากรายชื่อ Employee Master แทนพิมพ์ตัวเลขเอง (added 2026-09-06) ══════
+// ยืนยันกับผู้ใช้ผ่าน AskUserQuestion แล้ว: (1) pre-fill จาก production_plan โดยจับคู่ MO_Ref + PlanDate +
+// ประเภทงานให้ตรงกันอัตโนมัติ (2) ยังกรอกจำนวนคนนอก Employee Master แบบตัวเลขอิสระเพิ่มได้ (ช่อง "เพิ่มเอง")
+// (3) จำนวน FT/PT/OS ที่ใช้คำนวณต้นทุน คำนวณจากรายชื่อที่เลือกจริงอัตโนมัติ ไม่ต้องกรอกแยกอีก — ใช้ข้อมูล
+// พนักงาน/สกิลชุดเดียวกับหน้าแผนผลิต (_planEmployees/_planSkills/_planSkillLevels, โหลดผ่าน
+// _planLoadSkillData() ที่มีอยู่แล้ว graceful-degrade เหมือนเดิมทุกอย่าง) ไม่สร้างชุดข้อมูลซ้ำ
+
+// _prodrecordSteps.key ('Fill'/'Lot'/'InspectPack') → หมวดไลน์ของหน้าแผนผลิต ('fill'/'lot'/'pack') — คนละ
+// เซ็ต key กัน (หน้านี้ไม่รู้ไลน์/ห้องที่แน่นอน รู้แค่ "ประเภทงาน") ต้องแปลงผ่าน map นี้ทุกจุดที่ข้ามหน้ากัน
+const _PRODRECORD_STEP_TO_PLAN_CATEGORY = { Fill: 'fill', Lot: 'lot', InspectPack: 'pack' };
+
+// แถวแผนผลิต (MO เดียวกับที่กำลังกรอกบันทึกผลิตอยู่) โหลดครั้งเดียวตอนเปิด modal (ดู prodrecordOpenEntryModal)
+// แล้ว lookup ฝั่ง client ล้วนๆ จากตรงนี้ — ไม่ query DB ซ้ำทุกครั้งที่พิมพ์วันที่เปลี่ยน
+let _prodrecordEntryPlanRows = [];
+
+// หา WorkerCodes จากแผนผลิตที่ตรงกับ "วันที่" + "ประเภทงาน" นี้เป๊ะ — คืน null ถ้าไม่เจอเลย (ไม่ใช่ [] ว่าง
+// เพื่อแยกให้ออกจาก "เจอแผนแต่แผนนั้นไม่ได้เลือกใครไว้เลย") ถ้ามีมากกว่า 1 แถวตรงกัน (เช่น 2 ไลน์บรรจุพร้อมกัน
+// ในวันเดียว — เคสหายากมาก) เอาแถวแรกที่เจอเท่านั้น
+function _prodrecordPlanWorkersFor(stepKey, dateStr) {
+  if (!dateStr) return null;
+  const cat = _PRODRECORD_STEP_TO_PLAN_CATEGORY[stepKey];
+  if (!cat) return null;
+  const row = _prodrecordEntryPlanRows.find(p => p.PlanDate === dateStr && _planLineCategoryOf(p.Line || '') === cat);
+  if (!row) return null;
+  return (row.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+}
+
+// วาด checklist พนักงาน 1 แถว — กรองเหลือเฉพาะคนมีสกิลตรงกับ "ประเภทงาน" นี้ (ไม่ใช่ไลน์เป๊ะแบบหน้าแผนผลิต
+// เพราะหน้านี้ไม่รู้ห้อง/ไลน์ที่แน่นอน รู้แค่ประเภทงาน — เช็คว่ามีสกิลอย่างน้อย 1 อันที่ Lines ตัดกับไลน์ใน
+// หมวดนั้นบ้างก็พอ) เหมือนหลักการเดียวกับ planHighlightQualifiedWorkers ของหน้าแผนผลิต — ไม่มีใครผ่านเลย
+// (แมททริกสกิลยังไม่สมบูรณ์) fallback โชว์ทุกคนแทน ไม่ปล่อยให้เลือกคนไม่ได้เลย
+function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes) {
+  const wrap = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-list`);
+  if (!wrap) return;
+  const cat = _PRODRECORD_STEP_TO_PLAN_CATEGORY[stepKey];
+  const sec = PLAN_LINE_SECTIONS.find(s => s.key === cat);
+  const categoryLines = sec ? sec.lines : [];
+  const required = categoryLines.length
+    ? _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).some(l => categoryLines.includes(l)))
+    : [];
+  let pool = _planEmployees;
+  if (required.length) {
+    const qualified = _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 2));
+    if (qualified.length) pool = qualified;
+  }
+  const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
+  wrap.innerHTML = pool.length ? pool.map(e => {
+    const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
+    const id = `prodrecord-worker-chk-${stepKey}-${seq}-${e.EmployeeCode}`;
+    return `<div class="form-check mb-1">
+      <input class="form-check-input prodrecord-worker-chk" type="checkbox" value="${e.EmployeeCode}" id="${id}"
+        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="_prodrecordRecalcWorkerCounts('${stepKey}',${seq})">
+      <label class="form-check-label small" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
+    </div>`;
+  }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานในระบบ (เพิ่มได้ที่หน้า "พนักงาน")</div>';
+}
+
+// รวมยอดคนที่ติ๊กเลือก (แยกตาม EmployeeType จริงจาก Employee Master) + ยอด "เพิ่มเอง" แล้วเติมลงช่อง "จำนวน"
+// (readonly) ของ FT/PT/OS — เรียกทุกครั้งที่ติ๊ก/ยกเลิกติ๊กคนในลิสต์ หรือแก้ตัวเลข "เพิ่มเอง"
+function _prodrecordRecalcWorkerCounts(stepKey, seq) {
+  const codes = Array.from(document.querySelectorAll(`#prodrecord-st-${stepKey}-${seq}-workers-list .prodrecord-worker-chk:checked`)).map(c => c.value);
+  const counts = { ft: 0, pt: 0, os: 0 };
+  codes.forEach(code => {
+    const emp = _planEmployees.find(e => e.EmployeeCode === code);
+    const t = emp ? String(emp.EmployeeType || '').toLowerCase() : '';
+    if (counts[t] != null) counts[t]++;
+  });
+  ['ft', 'pt', 'os'].forEach(type => {
+    const extra = parseFloat(document.getElementById(`prodrecord-st-${stepKey}-${seq}-${type}extra`)?.value) || 0;
+    const el = document.getElementById(`prodrecord-st-${stepKey}-${seq}-${type}workers`);
+    if (el) el.value = counts[type] + extra;
+  });
+  _prodrecordUpdateStationSummary(stepKey, seq);
+}
+
+// ตั้งค่าเริ่มต้นของแถว "ผู้ปฏิบัติงาน" — เรียกหลัง insert แถว (ทั้งตอนเปิด modal ครั้งแรกและตอนกด "เพิ่มวัน")
+// d.WorkerCodes != null แปลว่าแถวนี้เคยบันทึกไว้แล้วจริง (แม้จะว่างเปล่าก็ตาม) ให้ใช้ค่าที่บันทึกไว้เป็นหลัก
+// เสมอ ไม่ทับด้วยแผนผลิต — ต่างจากแถวใหม่ล้วนๆ (ไม่เคยมี WorkerCodes เลย) ที่ auto pre-fill จากแผนผลิตให้
+// ถ้าวันที่ตรงกับแผนพอดี (ดู _prodrecordPlanWorkersFor)
+function _prodrecordSetupStationDayWorkers(stepKey, seq, d) {
+  d = d || {};
+  const fromSaved = d.WorkerCodes != null;
+  const planCodes = fromSaved ? null : _prodrecordPlanWorkersFor(stepKey, d.date);
+  const selectedCodes = fromSaved
+    ? (d.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean)
+    : (planCodes || []);
+  const ftExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ftextra`);
+  const ptExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ptextra`);
+  const osExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-osextra`);
+  if (ftExtraEl) ftExtraEl.value = d.ftExtra || 0;
+  if (ptExtraEl) ptExtraEl.value = d.ptExtra || 0;
+  if (osExtraEl) osExtraEl.value = d.osExtra || 0;
+  _prodrecordRenderWorkersList(stepKey, seq, selectedCodes);
+  _prodrecordRecalcWorkerCounts(stepKey, seq);
+  const note = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-plan-note`);
+  if (note) note.textContent = (!fromSaved && planCodes && planCodes.length) ? '(ดึงจากแผนผลิตอัตโนมัติ — แก้ไขได้ตามจริง)' : '';
+}
+
+// เรียกทุกครั้งที่แก้ "วันที่" ของแถว — ถ้าแถวนี้ยังไม่มีใครถูกติ๊กเลือกไว้เลย (แถวใหม่ว่างเปล่าจริงๆ) ค่อย
+// auto pre-fill จากแผนผลิตของวันที่ใหม่ให้ ถ้ามีคนติ๊กไว้แล้วอย่างน้อย 1 คน ถือว่าผู้ใช้ตั้งใจเลือกเองแล้ว
+// ไม่ไปทับให้เงียบๆ (ป้องกันเปลี่ยนวันที่พลาดแล้วรายชื่อที่เลือกไว้หายไปเฉยๆ)
+function _prodrecordDateChangedForWorkers(stepKey, seq) {
+  const dateEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-date`);
+  const currentSelected = Array.from(document.querySelectorAll(`#prodrecord-st-${stepKey}-${seq}-workers-list .prodrecord-worker-chk:checked`));
+  if (currentSelected.length) return;
+  const planCodes = _prodrecordPlanWorkersFor(stepKey, dateEl?.value || '');
+  if (planCodes && planCodes.length) {
+    _prodrecordRenderWorkersList(stepKey, seq, planCodes);
+    _prodrecordRecalcWorkerCounts(stepKey, seq);
+    const note = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-plan-note`);
+    if (note) note.textContent = '(ดึงจากแผนผลิตอัตโนมัติ — แก้ไขได้ตามจริง)';
+  }
 }
 
 // ช่อง "% ยีลด์" (id เดิมชื่อ prodrecord-f-bulkactual/คอลัมน์ DB เดิมชื่อ Bulk_Actual — ตั้งใจไม่เปลี่ยนชื่อ
@@ -18809,14 +19413,21 @@ async function prodrecordOpenEntryModal(gi) {
   _prodrecordRecalcBulkActual();
 
   _showLoader();
-  const [issueRes, siblingRes, existingDetailRes, stockRes, bomRemarkRes, materialsRes] = await Promise.all([
+  const [issueRes, siblingRes, existingDetailRes, stockRes, bomRemarkRes, materialsRes, planRes] = await Promise.all([
     r.MO_Ref ? _sb.from('issue_production').select('MaterialCode,MaterialName,Lot,IssuedQty,UOM').eq('MO_ID', r.MO_Ref) : Promise.resolve({ data: [] }),
     r.MO_Ref ? _sb.from('production_records').select('ProdRecord_ID').eq('MO_Ref', r.MO_Ref).neq('ProdRecord_ID', r.ProdRecord_ID) : Promise.resolve({ data: [] }),
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
     _fetchAllPaged('stock_balance', 'MaterialCode,Lot,UnitCost'),
     _sb.from('bom').select('MaterialCode,Remark').eq('ProductCode', r.ProductCode),
     _fetchAllPaged('materials', 'MaterialCode,UOM'),
+    // แผนผลิตของ MO เดียวกัน (added 2026-09-06) — ใช้ pre-fill รายชื่อผู้ปฏิบัติงานต่อแถววัน/ประเภทงาน
+    // (ดู _prodrecordPlanWorkersFor) โหลดครั้งเดียวตรงนี้ ไม่ query ซ้ำทุกครั้งที่แก้วันที่ในตาราง
+    r.MO_Ref ? _sb.from('production_plan').select('PlanDate,Line,WorkerCodes').eq('MO_Ref', r.MO_Ref) : Promise.resolve({ data: [] }),
   ]);
+  _prodrecordEntryPlanRows = planRes.data || [];
+  // เช็คสกิล/พนักงาน (ชุดเดียวกับหน้าแผนผลิต, graceful-degrade ถ้ายังไม่รัน SQL) — ต้องพร้อมก่อนสร้าง HTML
+  // ผู้ปฏิบัติงานด้านล่าง (_prodrecordRenderWorkersList อ่าน _planEmployees/_planSkills โดยตรง)
+  await _planLoadSkillData();
 
   // Bulk = ทุกวัตถุดิบใน BOM ของสินค้านี้ที่ Remark ไม่ใช่ "pac" (ตรงกับวิธีแยก Bulk/Pac ที่หน้า Issue ใช้อยู่
   // แล้วใน issueOnMOChange) — ใช้เป็นตัวหารของ "% ยีลด์" ด้านล่าง (เฉพาะยอด "เบิกไป" ของแถว Bulk เท่านั้น)
@@ -18893,6 +19504,10 @@ async function prodrecordOpenEntryModal(gi) {
   let existingStations = [];
   try { existingStations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { existingStations = []; }
   _prodrecordStationDaySeq = 0;
+  // _prodrecordStationBlockHTML คืน {html, entries} (added 2026-09-06) — เก็บ entries ของทุกขั้นตอนไว้ก่อน
+  // ต้องรอ insert เข้า DOM จริงแล้วเท่านั้นถึงจะ setup ผู้ปฏิบัติงานต่อแถวได้ (query/เขียน checklist ต้องมี
+  // DOM element จริง) ดู _prodrecordSetupStationDayWorkers
+  const pendingWorkerSetups = [];
   document.getElementById('prodrecord-entry-stations').innerHTML = _prodrecordSteps.map(step => {
     const ex = existingStations.find(s => s.key === step.key) || {};
     // รูปแบบใหม่เก็บเป็นตารางหลายวัน (ex.days) — ถ้าเป็นบันทึกเก่าก่อน 2026-08-17 (ไม่มี ex.days แต่มีค่า
@@ -18910,8 +19525,11 @@ async function prodrecordOpenEntryModal(gi) {
     } else {
       days = [];
     }
-    return _prodrecordStationBlockHTML(step.key, step.label, days);
+    const built = _prodrecordStationBlockHTML(step.key, step.label, days);
+    built.entries.forEach(({ seq, d }) => pendingWorkerSetups.push({ key: step.key, seq, d }));
+    return built.html;
   }).join('');
+  pendingWorkerSetups.forEach(({ key, seq, d }) => _prodrecordSetupStationDayWorkers(key, seq, d));
 
   _prodrecordEntryModal.show();
 }
@@ -18998,6 +19616,13 @@ async function prodrecordEntrySubmit(e) {
         osEnd      : document.getElementById(`prodrecord-st-${key}-${seq}-osend`).value || '',
         osNormalHrs: parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osnormal`).value) || 0,
         osOtHrs    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osot`).value) || 0,
+        // ผู้ปฏิบัติงานที่เลือกจริง + จำนวน "เพิ่มเอง" นอก Employee Master (added 2026-09-06) — เก็บไว้เผื่อ
+        // เปิดแก้ไขซ้ำ (ftWorkers/ptWorkers/osWorkers ด้านบนเป็นแค่ผลรวมที่คำนวณแล้ว บอกไม่ได้ว่าใครถูกเลือก
+        // บ้าง ต้องเก็บ WorkerCodes แยกไว้ต่างหาก — ดู _prodrecordSetupStationDayWorkers ตอนโหลดกลับ)
+        WorkerCodes: Array.from(document.querySelectorAll(`#prodrecord-st-${key}-${seq}-workers-list .prodrecord-worker-chk:checked`)).map(c => c.value).join(','),
+        ftExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftextra`)?.value) || 0,
+        ptExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptextra`)?.value) || 0,
+        osExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osextra`)?.value) || 0,
       };
     });
     return { key, days };
@@ -21394,7 +22019,14 @@ async function coPlanProduction(idx) {
 
   showPage('plan', document.getElementById('nav-plan'));
   await planLoadData();
-  planOpenAddModal();
+  // **ต้อง await ตรงนี้เสมอ** (bug จริงพบ 2026-09-07, ผู้ใช้แจ้งว่า "กดไปแพลนผลิต...ไม่ดึงข้อมูลมาให้") —
+  // planOpenAddModal เป็น async function ที่มี `await _planLoadSkillData()` อยู่ข้างใน ต่อให้ข้อมูลเคยโหลด
+  // แคชไว้แล้ว (คืนทันที) ฟังก์ชัน async ก็ยังคืน continuation ที่รันหลังจบ microtask ปัจจุบันเสมอ — ถ้าไม่
+  // await ตรงนี้ โค้ดด้านล่าง (planToggleMode('custom')/ตั้งค่าฟิลด์สินค้า) จะรันแทรกก่อน planOpenAddModal
+  // รันจบจริง แล้ว planOpenAddModal (โหมดเพิ่มแผนใหม่) จะมาเรียก planToggleMode('mo') ทับกลับไปทีหลัง —
+  // มองจากผู้ใช้คือ modal เด้งมาแต่โหมด "จาก MO" โผล่ขึ้นแทน (dropdown MO ว่างเปล่า) บังฟิลด์สินค้า/CO ที่
+  // เพิ่งตั้งค่าให้ไปเงียบๆ เหมือน "ข้อมูลไม่ถูกดึงมาให้" ทั้งที่จริงๆ ตั้งค่าไว้ถูกแล้วแค่โดนทับ
+  await planOpenAddModal();
   planToggleMode('custom');
   document.getElementById('plan-f-co-ref').value = r.Order_ID || '';
   document.getElementById('plan-f-prodcode').value = r.ProductCode || '';
@@ -21404,6 +22036,11 @@ async function coPlanProduction(idx) {
   document.getElementById('plan-f-mat-search').value = r.ProductName || '';
   document.getElementById('plan-f-uom').value = r.UOM || '';
   document.getElementById('plan-f-qty').value = needProduce || '';
+  // rebuild บล็อกไลน์ให้ตรงกับสินค้าของ CO นี้จริง (added 2026-09-07 — เดิมตั้งค่า plan-f-prodcode ตรงๆ
+  // โดยไม่เคยเรียกจุดนี้เลย บล็อกไลน์เลยค้างเป็น fallback บล็อกเดียวเลือกเองล้วนๆ ไม่ได้ดึง "ไลน์ที่ผลิตได้"
+  // ตาม BOM ของสินค้านี้มาให้เหมือนตอนเลือกสินค้าผ่านช่องค้นหาปกติ) เหมือนกับที่ planSelectProduct/
+  // planMOSelect เรียกอยู่แล้วทุกครั้งที่สินค้าเปลี่ยน
+  _planRefreshAllBlocksForProductOrDate();
   _planUpdateCORefBadge();
   planUpdateCapacityEstimate();
 }
@@ -22438,6 +23075,25 @@ async function _admindashFetchMaterialSplit(code, rows) {
   return parts;
 }
 
+// Capacity ที่ออกแบบไว้ใน BOM (CapacityFillPerDay/CapacityLotPerDay/CapacityInspectPackPerDay หน่วยชิ้น/วัน,
+// ดู bom.AllowedLines/RequiredWorkersFill ฯลฯ ในหน้า BOM) — เพิ่ม 2026-09-06 ให้ "เจาะลึกรายสินค้า" เทียบ
+// "ชิ้น/ชม.จริง" (จากบันทึกผลิต) กับ "ชิ้น/ชม.ที่ออกแบบไว้" ต่อขั้นตอน ค่านี้เขียนซ้ำทุกแถว BOM ของ ProductCode
+// เดียวกันอยู่แล้ว (เหมือน SellingPrice) จึง .limit(1) พอ ไม่ต้องดึงทุกแถว BOM ของสินค้านี้ — โหลดแบบ lazy
+// เฉพาะตอนเลือกสินค้าในหน้าเจาะลึก (เรียกคู่กับ _admindashComputeDrillRows ผ่าน Promise.all ใน
+// admindashRenderDrilldown ไม่ใช่ query แยกที่ทำให้ต้องรอ 2 รอบ)
+async function _admindashFetchStepCapacity(code) {
+  const { data, error } = await _sb.from('bom')
+    .select('CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay')
+    .eq('ProductCode', code).limit(1);
+  if (error || !data || !data[0]) return { Fill: null, Lot: null, InspectPack: null };
+  const row = data[0];
+  return {
+    Fill: row.CapacityFillPerDay != null ? parseFloat(row.CapacityFillPerDay) : null,
+    Lot: row.CapacityLotPerDay != null ? parseFloat(row.CapacityLotPerDay) : null,
+    InspectPack: row.CapacityInspectPackPerDay != null ? parseFloat(row.CapacityInspectPackPerDay) : null,
+  };
+}
+
 // คำนวณตาราง "เจาะลึกรายสินค้า" ของสินค้า 1 รายการ (ตัวเลขดิบ ไม่ format เป็น string) — ใช้ร่วมกันทั้งตอนแสดง
 // บนจอ (admindashRenderDrilldown) และตอน export ทุกสินค้าเป็น Excel หลายชีท (admindashExportAllProductsXLSX)
 // กันโค้ด 2 จุดคำนวณไม่ตรงกัน
@@ -22479,6 +23135,28 @@ async function _admindashComputeDrillRows(code) {
   return { price, rows, partsByRecord, computedRows };
 }
 
+// แบ่งจำนวนเต็ม `total` ตามสัดส่วน `shares` (largest-remainder / Hamilton apportionment) — คืนค่าที่บวกกัน
+// แล้วได้ `total` เป๊ะเสมอ ต่างจากการ Math.ceil แต่ละส่วนแยกกันซึ่งผลรวมอาจเกินยอดรวมได้ (เช่น 2.5+0.5+1=4 แต่
+// Math.ceil ทีละตัว = 3+1+1=5 ไม่เท่ากับ 4) — เพิ่ม 2026-09-06 หลังผู้ใช้ทักว่าตัวเลข FT+PT+OS ที่ปัดแยกกัน
+// บวกแล้วไม่เท่ากับ "คนเฉลี่ย" รวม (ถามว่าควรใช้ฐานนิยมไหม — คำตอบคือฐานนิยมไม่ได้แก้ปัญหานี้เพราะเป็นคนละ
+// สถิติกัน ต้นตอจริงคือหารคนละตัวส่วน+ปัดขึ้นแยกกันอิสระ วิธีนี้แก้ตรงจุดคือบังคับผลรวมให้ตรงกันเสมอ) —
+// ปัดลงก่อนแล้วแจกจำนวนที่เหลือให้ตัวที่มีเศษ (fractional remainder) มากที่สุดก่อน ตัดสินเสมอกันด้วยสัดส่วนดิบที่มากกว่า
+function _admindashApportionInt(total, shares) {
+  const keys = Object.keys(shares).filter(k => shares[k] > 0);
+  const result = {};
+  if (!keys.length || total <= 0) return result;
+  let sumFloors = 0;
+  const parts = keys.map(k => {
+    const floor = Math.floor(shares[k]);
+    result[k] = floor; sumFloors += floor;
+    return { k, remainder: shares[k] - floor, raw: shares[k] };
+  });
+  let remaining = Math.round(total) - sumFloors;
+  parts.sort((a, b) => b.remainder - a.remainder || b.raw - a.raw);
+  for (let i = 0; i < parts.length && remaining > 0; i++) { result[parts[i].k]++; remaining--; }
+  return result;
+}
+
 async function admindashRenderDrilldown() {
   const code = document.getElementById('admindash-drill-product')?.value || '';
   const tableEl = document.getElementById('admindash-drill-table');
@@ -22491,13 +23169,18 @@ async function admindashRenderDrilldown() {
     if (alertEl) alertEl.style.display = 'none';
     const laborSumElEmpty = document.getElementById('admindash-drill-labor-summary');
     if (laborSumElEmpty) laborSumElEmpty.innerHTML = '';
+    const stepProdElEmpty = document.getElementById('admindash-drill-step-productivity');
+    if (stepProdElEmpty) stepProdElEmpty.innerHTML = '';
     _admindashLastDrillExport = null;
     return;
   }
 
   if (tableEl) tableEl.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดรายละเอียดต้นทุน...</div>';
 
-  const { price, rows, partsByRecord, computedRows } = await _admindashComputeDrillRows(code);
+  const [{ price, rows, partsByRecord, computedRows }, stepCapacity] = await Promise.all([
+    _admindashComputeDrillRows(code),
+    _admindashFetchStepCapacity(code),
+  ]);
 
   // ถ้าผู้ใช้เปลี่ยนสินค้าที่เลือกไปแล้วระหว่างรอโหลด (สลับ dropdown เร็วๆ) ทิ้งผลลัพธ์รอบนี้ไป ไม่เขียนทับหน้าจอผิดสินค้า
   if ((document.getElementById('admindash-drill-product')?.value || '') !== code) return;
@@ -22512,12 +23195,19 @@ async function admindashRenderDrilldown() {
   // _admindashLastProd.filter(ProductCode===code) อยู่แล้ว) ไม่มี query เพิ่ม — เพิ่ม 2026-09-01 ตามคำขอผู้ใช้
   // ให้เห็นว่าค่าแรงของสินค้านี้ไปตกหนักที่ประเภท/ขั้นตอนไหน ไม่ใช่ดูแค่ภาพรวมทั้งบริษัทลอยๆ
   const laborSumEl = document.getElementById('admindash-drill-labor-summary');
+  const stepProdEl = document.getElementById('admindash-drill-step-productivity');
   if (laborSumEl) {
     if (!rows.length) {
       laborSumEl.innerHTML = '';
+      if (stepProdEl) stepProdEl.innerHTML = '';
     } else {
       const typeTotals = { ft: { cost: 0, hours: 0 }, pt: { cost: 0, hours: 0 }, os: { cost: 0, hours: 0 } };
-      const stepTotals = {}; _prodrecordSteps.forEach(s => { stepTotals[s.key] = { cost: 0, hours: 0 }; });
+      // manDays/daysWorked เพิ่ม 2026-09-06 ให้คำนวณ "จำนวนคนเฉลี่ย/ขั้นตอน" (proxy headcount เดียวกับที่ใช้ใน
+      // วงแหวน FT/PT/OS) สำหรับตาราง "เวลาทำงานต่อขั้นตอน" ด้านล่าง — ดู admindashRenderStepProductivity
+      // ft/pt/osManDays+DaysWorked เพิ่ม 2026-09-06 (รอบ 2 วันเดียวกัน) ตามคำขอผู้ใช้ "อยากให้เพิ่มต่อจาก
+      // จำนวนคน ว่าเป็น FT OS PT กี่คนบ้าง" — แยกนับต่อประเภทในตัวสะสมเดิม ไม่เพิ่มลูป
+      const stepTotals = {}; _prodrecordSteps.forEach(s => { stepTotals[s.key] = { cost: 0, hours: 0, manDays: 0, daysWorked: 0,
+        ftManDays: 0, ftDaysWorked: 0, ptManDays: 0, ptDaysWorked: 0, osManDays: 0, osDaysWorked: 0 }; });
       rows.forEach(r => {
         const t = _admindashLaborByType(r);
         typeTotals.ft.cost += t.ftCost; typeTotals.ft.hours += t.ftNormalHours + t.ftOtHours;
@@ -22525,8 +23215,14 @@ async function admindashRenderDrilldown() {
         typeTotals.os.cost += t.osCost; typeTotals.os.hours += t.osNormalHours + t.osOtHours;
         const st = _admindashLaborByStep(r);
         _prodrecordSteps.forEach(s => {
-          stepTotals[s.key].cost  += st[s.key]?.cost || 0;
-          stepTotals[s.key].hours += (st[s.key]?.normalHours || 0) + (st[s.key]?.otHours || 0);
+          const acc = stepTotals[s.key], src = st[s.key];
+          if (!src) return;
+          acc.cost += src.cost || 0;
+          acc.hours += (src.normalHours || 0) + (src.otHours || 0);
+          acc.manDays += src.manDays || 0; acc.daysWorked += src.daysWorked || 0;
+          acc.ftManDays += src.ftManDays || 0; acc.ftDaysWorked += src.ftDaysWorked || 0;
+          acc.ptManDays += src.ptManDays || 0; acc.ptDaysWorked += src.ptDaysWorked || 0;
+          acc.osManDays += src.osManDays || 0; acc.osDaysWorked += src.osDaysWorked || 0;
         });
       });
       const totalLaborCost = typeTotals.ft.cost + typeTotals.pt.cost + typeTotals.os.cost;
@@ -22551,6 +23247,76 @@ async function admindashRenderDrilldown() {
         <div>${typeHTML || '<span class="text-muted small">ไม่มีข้อมูลค่าแรง</span>'}</div>
         <div class="mt-1">${stepHTML}</div>
       </div>`;
+
+      // "เวลาทำงานต่อขั้นตอน" (บรรจุ/ยิง Lot/ตรวจสอบแพ็ค) — เพิ่ม 2026-09-06 ตามคำขอผู้ใช้ ("จำนวนคนกี่คน ใช้
+      // เวลาเฉลี่ย ชม.ละกี่ชิ้น") หลังยืนยันว่าระดับ "ห้องผลิต" จริง (production_plan.Line) คำนวณให้แม่นไม่ได้
+      // เพราะ StationsData ผูกกับ "ขั้นตอน" ไม่ผูกกับ "ห้อง" และ 1 MO มักแตกแผนไปหลายห้องพร้อมกัน (ดู SKILL.md
+      // สำหรับเหตุผลเต็มๆ) — คนเฉลี่ย/ชม. มาจาก stepTotals ที่คำนวณไว้แล้วด้านบน (ไม่ query/loop ซ้ำ) totalQty
+      // ใช้ยอดเดียวกันทุกขั้นตอนเพราะทั้ง 3 ขั้นตอนแปรรูป batch เดียวกันไปเป็น FG_Actual ก้อนเดียวกันสุดท้าย —
+      // เทียบกับ Capacity ที่ตั้งไว้ใน BOM (stepCapacity, ชิ้น/วัน) หารด้วยสมมติฐาน 8 ชม./วัน (ไม่ใช่เลขที่ระบบ
+      // เก็บจริงเป็นชม./กะ เป็นค่าประมาณคร่าวๆ ของผู้เขียน) เพื่อเทียบเป็น "ชิ้น/ชม.ที่ออกแบบไว้"
+      if (stepProdEl) {
+        const totalQty = rows.reduce((s, r) => s + (parseFloat(r.FG_Actual) || 0), 0);
+        const STANDARD_HOURS_PER_DAY = 8;
+        // แยกจำนวนคนเฉลี่ยต่อประเภท (FT/PT/OS) ต่อขั้นตอนด้วย เพิ่ม 2026-09-06 ตามคำขอผู้ใช้ "อยากให้เพิ่มต่อ
+        // จากจำนวนคน ว่าเป็น FT OS PT กี่คนบ้าง" — **แก้ปัญหาผลรวมไม่ตรงกับยอดรวม (พบจากผู้ใช้ทักหลัง deploy)**
+        // ด้วย _admindashApportionInt: หารทุกประเภทด้วยตัวส่วนเดียวกับยอดรวม (daysWorked ของขั้นตอนนั้น ไม่ใช่
+        // daysWorked เฉพาะของประเภทนั้นเอง ซึ่งเป็นคนละตัวส่วนกัน — ต้นเหตุที่ผลรวมไม่ตรงตั้งแต่แรก) แล้วแจก
+        // จำนวนเต็มรวม (ที่ปัดขึ้นแล้ว) ตามสัดส่วน รับประกันว่า FT+PT+OS ที่โชว์ บวกกันได้เท่ากับ "คนเฉลี่ย"
+        // รวมเป๊ะเสมอ — ประเภทที่ไม่เคยมีคนทำขั้นตอนนี้เลย (share=0) จะไม่ได้รับส่วนแบ่งเลย ไม่โชว์ "0 คน" ให้รก
+        const prodRows = _prodrecordSteps.map(s => {
+          const t = stepTotals[s.key];
+          const { hours, manDays, daysWorked } = t;
+          const avgHeadcount = daysWorked > 0 ? manDays / daysWorked : null;
+          const combinedRounded = avgHeadcount != null ? Math.ceil(avgHeadcount) : 0;
+          const shares = daysWorked > 0
+            ? { ft: t.ftManDays / daysWorked, pt: t.ptManDays / daysWorked, os: t.osManDays / daysWorked }
+            : {};
+          const apportioned = _admindashApportionInt(combinedRounded, shares);
+          const byType = ['ft', 'pt', 'os'].filter(k => apportioned[k] > 0).map(k => ({ key: k, count: apportioned[k] }));
+          const avgHoursPerLot = rows.length > 0 ? hours / rows.length : null;
+          const actualPerHour = hours > 0 ? totalQty / hours : null;
+          const capPerDay = stepCapacity[s.key];
+          const designPerHour = capPerDay != null ? capPerDay / STANDARD_HOURS_PER_DAY : null;
+          const diffPct = (actualPerHour != null && designPerHour) ? Math.round((actualPerHour - designPerHour) / designPerHour * 1000) / 10 : null;
+          return { s, avgHeadcount, byType, avgHoursPerLot, actualPerHour, designPerHour, diffPct };
+        }).filter(x => x.avgHeadcount != null || x.actualPerHour != null);
+
+        if (!prodRows.length) {
+          stepProdEl.innerHTML = '';
+        } else {
+          // ต่ำกว่าออกแบบ ≥30% (แดง) = ช้ากว่าที่ควรมาก อาจมีคอขวด/ขาดคน, ≥10% (เหลือง) = ช้ากว่าเล็กน้อย,
+          // เร็วกว่าหรือใกล้เคียงออกแบบ (เขียว) = ปกติ — เกณฑ์คร่าวๆ ของผู้เขียน ปรับได้ถ้าไวไป/หย่อนไป
+          const diffClass = pct => pct == null ? '' : (pct <= -30 ? 'text-danger fw-bold' : (pct <= -10 ? 'text-warning fw-bold' : 'text-success fw-bold'));
+          // คนเฉลี่ย/ชิ้น-ชม.(จริง) ปัดขึ้น (Math.ceil) เป็นจำนวนเต็มตามคำขอผู้ใช้ 2026-09-06 — ปัดเฉพาะตอน
+          // แสดงผล ไม่กระทบ diffPct ที่คำนวณจากค่าจริง (ไม่ปัด) ไว้ก่อนแล้วด้านบน
+          const typeLabelsShort = { ft: 'FT', pt: 'PT', os: 'OS' };
+          const rowsHTML = prodRows.map(({ s, avgHeadcount, byType, avgHoursPerLot, actualPerHour, designPerHour, diffPct }) => {
+            const color = _ADMINDASH_STEP_COLORS[s.key] || '#64748b';
+            const byTypeText = byType.map(({ key, count }) => `${typeLabelsShort[key]} ${count}`).join(' · ');
+            return `<tr>
+              <td><span class="badge" style="background:${color}22;color:${color}">${s.label}</span></td>
+              <td class="text-end">${rows.length.toLocaleString()}</td>
+              <td class="text-end">${avgHeadcount != null ? '~' + Math.ceil(avgHeadcount) + ' คน' : '—'}${byTypeText ? `<br><span class="text-muted" style="font-size:.68rem">(${byTypeText})</span>` : ''}</td>
+              <td class="text-end">${avgHoursPerLot != null ? avgHoursPerLot.toFixed(1) + ' ชม.' : '—'}</td>
+              <td class="text-end fw-bold">${actualPerHour != null ? Math.ceil(actualPerHour) : '—'}</td>
+              <td class="text-end text-muted">${designPerHour != null ? designPerHour.toFixed(1) : '—'}</td>
+              <td class="text-end ${diffClass(diffPct)}">${diffPct != null ? (diffPct >= 0 ? '+' : '') + diffPct + '%' : '—'}</td>
+            </tr>`;
+          }).join('');
+          stepProdEl.innerHTML = `<div class="p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0">
+            <div class="text-muted mb-1" style="font-size:.7rem;font-weight:600">เวลาทำงานต่อขั้นตอน (6 เดือน, สินค้านี้) — จำนวนคน/ชม. เป็นค่าประมาณ (proxy) จาก StationsData ไม่ใช่ headcount จริง, ไม่ใช่แยกตามห้องผลิต (ดูหมายเหตุด้านบน)</div>
+            <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:.75rem">
+              <thead><tr class="text-muted">
+                <th>ขั้นตอน</th><th class="text-end">จำนวน Lot</th><th class="text-end">คนเฉลี่ย</th>
+                <th class="text-end">ชม.เฉลี่ย/Lot</th><th class="text-end">ชิ้น/ชม. (จริง)</th>
+                <th class="text-end">ชิ้น/ชม. (ออกแบบ)</th><th class="text-end">ส่วนต่าง</th>
+              </tr></thead>
+              <tbody>${rowsHTML}</tbody>
+            </table></div>
+          </div>`;
+        }
+      }
     }
   }
 
@@ -22707,7 +23473,9 @@ function _admindashLaborByType(r) {
 // ค่าแรง...มีกราฟแต่ละวง และกราฟเส้น")
 function _admindashLaborByStep(r) {
   const result = {};
-  _prodrecordSteps.forEach(s => { result[s.key] = { cost: 0, normalCost: 0, otCost: 0, normalHours: 0, otHours: 0 }; });
+  const blankAcc = () => ({ cost: 0, normalCost: 0, otCost: 0, normalHours: 0, otHours: 0, manDays: 0, daysWorked: 0,
+    ftManDays: 0, ftDaysWorked: 0, ptManDays: 0, ptDaysWorked: 0, osManDays: 0, osDaysWorked: 0 });
+  _prodrecordSteps.forEach(s => { result[s.key] = blankAcc(); });
   let stations = [];
   try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { return result; }
   const ftRate = parseFloat(r.FT_LaborRate) || 0, ftOt = parseFloat(r.FT_OT_Rate) || 0;
@@ -22717,7 +23485,11 @@ function _admindashLaborByStep(r) {
 
   // ต้นทุน+ชม. ของ 1 วัน (รวมทุกประเภทพนักงานเข้าด้วยกัน) — ใช้ทั้งกับข้อมูลรูปแบบใหม่ (s.days[] ค่าจริงต่อวัน)
   // และรูปแบบเก่า (s เป็นค่าเฉลี่ย/วันเดียว ไม่มี date จึงต้องคูณ workDays เพิ่มทีหลังแยกต่างหาก) — แยก
-  // normalCost/otCost ให้ด้วย (เดิมมีแค่ cost รวม) ตามคำขอผู้ใช้ 2026-09-01 ให้เห็นว่า OT กินต้นทุนเท่าไหร่
+  // normalCost/otCost ให้ด้วย (เดิมมีแค่ cost รวม) ตามคำขอผู้ใช้ 2026-09-01 ให้เห็นว่า OT กินต้นทุนเท่าไหร่ —
+  // **workers รวมทุกประเภท (ft+pt+os) ต่อวัน เพิ่ม 2026-09-06** ให้ "เจาะลึกรายสินค้า" คำนวณ "จำนวนคนเฉลี่ย/
+  // ขั้นตอน" ได้ (proxy เดียวกับ man-days÷daysWorked ที่ _admindashLaborByType ใช้อยู่แล้วสำหรับ FT/PT/OS)
+  // **แยก man-days ต่อประเภท (ftW/ptW/osW) เพิ่มอีกรอบ 2026-09-06 เดียวกัน** ตามคำขอผู้ใช้ "อยากให้เพิ่มต่อจาก
+  // จำนวนคน ว่าเป็น FT OS PT กี่คนบ้าง" — ให้ตาราง productivity โชว์ทั้งยอดรวมและแยกประเภทในบรรทัดเดียวกัน
   const dayDelta = d => {
     const ftW = d.ftWorkers || 0, ptW = d.ptWorkers || 0, osW = d.osWorkers || 0;
     const ftN = d.ftNormalHrs || 0, ftO = d.ftOtHrs || 0;
@@ -22729,22 +23501,31 @@ function _admindashLaborByStep(r) {
       cost: normalCost + otCost, normalCost, otCost,
       normalHours: ftW * ftN + ptW * ptN + osW * osN,
       otHours: ftW * ftO + ptW * ptO + osW * osO,
+      workers: ftW + ptW + osW, ftW, ptW, osW,
     };
   };
 
   stations.forEach(s => {
-    if (!result[s.key]) result[s.key] = { cost: 0, normalCost: 0, otCost: 0, normalHours: 0, otHours: 0 }; // เผื่อ key แปลกที่ไม่อยู่ใน _prodrecordSteps (ไม่ควรเกิดจริง แต่กันพลาด)
+    if (!result[s.key]) result[s.key] = blankAcc(); // เผื่อ key แปลกที่ไม่อยู่ใน _prodrecordSteps (ไม่ควรเกิดจริง แต่กันพลาด)
     const acc = result[s.key];
     if (Array.isArray(s.days)) {
       s.days.forEach(d => {
         const delta = dayDelta(d);
         acc.cost += delta.cost; acc.normalCost += delta.normalCost; acc.otCost += delta.otCost;
         acc.normalHours += delta.normalHours; acc.otHours += delta.otHours;
+        if (delta.workers > 0) { acc.manDays += delta.workers; acc.daysWorked += 1; }
+        if (delta.ftW > 0) { acc.ftManDays += delta.ftW; acc.ftDaysWorked += 1; }
+        if (delta.ptW > 0) { acc.ptManDays += delta.ptW; acc.ptDaysWorked += 1; }
+        if (delta.osW > 0) { acc.osManDays += delta.osW; acc.osDaysWorked += 1; }
       });
     } else {
       const delta = dayDelta(s);
       acc.cost += delta.cost * workDays; acc.normalCost += delta.normalCost * workDays; acc.otCost += delta.otCost * workDays;
       acc.normalHours += delta.normalHours * workDays; acc.otHours += delta.otHours * workDays;
+      if (delta.workers > 0) { acc.manDays += delta.workers * workDays; acc.daysWorked += workDays; }
+      if (delta.ftW > 0) { acc.ftManDays += delta.ftW * workDays; acc.ftDaysWorked += workDays; }
+      if (delta.ptW > 0) { acc.ptManDays += delta.ptW * workDays; acc.ptDaysWorked += workDays; }
+      if (delta.osW > 0) { acc.osManDays += delta.osW * workDays; acc.osDaysWorked += workDays; }
     }
   });
   return result;
