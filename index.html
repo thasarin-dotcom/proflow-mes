@@ -13279,6 +13279,14 @@ function _planLineBlockHTML(b, opts) {
           </div>
         </div>
         <small class="text-muted" id="plan-shift-preview-${b}">เลือกช่วงเวลาอย่างน้อย 1 ช่วง (ติ๊กเช้า+บ่ายพร้อมกัน = เช้าบ่าย 08:30–17:30)</small>
+      </div>` : (categoryKey === 'lot' && optional) ? `
+      <div class="col-md-4">
+        <label class="form-label">วันที่ยิง Lot <span class="text-danger">*</span></label>
+        <input type="date" class="form-control" id="plan-lot-date-${b}" onchange="planLotDateChanged('${b}')">
+        <small class="text-muted d-block" id="plan-lot-date-note-${b}"></small>
+      </div>
+      <div class="col-md-4 small text-muted d-flex align-items-center">
+        <i class="fas fa-clock me-1"></i>เวลาเดียวกับ "ไลน์บรรจุ"
       </div>` : `
       <div class="col-md-8 small text-muted d-flex align-items-center">
         <i class="fas fa-clock me-1"></i>ใช้ช่วงเวลาเดียวกับ "ไลน์บรรจุ" ด้านบน (ไม่ต้องกรอกซ้ำที่นี่)
@@ -13313,6 +13321,7 @@ function planSetupLineBlocksForProduct(mode, code, matchLine) {
   _planLineBlockFixedLine = {};
   _planLineBlockCategory = {};
   _planLineManualOverrideByBlock = {};
+  _planLotDateManuallySet = {};
   let keys;
   if (mode === 'edit') {
     keys = ['edit'];
@@ -13342,6 +13351,79 @@ function _planEffectiveShift(b) {
   if (own) return own;
   if (b !== _planPrimaryTimeBlockKey) return _planComputeShift(_planSelectedShiftKeys(_planPrimaryTimeBlockKey));
   return null;
+}
+
+// ── วันที่ยิง Lot แยกจากวันที่หลักของแผนได้ (added 2026-09-08 ตามคำขอผู้ใช้ "งานขวดที่เป็น 360 จะต้องยิง
+// Lot ล่วงหน้าก่อน 1 วัน...ควรให้เห็นแพลนว่าต้องยิง Lot วันไหนก่อน") — ก่อนหน้านี้ไลน์ยิง Lot "ยืม" ทั้งวันที่
+// และเวลาจากบล็อกไลน์บรรจุเหมือนกันหมดทุกบล็อก (ดูหมายเหตุ _planEffectiveShift/PrimaryTimeBlockKey) ทำให้
+// ไม่มีทางแสดงว่ายิง Lot ต้องทำวันไหนก่อนเลย — ตอนนี้ไลน์ยิง Lot มีช่องวันที่ของตัวเอง (แยกจาก plan-f-date
+// ที่เหลือใช้ร่วมกันของไลน์บรรจุ/แพ็ค) ส่วนเวลายังคง "ยืม" จากไลน์บรรจุเหมือนเดิม (ผู้ใช้ขอแค่วันที่แยก
+// ไม่ได้ขอเวลาแยกด้วย) — มีผลตามมา: _planFilterRowsForDisplay จัดกลุ่ม "1 งาน" จาก PlanDate+ProductCode
+// ดังนั้นยิง Lot ที่มี PlanDate ต่างจากไลน์บรรจุ/แพ็ค จะไม่ถูกจัดเป็นไลน์พี่น้องที่ซ่อนไว้อีกต่อไป แต่จะโผล่
+// เป็นแผนแยกในวันที่ของมันเองบนปฏิทินโดยอัตโนมัติ (ไม่ต้องแก้ตรงนั้นเพิ่มเลย) — ตรงตามที่ผู้ใช้ต้องการเป๊ะ
+let _planLotDateManuallySet = {}; // key: block id -> true ถ้าผู้ใช้แก้วันที่ยิง Lot เองแล้ว (ไม่ auto-suggest ทับอีก)
+
+function _planIsSunday(dateStr) {
+  if (!dateStr) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).getDay() === 0;
+}
+
+function _planAddDays(dateStr, delta) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+// สินค้า "ขวด" (UOM = "ขวด" — ใช้ค่านี้เพราะมีอยู่แล้วในฟอร์ม ไม่ต้องเพิ่ม master data ใหม่) แนะนำยิง Lot
+// ล่วงหน้า 1 วันก่อนไลน์บรรจุ แต่ถ้าวันที่แนะนำนั้นตรงกับวันอาทิตย์ (หยุดตามปฏิทินนี้ — ดู isSunday ใน
+// planRenderCalendar) เลื่อนล่วงหน้าเพิ่มอีก 1 วัน (รวมเป็น 2 วันก่อน) สินค้าอื่นที่ไม่ใช่ขวดแนะนำวันเดียว
+// กับไลน์บรรจุเหมือนเดิม (ไม่ต้องล่วงหน้า) — เป็นแค่คำแนะนำเริ่มต้น แก้ไขเป็นวันอื่นเองได้เสมอ
+function _planSuggestLotDate() {
+  const mainDate = document.getElementById('plan-f-date')?.value || '';
+  if (!mainDate) return '';
+  const uom = document.getElementById('plan-f-uom')?.value || '';
+  if (uom !== 'ขวด') return mainDate;
+  const oneDayBefore = _planAddDays(mainDate, -1);
+  return _planIsSunday(oneDayBefore) ? _planAddDays(mainDate, -2) : oneDayBefore;
+}
+
+// เติมคำแนะนำวันที่ยิง Lot ให้บล็อก b — ข้ามถ้าผู้ใช้แก้เองไปแล้ว (_planLotDateManuallySet) หรือบล็อกนี้ไม่มี
+// ช่องวันที่ยิง Lot เลย (ไม่ใช่บล็อกยิง Lot ที่อยู่ร่วมกับบล็อกอื่น — ดู categoryKey==='lot' && optional ใน
+// _planLineBlockHTML)
+function _planApplyLotDateSuggestion(b) {
+  const el = document.getElementById(`plan-lot-date-${b}`);
+  if (!el || _planLotDateManuallySet[b]) return;
+  const suggested = _planSuggestLotDate();
+  el.value = suggested;
+  const note = document.getElementById(`plan-lot-date-note-${b}`);
+  if (note) {
+    const uom = document.getElementById('plan-f-uom')?.value || '';
+    note.innerHTML = (uom === 'ขวด' && suggested)
+      ? `<i class="fas fa-wand-magic-sparkles me-1 text-primary"></i>แนะนำล่วงหน้าก่อนไลน์บรรจุ (งานขวด) — แก้ไขเองได้`
+      : '';
+  }
+}
+
+// ผู้ใช้แก้วันที่ยิง Lot เอง — จำไว้ไม่ให้ auto-suggest ทับอีก (เหมือน pattern เดียวกับ
+// _planLineManualOverrideByBlock ของ "เปลี่ยนไลน์นี้") แล้วรีเช็คชนกัน/สกิลด้วยวันที่ใหม่
+function planLotDateChanged(b) {
+  _planLotDateManuallySet[b] = true;
+  const note = document.getElementById(`plan-lot-date-note-${b}`);
+  if (note) note.innerHTML = '';
+  planCheckConflictLive(b);
+  planCheckSkillCoverage(b);
+}
+
+// วันที่ "จริง" ของบล็อกนี้ — บล็อกยิง Lot ที่มีช่องวันที่ของตัวเอง (ดูหมายเหตุด้านบน) ใช้ค่าจากช่องนั้น
+// โดยตรง บล็อกอื่นๆ (รวมถึงยิง Lot ที่ไม่มีช่องแยก เช่นตอนแก้ไข/fallback บล็อกเดียว) ใช้วันที่หลักร่วมกัน
+// (plan-f-date) เหมือนเดิมทุกอย่าง — เรียกแทนการอ่าน plan-f-date ตรงๆ ทุกจุดที่ต้องรู้วันที่จริงของบล็อกนี้
+// (เช็คชนกันไลน์/คน, payload ตอนบันทึก)
+function _planDateForBlock(b) {
+  const lotDateEl = document.getElementById(`plan-lot-date-${b}`);
+  if (lotDateEl) return lotDateEl.value || '';
+  return document.getElementById('plan-f-date')?.value || '';
 }
 
 // วาดรายชื่อพนักงานเป็น checkbox จาก `pool` ที่ส่งมา (ไม่ใช่ _planEmployees ทั้งหมดเสมอไป — ดู
@@ -13525,7 +13607,7 @@ function planAutoPickFreeLine(b) {
   const code = document.getElementById('plan-f-prodcode')?.value || '';
   const allowed = _planAllowedLinesForProduct(code);
   if (!allowed) return;
-  const date = document.getElementById('plan-f-date')?.value || '';
+  const date = _planDateForBlock(b);
   const shift = _planEffectiveShift(b);
   if (!date || !shift) return;
   const editId = parseInt(document.getElementById('plan-edit-id')?.value) || null;
@@ -13828,7 +13910,15 @@ function planOpenDayModal(dateStr) {
   _planDayModal.show();
 }
 
-function _planRowActions(r) {
+// isSibling: true ตอนโชว์เป็นรายการย่อยของไลน์พี่น้องในแถวที่ขยาย (added 2026-09-08, ตามคำขอผู้ใช้ 2 รอบ
+// ติดกัน: แรก "ปุ่มเช็ควัตถุดิบ ให้มีแค่ของไลน์บรรจุ ปุ่มอื่นๆด้วย" แล้วตามด้วย "ปุ่มแก้ไข และลบด้วย
+// ให้เอาออก") — ไลน์พี่น้อง (แพ็ค/ยิง Lot ของงานเดียวกัน) ไม่มี action ให้กดเลยสักปุ่ม เป็นแค่รายการอ่าน
+// อย่างเดียว (Line/กะ-เวลา/ผู้ปฏิบัติงาน/สถานะ) — การแก้ไข/ลบไลน์เหล่านี้ (ถ้าจำเป็นจริงๆ) ต้องทำผ่านการ
+// แก้ไข/ลบไลน์บรรจุ (แถวหลัก) เท่านั้น ตอนนี้ยังไม่มีช่องทาง UI แก้ไข/ลบแยกเฉพาะไลน์แพ็ค/ยิง Lot เลย — งานที่
+// fallback โชว์ทุกไลน์เป็นแถวหลักเอง (ไม่มีไลน์บรรจุให้เป็นตัวแทน ดู _planFilterRowsForDisplay) ไม่ได้รับ
+// ผลกระทบ ยังกด action ได้ครบทุกไลน์ตามปกติ เพราะไม่มีไลน์ไหนถูกเรียกแบบ isSibling เลยในกรณีนั้น
+function _planRowActions(r, isSibling = false) {
+  if (isSibling) return '';
   let actions = '';
   // แผนที่ยังไม่มี MO เลย (ลงแผนตรงจาก CO ผ่านปุ่ม "ลงแผนผลิต" หรือโหมดกำหนดเองแบบเดิม) — ต้องเช็ค+จองวัตถุดิบ
   // ผ่านก่อนถึงจะสั่งผลิต (ออก MO) ได้ ดู planCheckMaterial/planOrderProduction — ยอดจองคั่นไว้ด้วย MO_Ref ชั่วคราว
@@ -14079,13 +14169,14 @@ function _planRenderDayTable(dateStr) {
               const sBadge = s.Status === 'ยืนยันแล้ว'
                 ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
                 : '<span class="badge bg-secondary">วางแผน</span>';
+              // ไม่มี action ให้กดเลย (added 2026-09-08 ตามคำขอผู้ใช้ "ปุ่มแก้ไข และลบด้วย ให้เอาออก") —
+              // แถวนี้เป็นแค่รายการอ่านอย่างเดียว ดูหมายเหตุที่ _planRowActions
               return `<tr>
-                <td style="width:24%;border-left:3px solid ${_planLineColor(s.Line)}">
+                <td style="width:40%;border-left:3px solid ${_planLineColor(s.Line)}">
                   <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)}</small>
                 </td>
-                <td style="width:24%">${s.Workers||'—'}</td>
-                <td style="width:16%">${sBadge}</td>
-                <td class="text-center">${_planRowActions(s)}</td>
+                <td style="width:36%">${s.Workers||'—'}</td>
+                <td style="width:24%">${sBadge}</td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -14134,6 +14225,7 @@ function _planRefreshAllBlocksForProductOrDate() {
       _planPopulateWorkersSelect(b, []);
       planApplyAllowedLines(b, '');
       planAutoPickFreeLine(b);
+      _planApplyLotDateSuggestion(b);
       planCheckSkillCoverage(b);
     });
     return;
@@ -14148,6 +14240,7 @@ function _planRefreshAllBlocksForProductOrDate() {
 
 function planOnDateChanged() {
   _planLineBlockIds.forEach(b => {
+    _planApplyLotDateSuggestion(b);
     planCheckConflictLive(b);
     planAutoPickFreeLine(b);
     planCheckSkillCoverage(b);
@@ -14316,6 +14409,7 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
       document.getElementById(`plan-f-workers-legacy-note-${b}`).style.display = 'none';
       _planPopulateWorkersSelect(b, []);
       planApplyAllowedLines(b, '');
+      _planApplyLotDateSuggestion(b);
     });
   }
   _planUpdateCORefBadge();
@@ -14341,17 +14435,15 @@ function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
 // ยืนยันกับผู้ใช้แล้วให้เป็นการบล็อกจริงตอนบันทึก (ดู planSubmit) ไม่ใช่แค่เตือนแบบเช็คสกิล/จำนวนคน —
 // คืน array ของ {code, row} หนึ่งรายการต่อคนที่ชนแต่ละคน (ไม่ dedupe — ถ้าคนเดียวชนหลายแผนพร้อมกันจะได้
 // เห็นครบทุกแผนที่ชน)
-// ข้ามแถวไลน์ "ยิง Lot" ไปเลย (added 2026-09-07 ตามคำขอผู้ใช้ "ไลน์ยิงล็อตกับแพ็ค สามารถเลือกคนซ้ำได้
-// เพราะทำคนละวัน") — เวลาที่บันทึกไว้ของบล็อกยิง Lot เป็นแค่เวลา "ยืม" จากบล็อกไลน์บรรจุของแผนเดียวกัน
-// (ดู _planEffectiveShift/planSetupLineBlocksForProduct) ไม่ใช่เวลาที่ยิง Lot จะเกิดขึ้นจริง (ยิง Lot ทำ
-// คนละวันกับบรรจุ/แพ็คเสมอในทางปฏิบัติ) เทียบเวลากับแถวนี้จึงไม่มีความหมายอะไรเลย ไม่ว่าจะเทียบกับไลน์ไหน
+// เดิม (2026-09-07) เคยข้ามแถวไลน์ "ยิง Lot" ไปเลย เพราะวันที่ที่บันทึกไว้เป็นแค่วันที่ยืมจากไลน์บรรจุ ไม่ใช่
+// วันที่จริง — ตอนนี้ไลน์ยิง Lot มีช่องวันที่ของตัวเองแล้ว (added 2026-09-08 ดูหมายเหตุที่ _planDateForBlock)
+// วันที่ที่บันทึกไว้จึงเป็นวันที่จริงแล้ว เทียบกันมีความหมายเหมือนไลน์อื่นทุกอย่าง เลยเลิกข้ามแถวไลน์ยิง Lot
 function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, excludeRowId) {
   if (!date || !timeStart || !timeEnd || !workerCodes.length) return [];
   const conflicts = [];
   _planData.forEach(r => {
     if (r._row_id === excludeRowId) return;
     if (r.PlanDate !== date) return;
-    if (_planLineCategoryOf(r.Line || '') === 'lot') return;
     const rStart = (r.TimeStart || '').slice(0, 5);
     const rEnd   = (r.TimeEnd || '').slice(0, 5);
     if (!(rStart < timeEnd && timeStart < rEnd)) return;
@@ -14369,14 +14461,12 @@ function planCheckWorkerConflictLive(b) {
   const hint = document.getElementById(`plan-worker-conflict-hint-${b}`);
   if (!hint) return;
   const editId = parseInt(document.getElementById('plan-edit-id')?.value) || null;
-  const date = document.getElementById('plan-f-date')?.value || '';
+  // ใช้วันที่ "จริง" ของบล็อกนี้ (ไลน์ยิง Lot มีช่องวันที่ของตัวเอง — ดู _planDateForBlock) ไม่ใช่วันที่
+  // หลักของแผนตรงๆ เหมือนเดิม
+  const date = _planDateForBlock(b);
   const shift = _planEffectiveShift(b);
   const codes = _planGetSelectedWorkerCodes(b);
-  // บล็อก "ยิง Lot" ไม่เช็คคนซ้ำกับแผนอื่นเลย (added 2026-09-07) — เวลาที่ใช้เป็นแค่เวลายืมจากบล็อกไลน์
-  // บรรจุ ไม่ใช่เวลาจริงที่ยิง Lot จะเกิดขึ้น (ดูหมายเหตุที่ _planFindWorkerConflicts)
-  const line = document.getElementById(`plan-f-line-${b}`)?.value || '';
-  const isLotBlock = _planLineCategoryOf(line) === 'lot';
-  const conflicts = (shift && !isLotBlock) ? _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, codes, editId) : [];
+  const conflicts = shift ? _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, codes, editId) : [];
   if (conflicts.length) {
     const names = conflicts.map(c => {
       const e = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -14419,7 +14509,7 @@ function planShiftChanged(b) {
 
 function planCheckConflictLive(b) {
   const editId   = parseInt(document.getElementById('plan-edit-id').value) || null;
-  const date     = document.getElementById('plan-f-date').value;
+  const date     = _planDateForBlock(b);
   const line     = document.getElementById(`plan-f-line-${b}`).value;
   const shift    = _planEffectiveShift(b);
   const hint     = document.getElementById(`plan-f-conflict-hint-${b}`);
@@ -14467,7 +14557,6 @@ async function planSubmit(e) {
   const qty      = parseFloat(document.getElementById('plan-f-qty').value) || 0;
   const prodCode = document.getElementById('plan-f-prodcode').value;
   const prodName = document.getElementById('plan-f-prodname').value;
-  const date     = document.getElementById('plan-f-date').value;
   const excludeRowId = isEdit ? parseInt(editId) : null;
 
   if (!prodCode) { _err('กรุณาเลือกสินค้า', isMOMode ? 'เลือก MO ก่อน' : 'ค้นหาและเลือกสินค้า'); return; }
@@ -14491,18 +14580,24 @@ async function planSubmit(e) {
     const label = isMultiSection ? ` (${line || `บล็อก #${i + 1}`})` : '';
     if (!isUsed) continue; // ปิด "ใช้ไลน์นี้ในแผนนี้" ไว้ตั้งใจ — ข้ามไป ไม่ error
     const shift = _planEffectiveShift(b);
-    if (!line)  { _err(`กรุณาเลือกไลน์ผลิต${label}`, ''); return; }
-    if (!shift) { _err(`กรุณาเลือกช่วงเวลา${label}`, 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง ที่บล็อก "ไลน์บรรจุ"'); return; }
+    // วันที่ "จริง" ของบล็อกนี้ — ไลน์ยิง Lot ที่มีช่องวันที่ของตัวเอง (added 2026-09-08, ดูหมายเหตุที่
+    // _planDateForBlock) อาจไม่ใช่วันเดียวกับ `date` (วันที่หลักของแผน ใช้กับไลน์บรรจุ/แพ็ค) เลย
+    const blockDate = _planDateForBlock(b);
+    if (!line)      { _err(`กรุณาเลือกไลน์ผลิต${label}`, ''); return; }
+    if (!blockDate) { _err(`กรุณาระบุวันที่${label}`, 'ไลน์ยิง Lot ต้องระบุวันที่ยิง Lot ด้วย'); return; }
+    if (!shift)     { _err(`กรุณาเลือกช่วงเวลา${label}`, 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง ที่บล็อก "ไลน์บรรจุ"'); return; }
 
-    const conflict = _planFindConflict(date, line, shift.timeStart, shift.timeEnd, excludeRowId);
+    const conflict = _planFindConflict(blockDate, line, shift.timeStart, shift.timeEnd, excludeRowId);
     if (conflict) {
       _err(`ไลน์นี้ถูกจองเวลาซ้อนกันแล้ว${label}`,
         `"${conflict.ProductName}" จองไลน์ "${line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้ว กรุณาเลือกช่วงเวลาหรือไลน์อื่น`);
       return;
     }
-    // ไลน์เดียวกัน+เวลาทับซ้อนกัน ถูกเลือกซ้ำเองข้ามบล็อกในฟอร์มนี้ (คนละเรื่องกับ conflict ด้านบนที่เช็ค
-    // กับแผนที่บันทึกไปแล้ว) — 2 บล็อกจะจองไลน์เดียวกันพร้อมกันไม่ได้เหมือนกัน
-    const sameBatchLineConflict = blockPayloads.find(p => p.Line === line &&
+    // ไลน์เดียวกัน+วันที่เดียวกัน+เวลาทับซ้อนกัน ถูกเลือกซ้ำเองข้ามบล็อกในฟอร์มนี้ (คนละเรื่องกับ conflict
+    // ด้านบนที่เช็คกับแผนที่บันทึกไปแล้ว) — ต้องเทียบวันที่ด้วยเสมอตั้งแต่ไลน์ยิง Lot มีวันที่แยกได้ (added
+    // 2026-09-08) ไม่งั้นไลน์บรรจุวันนี้กับไลน์ยิง Lot ของงานเดียวกันที่ตั้งใจให้เป็นคนละวันจะโดนเข้าใจผิด
+    // ว่าชนกันทั้งที่จริงคนละวันเลย
+    const sameBatchLineConflict = blockPayloads.find(p => p.PlanDate === blockDate && p.Line === line &&
       (p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''));
     if (sameBatchLineConflict) {
       _err(`ไลน์ชนกันเองในฟอร์มนี้${label}`, `ไลน์ "${line}" ถูกเลือกซ้ำในช่วงเวลาที่ทับซ้อนกันในแผนเดียวกันนี้เอง`);
@@ -14526,13 +14621,11 @@ async function planSubmit(e) {
     }
 
     // คนซ้ำกัน (ถูกจองไว้ในแผนอื่นที่ชนเวลากันอยู่แล้ว) — บล็อกจริง เหมือนไลน์ชนกันด้านบน (ยืนยันกับผู้ใช้
-    // แล้วว่าเป็นข้อจำกัดทางกายภาพ ไม่ใช่แค่เตือน — คนคนเดียวไปทำงาน 2 ที่พร้อมกันไม่ได้จริง)
-    // ยกเว้นบล็อก "ยิง Lot" ไม่เช็คเลย (added 2026-09-07 ตามคำขอผู้ใช้ "ไลน์ยิงล็อตกับแพ็คเลือกคนซ้ำได้
-    // เพราะทำคนละวัน") — เวลาที่บล็อกนี้ใช้เป็นแค่เวลายืมจากบล็อกไลน์บรรจุ ไม่ใช่เวลาที่ยิง Lot จะเกิดขึ้น
-    // จริง (_planFindWorkerConflicts เองก็ข้ามแถวไลน์ยิง Lot ของแผนอื่นอยู่แล้วเช่นกัน — ดูหมายเหตุที่นั่น)
-    const cat = _planLineCategoryOf(line);
-    const isLotBlock = cat === 'lot';
-    const workerConflicts = isLotBlock ? [] : _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, workerCodes, excludeRowId);
+    // แล้วว่าเป็นข้อจำกัดทางกายภาพ ไม่ใช่แค่เตือน — คนคนเดียวไปทำงาน 2 ที่พร้อมกันไม่ได้จริง) — เดิม (2026-
+    // 09-07) เคยยกเว้นบล็อก "ยิง Lot" ไปเลย เพราะวันที่ยืมมาจากไลน์บรรจุไม่ใช่วันที่จริง ตอนนี้ยิง Lot มี
+    // วันที่ของตัวเองแล้ว (added 2026-09-08) จึงเช็คตามปกติได้เหมือนไลน์อื่นทุกอย่าง โดยใช้ blockDate แทน
+    // date เดิม
+    const workerConflicts = _planFindWorkerConflicts(blockDate, shift.timeStart, shift.timeEnd, workerCodes, excludeRowId);
     if (workerConflicts.length) {
       const lines = workerConflicts.map(c => {
         const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -14542,19 +14635,16 @@ async function planSubmit(e) {
       _err(`มีคนซ้ำกับแผนอื่นที่ชนเวลากัน${label}`, lines);
       return;
     }
-    // คนเดียวกันถูกเลือกซ้ำข้ามบล็อกในฟอร์มนี้เอง ที่เวลาทับซ้อนกัน — คนคนเดียวไปทำงาน 2 ไลน์พร้อมกันไม่ได้
-    // ยกเว้นบล็อกใดบล็อกหนึ่งที่เทียบกันเป็น "ยิง Lot" (เหตุผลเดียวกับข้างบน — ทำคนละวัน เทียบเวลากันไม่มี
-    // ความหมาย) ข้ามการเทียบคู่นั้นไปเฉยๆ ไม่ได้ข้ามทั้งบล็อก (บล็อกที่ไม่ใช่ Lot ยังต้องเช็คกับบล็อกอื่นที่
-    // ไม่ใช่ Lot ตามปกติ)
+    // คนเดียวกันถูกเลือกซ้ำข้ามบล็อกในฟอร์มนี้เอง ที่วันที่เดียวกัน+เวลาทับซ้อนกัน — คนคนเดียวไปทำงาน 2 ไลน์
+    // พร้อมกันไม่ได้ (ต้องเทียบวันที่ด้วยเสมอ เหตุผลเดียวกับ sameBatchLineConflict ด้านบน — ไลน์ยิง Lot ของ
+    // งานเดียวกันอาจตั้งใจให้เป็นคนละวันกับไลน์บรรจุ/แพ็คโดยเจตนา)
     const sameBatchWorkerConflicts = [];
-    if (!isLotBlock) {
-      blockPayloads.forEach(p => {
-        if (_planLineCategoryOf(p.Line) === 'lot') return;
-        if (!((p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''))) return;
-        const pCodes = (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-        workerCodes.forEach(code => { if (pCodes.includes(code)) sameBatchWorkerConflicts.push({ code, line: p.Line }); });
-      });
-    }
+    blockPayloads.forEach(p => {
+      if (p.PlanDate !== blockDate) return;
+      if (!((p.TimeStart||'') < shift.timeEnd && shift.timeStart < (p.TimeEnd||''))) return;
+      const pCodes = (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+      workerCodes.forEach(code => { if (pCodes.includes(code)) sameBatchWorkerConflicts.push({ code, line: p.Line }); });
+    });
     if (sameBatchWorkerConflicts.length) {
       const lines = sameBatchWorkerConflicts.map(c => {
         const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -14566,7 +14656,7 @@ async function planSubmit(e) {
     }
 
     blockPayloads.push({
-      PlanDate    : date,
+      PlanDate    : blockDate,
       ProductCode : prodCode,
       ProductName : prodName,
       PlanQty     : qty,
