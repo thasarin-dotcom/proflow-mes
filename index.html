@@ -13143,6 +13143,33 @@ function _planLineCategoryOf(line) {
   return sec ? sec.key : null;
 }
 
+// ── กรองแถวที่จะ "แสดง" ในหน้าแผนผลิต (ปฏิทิน/รายละเอียดวัน/KPI) ให้เหลือแค่ไลน์บรรจุต่องาน (added
+// 2026-09-07 ตามคำขอผู้ใช้ "1 งานมีหลายไลน์...ไม่อยากให้ขึ้นหน้านี้ อยากให้ขึ้นแค่ห้องบรรจุ ไลน์อื่นให้แสดง
+// ในแดชบอร์ดเหมือนเดิม") — งานที่มีหลายไลน์ (Fill/Pack/Lot) ตอนนี้คือ 3 แถว production_plan แยกกัน (คนละ
+// _row_id) ที่ share PlanDate/ProductCode/MO_Ref/CO_Ref เหมือนกันหมด (ดู planSubmit) — ไม่มีคอลัมน์ "batch
+// id" แยกต่างหากที่บอกว่าแถวไหนเป็นพี่น้องกัน จึงต้อง group เอาจาก (PlanDate, ProductCode) เป็นตัวแทน "1
+// งาน" (เพียงพอในทางปฏิบัติ — ถ้าบังเอิญมี 2 การลงแผนแยกกันของสินค้าเดียวกันวันเดียวกันจริง ผลคือแค่ merge
+// มองเป็นงานเดียวกันตอนแสดงผล ไม่กระทบข้อมูลจริงเลย) — **เป็นแค่ตัวกรองตอนแสดงผลเท่านั้น** ข้อมูลจริงใน
+// production_plan ไม่เปลี่ยน หน้า "ภาพรวมการผลิต" (ภาพรวมการผลิต/Gantt, prodstatus) ยังอ่าน _planData ตรงๆ
+// เห็นครบทุกไลน์เหมือนเดิมทุกอย่าง ไม่ผ่านฟังก์ชันนี้เลย — และห้ามใช้ฟังก์ชันนี้กรองข้อมูลที่ป้อนเข้า
+// _planFindConflict/_planFindWorkerConflicts (เช็คชนกันต้องเห็นครบทุกไลน์จริง ไม่งั้นจะพลาดเช็คไลน์แพ็ค/
+// ยิง Lot ไปเงียบๆ) — ใช้เฉพาะจุด "แสดงผล" 3 จุด: planUpdateKPIs, planRenderCalendar, _planRenderDayTable
+// ถ้างานนั้นบังเอิญไม่มีไลน์บรรจุเลย (เช่น วันนั้นใช้แค่ไลน์แพ็ค/ยิง Lot) แสดงทุกไลน์ของงานนั้นแทน กันไม่ให้
+// งานหายไปจากหน้านี้เงียบๆ
+function _planFilterRowsForDisplay(rows) {
+  const groups = {};
+  rows.forEach(r => {
+    const key = `${r.PlanDate}|${r.ProductCode}`;
+    (groups[key] ||= []).push(r);
+  });
+  const out = [];
+  Object.values(groups).forEach(group => {
+    const fillRows = group.filter(r => _planLineCategoryOf(r.Line || '') === 'fill');
+    out.push(...(fillRows.length ? fillRows : group));
+  });
+  return out;
+}
+
 // ── ผูกแมททริกสกิลพนักงานเข้ากับหน้าแผนผลิต (added 2026-09-05) ──
 // เช็คว่าผู้ปฏิบัติงานที่เลือกไว้มีทักษะพอสำหรับไลน์ที่แพลนไหม (เตือนเฉยๆ ไม่บล็อกการบันทึก — ตกลงกับ
 // ผู้ใช้แล้ว) โหลดข้อมูลแบบ graceful-degrade: ถ้า employees/skills/employee_skills ยังไม่ถูกสร้าง
@@ -13719,9 +13746,11 @@ function planChangeMonth(delta) {
 
 function planUpdateKPIs() {
   const el = id => document.getElementById(id);
-  const pending   = _planData.filter(r => r.Status === 'วางแผน').length;
-  const confirmed = _planData.filter(r => r.Status === 'ยืนยันแล้ว').length;
-  if (el('plan-kpi-total'))     el('plan-kpi-total').textContent     = _planData.length.toLocaleString();
+  // นับเป็น "งาน" ไม่ใช่ "แถวไลน์" (added 2026-09-07) — ดูหมายเหตุที่ _planFilterRowsForDisplay
+  const displayRows = _planFilterRowsForDisplay(_planData);
+  const pending   = displayRows.filter(r => r.Status === 'วางแผน').length;
+  const confirmed = displayRows.filter(r => r.Status === 'ยืนยันแล้ว').length;
+  if (el('plan-kpi-total'))     el('plan-kpi-total').textContent     = displayRows.length.toLocaleString();
   if (el('plan-kpi-pending'))   el('plan-kpi-pending').textContent   = pending;
   if (el('plan-kpi-confirmed')) el('plan-kpi-confirmed').textContent = confirmed;
 }
@@ -13753,8 +13782,9 @@ function planRenderCalendar() {
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayStr    = _planWeekLocalDateStr(new Date());
 
+  // แสดงแค่ไลน์บรรจุต่องาน (added 2026-09-07) — ดูหมายเหตุที่ _planFilterRowsForDisplay
   const byDate = {};
-  _planData.forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
+  _planFilterRowsForDisplay(_planData).forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
 
   let cells = '';
   for (let i = 0; i < firstDow; i++) cells += `<div class="plan-day-cell plan-day-outside"></div>`;
@@ -13980,10 +14010,34 @@ async function planOrderProduction(rowId) {
   if (dateStr) planOpenDayModal(dateStr);
 }
 
+// ── รายการย่อยขยายได้ของไลน์พี่น้องที่ถูกซ่อน (added 2026-09-07 ตามคำขอผู้ใช้ "ทำเป็นรายการย่อยขยายได้ใน
+// แถวไลน์บรรจุ") — _planFilterRowsForDisplay ซ่อนไลน์แพ็ค/ยิง Lot ของงานเดียวกันไม่ให้โผล่เป็นแถวแยกในตาราง
+// วันนี้แล้ว (ดูหมายเหตุที่ฟังก์ชันนั้น) แต่ทำให้กดแก้ไข/ลบ/เช็ควัตถุดิบ/สั่งผลิต/ยืนยันของไลน์ที่ถูกซ่อนไม่ได้
+// เลย — เพิ่มปุ่ม "+N ไลน์อื่น" ที่แถวไลน์บรรจุ (หรือแถวตัวแทนของงานนั้นๆ) กดขยายดูไลน์พี่น้องที่ถูกซ่อนไว้
+// พร้อมปุ่มจัดการครบชุดเหมือนแถวปกติทุกอย่าง (_planRowActions ใช้ร่วมกัน ไม่ต้องเขียนใหม่)
+function planToggleDaySiblings(rowId) {
+  const row = document.getElementById(`plan-sibling-rows-${rowId}`);
+  const chevron = document.getElementById(`plan-sibling-chevron-${rowId}`);
+  if (!row) return;
+  const show = row.style.display === 'none';
+  row.style.display = show ? '' : 'none';
+  if (chevron) chevron.classList.toggle('fa-chevron-down', show);
+  if (chevron) chevron.classList.toggle('fa-chevron-right', !show);
+}
+
 function _planRenderDayTable(dateStr) {
-  const rows = _planData.filter(r => r.PlanDate === dateStr);
+  // ทุกไลน์ของวันนี้ ไม่กรอง (ใช้หาไลน์พี่น้องที่ถูกซ่อน) — แสดงแค่ไลน์บรรจุต่องาน (added 2026-09-07)
+  // ดูหมายเหตุที่ _planFilterRowsForDisplay
+  const allRows = _planData.filter(r => r.PlanDate === dateStr);
+  const rows = _planFilterRowsForDisplay(allRows);
   const tbody = document.getElementById('plan-day-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">ยังไม่มีแผนวันนี้</td></tr>'; return; }
+
+  // ไลน์พี่น้องของแถว r = แถวอื่นของงานเดียวกัน (PlanDate+ProductCode เดียวกัน) ที่ไม่ได้ถูกแสดงเป็นแถวหลัก
+  // อยู่แล้ว (ถ้างานนั้น fallback โชว์ทุกไลน์เพราะไม่มีไลน์บรรจุเลย แต่ละไลน์จะโผล่เป็นแถวหลักของตัวเองอยู่
+  // แล้ว ไม่มีไลน์พี่น้องที่ถูกซ่อนให้ขยายซ้ำอีก)
+  const displayedIds = new Set(rows.map(r => r._row_id));
+  const siblingsFor = r => allRows.filter(o => o.ProductCode === r.ProductCode && o._row_id !== r._row_id && !displayedIds.has(o._row_id));
 
   const groups = PLAN_LINES.map(line => ({
     line,
@@ -14002,15 +14056,42 @@ function _planRenderDayTable(dateStr) {
         ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
         : '<span class="badge bg-secondary">วางแผน</span>';
       const lot = _planMOLot(r.MO_Ref);
-      return `<tr>
+      const siblings = siblingsFor(r);
+      const expandToggle = siblings.length
+        ? ` <a href="#" class="small ms-1" onclick="event.preventDefault();planToggleDaySiblings(${r._row_id})" title="ไลน์อื่นของงานเดียวกัน (แพ็ค/ยิง Lot) — ถูกซ่อนจากตารางนี้ปกติ">
+            <i class="fas fa-chevron-right" id="plan-sibling-chevron-${r._row_id}"></i> +${siblings.length} ไลน์อื่น
+          </a>`
+        : '';
+      const mainRow = `<tr>
         <td class="text-nowrap">${r.Shift||'—'}<br><small class="text-muted">${_planShiftTimeLabel(r)}</small></td>
-        <td>${r.ProductName||'—'}<br><small class="text-muted">${r.ProductCode||''}${r.MO_Ref ? ' · '+r.MO_Ref : ''}</small></td>
+        <td>${r.ProductName||'—'}<br><small class="text-muted">${r.ProductCode||''}${r.MO_Ref ? ' · '+r.MO_Ref : ''}</small>${expandToggle}</td>
         <td>${lot ? `<span class="badge bg-light text-dark border">${lot}</span>` : '—'}</td>
         <td class="text-end fw-bold">${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}</td>
         <td>${r.Workers||'—'}</td>
         <td>${badge}</td>
         <td class="text-center">${_planRowActions(r)}</td>
       </tr>`;
+      const siblingRows = !siblings.length ? '' : `<tr class="plan-sibling-rows" id="plan-sibling-rows-${r._row_id}" style="display:none">
+        <td></td>
+        <td colspan="6" class="p-0 ps-3">
+          <table class="table table-sm mb-0" style="font-size:.8rem">
+            <tbody>${siblings.map(s => {
+              const sBadge = s.Status === 'ยืนยันแล้ว'
+                ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
+                : '<span class="badge bg-secondary">วางแผน</span>';
+              return `<tr>
+                <td style="width:24%;border-left:3px solid ${_planLineColor(s.Line)}">
+                  <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)}</small>
+                </td>
+                <td style="width:24%">${s.Workers||'—'}</td>
+                <td style="width:16%">${sBadge}</td>
+                <td class="text-center">${_planRowActions(s)}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </td>
+      </tr>`;
+      return mainRow + siblingRows;
     }).join('');
     return header + body;
   }).join('');
@@ -14351,6 +14432,33 @@ function planCheckConflictLive(b) {
   }
 }
 
+// ── เผยแพร่ฟิลด์ระดับ "งาน" ไปให้ไลน์พี่น้องตอนแก้ไข (added 2026-09-08, บั๊กจริงที่ผู้ใช้เจอ: แก้ไข
+// "วันที่แพลน" ของไลน์บรรจุแล้ว ไลน์แพ็ค/ยิง Lot ของงานเดียวกันไม่ขยับตาม ค้างอยู่วันเดิม ทั้งที่หน้าตาราง
+// วันควรถือเป็นงานเดียวกัน — ดูหมายเหตุที่ _planFilterRowsForDisplay) ──
+// งานที่มีหลายไลน์ (Fill/Pack/Lot คนละแถว production_plan) แชร์ฟิลด์ "ระดับงาน" กันโดยการก่อสร้าง (ตอนเพิ่ม
+// แผนใหม่ blockPayloads ทุกก้อนใน batch เดียวกันมี PlanDate/ProductCode/ProductName/PlanQty/UOM/MO_Ref/
+// CO_Ref/Remark เหมือนกันหมด — ดู planSubmit โหมดเพิ่ม) แต่โหมดแก้ไขแก้ทีละแถว (1 บล็อกเสมอ) เท่านั้น ถ้า
+// แก้ฟิลด์ระดับงานพวกนี้จากไลน์ใดไลน์หนึ่งแล้วไม่เผยแพร่ต่อ จะทำให้งานเดียวกันแยกฟิลด์ระดับงานไม่ตรงกันเอง
+// (เช่นคนละวันที่) — ฟิลด์เฉพาะไลน์ (Line/Shift/เวลา/ผู้ปฏิบัติงาน) และ Status ไม่เผยแพร่ (เป็นของแต่ละไลน์
+// จริง ไม่ใช่ของงาน) — หา sibling จาก "ตัวตนเดิมก่อนแก้" (oldRow.ProductCode/PlanDate) เสมอ ไม่ใช่ค่าใหม่
+// เพราะถ้าผู้ใช้เปลี่ยนวันที่ ไลน์พี่น้องที่ยังผูกกันอยู่จะอยู่ที่วันที่เดิม ไม่ใช่วันที่ใหม่
+const _PLAN_JOB_LEVEL_FIELDS = ['PlanDate', 'ProductCode', 'ProductName', 'PlanQty', 'UOM', 'MO_Ref', 'CO_Ref', 'Remark'];
+async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
+  const changed = _PLAN_JOB_LEVEL_FIELDS.some(f => (oldRow[f] ?? null) !== (payload[f] ?? null));
+  if (!changed) return;
+  const siblings = _planData.filter(d =>
+    d._row_id !== oldRow._row_id && d.ProductCode === oldRow.ProductCode && d.PlanDate === oldRow.PlanDate);
+  if (!siblings.length) return;
+  const sharedPayload = {};
+  _PLAN_JOB_LEVEL_FIELDS.forEach(f => { sharedPayload[f] = payload[f]; });
+  const ids = siblings.map(s => s._row_id);
+  const { error } = await _sb.from('production_plan').update(sharedPayload).in('_row_id', ids);
+  if (error) {
+    _err('อัปเดตไลน์อื่นของงานเดียวกันไม่สำเร็จ',
+      `แก้ไขไลน์นี้สำเร็จแล้ว แต่ไลน์พี่น้อง (${siblings.map(s => s.Line).join(', ')}) อัปเดตตามไม่สำเร็จ: ${error.message} — กรุณาแก้ไขไลน์เหล่านั้นเองด้วยตนเอง`);
+  }
+}
+
 async function planSubmit(e) {
   e.preventDefault();
   const editId   = document.getElementById('plan-edit-id').value;
@@ -14493,7 +14601,10 @@ async function planSubmit(e) {
     const payload = blockPayloads[0]; // แก้ไข = 1 บล็อกเสมอ
     const oldRow = _planData.find(d => d._row_id === parseInt(editId));
     ({ error } = await _sb.from('production_plan').update(payload).eq('_row_id', parseInt(editId)));
-    if (!error) _logAudit('EDIT', 'production_plan', payload.MO_Ref || payload.ProductCode, _diffFields(oldRow, payload));
+    if (!error) {
+      _logAudit('EDIT', 'production_plan', payload.MO_Ref || payload.ProductCode, _diffFields(oldRow, payload));
+      if (oldRow) await _planCascadeSharedFieldsToSiblings(oldRow, payload);
+    }
   } else {
     blockPayloads.forEach(p => { p.Status = 'วางแผน'; });
     ({ error } = await _sb.from('production_plan').insert(blockPayloads));
