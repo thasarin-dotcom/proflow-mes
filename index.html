@@ -22413,12 +22413,12 @@ async function loadCOData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('co-tbody', '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
-  const [coRes, fgRes, stockRes, resvRes, reqRes] = await Promise.all([
+  const [coRes, fgRes, stockRes, resvRes, , reqRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
     _sb.from('stock_fg').select('ProductCode,FGBalance'),
     _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
     _fetchAllPaged('mo_material_reservations', 'MaterialCode,ReservedQty'),
-    _coRefreshMOAndShippedMaps(),   // เติม _coShippedMap/_coPendingDispatchMap/_coOpenMOSet/_coAnyMOSet ให้สด (ฟังก์ชันกลาง ใช้ร่วมกับ loadFGOutData)
+    _coRefreshMOAndShippedMaps(),   // เติม _coShippedMap/_coPendingDispatchMap/_coOpenMOSet/_coAnyMOSet ให้สด (ฟังก์ชันกลาง ใช้ร่วมกับ loadFGOutData) — ไม่มี return value เจตนา ข้ามช่องนี้ในการ destructure
     _sb.from('co_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
   ]);
 
