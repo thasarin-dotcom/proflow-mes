@@ -1919,7 +1919,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <!-- พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — Top 5 ชุดเดียวกับกราฟด้านบน แสดงเป็นกราฟเส้นเล็กต่อการ์ด -->
       <div class="kpi-section-label">พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน</div>
       <div class="glass-card">
-        <div class="fw-bold small text-muted mb-2">เส้นทึบ = ประวัติเบิกออกจริง (ต่อเดือน) · เส้นประ = พยากรณ์ 2 เดือนข้างหน้า · badge "พอ/ไม่พอ" เทียบยอดพยากรณ์รวมกับสต็อกคงเหลือให้แล้ว</div>
+        <div class="fw-bold small text-muted mb-2">เส้นทึบ = ประวัติเบิกออกจริง (ต่อเดือน) · เส้นประ = พยากรณ์ 2 เดือนข้างหน้า · badge "พอ/ไม่พอ" คิดว่าหลังหักยอดพยากรณ์แล้วสต็อกยังเหลือไม่ต่ำกว่าสต็อกขั้นต่ำ (MinStock) หรือไม่</div>
         <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px" id="home-forecast-cards"></div>
       </div>
     </div>
@@ -7126,19 +7126,25 @@ async function loadHomeData() {
   const forecastCards = topBulk.map(b => {
     const code = b.code;
     const currentStock = matMap[code]?.total || 0;
+    const minStock = matMap[code]?.minStock || 0;
     const uom = uomByMat[code] || '';
     const monthMap = monthlyByMat[code] || {};
     const dataMonthKeys = Object.keys(monthMap).sort();
-    if (!dataMonthKeys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
+    if (!dataMonthKeys.length) return { code, name: b.name, uom, currentStock, minStock, monthsWithData: 0, series: [], forecast: null };
     const series = _monthsBetween(dataMonthKeys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
-    const n = series.length;
-    // n===1: มีข้อมูลเดือนเดียว คำนวณแนวโน้ม (slope) จริงไม่ได้ — ใช้ค่าเดือนนั้นเป็นเส้นพยากรณ์แบบคงที่ (flat)
+    // เดือนปัจจุบัน (ตัวสุดท้ายของ series) นับยอดได้แค่ถึงวันนี้ ยังไม่จบเดือน — ถ้าเอาไป fit เทรนด์ด้วยจะดู
+    // เหมือน "ยอดใช้ลดฮวบ" ทั้งที่จริงแค่เดือนยังไม่จบ ทำให้ทำนายติดลบแล้วโดนปัดเป็น 0 ทั้งที่ควรพอมีใช้ต่อ
+    // (ยืนยันกับ Stock Card จริงของ CBGL003/CBGL001 แล้ว — ก.ย.ผ่านมาแค่ 7 วันแต่ถูกเทียบเป็นเดือนเต็ม)
+    // ตัดเดือนปัจจุบันออกจากชุดที่ใช้ fit เทรนด์ ส่วน series ที่ return ไว้วาดกราฟยังคงมีครบเหมือนเดิม
+    const closedSeries = series.length > 1 ? series.slice(0, -1) : series;
+    const n = closedSeries.length;
+    // n===1: มีข้อมูลเดือนที่จบแล้วเดือนเดียว คำนวณแนวโน้ม (slope) จริงไม่ได้ — ใช้ค่าเดือนนั้นเป็นเส้นพยากรณ์แบบคงที่ (flat)
     // ทั้ง 2 เดือนข้างหน้าแทน (เหมือน series[0]*2 เดิม แค่แตก f1/f2 ออกมาด้วย) เพื่อให้กราฟเส้นเล็กวาดได้
-    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2), predicted: [series[0], series[0]] };
-    const { slope, intercept } = _linearFit(series);
+    if (n === 1) return { code, name: b.name, uom, currentStock, minStock, monthsWithData: series.length, series, forecast: Math.max(0, closedSeries[0] * 2), predicted: [closedSeries[0], closedSeries[0]] };
+    const { slope, intercept } = _linearFit(closedSeries);
     const predAt = x => Math.max(0, intercept + slope * x);
     const f1 = predAt(n), f2 = predAt(n + 1);
-    return { code, name: b.name, uom, currentStock, monthsWithData: n, series, forecast: f1 + f2, predicted: [f1, f2] };
+    return { code, name: b.name, uom, currentStock, minStock, monthsWithData: series.length, series, forecast: f1 + f2, predicted: [f1, f2] };
   });
 
   _homeDestroyForecastCharts();
@@ -7149,11 +7155,13 @@ async function loadHomeData() {
     } else {
       fcContainer.innerHTML = forecastCards.map((c, i) => {
         const noData = c.forecast === null;
-        const short = !noData && c.forecast > c.currentStock;
+        // "พอ" ต้องเหลือหลังหักคาดใช้ 2 เดือนแล้วไม่ต่ำกว่า MinStock (สต็อกขั้นต่ำ/สต็อกสำรอง) ไม่ใช่แค่ไม่ติดลบ
+        const stockAfterForecast = c.currentStock - c.forecast;
+        const short = !noData && stockAfterForecast < c.minStock;
         const badge = noData
           ? '<span class="badge bg-light text-muted border" style="font-size:.62rem">ไม่มีข้อมูล</span>'
           : short
-            ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined,{maximumFractionDigits:1})}</span>`
+            ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.minStock - stockAfterForecast).toLocaleString(undefined,{maximumFractionDigits:1})}</span>`
             : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
         const chartArea = c.monthsWithData >= 1
           ? `<div style="position:relative;height:20px"><canvas id="home-forecast-chart-${i}"></canvas></div>`
@@ -7523,11 +7531,12 @@ async function _whComputeBulkForecast() {
     .filter(r => (r.Date || '') >= trendStartStr && (r.Date || '') <= qEndStr);
 
   const typeByMat = {};
-  (matRes.data || []).forEach(m => { typeByMat[m.MaterialCode] = m.TYPE || ''; });
+  const minStockByMat = {};
+  (matRes.data || []).forEach(m => { typeByMat[m.MaterialCode] = m.TYPE || ''; minStockByMat[m.MaterialCode] = parseFloat(m.MinStock) || 0; });
   const matMap = {};
   (stockRes.data || []).forEach(r => {
     const key = r.MaterialCode || '—';
-    if (!matMap[key]) matMap[key] = { total: 0, name: r.MaterialName, uom: r.UOM };
+    if (!matMap[key]) matMap[key] = { total: 0, name: r.MaterialName, uom: r.UOM, minStock: minStockByMat[key] || 0 };
     matMap[key].total += parseFloat(r.QtyBalance) || 0;
   });
 
@@ -7575,18 +7584,22 @@ async function _whComputeBulkForecast() {
   _whForecastCards = topBulk.map(b => {
     const code = b.code;
     const currentStock = matMap[code]?.total || 0;
+    const minStock = matMap[code]?.minStock || 0;
     const uom = matMap[code]?.uom || '';
     const monthMap = monthlyByMat[code] || {};
     const keys = Object.keys(monthMap).sort();
-    if (!keys.length) return { code, name: b.name, uom, currentStock, monthsWithData: 0, series: [], forecast: null };
+    if (!keys.length) return { code, name: b.name, uom, currentStock, minStock, monthsWithData: 0, series: [], forecast: null };
     const series = monthsBetween(keys[0], currentMonthKey).map(mk => monthMap[mk] || 0);
-    const n = series.length;
+    // ตัดเดือนปัจจุบัน (ยังไม่จบเดือน) ออกจากชุดที่ใช้ fit เทรนด์ — เหตุผลเดียวกับ loadHomeData() ด้านบน
+    // (เดือนที่ยังไม่จบทำให้ดูเหมือนยอดใช้ลดฮวบ ทำนายติดลบจนโดนปัดเป็น 0) series ที่ return ไว้วาดกราฟยังครบเหมือนเดิม
+    const closedSeries = series.length > 1 ? series.slice(0, -1) : series;
+    const n = closedSeries.length;
     // n===1: หาแนวโน้มจริงไม่ได้ ใช้ค่าเดือนนั้นเป็นเส้นพยากรณ์คงที่ (flat) 2 เดือน — เหมือน loadHomeData()
-    if (n === 1) return { code, name: b.name, uom, currentStock, monthsWithData: 1, series, forecast: Math.max(0, series[0] * 2), predicted: [series[0], series[0]] };
-    const { slope, intercept } = linearFit(series);
+    if (n === 1) return { code, name: b.name, uom, currentStock, minStock, monthsWithData: series.length, series, forecast: Math.max(0, closedSeries[0] * 2), predicted: [closedSeries[0], closedSeries[0]] };
+    const { slope, intercept } = linearFit(closedSeries);
     const predAt = x => Math.max(0, intercept + slope * x);
     const f1 = predAt(n), f2 = predAt(n + 1);
-    return { code, name: b.name, uom, currentStock, monthsWithData: n, series, forecast: f1 + f2, predicted: [f1, f2] };
+    return { code, name: b.name, uom, currentStock, minStock, monthsWithData: series.length, series, forecast: f1 + f2, predicted: [f1, f2] };
   });
 }
 
@@ -7607,11 +7620,13 @@ function _whRenderForecast() {
 
   el.innerHTML = _whForecastCards.map((c, i) => {
     const noData = c.forecast === null;
-    const short = !noData && c.forecast > c.currentStock;
+    // "พอ" ต้องเหลือหลังหักคาดใช้ 2 เดือนแล้วไม่ต่ำกว่า MinStock — เหตุผลเดียวกับ loadHomeData() ด้านบน
+    const stockAfterForecast = c.currentStock - c.forecast;
+    const short = !noData && stockAfterForecast < c.minStock;
     const badge = noData
       ? '<span class="badge bg-light text-muted border" style="font-size:.62rem">ไม่มีข้อมูล</span>'
       : short
-        ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.forecast - c.currentStock).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>`
+        ? `<span class="badge bg-warning text-dark" style="font-size:.62rem">ไม่พอ ~${(c.minStock - stockAfterForecast).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>`
         : '<span class="badge bg-success" style="font-size:.62rem">พอ</span>';
     const chartArea = c.monthsWithData >= 1
       ? `<div style="position:relative;height:28px"><canvas id="wh-forecast-chart-${i}"></canvas></div>`
@@ -14412,6 +14427,76 @@ async function planEditLotDate(rowId) {
   if (openDate) _planRenderDayTable(openDate);
 }
 
+// แก้ไข "ผู้ปฏิบัติงาน" ของแถวไลน์แพ็คได้แม้เป็นแถวพี่น้องที่ถูกซ่อน (added 2026-09-08 ตามคำขอผู้ใช้ "ห้องแพ็ค
+// ให้มีแก้ไขคนทำงานได้") — สโคปเจาะจงเฉพาะไลน์แพ็คเหมือน planEditLotDate เจาะจงเฉพาะไลน์ยิง Lot (ไลน์อื่นยัง
+// ไม่มีปุ่มใดๆ ตามคำขอเดิม "ปุ่มแก้ไข และลบด้วย ให้เอาออก") — ใช้ Swal แบบ custom checklist แทนโมดัลเต็มรูปแบบ
+// ของฟอร์มเพิ่ม/แก้แผน (ซับซ้อนเกินจำเป็นสำหรับแก้แค่ผู้ปฏิบัติงานฟิลด์เดียว) กรองรายชื่อตามสกิลที่ตรงกับไลน์
+// นี้เหมือน planHighlightQualifiedWorkers (fallback โชว์ทุกคนถ้ายังไม่มีใครผ่านสกิลเลย)
+async function planEditSiblingWorkers(rowId) {
+  const r = _planData.find(d => d._row_id === rowId);
+  if (!r) return;
+  await _planLoadSkillData();
+
+  const currentCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+  const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(r.Line || ''));
+  const qualified = required.length
+    ? _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 2))
+    : [];
+  const pool = qualified.length ? qualified : _planEmployees;
+  const noteHTML = required.length && !qualified.length
+    ? `<div class="text-warning small mb-2"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่มีใครมีสกิลตรงกับไลน์นี้ในแมททริกสกิล — แสดงพนักงานทั้งหมดแทนชั่วคราว</div>`
+    : (qualified.length ? `<div class="text-muted small mb-2"><i class="fas fa-filter me-1"></i>แสดงเฉพาะคนที่มีสกิลตรงกับไลน์นี้ (${qualified.length} คน)</div>` : '');
+  const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
+  const checklistHTML = pool.length ? pool.map(e => {
+    const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
+    return `<div class="form-check mb-1">
+      <input class="form-check-input plan-esw-chk" type="checkbox" value="${e.EmployeeCode}" id="plan-esw-${e.EmployeeCode}" ${currentCodes.includes(e.EmployeeCode) ? 'checked' : ''}>
+      <label class="form-check-label small" for="plan-esw-${e.EmployeeCode}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
+    </div>`;
+  }).join('') : '<div class="small text-muted">ไม่มีพนักงานที่ตรงเงื่อนไข</div>';
+
+  const { value: workerCodes } = await Swal.fire({
+    title: `แก้ไขผู้ปฏิบัติงาน — ${r.Line || ''}`,
+    html: `<div class="text-start small mb-2">${r.ProductName||''} · ${_planFmtDateLabel(r.PlanDate)} · ${r.Shift||'—'}</div>${noteHTML}<div class="text-start" style="max-height:280px;overflow-y:auto">${checklistHTML}</div>`,
+    showCancelButton: true,
+    confirmButtonText: 'บันทึก',
+    cancelButtonText: 'ยกเลิก',
+    focusConfirm: false,
+    preConfirm: () => Array.from(document.querySelectorAll('.plan-esw-chk:checked')).map(c => c.value),
+  });
+  if (workerCodes === undefined) return; // ยกเลิก
+
+  const timeStart = (r.TimeStart || '').slice(0, 5);
+  const timeEnd   = (r.TimeEnd || '').slice(0, 5);
+  const workerConflicts = _planFindWorkerConflicts(r.PlanDate, timeStart, timeEnd, workerCodes, r._row_id);
+  if (workerConflicts.length) {
+    const lines = workerConflicts.map(c => {
+      const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
+      const name = emp ? (emp.NickName || emp.FirstName || c.code) : c.code;
+      return `${name} — ชนกับ "${c.row.ProductName || ''}" ไลน์ "${c.row.Line || ''}" (${c.row.Shift || ''})`;
+    }).join('<br>');
+    _err('มีคนซ้ำกับแผนอื่นที่ชนเวลากัน', lines);
+    return;
+  }
+
+  const workersDisplay = workerCodes.length ? workerCodes.map(code => {
+    const emp = _planEmployees.find(x => x.EmployeeCode === code);
+    return emp ? (emp.NickName || emp.FirstName || code) : code;
+  }).join(', ') : null;
+  const workerCodesValue = workerCodes.length ? workerCodes.join(',') : null;
+
+  _showLoader();
+  const { error } = await _sb.from('production_plan')
+    .update({ Workers: workersDisplay, WorkerCodes: workerCodesValue }).eq('_row_id', r._row_id);
+  _hideLoader();
+  if (error) { _err('แก้ไขผู้ปฏิบัติงานไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode, `แก้ไขผู้ปฏิบัติงานไลน์ ${r.Line||''} เป็น ${workersDisplay||'—'}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขผู้ปฏิบัติงานสำเร็จ', showConfirmButton:false, timer:1500 });
+  await planLoadData();
+  const openDate2 = document.getElementById('plan-day-date-value')?.value;
+  if (openDate2) _planRenderDayTable(openDate2);
+}
+
 function _planRenderDayTable(dateStr) {
   // ทุกไลน์ของวันนี้ ไม่กรอง (ใช้หาไลน์พี่น้องที่ถูกซ่อน) — แสดงแค่ไลน์บรรจุต่องาน (added 2026-09-07)
   // ดูหมายเหตุที่ _planFilterRowsForDisplay
@@ -14482,12 +14567,18 @@ function _planRenderDayTable(dateStr) {
               // ค่าแล้วหลังแก้ planOrderProduction ให้ผูก MO_Ref ครบทุกไลน์) fallback ไปที่ `r.MO_Ref` (แถวหลัก)
               // เผื่อเป็นข้อมูลเก่าก่อนแก้บั๊กนั้นที่ยังไม่มี MO_Ref ของตัวเอง
               const sLot = _planMOLot(s.MO_Ref || r.MO_Ref);
+              // แก้ไข "ผู้ปฏิบัติงาน" เฉพาะไลน์แพ็ค (added 2026-09-08 ตามคำขอ "ห้องแพ็คให้มีแก้ไขคนทำงานได้")
+              // — สโคปเจาะจงเฉพาะหมวดแพ็คเหมือนที่ยิง Lot ได้แค่ปุ่มแก้วันที่ ไลน์อื่นยังไม่มีปุ่มใดๆ
+              const sIsPackWorkersEditable = _planLineCategoryOf(s.Line || '') === 'pack' && s.Status === 'วางแผน';
+              const editWorkersBtn = sIsPackWorkersEditable
+                ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditSiblingWorkers(${s._row_id})" title="แก้ไขผู้ปฏิบัติงาน"><i class="fas fa-pen text-primary"></i></a>`
+                : '';
               return `<tr>
                 <td style="width:34%;border-left:3px solid ${_planLineColor(s.Line)}">
                   <i class="fas fa-share me-1 text-muted"></i>${s.Line}<br><small class="text-muted">${s.Shift||'—'} ${_planShiftTimeLabel(s)} · ${_planFmtDateLabel(s.PlanDate)}${editDateBtn}</small>
                 </td>
                 <td style="width:16%">${sLot ? `<span class="badge bg-light text-dark border">${sLot}</span>` : '—'}</td>
-                <td style="width:30%">${s.Workers||'—'}</td>
+                <td style="width:30%">${s.Workers||'—'}${editWorkersBtn}</td>
                 <td style="width:20%">${sBadge}</td>
               </tr>`;
             }).join('')}</tbody>
@@ -15457,8 +15548,32 @@ function _planweekBuildHTML(rows, start, lotByMO) {
   const end = allDays[13];
   const days = allDays.filter(d => _ganttDow(d) !== 0);
 
+  // เรียงงานในแต่ละวัน: จัดกลุ่มตาม "1 งาน" ก่อน (ไลน์บรรจุ/แพ็ค/ยิง Lot ของงานเดียวกันเป็นคนละแถว
+  // production_plan แต่ share BatchRef/PlanDate+ProductCode เดียวกัน — ใช้ _planJobKey ตัวเดียวกับที่
+  // หน้าแผนผลิตกรุ๊ปพี่น้องกันอยู่แล้ว ไม่คิด key ใหม่) ป้องกันไม่ให้ 2 งานที่เวลาทับกันสลับ/ข้ามกันไปมา
+  // (ปัญหาที่ผู้ใช้เจอจริง) แล้วค่อยเรียงภายในงานเดียวกัน: บรรจุ (fill) → ยิง Lot (lot) → แพ็ค (pack)
+  // ตามที่ผู้ใช้ระบุลำดับชัดเจน ส่วนงานต่องาน (ระหว่างกลุ่ม) เรียงตามเวลาเริ่มที่เร็วที่สุดของงานนั้น
+  const _planweekCatOrder = { fill: 0, lot: 1, pack: 2 };
   const cols = days.map(d => {
-    const items = (byDate[d] || []).slice().sort((a, b) => (a.TimeStart || '').localeCompare(b.TimeStart || ''));
+    const dayItems = byDate[d] || [];
+    const jobMap = new Map();
+    dayItems.forEach(r => {
+      const key = _planJobKey(r);
+      if (!jobMap.has(key)) jobMap.set(key, []);
+      jobMap.get(key).push(r);
+    });
+    const jobs = [...jobMap.values()].map(list => {
+      list.sort((a, b) => {
+        const ca = _planweekCatOrder[_planLineCategoryOf(a.Line)] ?? 3;
+        const cb = _planweekCatOrder[_planLineCategoryOf(b.Line)] ?? 3;
+        if (ca !== cb) return ca - cb;
+        return (a.TimeStart || '').localeCompare(b.TimeStart || '');
+      });
+      const minTime = list.map(r => r.TimeStart || '').sort()[0] || '';
+      return { list, minTime };
+    });
+    jobs.sort((a, b) => a.minTime.localeCompare(b.minTime));
+    const items = jobs.flatMap(j => j.list);
     const isToday = d === todayStr;
     const [, dm, dd] = d.split('-').map(Number);
     const entries = items.length
