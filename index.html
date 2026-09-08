@@ -781,7 +781,7 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root, #purchasereq-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root, #purchasereq-print-root, #holdstockreport-print-root{display:none}
 @media print{
   /* body ถูกตั้ง display:flex/overflow:hidden/height:100vh + พื้นหลังไล่สีน้ำเงิน ไว้สำหรับ layout หน้าจอ
      (sidebar + main-content) เท่านั้น — ไม่เคยมีการ reset ค่าพวกนี้สำหรับตอนพิมพ์มาก่อนเลยตั้งแต่สร้าง print
@@ -835,6 +835,11 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
   /* ใบส่งเบิกเบ็ดเตล็ด reuse เทมเพลต .dlvbill-page เดียวกับใบส่งสินค้า FG เป๊ะ (2026-08-17, ตามที่ผู้ใช้ขอ) —
      เหตุผลเดียวกับ #deliverybill-print-root ข้างบน (เดิม reuse .mrrpt-page ของ MR Report แทน ก่อนเปลี่ยนมาเหมือน FG) */
   #miscslip-print-root .dlvbill-page{box-shadow:none !important;margin:0 !important}
+  /* ใบออกรายงาน Defect (ทำลาย/ส่งคืนลูกค้า) reuse เทมเพลต .dlvbill-page เดียวกันอีกจุด — ต้องมี override นี้
+     เหมือนกันทุกจุดที่ reuse เทมเพลตนี้ ไม่งั้นพิมพ์จริงจะว่างเปล่า/เพี้ยน (margin:0 auto ของหน้าจอกับ
+     box-shadow เงาจะพาเนื้อหาหลุดพื้นที่พิมพ์จริงไป ทั้งที่ตัวอย่างบนจอปกติเพราะโมดัลพรีวิวเป็นคนละ context —
+     บั๊กจริงที่ผู้ใช้เจอ 2026-09-08 ลืมเพิ่ม override นี้ตอนสร้างฟีเจอร์ออกรายงาน) */
+  #holdstockreport-print-root .dlvbill-page{box-shadow:none !important;margin:0 !important}
   /* รายงานผลิต/ต้นทุน (บัญชี) เป็นแนวตั้ง A4 ใช้ @page{size:A4;margin:0} เดิมด้านล่างได้เลย (ไม่ต้อง named page) —
      .pcost-page ใช้ height (ไม่ใช่ min-height) แบ่งครึ่งตายตัวเป็นต้นฉบับ/สำเนา ห้ามตั้ง override ใดๆ ที่มากระทบ
      ความสูงตอนพิมพ์ (ไม่ต้องมี min-height:0 เหมือน .bpr-page เพราะไม่ได้ใช้ min-height ตั้งแต่แรก) */
@@ -4330,9 +4335,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <div class="glass-card p-0 overflow-hidden">
           <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
             <b class="small">รายการรอออกรายงาน (ทิ้ง/Scrap ที่ยังไม่ได้ออกใบทำลาย/ใบส่งคืน)</b>
-            <button class="btn btn-sm btn-primary" id="holdstock-report-btn" disabled onclick="holdstockReportOpenModal()">
-              <i class="fas fa-file-invoice me-1"></i>ออกรายงาน
-            </button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-secondary" onclick="holdstockReportOpenHistoryBrowser()">
+                <i class="fas fa-clock-rotate-left me-1"></i>ประวัติ/พิมพ์ซ้ำ
+              </button>
+              <button class="btn btn-sm btn-primary" id="holdstock-report-btn" disabled onclick="holdstockReportOpenModal()">
+                <i class="fas fa-file-invoice me-1"></i>ออกรายงาน
+              </button>
+            </div>
           </div>
           <div class="table-responsive">
             <table class="table table-sm table-hover mb-0">
@@ -4542,8 +4552,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <span class="mrrpt-pill mrrpt-pill-unconfirmed" id="holdstockreport-status">● ยังไม่ยืนยัน</span>
           </div>
           <div class="mrrpt-error" id="holdstockreport-error"></div>
-          <details class="mrrpt-history">
-            <summary>ประวัติเลขที่เอกสารล่าสุด (แก้ไข/ยกเลิกได้)</summary>
+          <details class="mrrpt-history" id="holdstockreport-history-details">
+            <summary>ประวัติเลขที่เอกสารล่าสุด (พิมพ์ซ้ำ/แก้ไข/ยกเลิกได้)</summary>
             <table>
               <thead><tr><th>เลขที่</th><th>วันที่ออก</th><th>จำนวนรายการ</th><th></th></tr></thead>
               <tbody id="holdstockreport-history-body"></tbody>
@@ -4565,7 +4575,6 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       </div>
     </div>
   </div>
-  <div id="holdstockreport-print-root"></div>
 
   <!-- ════════════ Hold Stock: "ทิ้ง + ออกรายงาน" แบบเลือกหลายแถวจากตารางหลัก ════════════ -->
   <div class="modal fade" id="holdstockBulkScrapModal" tabindex="-1">
@@ -6734,6 +6743,13 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 </div>
 
 <div id="purchasereq-print-root"></div>
+
+<!-- ต้องอยู่ตรงนี้ (นอก .main-content ที่ปิดไปแล้วบรรทัด 5983) ไม่ใช่ข้างในใกล้ modal ของหน้า holdstock —
+     ไม่งั้นพิมพ์ออกมาว่างเปล่า เพราะ @media print กฎ "body > *:not(#holdstockreport-print-root)" จะจับซ่อน
+     ทั้งกล่อง .main-content (รวม print-root ที่ซ้อนอยู่ข้างในไปด้วย) เนื่องจาก .main-content ต่างหากที่เป็น
+     body-child ตัวจริง ส่วน print-root ที่วางผิดที่จะเป็นแค่ descendant ของมัน — เจอบั๊กเดียวกันนี้มาแล้วกับ
+     planweek (ดูคอมเมนต์ที่ #planweek-print-root ด้านบน) แล้วพลาดวางผิดที่ซ้ำอีกรอบตอนสร้างฟีเจอร์นี้ (แก้ 2026-09-08) -->
+<div id="holdstockreport-print-root"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -10043,15 +10059,20 @@ let _mrMaterials = [];
 let _mrModal     = null;
 let _mrExpandedSet = new Set();   // วันที่ (date string) ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _mrLastGroups  = [];          // เก็บผลลัพธ์ group ล่าสุดไว้ ให้ toggle expand อ้างอิงด้วย index
+// mr_edit_requests แถวที่ยัง "รออนุมัติ" เท่านั้น (แก้ไข/ลบรายการรับวัตถุดิบที่ Lot ถูกเบิกไปใช้ผลิตแล้ว —
+// ต้องรอ Admin อนุมัติก่อนถึงจะมีผลจริง ดู create_mr_edit_requests.sql) — โหลด error เงียบๆ เป็น [] ถ้ายัง
+// ไม่ได้รัน SQL (เหมือน _issueEditRequests) กันหน้าพังทั้งหน้าถ้ายังไม่ได้ migrate
+let _mrEditRequests = [];
 
 async function loadMRData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('mr-tbody', '<div class="glass-card text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>');
 
-  // โหลด MR + Materials พร้อมกัน
-  const [mrRes, matRes] = await Promise.all([
+  // โหลด MR + Materials + คำขอแก้ไข/ลบที่รออนุมัติ พร้อมกัน
+  const [mrRes, matRes, reqRes] = await Promise.all([
     _fetchAllPaged('mr_receive', '*'),
     _fetchAllPaged('materials', '*'),
+    _sb.from('mr_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
   ]);
 
   _cancelPlaceholder();
@@ -10065,8 +10086,22 @@ async function loadMRData() {
 
   _mrData      = mrRes.data  || [];
   _mrMaterials = matRes.data || [];
+  _mrEditRequests = reqRes.error ? [] : (reqRes.data || []);
   mrUpdateKPIs();
   mrRenderTable();
+}
+
+// ── คำขอแก้ไข/ลบ Lot ที่เบิกไปใช้แล้ว — helper ──
+function _mrReqForTarget(rowId) {
+  return _mrEditRequests.find(r => r.TargetRowId === rowId);
+}
+// เช็คว่า Lot วัตถุดิบนี้เคยถูกเบิกไปใช้ผลิต (มีแถวใน issue_production อ้างถึง) หรือยัง — ใช้ตัดสินว่า
+// การแก้ไข/ลบรายการรับวัตถุดิบของ Lot นี้ต้องผ่านคิวรออนุมัติ Admin หรือทำได้ทันทีเหมือนเดิม
+async function _mrLotIsIssued(matCode, lot) {
+  if (!matCode || !lot) return false;
+  const { count } = await _sb.from('issue_production').select('_row_id', { count: 'exact', head: true })
+    .eq('MaterialCode', matCode).eq('Lot', lot);
+  return (count || 0) > 0;
 }
 
 function mrUpdateKPIs() {
@@ -10138,13 +10173,22 @@ function mrRenderTable() {
     const rowsHtml = g.lines.map(r => {
       const qty   = parseFloat(r.Qty||r.QtyIn||0);
       const cost  = parseFloat(r.UnitCost||0);
+      const req   = _mrReqForTarget(r._row_id);
+      const rowActionsHtml = req ? _mrRequestActionsHTML(req) : `
+          <button class="btn btn-xs btn-outline-primary btn-sm py-0 px-2 me-1" onclick="mrOpenModal(${r._row_id})" title="แก้ไข">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-2" onclick="mrDelete(${r._row_id})" title="ลบ">
+            <i class="fas fa-trash"></i>
+          </button>`;
       return `<tr>
-        <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()"></td>
+        <td><input type="checkbox" class="mr-row-check" value="${r._row_id}" onchange="mrCheckState()" ${req ? 'disabled' : ''}></td>
         <td class="mr-col-name">${r.MaterialName||'—'}</td>
         <td class="wh-hide-code"><span class="badge bg-secondary">${r.MaterialCode||'—'}</span></td>
         <td class="mr-col-lot">
           <span class="badge bg-light text-dark border">${r.Lot||'—'}</span>
           ${r.MfgLotNo ? `<div class="text-muted mt-1" style="font-size:.72rem;line-height:1.2"><i class="fas fa-industry me-1"></i>ผู้ผลิต: ${r.MfgLotNo}</div>` : ''}
+          ${req ? _mrPendingBadgeHTML(req) : ''}
         </td>
         <td class="mr-col-exp">${_fmtDate(r.ExpDate)}</td>
         <td class="text-end fw-bold text-primary mr-col-qty">${qty.toLocaleString()}</td>
@@ -10157,12 +10201,7 @@ function mrRenderTable() {
             onclick="event.stopPropagation();lotlabelOpenPrint('MAT','${r.MaterialCode||''}','${(r.MaterialName||'').replace(/'/g,"\\'")}','${r.Lot||''}')" title="พิมพ์ป้าย Lot (QR)">
             <i class="fas fa-qrcode"></i>
           </button>
-          <button class="btn btn-xs btn-outline-primary btn-sm py-0 px-2 me-1" onclick="mrOpenModal(${r._row_id})" title="แก้ไข">
-            <i class="fas fa-edit"></i>
-          </button>
-          <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-2" onclick="mrDelete(${r._row_id})" title="ลบ">
-            <i class="fas fa-trash"></i>
-          </button>
+          ${rowActionsHtml}
         </td>
       </tr>`;
     }).join('');
@@ -10207,8 +10246,40 @@ function mrCheckState() {
   if (btn) { btn.classList.toggle('d-none', n === 0); btn.textContent = `ลบที่เลือก (${n})`; }
 }
 
+// ── คำขอแก้ไข/ลบ Lot ที่เบิกไปใช้แล้ว — render helper (สิทธิ์อนุมัติ/ปฏิเสธ = _hasRole('admin') เท่านั้น
+// ตามที่ user ยืนยัน "เฉพาะ Admin เท่านั้นที่แก้ได้ทันที" — ยกเลิกคำขอเปิดให้ทุก role เหมือนหน้าเบิกผลิต) ──
+function _mrPendingBadgeHTML(req) {
+  if (req.Action === 'EDIT') {
+    return `<br><span class="badge bg-warning text-dark mt-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รออนุมัติ: ขอแก้ไข</span>`;
+  }
+  return `<br><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle mt-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รออนุมัติ: ขอลบรายการนี้</span>`;
+}
+function _mrRequestActionsHTML(req) {
+  const adminBtns = _hasRole('admin')
+    ? `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="mrApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check"></i></button>
+       <button class="btn btn-outline-danger btn-sm py-0 px-2 me-1" onclick="mrRejectRequest(${req._row_id})" title="ปฏิเสธ"><i class="fas fa-times"></i></button>`
+    : '';
+  return `${adminBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="mrCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
+}
+function _mrRequestSummaryHTML(req) {
+  const name = req.Payload?.MaterialName || req.OldPayload?.MaterialName || '';
+  const lot  = req.Payload?.Lot ?? req.OldPayload?.Lot ?? '';
+  let body = `<div class="text-start" style="font-size:.88rem"><b>${req.Action === 'EDIT' ? 'แก้ไข' : 'ลบ'}</b> — ${name} (Lot ${lot||'—'})<br>`;
+  if (req.Action === 'EDIT') {
+    body += `จำนวนเดิม: <b>${(parseFloat(req.OldPayload?.Qty)||0).toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${(parseFloat(req.Payload?.Qty)||0).toLocaleString()}</b>`;
+  } else {
+    body += `จำนวนที่ขอลบ: <b class="text-danger">${(parseFloat(req.OldPayload?.Qty)||0).toLocaleString()} ${req.OldPayload?.UOM||''}</b>`;
+  }
+  body += `<br><small class="text-muted">ขอโดย ${req.RequestedBy||'—'}</small></div>`;
+  return body;
+}
+
 // ── Modal Open ──
 function mrOpenModal(rowId = null) {
+  if (rowId && _mrReqForTarget(rowId)) {
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอแก้ไข/ลบที่ยังรอแอดมินอนุมัติอยู่ — ยกเลิกคำขอเดิมก่อนถ้าต้องการแก้ไขใหม่', 'info');
+    return;
+  }
   if (!_mrModal) _mrModal = new bootstrap.Modal(document.getElementById('mrModal'));
   document.getElementById('mrForm').reset();
   document.getElementById('mr-mat-dropdown').style.display = 'none';
@@ -10318,14 +10389,27 @@ async function mrSubmit(e) {
 
   let error;
   let oldRow;
+  let isPendingRequest = false;
   if (isEdit) {
     oldRow = _mrData.find(d => d._row_id === parseInt(editId));
-    ({ error } = await _sb.from('mr_receive').update(payload).eq('_row_id', parseInt(editId)));
-    if (!error && oldRow) {
-      // ย้อนยอดเดิมออกจาก stock_balance ก่อน (วัตถุดิบ/Lot/จำนวน/ต้นทุนเดิม) แล้วค่อยบวกค่าใหม่เข้าไป —
-      // กันไม่ให้แก้ไขรายการรับวัตถุดิบแล้ว stock ไม่ขยับตาม (บั๊กเดิมที่เจอจริง 2 รายการ 2026-08-05)
-      await _mrReverseStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.Qty) || 0, parseFloat(oldRow.UnitCost) || 0);
-      await mrUpdateStock(payload.MaterialCode, payload.Lot, qty, unitCost, payload.ExpDate, payload.UOM, payload.MaterialName);
+    // Lot ที่ถูกเบิกไปใช้ผลิตแล้ว — หัวหน้างาน/พนักงานทั่วไปแก้ไขไม่ได้ทันทีอีกต่อไป ต้องส่งเป็นคำขอรอ
+    // Admin อนุมัติแทน (เฉพาะ Lot ที่ยังไม่เคยเบิกไปใช้เลยยังแก้ไขได้ทันทีเหมือนเดิม — ดู create_mr_edit_requests.sql)
+    const lotIssued = oldRow && !_hasRole('admin') && await _mrLotIsIssued(oldRow.MaterialCode, oldRow.Lot);
+    if (lotIssued) {
+      isPendingRequest = true;
+      ({ error } = await _sb.from('mr_edit_requests').insert({
+        Action: 'EDIT', TargetRowId: parseInt(editId),
+        Payload: payload, OldPayload: oldRow, Status: 'รออนุมัติ',
+        RequestedBy: _currentUser?.email || null,
+      }));
+    } else {
+      ({ error } = await _sb.from('mr_receive').update(payload).eq('_row_id', parseInt(editId)));
+      if (!error && oldRow) {
+        // ย้อนยอดเดิมออกจาก stock_balance ก่อน (วัตถุดิบ/Lot/จำนวน/ต้นทุนเดิม) แล้วค่อยบวกค่าใหม่เข้าไป —
+        // กันไม่ให้แก้ไขรายการรับวัตถุดิบแล้ว stock ไม่ขยับตาม (บั๊กเดิมที่เจอจริง 2 รายการ 2026-08-05)
+        await _mrReverseStock(oldRow.MaterialCode, oldRow.Lot, parseFloat(oldRow.Qty) || 0, parseFloat(oldRow.UnitCost) || 0);
+        await mrUpdateStock(payload.MaterialCode, payload.Lot, qty, unitCost, payload.ExpDate, payload.UOM, payload.MaterialName);
+      }
     }
   } else {
     ({ error } = await _sb.from('mr_receive').insert(payload));
@@ -10337,12 +10421,12 @@ async function mrSubmit(e) {
   saveBtn.disabled = false;
   saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
 
-  if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+  if (error) { _err(isPendingRequest ? 'ส่งคำขอไม่สำเร็จ' : 'บันทึกไม่สำเร็จ', error.message); return; }
 
-  if (isEdit) _logAudit('EDIT', 'mr_receive', payload.MaterialCode, _diffFields(oldRow, payload));
+  if (isEdit && !isPendingRequest) _logAudit('EDIT', 'mr_receive', payload.MaterialCode, _diffFields(oldRow, payload));
   _mrModal.hide();
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่มรายการสำเร็จ',
+  Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
+    title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ' : (isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่มรายการสำเร็จ'),
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadMRData();
 }
@@ -10417,6 +10501,38 @@ async function _mrReverseStock(matCode, lot, qty, unitCost) {
 // ── Delete ──
 async function mrDelete(rowId) {
   const r = _mrData.find(d => d._row_id === rowId);
+  if (!r) return;
+
+  if (_mrReqForTarget(rowId)) {
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'รายการนี้มีคำขอแก้ไข/ลบที่ยังรอแอดมินอนุมัติอยู่แล้ว', 'info');
+    return;
+  }
+
+  if (!_hasRole('admin') && await _mrLotIsIssued(r.MaterialCode, r.Lot)) {
+    // Lot นี้เบิกไปใช้ผลิตแล้ว — ลบทันทีไม่ได้ ส่งเป็นคำขอลบรออนุมัติแทน (ดู create_mr_edit_requests.sql)
+    const res = await Swal.fire({
+      title: 'ส่งคำขอลบรายการนี้?',
+      html: `<div class="text-start"><b>${r.MaterialName||''}</b><br>Lot: ${r.Lot||''} | จำนวน: ${r.Qty||''}<br>
+        <small class="text-muted">Lot นี้ถูกเบิกไปใช้ผลิตแล้ว — คำขอจะถูกส่งให้แอดมินอนุมัติก่อน ยังไม่ลบจริงจนกว่าจะได้รับอนุมัติ</small></div>`,
+      icon: 'question', showCancelButton: true,
+      confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก'
+    });
+    if (!res.isConfirmed) return;
+
+    _showLoader();
+    const { error } = await _sb.from('mr_edit_requests').insert({
+      Action: 'DELETE', TargetRowId: rowId,
+      Payload: null, OldPayload: r, Status: 'รออนุมัติ',
+      RequestedBy: _currentUser?.email || null,
+    });
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:'ส่งคำขอลบแล้ว รอแอดมินอนุมัติ', showConfirmButton:false, timer:2000 });
+    loadMRData();
+    return;
+  }
+
   const res = await Swal.fire({
     title: 'ยืนยันการลบ?',
     html: `<div class="text-start"><b>${r?.MaterialName||''}</b><br>Lot: ${r?.Lot||''} | จำนวน: ${r?.Qty||''}</div>`,
@@ -10432,42 +10548,161 @@ async function mrDelete(rowId) {
   const { error, data } = await _sb.from('mr_receive').delete().eq('_row_id', rowId).select();
   if (error) { _err('ลบไม่สำเร็จ', error.message); loadMRData(); return; }
   if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); loadMRData(); return; }
-  if (r) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
+  await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
 
   _logAudit('DELETE', 'mr_receive', r?.MR_ID || `${r?.MaterialCode}/${r?.Lot}`, `${r?.MaterialName||''} Lot ${r?.Lot||''} จำนวน ${r?.Qty||''}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
 }
 
-// ── Bulk Delete ──
+// ── Bulk Delete ── (Lot ที่เบิกไปใช้แล้ว จะแยกไปส่งเป็นคำขอลบรออนุมัติแทน ถ้าไม่ใช่ Admin — Lot ที่ยังไม่
+// เคยเบิกไปใช้เลยในชุดเดียวกันยังลบได้ทันทีตามปกติ)
 async function mrBulkDelete() {
   const ids = Array.from(document.querySelectorAll('.mr-row-check:checked')).map(c => parseInt(c.value));
   if (!ids.length) return;
+
+  const pendingIds = new Set(_mrEditRequests.map(q => q.TargetRowId));
+  const skipIds = ids.filter(id => pendingIds.has(id));
+  const goIds   = ids.filter(id => !pendingIds.has(id));
+  if (!goIds.length) { Swal.fire('ทุกรายการที่เลือกมีคำขอค้างอยู่แล้ว', '', 'info'); return; }
+
+  const rowsToDelete = _mrData.filter(d => goIds.includes(d._row_id));
+
+  let issuedRows = [], freeIds = [];
+  if (_hasRole('admin')) {
+    freeIds = goIds;
+  } else {
+    const checks = await Promise.all(rowsToDelete.map(r => _mrLotIsIssued(r.MaterialCode, r.Lot)));
+    rowsToDelete.forEach((r, i) => { if (checks[i]) issuedRows.push(r); else freeIds.push(r._row_id); });
+  }
+
   const res = await Swal.fire({
-    title: `ลบ ${ids.length} รายการ?`, icon: 'warning',
+    title: `ลบ ${freeIds.length} รายการ${issuedRows.length ? ` + ส่งคำขอลบอีก ${issuedRows.length} รายการ (Lot ที่เบิกไปใช้แล้ว)` : ''}?`,
+    icon: 'warning',
+    html: skipIds.length ? `<small class="text-muted">ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว</small>` : '',
     showCancelButton: true, confirmButtonColor: '#d33',
-    confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
+    confirmButtonText: 'ดำเนินการ', cancelButtonText: 'ยกเลิก'
   });
   if (!res.isConfirmed) return;
 
-  const rowsToDelete = _mrData.filter(d => ids.includes(d._row_id));
   _showLoader();
-  const { error, data } = await _sb.from('mr_receive').delete().in('_row_id', ids).select();
-  _hideLoader();
-  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
-  // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ ids ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปหักลบ stock ของแถวที่ไม่ได้ลบจริง
-  const deletedIds = new Set((data || []).map(d => d._row_id));
-  const actuallyDeleted = rowsToDelete.filter(r => deletedIds.has(r._row_id));
-  if (!actuallyDeleted.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลเหล่านี้ หรือถูกลบไปแล้ว'); loadMRData(); return; }
-  for (const r of actuallyDeleted) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
 
-  _logAudit('BULK_DELETE', 'mr_receive', actuallyDeleted.map(r => r.MR_ID || r.MaterialCode).join(', '), `ลบ ${actuallyDeleted.length} รายการ`);
-  if (actuallyDeleted.length < ids.length) {
-    Swal.fire({ icon:'warning', title:'ลบได้บางส่วน', text:`ลบสำเร็จ ${actuallyDeleted.length}/${ids.length} รายการ (ที่เหลืออาจไม่มีสิทธิ์ลบ)` });
-  } else {
-    Swal.fire({ toast:true, position:'top-end', icon:'success',
-      title:`ลบ ${ids.length} รายการสำเร็จ`, showConfirmButton:false, timer:2000 });
+  let deletedCount = 0;
+  if (freeIds.length) {
+    const { error, data } = await _sb.from('mr_receive').delete().in('_row_id', freeIds).select();
+    if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
+    // ใช้แถวที่ลบได้จริง (data) ไม่ใช่ freeIds ที่ขอไว้ — กัน RLS บล็อกบางแถวเงียบๆ แล้วไปหักลบ stock ของแถวที่ไม่ได้ลบจริง
+    const deletedIds = new Set((data || []).map(d => d._row_id));
+    const actuallyDeleted = rowsToDelete.filter(r => deletedIds.has(r._row_id));
+    for (const r of actuallyDeleted) await _mrReverseStock(r.MaterialCode, r.Lot, parseFloat(r.Qty) || 0, parseFloat(r.UnitCost) || 0);
+    deletedCount = actuallyDeleted.length;
+    if (deletedCount) _logAudit('BULK_DELETE', 'mr_receive', actuallyDeleted.map(r => r.MR_ID || r.MaterialCode).join(', '), `ลบ ${deletedCount} รายการ`);
   }
+
+  let requestedCount = 0;
+  if (issuedRows.length) {
+    const { error } = await _sb.from('mr_edit_requests').insert(
+      issuedRows.map(r => ({
+        Action: 'DELETE', TargetRowId: r._row_id,
+        Payload: null, OldPayload: r, Status: 'รออนุมัติ', RequestedBy: _currentUser?.email || null,
+      }))
+    );
+    if (!error) requestedCount = issuedRows.length;
+  }
+
+  _hideLoader();
+  Swal.fire({ toast:true, position:'top-end', icon:'success',
+    title: `ลบ ${deletedCount} รายการสำเร็จ${requestedCount ? ` · ส่งคำขอลบอีก ${requestedCount} รายการ` : ''}`,
+    showConfirmButton:false, timer:2500 });
+  loadMRData();
+}
+
+// ══════════════════════════════════════════════
+// MR Receive: อนุมัติ/ปฏิเสธ/ยกเลิก คำขอแก้ไข-ลบ Lot ที่เบิกไปใช้แล้ว (mr_edit_requests)
+// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _hasRole('admin') (ซ่อนปุ่ม) เหมือน holdstockApproveReclassify
+// ทุกประการ — ไม่มี DB-level restriction สำหรับตารางนี้ (ข้อจำกัดที่ตั้งใจไว้เหมือนฟีเจอร์ manager-action
+// อื่นในแอปนี้) — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
+// ══════════════════════════════════════════════
+async function mrApproveRequest(reqId) {
+  const req = _mrEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const res = await Swal.fire({
+    title: 'อนุมัติคำขอนี้?', html: _mrRequestSummaryHTML(req),
+    icon: 'question', showCancelButton: true,
+    confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  let error;
+  if (req.Action === 'EDIT') {
+    ({ error } = await _sb.from('mr_receive').update(req.Payload).eq('_row_id', req.TargetRowId));
+    if (!error) {
+      const old = req.OldPayload || {};
+      await _mrReverseStock(old.MaterialCode, old.Lot, parseFloat(old.Qty) || 0, parseFloat(old.UnitCost) || 0);
+      await mrUpdateStock(req.Payload.MaterialCode, req.Payload.Lot, parseFloat(req.Payload.Qty) || 0,
+        parseFloat(req.Payload.UnitCost) || 0, req.Payload.ExpDate, req.Payload.UOM, req.Payload.MaterialName);
+    }
+  } else if (req.Action === 'DELETE') {
+    ({ error } = await _sb.from('mr_receive').delete().eq('_row_id', req.TargetRowId));
+    if (!error) {
+      const old = req.OldPayload || {};
+      await _mrReverseStock(old.MaterialCode, old.Lot, parseFloat(old.Qty) || 0, parseFloat(old.UnitCost) || 0);
+    }
+  }
+  if (error) { _hideLoader(); _err('อนุมัติไม่สำเร็จ', error.message); return; }
+
+  await _sb.from('mr_edit_requests').update({
+    Status: 'อนุมัติแล้ว', ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+
+  _logAudit('APPROVE', 'mr_receive', req.Payload?.MaterialCode || req.OldPayload?.MaterialCode,
+    `${req.Action} — ${req.OldPayload?.MaterialName || req.Payload?.MaterialName || ''}`);
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
+  loadMRData();
+}
+
+async function mrRejectRequest(reqId) {
+  const req = _mrEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอนี้?', html: _mrRequestSummaryHTML(req),
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('mr_edit_requests').update({
+    Status: 'ปฏิเสธ', ReviewNote: reason.trim(), ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+
+  _logAudit('REJECT', 'mr_receive', req.OldPayload?.MaterialCode || req.Payload?.MaterialCode, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  loadMRData();
+}
+
+async function mrCancelRequest(reqId) {
+  const req = _mrEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+  const res = await Swal.fire({ title: 'ยกเลิกคำขอนี้?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกคำขอ', cancelButtonText: 'ปิด' });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error, data } = await _sb.from('mr_edit_requests').delete().eq('_row_id', reqId).select();
+  _hideLoader();
+  if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ยกเลิกไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือคำขอนี้ถูกจัดการไปแล้ว'); loadMRData(); return; }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกคำขอแล้ว', showConfirmButton:false, timer:1500 });
   loadMRData();
 }
 
@@ -21945,6 +22180,18 @@ let _coModal        = null;
 let _coBomProducts  = [];
 let _coBulkProducts = [];   // ตัวเลือก "สินค้า (Bulk)" ในฟอร์ม CO — ProductCode คือ MaterialCode ของ Bulk จริง ผูกกับ stock_balance
 let _coLineRowSeq   = 0;   // ตัวนับแถวรายการสินค้าตอนเพิ่ม CO ใหม่ (โหมดหลายรายการต่อ 1 PO) ไม่ใช้ซ้ำเหมือน _bomRowSeq
+// co_edit_requests แถวที่ยัง "รออนุมัติ" เท่านั้น (แก้ไขจำนวนสั่ง/กำหนดส่งของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว —
+// ต้องรอ Admin อนุมัติก่อนถึงจะมีผลจริง ดู create_co_edit_requests.sql) — โหลด error เงียบๆ เป็น [] ถ้ายัง
+// ไม่ได้รัน SQL (เหมือน _mrEditRequests/_issueEditRequests) กันหน้าพังทั้งหน้าถ้ายังไม่ได้ migrate
+let _coEditRequests = [];
+function _coReqForTarget(rowId) {
+  return _coEditRequests.find(r => r.TargetRowId === rowId);
+}
+// CO นี้ "กำลังเบิก/ผลิตอยู่แล้ว" หรือยัง — มี MO ผูกอยู่แล้ว (ไม่ว่าจะปิดงานหรือยัง) หรือเคยเบิกจากคลังไป
+// แล้วอย่างน้อย 1 ครั้ง — ใช้ตัดสินว่าแก้ไขจำนวนสั่ง/กำหนดส่งของ CO นี้ต้องผ่านคิวรออนุมัติ Admin หรือไม่
+function _coHasRealProgress(orderId) {
+  return _coAnyMOSet.has(orderId) || (_coTotalWithdrawnMap[orderId] || 0) > 0;
+}
 
 const _coStatusColor = {
   'รอสั่งผลิต'   : 'secondary',
@@ -22166,12 +22413,13 @@ async function loadCOData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('co-tbody', '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
-  const [coRes, fgRes, stockRes, resvRes] = await Promise.all([
+  const [coRes, fgRes, stockRes, resvRes, reqRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
     _sb.from('stock_fg').select('ProductCode,FGBalance'),
     _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
     _fetchAllPaged('mo_material_reservations', 'MaterialCode,ReservedQty'),
     _coRefreshMOAndShippedMaps(),   // เติม _coShippedMap/_coPendingDispatchMap/_coOpenMOSet/_coAnyMOSet ให้สด (ฟังก์ชันกลาง ใช้ร่วมกับ loadFGOutData)
+    _sb.from('co_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
   ]);
 
   _cancelPlaceholder();
@@ -22179,6 +22427,7 @@ async function loadCOData() {
   if (coRes.error) { _err('โหลดข้อมูล CO ไม่ได้', coRes.error.message); return; }
 
   _coData = coRes.data || [];
+  _coEditRequests = reqRes.error ? [] : (reqRes.data || []);
 
   // Build map: ProductCode → FG คงเหลือรวมทุก Lot (ใช้คำนวณ "ต้องผลิตเพิ่ม")
   _coFGStockMap = {};
@@ -22273,6 +22522,7 @@ function coRenderTable() {
     const needProduce = isBulk ? 0 : Math.max(0, remain - fgStock - pendingDispatch);   // Bulk ไม่ผ่านแผนผลิตเลย ไม่มีแนวคิด "ต้องผลิตเพิ่ม"
     const expanded = _coExpandedSet.has(r.Order_ID);
     const justCompleted = _coRecentlyCompleted(r);
+    const req = _coReqForTarget(r._row_id);
 
     return `<div class="glass-card mb-2 p-0 overflow-hidden${justCompleted ? ' border-success border-2' : ''}" data-rt-key="${(r.Order_ID||'').replace(/"/g,'&quot;')}">
       ${!justCompleted ? '' : `<div class="px-3 py-1 small text-success fw-bold" style="background:#f0fdf4">
@@ -22293,6 +22543,7 @@ function coRenderTable() {
         <div class="d-flex align-items-center gap-2">
           <small class="text-muted">${_fmtDate(r.DueDate)||''}</small>
           <span class="badge bg-${sc}">${displayStatus||'—'}</span>
+          ${req ? `<span class="badge bg-warning text-dark" title="ขอแก้จำนวนสั่ง/กำหนดส่ง — รอแอดมินอนุมัติ"><i class="fas fa-clock me-1"></i>รออนุมัติแก้ไข</span>` : ''}
           <i class="fas fa-chevron-${expanded?'up':'down'} text-muted"></i>
         </div>
       </div>
@@ -22356,9 +22607,10 @@ function coRenderTable() {
           <button class="btn btn-sm btn-success" onclick="event.stopPropagation();coWithdrawFromStock(${idx})" title="เด้งไปเปิดหน้าเบิก FG พร้อมแนะนำ Lot และจำนวน">
             <i class="fas fa-dolly me-1"></i>เบิกจากคลัง
           </button>` : ''}`}
+          ${req ? _coRequestActionsHTML(req) : `
           <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();coOpenModal(${r._row_id})" title="แก้ไข">
             <i class="fas fa-edit me-1"></i>แก้ไข
-          </button>
+          </button>`}
           <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();coDelete(${r._row_id})" title="ลบ">
             <i class="fas fa-trash me-1"></i>ลบ
           </button>
@@ -22366,6 +22618,95 @@ function coRenderTable() {
       </div>`}
     </div>`;
   }).join('');
+}
+
+// ── คำขอแก้ไขจำนวนสั่ง/กำหนดส่งของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว — render helper (สิทธิ์อนุมัติ/ปฏิเสธ =
+// _hasRole('admin') เท่านั้น ตามที่ user ยืนยัน — ยกเลิกคำขอเปิดให้ทุก role เหมือนหน้าเบิกผลิต/รับวัตถุดิบ) ──
+function _coRequestActionsHTML(req) {
+  const adminBtns = _hasRole('admin')
+    ? `<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();coApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check me-1"></i>อนุมัติ</button>
+       <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();coRejectRequest(${req._row_id})" title="ปฏิเสธ"><i class="fas fa-times me-1"></i>ปฏิเสธ</button>`
+    : '';
+  return `${adminBtns}<button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();coCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo me-1"></i>ยกเลิกคำขอ</button>`;
+}
+function _coRequestSummaryHTML(req) {
+  const oldQty = parseFloat(req.OldPayload?.OrderQty)||0, newQty = parseFloat(req.Payload?.OrderQty)||0;
+  const oldDue = req.OldPayload?.DueDate || '—', newDue = req.Payload?.DueDate || '—';
+  return `<div class="text-start" style="font-size:.88rem">
+    <b>${req.Order_ID||''}</b> — ${req.OldPayload?.CustomerName||''} (${req.OldPayload?.ProductName||''})<br>
+    ${oldQty !== newQty ? `จำนวนสั่งเดิม: <b>${oldQty.toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${newQty.toLocaleString()}</b><br>` : ''}
+    ${oldDue !== newDue ? `กำหนดส่งเดิม: <b>${_fmtDate(req.OldPayload?.DueDate)||'—'}</b> → ขอแก้เป็น: <b class="text-primary">${_fmtDate(req.Payload?.DueDate)||'—'}</b><br>` : ''}
+    <small class="text-muted">ขอโดย ${req.RequestedBy||'—'}</small></div>`;
+}
+
+async function coApproveRequest(reqId) {
+  const req = _coEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const res = await Swal.fire({
+    title: 'อนุมัติคำขอนี้?', html: _coRequestSummaryHTML(req),
+    icon: 'question', showCancelButton: true,
+    confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('customer_orders').update(req.Payload).eq('_row_id', req.TargetRowId);
+  if (error) { _hideLoader(); _err('อนุมัติไม่สำเร็จ', error.message); return; }
+
+  // แก้ไข OrderQty อาจทำให้ยอดจัดส่งสะสมที่มีอยู่แล้วครบยอดสั่งใหม่พอดี — เช็คซ้ำเหมือน coSubmit เอง
+  if (req.Payload?.ItemType === 'BULK') await _miscCheckCOComplete(req.Order_ID);
+  else await _deliveryCheckCOComplete(req.Order_ID);
+
+  await _sb.from('co_edit_requests').update({
+    Status: 'อนุมัติแล้ว', ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+
+  _logAudit('APPROVE', 'customer_orders', req.Order_ID, _diffFields(req.OldPayload, req.Payload));
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
+  loadCOData();
+}
+
+async function coRejectRequest(reqId) {
+  const req = _coEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอนี้?', html: _coRequestSummaryHTML(req),
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('co_edit_requests').update({
+    Status: 'ปฏิเสธ', ReviewNote: reason.trim(), ReviewedBy: _currentUser?.email || null, ReviewedAt: new Date().toISOString(),
+  }).eq('_row_id', reqId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+
+  _logAudit('REJECT', 'customer_orders', req.Order_ID, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  loadCOData();
+}
+
+async function coCancelRequest(reqId) {
+  const req = _coEditRequests.find(r => r._row_id === reqId);
+  if (!req) return;
+  const res = await Swal.fire({ title: 'ยกเลิกคำขอนี้?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกคำขอ', cancelButtonText: 'ปิด' });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error, data } = await _sb.from('co_edit_requests').delete().eq('_row_id', reqId).select();
+  _hideLoader();
+  if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ยกเลิกไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือคำขอนี้ถูกจัดการไปแล้ว'); loadCOData(); return; }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  loadCOData();
 }
 
 // ── ปุ่ม "สั่งผลิต" — เด้งไปหน้า MO เปิดฟอร์มเพิ่มใหม่ พร้อมข้อมูลจาก CO นี้ ไม่สนใจสถานะ CO ปัจจุบันเลย (คุมด้วย
@@ -22585,6 +22926,10 @@ function coGenerateID() {
 }
 
 async function coOpenModal(rowId = null) {
+  if (rowId && _coReqForTarget(rowId)) {
+    Swal.fire('มีคำขอค้างอยู่แล้ว', 'CO นี้มีคำขอแก้ไขจำนวนสั่ง/กำหนดส่งที่ยังรอแอดมินอนุมัติอยู่ — ยกเลิกคำขอเดิมก่อนถ้าต้องการแก้ไขใหม่', 'info');
+    return;
+  }
   if (!_coModal) _coModal = new bootstrap.Modal(document.getElementById('coModal'));
   document.getElementById('coForm').reset();
 
@@ -22710,9 +23055,25 @@ async function coSubmit(e) {
   _showLoader();
 
   let error;
+  let isPendingRequest = false;
   const oldRow = isEdit ? _coData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
-    ({ error } = await _sb.from('customer_orders').update(payloads[0]).eq('_row_id', parseInt(editId)));
+    // แก้จำนวนสั่ง (OrderQty) หรือกำหนดส่ง (DueDate) ของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว (มี MO ผูกอยู่ หรือ
+    // เคยเบิกจากคลังไปแล้ว) — หัวหน้างานแก้ไม่ได้ทันทีอีกต่อไป ต้องส่งเป็นคำขอรอ Admin อนุมัติแทน (ฟิลด์
+    // อื่น หรือ CO ที่ยังไม่มี MO/ยังไม่เคยเบิกเลย ยังแก้ไขได้ทันทีเหมือนเดิม — ดู create_co_edit_requests.sql)
+    const qtyChanged = (parseFloat(payloads[0].OrderQty)||0) !== (parseFloat(oldRow?.OrderQty)||0);
+    const dueChanged = (payloads[0].DueDate || null) !== (oldRow?.DueDate || null);
+    const needsApproval = oldRow && !_hasRole('admin') && (qtyChanged || dueChanged) && _coHasRealProgress(oldRow.Order_ID);
+    if (needsApproval) {
+      isPendingRequest = true;
+      ({ error } = await _sb.from('co_edit_requests').insert({
+        Action: 'EDIT', TargetRowId: parseInt(editId), Order_ID: oldRow.Order_ID,
+        Payload: payloads[0], OldPayload: oldRow, Status: 'รออนุมัติ',
+        RequestedBy: _currentUser?.email || null,
+      }));
+    } else {
+      ({ error } = await _sb.from('customer_orders').update(payloads[0]).eq('_row_id', parseInt(editId)));
+    }
   } else {
     // insert เป็นชุดเดียว (all-or-nothing) — ถ้าเลข Order_ID ชนกับที่มีอยู่แล้วจริง (23505) ทั้งชุดจะไม่ถูกบันทึก
     // เลยสักแถว ไม่ใช่บันทึกแค่บางแถว เหมือน convention เดียวกับ bomLineSubmit ตอนเพิ่มหลายบรรทัด BOM
@@ -22723,9 +23084,9 @@ async function coSubmit(e) {
   saveBtn.disabled = false;
   saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
 
-  if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+  if (error) { _err(isPendingRequest ? 'ส่งคำขอไม่สำเร็จ' : 'บันทึกไม่สำเร็จ', error.message); return; }
 
-  if (isEdit) {
+  if (isEdit && !isPendingRequest) {
     _logAudit('EDIT', 'customer_orders', payloads[0].Order_ID, _diffFields(oldRow, payloads[0]));
     // แก้ไข OrderQty อาจทำให้ยอดจัดส่งสะสมที่มีอยู่แล้วครบยอดสั่งใหม่พอดี โดยไม่มี event จัดส่ง/ยืนยันส่งเสร็จ
     // เกิดขึ้นใหม่มา trigger — _deliveryCheckCOComplete/_miscCheckCOComplete ทำงานเฉพาะตอนนั้นเท่านั้น ไม่ได้ผูก
@@ -22737,8 +23098,9 @@ async function coSubmit(e) {
     }
   }
   _coModal.hide();
-  Swal.fire({ toast:true, position:'top-end', icon:'success',
-    title: isEdit ? 'แก้ไขสำเร็จ' : `เพิ่ม CO สำเร็จ${payloads.length > 1 ? ` (${payloads.length} รายการ)` : ''}`,
+  Swal.fire({ toast:true, position:'top-end', icon: isPendingRequest ? 'info' : 'success',
+    title: isPendingRequest ? 'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ'
+      : (isEdit ? 'แก้ไขสำเร็จ' : `เพิ่ม CO สำเร็จ${payloads.length > 1 ? ` (${payloads.length} รายการ)` : ''}`),
     showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadCOData();
 }
@@ -26855,6 +27217,8 @@ let _holdstockReportModal = null;
 let _holdstockReportIds = [];
 let _holdstockReportConfirmed = false;
 let _holdstockReportConfirmedNo = '';
+let _holdstockReportReprintRows = [];   // ใช้แทน _holdstockPendingReportMoves ตอนเปิดดู/พิมพ์ซ้ำเอกสารเก่าที่
+                                          // ออกไปแล้ว (ReportNo ไม่ null อีกต่อไป เลยไม่อยู่ในลิสต์รอออกรายงาน)
 
 async function holdstockLoadData() {
   const [hsRes, prodRes, pendingRes] = await Promise.all([
@@ -27050,6 +27414,9 @@ function holdstockRenderTable() {
   const itemTypeFilter = document.getElementById('holdstock-filter-itemtype').value;
   const rows = _holdstockData.filter(r => {
     if (r.HoldType !== _holdstockMode) return false;
+    // ยอดคงเหลือ 0 = จัดการจบไปแล้ว (Scrap/Rework/Dispose หมดแล้ว) ไม่ต้องค้างโชว์ในตารางหลักอีก — ดูย้อนหลัง
+    // ได้เสมอผ่าน "ดูรายการเคลื่อนไหว"/"ดูที่มา" ของ Lot นั้น ข้อมูลไม่ได้หายไปไหน แค่ไม่ต้องรกตารางหลัก
+    if ((parseFloat(r.QtyBalance) || 0) <= 0) return false;
     if (itemTypeFilter && r.ItemType !== itemTypeFilter) return false;
     if (search && !`${r.ItemCode} ${r.ItemName} ${r.Lot}`.toLowerCase().includes(search)) return false;
     return true;
@@ -27575,17 +27942,33 @@ function _holdstockRenderHistoryTable(editingId) {
     // เท่านั้น — ย้อนการกระทำได้ก็ต้องมีสิทธิ์ระดับเดียวกับที่ทำมันได้ (เจตนาไม่ตั้งชื่อฟังก์ชันลบว่า
     // "...Delete(" เพื่อไม่ให้โดน CSS blanket-hide ของทั้งแอปบัง IN ที่ควรแก้ได้ทุก role ไปด้วย)
     const canManage = m.MoveType === 'IN' || _hasRole('supervisor');
-    // ออกรายงาน (เลขที่เอกสารทำลาย/ส่งคืน) ไปแล้ว ห้ามแก้ไข/ลบตรงนี้ตรงๆ — ต้อง "ยกเลิกเอกสาร" ที่ปุ่ม
-    // ออกรายงาน (holdstockReportCancel) ก่อน ไม่งั้นเอกสารที่พิมพ์ไปแล้วจะไม่ตรงกับข้อมูลจริงอีกต่อไปแบบเงียบๆ
-    const actions = m.ReportNo
-      ? `<span class="badge bg-secondary" title="แก้ไข/ลบไม่ได้ — ต้องยกเลิกเอกสารที่ปุ่ม 'ออกรายงาน' ก่อน">ออกรายงานแล้ว (${m.ReportNo})</span>`
-      : canManage
-      ? `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockMoveEditStart(${m._row_id})" title="แก้ไข"><i class="fas fa-pen"></i></button> ` +
-        `<button class="btn btn-sm btn-outline-danger" onclick="holdstockMoveRemove(${m._row_id})" title="ลบ"><i class="fas fa-trash"></i></button>`
-      : '';
+    let reasonCell = m.Reason || '';
+    let actions;
+    if (m.PendingAction) {
+      // มีคำขอแก้ไข/ลบค้างรออยู่ — ต้องรอ Admin อนุมัติก่อนถึงจะมีผลจริง (เหมือนคำขอเปลี่ยนประเภท
+      // Defect/Retain บน hold_stock เอง — ดู alter_hold_stock_moves_add_pending_edit.sql)
+      reasonCell += `<br><span class="badge bg-warning text-dark mt-1" style="font-size:.65rem"><i class="fas fa-clock me-1"></i>รออนุมัติ${m.PendingAction === 'EDIT' ? ' — ขอแก้ไข' : ' — ขอลบ'}</span>`;
+      actions = `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockCancelPendingMove(${m._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-ban"></i></button>`;
+      if (_hasRole('admin')) {
+        actions += ` <button class="btn btn-sm btn-outline-success" onclick="holdstockApprovePendingMove(${m._row_id})" title="อนุมัติ"><i class="fas fa-check"></i></button>` +
+          ` <button class="btn btn-sm btn-outline-danger" onclick="holdstockRejectPendingMove(${m._row_id})" title="ปฏิเสธ"><i class="fas fa-times"></i></button>`;
+      }
+    } else if (m.ReportNo) {
+      // ออกรายงาน (เลขที่เอกสารทำลาย/ส่งคืน) ไปแล้ว ห้ามแก้ไข/ลบตรงนี้ตรงๆ — ต้อง "ยกเลิกเอกสาร" ที่ปุ่ม
+      // ออกรายงาน (holdstockReportCancel) ก่อน ไม่งั้นเอกสารที่พิมพ์ไปแล้วจะไม่ตรงกับข้อมูลจริงอีกต่อไปแบบเงียบๆ
+      actions = `<span class="badge bg-secondary" title="แก้ไข/ลบไม่ได้ — ต้องยกเลิกเอกสารที่ปุ่ม 'ออกรายงาน' ก่อน">ออกรายงานแล้ว (${m.ReportNo})</span>`;
+    } else if (canManage) {
+      // เฉพาะ Admin เท่านั้นที่ยังแก้ไข/ลบได้ทันที — role อื่นที่มีสิทธิ์จัดการแถวนี้ (ตาม canManage เดิม)
+      // กดปุ่มเดียวกันนี้แล้วจะกลายเป็น "ส่งคำขอ รอ Admin อนุมัติ" แทน (holdstockMoveEditSubmit/
+      // holdstockMoveRemove เช็ค _hasRole('admin') เอง)
+      actions = `<button class="btn btn-sm btn-outline-secondary" onclick="holdstockMoveEditStart(${m._row_id})" title="${_hasRole('admin') ? 'แก้ไข' : 'แก้ไข (ต้องรอ Admin อนุมัติ)'}"><i class="fas fa-pen"></i></button> ` +
+        `<button class="btn btn-sm btn-outline-danger" onclick="holdstockMoveRemove(${m._row_id})" title="${_hasRole('admin') ? 'ลบ' : 'ลบ (ต้องรอ Admin อนุมัติ)'}"><i class="fas fa-trash"></i></button>`;
+    } else {
+      actions = '';
+    }
     return `<tr>
       <td>${_fmtDate(m.MoveDate)}</td><td>${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType}</td>
-      <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td><td>${m.Reason || ''}</td>
+      <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td><td>${reasonCell}</td>
       <td class="text-center">${actions}</td>
     </tr>`;
   }).join('');
@@ -27633,6 +28016,22 @@ async function holdstockMoveEditSubmit(moveId) {
   const newReason = document.getElementById('holdstock-hedit-reason').value.trim();
   if (newQty <= 0) { _err('จำนวนต้องมากกว่า 0', ''); return; }
 
+  if (!_hasRole('admin')) {
+    // ไม่ใช่ Admin — ส่งเป็นคำขอแก้ไขรออนุมัติแทน ไม่แตะสต็อก/แถวจริงจนกว่า Admin จะอนุมัติ
+    // (ดู alter_hold_stock_moves_add_pending_edit.sql)
+    _showLoader();
+    const { error } = await _sb.from('hold_stock_moves').update({
+      PendingAction: 'EDIT', PendingPayload: { MoveDate: newDate, Qty: newQty, Reason: newReason },
+      PendingRequestedBy: _currentUser?.email || null, PendingRequestedAt: new Date().toISOString(),
+    }).eq('_row_id', moveId);
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+    _logAudit('EDIT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ขอแก้ไขรายการ ${m.MoveType}: qty ${m.Qty}→${newQty} (รออนุมัติ)`);
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:'ส่งคำขอแก้ไขแล้ว รอแอดมินอนุมัติ', showConfirmButton:false, timer:2000 });
+    await _holdstockLoadHistory();
+    return;
+  }
+
   _showLoader();
   await _holdstockReverseMove(m);
   // reapply ด้วยค่าใหม่ ตาม MoveType เดิมเป๊ะ (ไม่ให้เปลี่ยนประเภท move ตอนแก้ไข)
@@ -27659,6 +28058,29 @@ async function holdstockMoveRemove(moveId) {
   const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
   if (!m) return;
   if (m.ReportNo) { _err('ลบไม่ได้', `รายการนี้ออกเอกสารแล้ว (${m.ReportNo}) — ต้องยกเลิกเอกสารที่ปุ่ม "ออกรายงาน" ก่อน`); return; }
+
+  if (!_hasRole('admin')) {
+    // ไม่ใช่ Admin — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่แตะสต็อกจนกว่า Admin จะอนุมัติ
+    const conf = await Swal.fire({
+      title: 'ส่งคำขอลบรายการนี้?',
+      html: `<div class="text-start">${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType} จำนวน ${m.Qty}<br>
+        <small class="text-muted">คำขอจะถูกส่งให้แอดมินอนุมัติก่อน ยังไม่ลบจริงจนกว่าจะได้รับอนุมัติ</small></div>`,
+      icon: 'question', showCancelButton: true, confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก',
+    });
+    if (!conf.isConfirmed) return;
+    _showLoader();
+    const { error } = await _sb.from('hold_stock_moves').update({
+      PendingAction: 'DELETE', PendingPayload: null,
+      PendingRequestedBy: _currentUser?.email || null, PendingRequestedAt: new Date().toISOString(),
+    }).eq('_row_id', moveId);
+    _hideLoader();
+    if (error) { _err('ส่งคำขอไม่สำเร็จ', error.message); return; }
+    _logAudit('EDIT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ขอลบรายการ ${m.MoveType} จำนวน ${m.Qty} (รออนุมัติ)`);
+    Swal.fire({ toast:true, position:'top-end', icon:'info', title:'ส่งคำขอลบแล้ว รอแอดมินอนุมัติ', showConfirmButton:false, timer:2000 });
+    await _holdstockLoadHistory();
+    return;
+  }
+
   const conf = await Swal.fire({
     title: 'ลบรายการนี้?', text: `${_HOLDSTOCK_MOVE_LABELS[m.MoveType] || m.MoveType} จำนวน ${m.Qty}`,
     icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
@@ -27670,12 +28092,110 @@ async function holdstockMoveRemove(moveId) {
   const { data, error } = await _sb.from('hold_stock_moves').delete().eq('_row_id', moveId).select();
   _hideLoader();
   if (error || !data?.length) {
-    _err('ลบไม่สำเร็จ', error?.message || 'ไม่มีสิทธิ์ลบรายการนี้ (รายการ SCRAP/REWORK/DISPOSE ต้องเป็นหัวหน้างานขึ้นไป)');
+    _err('ลบไม่สำเร็จ', error?.message || 'ไม่มีสิทธิ์ลบรายการนี้');
     return;
   }
   _logAudit('DELETE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ลบรายการ ${m.MoveType} จำนวน ${m.Qty}`);
   await _holdstockLoadHistory();
   holdstockLoadData();
+}
+
+// ══════════════════════════════════════════════
+// hold_stock_moves: อนุมัติ/ปฏิเสธ/ยกเลิก คำขอแก้ไข-ลบรายการเคลื่อนไหวที่ค้างอยู่ (PendingAction) —
+// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _hasRole('admin') เหมือน holdstockApproveReclassify ทุกประการ
+// ══════════════════════════════════════════════
+async function holdstockApprovePendingMove(moveId) {
+  const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
+  if (!m || !m.PendingAction) return;
+
+  const label = m.PendingAction === 'EDIT'
+    ? `แก้ไข ${_HOLDSTOCK_MOVE_LABELS[m.MoveType]||m.MoveType}: จำนวนเดิม ${m.Qty} → ${m.PendingPayload?.Qty}`
+    : `ลบรายการ ${_HOLDSTOCK_MOVE_LABELS[m.MoveType]||m.MoveType} จำนวน ${m.Qty}`;
+  const res = await Swal.fire({
+    title: 'อนุมัติคำขอนี้?', html: `<div class="text-start">${m.ItemCode} — ${m.ItemName||''} · Lot ${m.Lot}<br>${label}</div>`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  if (m.PendingAction === 'EDIT') {
+    const p = m.PendingPayload || {};
+    const newQty = parseFloat(p.Qty) || 0;
+    await _holdstockReverseMove(m);
+    // reapply ด้วยค่าใหม่ ตาม MoveType เดิมเป๊ะ (ไม่ให้เปลี่ยนประเภท move ตอนอนุมัติ) — ตรรกะเดียวกับ
+    // holdstockMoveEditSubmit ทุกประการ
+    if (m.MoveType === 'IN') {
+      if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, newQty, m.UOM, null, null, false);
+      else await miscUpdateStock(m.ItemCode, m.Lot, newQty);
+      await _holdstockUpsertIn(m.HoldType, m.ItemType, m.ItemCode, m.ItemName, m.Lot, m.UOM, newQty, m.UnitCost, m.RetainDueDate);
+    } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
+      await _holdstockAdjustBalance(m.RefHoldStockId, newQty, 'OUT');
+    } else if (m.MoveType === 'REWORK') {
+      await _holdstockAdjustBalance(m.RefHoldStockId, newQty, 'OUT');
+      if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, newQty, m.UOM, null, null, true);
+      else await _miscReverseStock(m.ItemCode, m.Lot, newQty);
+    }
+    const { error } = await _sb.from('hold_stock_moves').update({
+      MoveDate: p.MoveDate, Qty: newQty, Reason: p.Reason,
+      PendingAction: null, PendingPayload: null, PendingRequestedBy: null, PendingRequestedAt: null,
+    }).eq('_row_id', moveId);
+    _hideLoader();
+    if (error) { _err('อนุมัติไม่สำเร็จ', error.message); return; }
+    _logAudit('APPROVE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `แก้ไขรายการ ${m.MoveType}: qty ${m.Qty}→${newQty}`);
+  } else if (m.PendingAction === 'DELETE') {
+    await _holdstockReverseMove(m);
+    const { data, error } = await _sb.from('hold_stock_moves').delete().eq('_row_id', moveId).select();
+    _hideLoader();
+    if (error || !data?.length) { _err('อนุมัติไม่สำเร็จ', error?.message || 'ลบไม่สำเร็จ'); return; }
+    _logAudit('APPROVE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ลบรายการ ${m.MoveType} จำนวน ${m.Qty}`);
+  } else {
+    _hideLoader();
+    return;
+  }
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
+  await _holdstockLoadHistory();
+  holdstockLoadData();
+}
+
+async function holdstockRejectPendingMove(moveId) {
+  const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
+  if (!m || !m.PendingAction) return;
+
+  const { value: reason } = await Swal.fire({
+    title: 'ปฏิเสธคำขอนี้?', html: `<div class="text-start">${m.ItemCode} — ${m.ItemName||''} · Lot ${m.Lot}</div>`,
+    icon: 'warning', input: 'textarea',
+    inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)',
+    showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกเหตุผล' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('hold_stock_moves').update({
+    PendingAction: null, PendingPayload: null, PendingRequestedBy: null, PendingRequestedAt: null,
+  }).eq('_row_id', moveId);
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+  _logAudit('REJECT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  await _holdstockLoadHistory();
+}
+
+async function holdstockCancelPendingMove(moveId) {
+  const m = _holdstockHistoryMoves.find(x => x._row_id === moveId);
+  if (!m) return;
+  const res = await Swal.fire({ title: 'ยกเลิกคำขอนี้?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกคำขอ', cancelButtonText: 'ปิด' });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const { error } = await _sb.from('hold_stock_moves').update({
+    PendingAction: null, PendingPayload: null, PendingRequestedBy: null, PendingRequestedAt: null,
+  }).eq('_row_id', moveId);
+  _hideLoader();
+  if (error) { _err('ยกเลิกไม่สำเร็จ', error.message); return; }
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยกเลิกคำขอแล้ว', showConfirmButton:false, timer:1500 });
+  await _holdstockLoadHistory();
 }
 
 // ── รายการรอออกรายงาน (SCRAP ที่ยังไม่ได้ออกใบทำลาย/ใบส่งคืน) + ออกเอกสารเลขที่รันเอง (ไม่ปนกับใบส่งสินค้า
@@ -27706,10 +28226,12 @@ function holdstockPendingUpdateBtn() {
 }
 
 function _holdstockReportScopeRows() {
+  if (_holdstockReportReprintRows.length) return _holdstockReportReprintRows;
   return _holdstockPendingReportMoves.filter(m => _holdstockReportIds.includes(m._row_id));
 }
 
 function holdstockReportOpenModal(explicitIds) {
+  _holdstockReportReprintRows = [];   // โหมดออกใหม่/เลือกจากลิสต์รอ ไม่ใช่โหมดพิมพ์ซ้ำ
   _holdstockReportIds = (explicitIds && explicitIds.length)
     ? explicitIds.slice()
     : Array.from(document.querySelectorAll('.holdstock-pending-check:checked')).map(c => parseInt(c.value));
@@ -27832,11 +28354,74 @@ async function holdstockReportRenderHistory() {
       <td>${r.ReportNo}${r.CancelledAt ? ' <span class="badge bg-danger">ยกเลิกแล้ว</span>' : ''}</td>
       <td>${_fmtDate((r.CreatedAt || '').slice(0, 10))}</td>
       <td>${(r.MoveRowIds || '').split(',').filter(Boolean).length}</td>
-      <td>${r.CancelledAt ? '' : `
+      <td>
+        <button class="btn btn-sm btn-outline-primary" onclick="holdstockReportReprint('${r.ReportNo}')">พิมพ์ซ้ำ</button>
+        ${r.CancelledAt ? '' : `
         <button class="btn btn-sm btn-outline-secondary" onclick="holdstockReportEditNo(${r._row_id},'${r.ReportNo}')">แก้ไข</button>
         <button class="btn btn-sm btn-outline-danger" onclick="holdstockReportCancel('${r.ReportNo}')">ยกเลิก</button>`}
       </td>
     </tr>`).join('');
+}
+
+// เปิดเข้าหน้าต่างออกรายงานตรงไปที่ "ประวัติ" เลย (ไม่ต้องเลือกรายการรอออกรายงานใหม่ก่อน) — สำหรับกรณีแค่
+// อยากย้อนดู/พิมพ์ซ้ำเอกสารเก่า ไม่มีอะไรใหม่ต้องออกตอนนี้
+function holdstockReportOpenHistoryBrowser() {
+  _holdstockReportReprintRows = [];
+  _holdstockReportIds = [];
+  if (!_holdstockReportModal) _holdstockReportModal = new bootstrap.Modal(document.getElementById('holdstockReportModal'));
+  document.getElementById('holdstockreport-customer-step').style.display = 'none';
+  document.getElementById('holdstockreport-selected-summary').innerHTML = '<div class="text-muted">ยังไม่ได้เลือกรายการใหม่ — เปิดประวัติด้านล่างเพื่อพิมพ์ซ้ำเอกสารเก่าได้เลย</div>';
+  document.getElementById('holdstockreport-no-input').value = '';
+  document.getElementById('holdstockreport-no-input').disabled = false;
+  document.getElementById('holdstockreport-status').textContent = '● ยังไม่ยืนยัน';
+  document.getElementById('holdstockreport-status').className = 'mrrpt-pill mrrpt-pill-unconfirmed';
+  document.getElementById('holdstockreport-print-btn').disabled = true;
+  document.getElementById('holdstockreport-print-hint').style.display = '';
+  document.getElementById('holdstockreport-error').style.display = 'none';
+  document.getElementById('holdstockreport-preview-body').innerHTML = '<div class="mrrpt-empty">เลือก "พิมพ์ซ้ำ" จากประวัติด้านล่าง หรือกลับไปเลือกรายการรอออกรายงานใหม่</div>';
+  document.getElementById('holdstockreport-print-root').innerHTML = '';
+  const details = document.getElementById('holdstockreport-history-details');
+  details.open = true;
+  holdstockReportRenderHistory();
+  _holdstockReportModal.show();
+}
+
+// เปิดดู/พิมพ์ซ้ำเอกสารที่เคยออกไปแล้ว (ยกเลิกไปแล้วก็เปิดดูย้อนหลังได้ แค่พิมพ์ซ้ำเป็นสำเนาอ้างอิง) — ดึงรายการ
+// จริงจาก MoveRowIds ที่บันทึกไว้ตอนออกเลข (ไม่ใช่จาก _holdstockPendingReportMoves เพราะรายการที่ออกแล้วมี
+// ReportNo ไม่ null อีกต่อไป ไม่อยู่ในลิสต์ "รอออกรายงาน" แล้ว)
+async function holdstockReportReprint(reportNo) {
+  _showLoader();
+  const { data: repRow, error: repErr } = await _sb.from('hold_stock_report_numbers').select('*').eq('ReportNo', reportNo).maybeSingle();
+  if (repErr || !repRow) { _hideLoader(); _err('โหลดเอกสารไม่ได้', repErr?.message || 'ไม่พบเอกสารนี้'); return; }
+  const ids = (repRow.MoveRowIds || '').split(',').filter(Boolean).map(Number);
+  const { data: moveRows, error: movesErr } = await _sb.from('hold_stock_moves').select('*').in('_row_id', ids);
+  _hideLoader();
+  if (movesErr) { _err('โหลดรายการไม่ได้', movesErr.message); return; }
+
+  _holdstockReportIds = ids;
+  _holdstockReportReprintRows = moveRows || [];
+  if (!_holdstockReportModal) _holdstockReportModal = new bootstrap.Modal(document.getElementById('holdstockReportModal'));
+
+  const customerRow = (moveRows || []).find(r => r.ReportCustomerName);
+  document.getElementById('holdstockreport-customer-step').style.display = customerRow ? '' : 'none';
+  document.getElementById('holdstockreport-customer-name').value = customerRow?.ReportCustomerName || '';
+  document.getElementById('holdstockreport-customer-address').value = customerRow?.ReportCustomerAddress || '';
+  document.getElementById('holdstockreport-selected-summary').innerHTML = (moveRows || []).map(r =>
+    `<div>${_fmtDate(r.MoveDate) || ''} — ${r.ItemName || ''} (Lot ${r.Lot || '—'}) — ${(parseFloat(r.Qty) || 0).toLocaleString()} ${r.UOM || ''}</div>`
+  ).join('') || '<div>ไม่พบรายการที่เลือก</div>';
+
+  document.getElementById('holdstockreport-no-input').value = reportNo;
+  document.getElementById('holdstockreport-no-input').disabled = true;
+  document.getElementById('holdstockreport-error').style.display = 'none';
+  _holdstockReportConfirmed = true;
+  _holdstockReportConfirmedNo = reportNo;
+  document.getElementById('holdstockreport-status').textContent = repRow.CancelledAt ? '● เอกสารนี้ถูกยกเลิกแล้ว (พิมพ์ซ้ำได้เป็นสำเนาอ้างอิง)' : '● ยืนยันแล้ว';
+  document.getElementById('holdstockreport-status').className = `mrrpt-pill ${repRow.CancelledAt ? 'mrrpt-pill-unconfirmed' : 'mrrpt-pill-confirmed'}`;
+  document.getElementById('holdstockreport-print-btn').disabled = false;
+  document.getElementById('holdstockreport-print-hint').style.display = 'none';
+
+  holdstockReportRenderPreview();
+  _holdstockReportModal.show();
 }
 
 // แก้ไขแค่ตัว "เลขที่" เอกสารที่เคยยืนยันไปแล้ว (เช่น พิมพ์ผิด) — ไม่กระทบรายการ/สถานะยกเลิก sync กลับ
