@@ -20017,6 +20017,9 @@ function _prodrecordPlanWorkersFor(stepKey, dateStr) {
 // เพราะหน้านี้ไม่รู้ห้อง/ไลน์ที่แน่นอน รู้แค่ประเภทงาน — เช็คว่ามีสกิลอย่างน้อย 1 อันที่ Lines ตัดกับไลน์ใน
 // หมวดนั้นบ้างก็พอ) เหมือนหลักการเดียวกับ planHighlightQualifiedWorkers ของหน้าแผนผลิต — ไม่มีใครผ่านเลย
 // (แมททริกสกิลยังไม่สมบูรณ์) fallback โชว์ทุกคนแทน ไม่ปล่อยให้เลือกคนไม่ได้เลย
+// เกณฑ์ "ผ่าน" คือ Level >= 1 (กำลังฝึก ขึ้นไป) ตามคำขอผู้ใช้ 2026-09-10 — เดิมตัดที่ >= 2 (ทำได้เอง)
+// ทำให้คนที่กำลังฝึกอยู่ (ให้ Level 1 ไว้ในแมททริกสกิลแล้ว) หายไปจากลิสต์ทั้งที่กรอกสกิลไว้แล้ว มีแค่
+// Level 0 (ยังไม่ฝึก) เท่านั้นที่ยังไม่นับว่าผ่าน
 function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes) {
   const wrap = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-list`);
   if (!wrap) return;
@@ -20028,7 +20031,7 @@ function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes) {
     : [];
   let pool = _planEmployees;
   if (required.length) {
-    const qualified = _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 2));
+    const qualified = _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 1));
     if (qualified.length) pool = qualified;
   }
   const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
