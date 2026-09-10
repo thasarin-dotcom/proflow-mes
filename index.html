@@ -1660,7 +1660,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
       <i class="fas fa-users me-2"></i><span>พนักงาน</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน">
+    <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน" style="display:none">
       <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
@@ -30500,6 +30500,10 @@ function _renderCurrentUserBadge() {
   // ปุ่ม "ลบรายการวัตถุดิบซ้ำ" (หน้าบันทึกผลิต) — เหตุผลเดียวกับปุ่มข้างบน admin เท่านั้น (2026-09-02)
   const dedupeBtn = document.getElementById('prodrecord-dedupe-btn');
   if (dedupeBtn) dedupeBtn.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "แมททริกสกิล" (แมททริกสกิลพนักงาน) — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-10) พนักงาน/หัวหน้างานไม่ต้อง
+  // เห็นเลย เหมือน nav-weeklyreport/nav-admindash: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
+  const navSkillmatrix = document.getElementById('nav-skillmatrix');
+  if (navSkillmatrix) navSkillmatrix.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
