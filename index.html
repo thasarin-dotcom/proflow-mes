@@ -16436,29 +16436,37 @@ function _scanlaborPubRenderForm(moId, phone, employeeName, employeePosition) {
 // เลย จึงต้องพึ่ง qualifiedPool ที่ Edge Function คำนวณให้ตอน action:'info' ต่อไลน์ (กรองด้วยสกิลฝั่งเซิร์ฟ
 // เวอร์ เพราะหน้านี้เรียก _sb ตรงไม่ได้ — RLS บล็อก anon key) เพิ่มแถวเข้า DOM ตรงๆ เหมือนฝั่งในแอปทุกประการ
 async function _scanlaborPubAddWorker(li) {
-  const info = _scanlaborPubInfo;
-  if (!info || !info.lines[li]) return;
-  const ld = info.lines[li];
-  const pool = ld.qualifiedPool || [];
-  if (!pool.length) { Swal.fire({ icon: 'info', title: 'เพิ่มคนไม่ได้', text: 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว' }); return; }
-  const options = pool.map(e => `<option value="${e.code}">${e.name} — ${e.code}</option>`).join('');
-  const { value: code } = await Swal.fire({
-    title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
-    html: `<select id="scanlabor-pub-add-select" class="form-select">${options}</select>
-      <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
-    focusConfirm: false, showCancelButton: true,
-    confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
-    preConfirm: () => document.getElementById('scanlabor-pub-add-select').value,
-  });
-  if (!code) return;
-  const picked = pool.find(e => e.code === code);
-  const i = ld.roster.length;
-  const row = { code, name: picked.name, present: true, timeIn: ld.timeStart || '', timeOut: ld.timeEnd || '' };
-  ld.roster.push(row);
-  ld.qualifiedPool = pool.filter(e => e.code !== code);
-  document.getElementById(`scanlabor-pub-roster-empty-${li}`)?.remove();
-  document.getElementById(`scanlabor-pub-roster-tbody-${li}`).insertAdjacentHTML('beforeend', _scanlaborPubRosterRowHTML(row, li, i));
-  _scanlaborPubToggleRow(li, i);
+  // ห่อ try/catch ทั้งฟังก์ชัน (เพิ่ม 2026-09-12) — เดิมถ้ามี exception เกิดขึ้นระหว่างทาง (เช่น element
+  // หาไม่เจอ) จะเงียบสนิท ไม่มีอะไรขึ้นให้เห็นเลยจากมุมมองผู้ใช้ (เป็น unhandled promise rejection ที่ไม่มี
+  // UI ให้เห็น) ผู้ใช้รายงานว่ากดปุ่มแล้ว "ไม่มีอะไรเกิดขึ้นเลย" — ครอบไว้ให้ error โผล่ชัดเจนแทนเงียบหาย
+  try {
+    const info = _scanlaborPubInfo;
+    if (!info) { Swal.fire({ icon: 'error', title: 'ยังโหลดข้อมูลไม่เสร็จ', text: 'กรุณารอสักครู่แล้วลองใหม่ (หรือกรอกเบอร์โทรยืนยันตัวตนก่อน)' }); return; }
+    if (!info.lines || !info.lines[li]) { Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลไลน์นี้', text: `li=${li}, lines=${info.lines ? info.lines.length : 'undefined'}` }); return; }
+    const ld = info.lines[li];
+    const pool = ld.qualifiedPool || [];
+    if (!pool.length) { Swal.fire({ icon: 'info', title: 'เพิ่มคนไม่ได้', text: 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว' }); return; }
+    const options = pool.map(e => `<option value="${e.code}">${e.name} — ${e.code}</option>`).join('');
+    const { value: code } = await Swal.fire({
+      title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
+      html: `<select id="scanlabor-pub-add-select" class="form-select">${options}</select>
+        <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
+      focusConfirm: false, showCancelButton: true,
+      confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
+      preConfirm: () => document.getElementById('scanlabor-pub-add-select').value,
+    });
+    if (!code) return;
+    const picked = pool.find(e => e.code === code);
+    const i = ld.roster.length;
+    const row = { code, name: picked.name, present: true, timeIn: ld.timeStart || '', timeOut: ld.timeEnd || '' };
+    ld.roster.push(row);
+    ld.qualifiedPool = pool.filter(e => e.code !== code);
+    document.getElementById(`scanlabor-pub-roster-empty-${li}`)?.remove();
+    document.getElementById(`scanlabor-pub-roster-tbody-${li}`)?.insertAdjacentHTML('beforeend', _scanlaborPubRosterRowHTML(row, li, i));
+    _scanlaborPubToggleRow(li, i);
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด (เพิ่มคนอื่น)', html: `<pre style="text-align:left;white-space:pre-wrap;font-size:11px">${String(e && e.stack || e)}</pre>` });
+  }
 }
 
 async function _scanlaborPubSubmit(moId, phone) {
@@ -31376,32 +31384,39 @@ function _scanlaborQualifiedPool(line, excludeCodes) {
 // ปุ่ม "เพิ่มคนอื่น" ต่อไลน์ (li = index ใน s.lines) — เพิ่มแถวเข้า DOM ตรงๆ (insertAdjacentHTML) แทนการ
 // re-render ทั้งตาราง กันข้อมูลที่กรอกไว้แล้วในแถวเดิม (ของไลน์นี้และไลน์อื่นบนหน้าเดียวกัน) หาย
 async function scanlaborAddWorker(li) {
-  const s = _scanlaborCurrent;
-  if (!s || !s.lines[li]) return;
-  const ld = s.lines[li];
-  const excludeCodes = ld.roster.map(r => r.code);
-  const pool = _scanlaborQualifiedPool(ld.line, excludeCodes);
-  if (!pool.length) { _err('เพิ่มคนไม่ได้', 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว (หรือถูกเพิ่มไว้ในรายชื่อครบหมดแล้ว)'); return; }
-  const options = pool.map(e => {
-    const name = `${e.FirstName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim() || e.EmployeeCode;
-    return `<option value="${e.EmployeeCode}">${name} — ${e.EmployeeCode}</option>`;
-  }).join('');
-  const { value: code } = await Swal.fire({
-    title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
-    html: `<select id="scanlabor-add-select" class="form-select">${options}</select>
-      <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
-    focusConfirm: false, showCancelButton: true,
-    confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
-    preConfirm: () => document.getElementById('scanlabor-add-select').value,
-  });
-  if (!code) return;
-  const emp = pool.find(e => e.EmployeeCode === code);
-  const i = ld.roster.length;
-  const row = { code, name: emp.NickName || emp.FirstName || code, present: true, timeIn: ld.plan?.TimeStart || '', timeOut: ld.plan?.TimeEnd || '' };
-  ld.roster.push(row);
-  document.getElementById(`scanlabor-roster-empty-${li}`)?.remove();
-  document.getElementById(`scanlabor-roster-tbody-${li}`).insertAdjacentHTML('beforeend', _scanlaborRosterRowHTML(row, li, i));
-  _scanlaborToggleRow(li, i);
+  // ห่อ try/catch ทั้งฟังก์ชัน (เพิ่ม 2026-09-12) — เหตุผลเดียวกับ _scanlaborPubAddWorker (ฝั่งลิงก์
+  // สาธารณะ) กันไม่ให้ exception กลางทางเงียบหายไปโดยไม่มี UI แจ้งอะไรเลย
+  try {
+    const s = _scanlaborCurrent;
+    if (!s) { _err('ยังไม่มีข้อมูล MO', 'กรุณาสแกน/โหลด MO ก่อน'); return; }
+    if (!s.lines || !s.lines[li]) { _err('ไม่พบข้อมูลไลน์นี้', `li=${li}, lines=${s.lines ? s.lines.length : 'undefined'}`); return; }
+    const ld = s.lines[li];
+    const excludeCodes = ld.roster.map(r => r.code);
+    const pool = _scanlaborQualifiedPool(ld.line, excludeCodes);
+    if (!pool.length) { _err('เพิ่มคนไม่ได้', 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว (หรือถูกเพิ่มไว้ในรายชื่อครบหมดแล้ว)'); return; }
+    const options = pool.map(e => {
+      const name = `${e.FirstName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim() || e.EmployeeCode;
+      return `<option value="${e.EmployeeCode}">${name} — ${e.EmployeeCode}</option>`;
+    }).join('');
+    const { value: code } = await Swal.fire({
+      title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
+      html: `<select id="scanlabor-add-select" class="form-select">${options}</select>
+        <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
+      focusConfirm: false, showCancelButton: true,
+      confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
+      preConfirm: () => document.getElementById('scanlabor-add-select').value,
+    });
+    if (!code) return;
+    const emp = pool.find(e => e.EmployeeCode === code);
+    const i = ld.roster.length;
+    const row = { code, name: emp.NickName || emp.FirstName || code, present: true, timeIn: ld.plan?.TimeStart || '', timeOut: ld.plan?.TimeEnd || '' };
+    ld.roster.push(row);
+    document.getElementById(`scanlabor-roster-empty-${li}`)?.remove();
+    document.getElementById(`scanlabor-roster-tbody-${li}`)?.insertAdjacentHTML('beforeend', _scanlaborRosterRowHTML(row, li, i));
+    _scanlaborToggleRow(li, i);
+  } catch (e) {
+    _err('เกิดข้อผิดพลาด (เพิ่มคนอื่น)', String(e && e.stack || e));
+  }
 }
 
 // บันทึกทุกไลน์ที่แสดงอยู่ในหน้าเดียวพร้อมกัน (ปุ่มเดียว "บันทึกทั้งหมด") — วน upsert/delete ทีละไลน์
