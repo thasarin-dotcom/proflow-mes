@@ -16545,7 +16545,10 @@ async function _scanlaborPubSubmit(moId, phone) {
         upsert_failed: 'บันทึกข้อมูลลงตารางไม่สำเร็จ (ฐานข้อมูล — อาจยังไม่ได้รัน SQL สร้างตาราง production_labor_log)',
         delete_failed: 'ลบข้อมูลคนที่ไม่มาไม่สำเร็จ (ฐานข้อมูล)',
       };
-      msgEl.textContent = `บันทึกไม่สำเร็จ: ${msgMap[data?.error] || data?.error || 'ไม่ทราบสาเหตุ'} (รหัส: ${data?.error || 'no_response'})`;
+      // data.detail = ข้อความ error จริงจาก Postgres/PostgREST (added 2026-09-12) — โชว์ต่อท้ายเสมอถ้ามี
+      // เพราะ 'upsert_failed'/'delete_failed'/'lookup_failed' เฉยๆ บอกแค่ "ขั้นตอนไหนพัง" ไม่บอก "ทำไมพัง"
+      const detailSuffix = data?.detail ? ` — รายละเอียด: ${data.detail}` : '';
+      msgEl.textContent = `บันทึกไม่สำเร็จ: ${msgMap[data?.error] || data?.error || 'ไม่ทราบสาเหตุ'} (รหัส: ${data?.error || 'no_response'})${detailSuffix}`;
     }
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึกทั้งหมด';
     return;
