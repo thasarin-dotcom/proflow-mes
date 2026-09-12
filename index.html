@@ -16489,7 +16489,25 @@ async function _scanlaborPubSubmit(moId, phone) {
     return;
   }
   if (!data || !data.ok) {
-    msgEl.textContent = 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+    // โชว์รหัส error จริงจาก Edge Function เสมอ (ไม่ใช่แค่ข้อความทั่วไป) — ช่วยไล่ปัญหาได้ตรงจุดโดยไม่ต้อง
+    // เปิด DevTools (เพิ่ม 2026-09-12 หลังพบว่าข้อความเดิม "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง" ไม่มีรายละเอียด
+    // พอจะวินิจฉัยจากระยะไกลได้เลย)
+    if (data?.error === 'time_conflict') {
+      // เวลาทำงานของพนักงานคนเดียวกันชนกันข้ามไลน์ (added 2026-09-12) — โชว์รายการที่ชนกันแบบเต็ม ไม่ตัดทอน
+      // ให้ผู้ควบคุมงานแก้เวลา/ติ๊กออกแล้วลองบันทึกใหม่ ไม่ได้ห้ามชื่อซ้ำข้ามไลน์ แค่ห้ามเวลาคาบเกี่ยวกัน
+      msgEl.innerHTML = `บันทึกไม่สำเร็จ: เวลาทำงานชนกันข้ามไลน์<br>${(data.conflicts || []).join('<br>')}`;
+    } else {
+      const msgMap = {
+        missing_phone: 'กรุณากรอกเบอร์โทรศัพท์',
+        phone_not_found: 'ไม่พบเบอร์นี้ในระบบพนักงานที่ยังทำงานอยู่',
+        no_lines: 'ไม่มีข้อมูลไลน์ที่จะบันทึก (หน้าอาจโหลดไม่สมบูรณ์ ลองสแกนใหม่)',
+        mo_not_found: 'ไม่พบ MO นี้ในระบบ',
+        lookup_failed: 'ค้นหาข้อมูลพนักงานไม่สำเร็จ (ฐานข้อมูล)',
+        upsert_failed: 'บันทึกข้อมูลลงตารางไม่สำเร็จ (ฐานข้อมูล — อาจยังไม่ได้รัน SQL สร้างตาราง production_labor_log)',
+        delete_failed: 'ลบข้อมูลคนที่ไม่มาไม่สำเร็จ (ฐานข้อมูล)',
+      };
+      msgEl.textContent = `บันทึกไม่สำเร็จ: ${msgMap[data?.error] || data?.error || 'ไม่ทราบสาเหตุ'} (รหัส: ${data?.error || 'no_response'})`;
+    }
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึกทั้งหมด';
     return;
   }
@@ -31249,9 +31267,13 @@ async function scanlaborLoad(moId) {
 
   const lines = [...planByLine.keys()].map(line => {
     const plan = planByLine.get(line);
-    const codes = (plan.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+    const planCodes = (plan.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
     const existingRows = existingByLine[line] || [];
     const existingByCode = new Map(existingRows.map(r => [r.EmployeeCode, r]));
+    // รวมทั้งคนตามแผน (planCodes) และคนที่เคยถูก "เพิ่มคนอื่น" ไว้ก่อนหน้าแล้วบันทึกสำเร็จ (มีแถวใน
+    // production_labor_log แต่ไม่ได้อยู่ใน WorkerCodes เลย) — เดิมบั๊ก: roster สร้างจาก planCodes อย่างเดียว
+    // ทำให้คนที่เพิ่มเองแล้วกด "บันทึกทั้งหมด" สำเร็จ พอโหลดหน้าใหม่กลับหายไปจากรายชื่อ (2026-09-12)
+    const codes = [...new Set([...planCodes, ...existingByCode.keys()])];
     const roster = codes.map(code => {
       const emp = _planEmployees.find(e => e.EmployeeCode === code);
       const existing = existingByCode.get(code);
@@ -31384,19 +31406,69 @@ async function scanlaborAddWorker(li) {
 
 // บันทึกทุกไลน์ที่แสดงอยู่ในหน้าเดียวพร้อมกัน (ปุ่มเดียว "บันทึกทั้งหมด") — วน upsert/delete ทีละไลน์
 // (กติกา onConflict เดิมของแต่ละไลน์ยังแยกจากกัน ไม่ปนกัน)
+// เช็คช่วงเวลาสองช่วงคาบเกี่ยวกันไหม — เปรียบเทียบสตริง "HH:MM" ตรงๆ (เทียบกันได้เพราะฟอร์แมตความยาวเท่ากัน
+// เสมอ) ไม่รองรับกะข้ามเที่ยงคืนเหมือนที่อื่นในแอปนี้ (_prodrecordCalcHoursFromTime ก็ไม่รองรับเช่นกัน)
+function _scanlaborTimesOverlap(aIn, aOut, bIn, bOut) {
+  return aIn < bOut && bIn < aOut;
+}
+
+// รวบรวมแถวที่ "มา" (present) ทุกไลน์บนหน้านี้จาก DOM สด — ใช้ทั้งตอนเช็คชนกันและตอนบันทึกจริง ไม่อ่านซ้ำ 2 รอบ
+function _scanlaborCollectPresentRows(s) {
+  const out = [];
+  s.lines.forEach((ld, li) => {
+    ld.roster.forEach((r, i) => {
+      const present = document.querySelector(`.scanlabor-present[data-li="${li}"][data-i="${i}"]`)?.checked || false;
+      const timeIn  = document.getElementById(`scanlabor-timein-${li}-${i}`)?.value || null;
+      const timeOut = document.getElementById(`scanlabor-timeout-${li}-${i}`)?.value || null;
+      out.push({ li, line: ld.line, code: r.code, name: r.name, present, timeIn, timeOut });
+    });
+  });
+  return out;
+}
+
 async function scanlaborSubmit() {
   const s = _scanlaborCurrent;
   if (!s || !s.lines.length) return;
+  const allRows = _scanlaborCollectPresentRows(s);
+  const presentRows = allRows.filter(r => r.present && r.timeIn && r.timeOut);
+
+  // ── เช็คเวลาชนกันข้ามไลน์ก่อนบันทึกจริง (added 2026-09-12 ตามคำขอผู้ใช้ "หากเพิ่มชื่อซ้ำในแต่ละไลน์
+  // สามารถเพิ่มได้ แต่เวลาของแต่ละไลน์จะต้องไม่ชนกัน") — คนคนเดียวกันอยู่ได้หลายไลน์พร้อมกัน (ไม่ห้ามชื่อซ้ำ)
+  // แต่ช่วงเวลาต้องไม่คาบเกี่ยวกัน เช็คทั้งภายในหน้านี้เอง (คนละไลน์ในหน้าเดียวกัน) และกับของเดิมที่บันทึกไว้
+  // แล้วในฐานข้อมูล (ไลน์/MO อื่นที่ไม่ได้อยู่ในหน้านี้เลย — เช่นสแกน MO อื่นไปก่อนแล้วในวันเดียวกัน) ──
+  const codesInvolved = [...new Set(presentRows.map(r => r.code))];
+  const { data: otherRows } = codesInvolved.length
+    ? await _sb.from('production_labor_log').select('MO_Ref,Line,EmployeeCode,TimeIn,TimeOut')
+        .eq('WorkDate', s.workDate).in('EmployeeCode', codesInvolved)
+    : { data: [] };
+
+  const conflicts = [];
+  for (let i = 0; i < presentRows.length; i++) {
+    const r1 = presentRows[i];
+    for (let j = i + 1; j < presentRows.length; j++) {
+      const r2 = presentRows[j];
+      if (r1.code === r2.code && r1.line !== r2.line && _scanlaborTimesOverlap(r1.timeIn, r1.timeOut, r2.timeIn, r2.timeOut)) {
+        conflicts.push(`${r1.name} (${r1.code}): ${r1.line} (${r1.timeIn}-${r1.timeOut}) ชนกับ ${r2.line} (${r2.timeIn}-${r2.timeOut})`);
+      }
+    }
+    (otherRows || []).forEach(o => {
+      if (o.EmployeeCode !== r1.code) return;
+      if (o.MO_Ref === s.moId && o.Line === r1.line) return; // แถวเดียวกับที่กำลังจะบันทึกทับ ไม่ใช่ตัวชนกัน
+      if (o.TimeIn && o.TimeOut && _scanlaborTimesOverlap(r1.timeIn, r1.timeOut, o.TimeIn, o.TimeOut)) {
+        conflicts.push(`${r1.name} (${r1.code}): ${r1.line} (${r1.timeIn}-${r1.timeOut}) ชนกับ ${o.Line} ของ MO ${o.MO_Ref} (${o.TimeIn}-${o.TimeOut})`);
+      }
+    });
+  }
+  if (conflicts.length) {
+    _err('เวลาทำงานชนกัน', `พนักงานคนเดียวกันมีช่วงเวลาคาบเกี่ยวกันระหว่างไลน์:<br>${[...new Set(conflicts)].join('<br>')}`);
+    return;
+  }
+
   _showLoader();
   let totalSaved = 0;
   for (let li = 0; li < s.lines.length; li++) {
     const ld = s.lines[li];
-    const rows = ld.roster.map((r, i) => {
-      const present = document.querySelector(`.scanlabor-present[data-li="${li}"][data-i="${i}"]`)?.checked || false;
-      const timeIn  = document.getElementById(`scanlabor-timein-${li}-${i}`)?.value || null;
-      const timeOut = document.getElementById(`scanlabor-timeout-${li}-${i}`)?.value || null;
-      return { code: r.code, name: r.name, present, timeIn, timeOut };
-    });
+    const rows = allRows.filter(r => r.li === li);
     const toUpsert = rows.filter(r => r.present).map(r => ({
       MO_Ref: s.moId, Line: ld.line, WorkDate: s.workDate, EmployeeCode: r.code, EmployeeName: r.name,
       TimeIn: r.timeIn, TimeOut: r.timeOut,
