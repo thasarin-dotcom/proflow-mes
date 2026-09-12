@@ -25377,8 +25377,18 @@ function issueOpenModal(rowId = null, presetMoId = null) {
     if (!r) return;
     editId.value = rowId;
     title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขรายการเบิก';
+    // ตัวเลือก MO ต้องรวม MO ปัจจุบันของแถวนี้ไว้เสมอ แม้จะไม่อยู่ใน _issueMOList (ซึ่งกรองมาแค่ MO ที่ยัง
+    // "รอเบิก" เท่านั้น) — แถวที่กำลังแก้ไขมักผูกกับ MO ที่เบิกไปแล้ว/กำลังผลิตอยู่แล้ว จึงหลุดจากรายการนั้น
+    // ไปแล้วเสมอ ถ้าไม่เติมตัวเลือกนี้เข้าไป <select> จะไม่มีตัวเลือกให้ตรงกับ r.MO_ID เลย ทำให้ moSel.value
+    // เซ็ตไม่ติด (ค่ากลายเป็นว่าง) แล้วตอนกดบันทึก MO_ID ของ payload จะกลายเป็น null ทับของเดิม — บั๊กจริง
+    // 2026-09-12: แก้ไขยอดเบิกของ MO ที่เบิกไปแล้ว พอคำขอนั้นได้รับอนุมัติ แถวหลุดออกไปอยู่กลุ่ม "ไม่ระบุ MO"
+    const moOptsMap = new Map();
+    _issueMOList.forEach(m => moOptsMap.set(m.MO_ID, m));
+    if (r.MO_ID && !moOptsMap.has(r.MO_ID)) {
+      moOptsMap.set(r.MO_ID, _issueMOAllMap[r.MO_ID] || { MO_ID: r.MO_ID, ProductName: '' });
+    }
     moSel.innerHTML = '<option value="">— ไม่ระบุ MO —</option>' +
-      _issueMOList.map(m => `<option value="${m.MO_ID}">${m.MO_ID} — ${m.ProductName||''}</option>`).join('');
+      Array.from(moOptsMap.values()).map(m => `<option value="${m.MO_ID}">${m.MO_ID} — ${m.ProductName||''}</option>`).join('');
     document.getElementById('issue-f-date').value        = r.Date||'';
     moSel.value                                          = r.MO_ID||'';
     document.getElementById('issue-f-mat-search').value  = r.MaterialName||'';
