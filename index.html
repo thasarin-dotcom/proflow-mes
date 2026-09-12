@@ -1254,6 +1254,27 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 .lotlabel-item .lotlabel-name{font-size:9px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lotlabel-item .lotlabel-lot{font-size:10px;font-weight:700;margin-top:1mm}
 
+/* ── QR สแกนอัปเดตการผลิต (MO+ไลน์) — ไม่ใช่ป้ายเล็กชุดเดียวกับ Lot label, ต้องการ 1 หน้า A4 เต็ม
+   โชว์ QR ใหญ่ครบทุกไลน์ที่ MO นี้ใช้จริง (จาก production_plan.Line) ใช้ print-root/ปุ่มพิมพ์ร่วมกับ
+   #lotlabel-print-root/lotlabelPrint() เดิมทุกอย่าง (ไม่ต้องเพิ่ม print-mode/print-root ใหม่) แค่ HTML
+   ภายในเป็นเลย์เอาต์คนละแบบ (การ์ดใหญ่ 1-N ใบต่อหน้า แทนตารางป้ายเล็ก 24 ป้าย/แผ่น) ── */
+.progqr-page{
+  width:210mm;min-height:297mm;background:#fff;box-sizing:border-box;padding:12mm;
+  margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;gap:8mm;font-family:Sarabun,sans-serif;color:#000;
+}
+.progqr-page-header{text-align:center;font-weight:700;font-size:14px;color:#1e293b;border-bottom:2px solid #1e3a8a;padding-bottom:4mm}
+.progqr-page-header .code{color:#1e3a8a}
+.progqr-item{
+  flex:1;min-height:50mm;border:2px dashed #94a3b8;border-radius:4mm;padding:6mm;box-sizing:border-box;
+  display:flex;align-items:center;gap:8mm;page-break-inside:avoid;break-inside:avoid;
+}
+.progqr-item .qr svg{width:38mm;height:38mm;display:block;flex-shrink:0}
+.progqr-item .text{flex:1;min-width:0}
+.progqr-item .line{font-size:20px;font-weight:800;color:#1e3a8a}
+.progqr-item .name{font-size:13px;color:#334155;margin-top:2mm}
+.progqr-item .mo{font-size:12px;color:#64748b;margin-top:1mm}
+
 /* ── ป้ายกล่องต่อใบส่ง (dlvlabel) — ใช้ .lotlabel-sheet ร่วมกับป้าย Lot (แค่กรอบ A4 + wrap) แต่ตัว item เป็น
    คลาสแยกของตัวเอง ไม่ปนกับ .lotlabel-item เดิม กันกระทบป้าย Lot ที่ใช้งานอยู่แล้ว — ลำดับความเด่นตามที่ผู้ใช้
    ขอ: ชื่อสินค้าเด่นสุด (ยอมให้ 2 บรรทัด) > เลขที่ใบส่ง (ขยายใหญ่) > รหัสสินค้า (ไม่ต้องเด่น) */
@@ -1679,6 +1700,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </a>
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต">
+      <i class="fas fa-camera me-2"></i><span>สแกนอัปเดตการผลิต</span>
     </a>
     </div>
 
@@ -5823,6 +5847,58 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   </div>
 
   <!-- ══════════════════════════════════════════════
+       PAGE: สแกนอัปเดตการผลิต — สแกน QR (MO+ไลน์) แล้วกรอกยอดสะสมรวมล่าสุด อัปเดตเรียลไทม์ให้หน้า
+       "ภาพรวมการผลิต" เห็น — เป็นชั้นแสดงผลแยกต่างหาก ไม่เกี่ยวกับ production_records/รับ FG เลย
+       ══════════════════════════════════════════════ -->
+  <div class="page-view lotscan-flat" id="page-scanprogress">
+    <div class="page-header">
+      <h4 class="mb-1"><i class="fas fa-camera me-2"></i>สแกนอัปเดตการผลิต <span class="lotscan-flat-subtitle">เรียลไทม์</span></h4>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="lotscan-panel mb-0 py-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label mb-1 small">รหัส QR (พิมพ์เอง หรือสแกนกล้อง)</label>
+            <div class="input-group input-group-sm">
+              <input type="text" id="scanprogress-f-code" class="form-control" placeholder="เช่น PFPROG|MO-2609-07|ห้องบรรจุครีมโลชั่น"
+                autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scanprogressResolve(this.value);}">
+              <button class="btn btn-outline-secondary" onclick="scanprogressResolve(document.getElementById('scanprogress-f-code').value)" title="ค้นหา"><i class="fas fa-search"></i></button>
+              <button class="btn btn-outline-secondary" onclick="scanprogressOpenCamera()" title="เปิดกล้องสแกน"><i class="fas fa-camera"></i> สแกน</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div id="scanprogress-empty" class="lotscan-panel text-center py-5 lotscan-flat-muted">
+        <i class="fas fa-qrcode fa-2x mb-3 d-block"></i>สแกน QR ที่ติดหน้าไลน์ (หรือพิมพ์รหัสเอง) เพื่อกรอกยอดผลิตล่าสุด
+      </div>
+      <div id="scanprogress-notfound" class="lotscan-panel text-center py-5 text-danger d-none">
+        <i class="fas fa-circle-exclamation fa-2x mb-3 d-block"></i>
+        <div id="scanprogress-notfound-msg">ไม่พบ MO นี้ หรือรหัส QR ไม่ถูกต้อง</div>
+      </div>
+      <div id="scanprogress-result" class="d-none"></div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="scanprogressCameraModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold">สแกน QR ไลน์ผลิต</h6>
+          <button type="button" class="btn-close" onclick="scanprogressCloseCamera()"></button>
+        </div>
+        <div class="modal-body">
+          <div style="position:relative;width:100%;background:#000;border-radius:8px;overflow:hidden">
+            <video id="scanprogress-camera-video" style="width:100%;display:block" playsinline muted></video>
+          </div>
+          <div id="scanprogress-camera-status" class="text-muted small mt-2 text-center">กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
        PAGE: Audit Log — ใครแก้ไข/ลบ/อนุมัติอะไรไปบ้าง (อ่านอย่างเดียว ไม่มีปุ่มแก้ไข/ลบ)
        ══════════════════════════════════════════════ -->
   <div class="page-view" id="page-auditlog">
@@ -6108,6 +6184,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
      _renderPublicReport ท้ายไฟล์ (เรียกจาก DOMContentLoaded ก่อนเช็ค session ใดๆ) -->
 <div id="publicReportView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
   <div style="padding:16px 24px" id="publicReportBody">
+    <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
+  </div>
+</div>
+
+<!-- สแกน QR ไลน์ผลิตแล้วเข้าหน้านี้ตรงๆ (?scanprog=1&mo=...&line=...) — ไม่ต้อง login/เข้าแอพเลย
+     กันด้วยเบอร์โทรที่ต้องตรงกับพนักงานที่ยังทำงานอยู่แทน (ดู supabase_functions/scan-progress) -->
+<div id="scanProgressPublicView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
+  <div style="padding:16px 24px;max-width:480px;margin:0 auto" id="scanProgressPublicBody">
     <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
   </div>
 </div>
@@ -6434,16 +6518,16 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title fw-bold"><i class="fas fa-qrcode me-2"></i>พิมพ์ป้าย Lot (QR)</h6>
+        <h6 class="modal-title fw-bold" id="lotlabel-modal-title"><i class="fas fa-qrcode me-2"></i>พิมพ์ป้าย Lot (QR)</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div class="row g-2 align-items-end mb-2 px-1">
-          <div class="col-auto">
+          <div class="col-auto" id="lotlabel-qty-col">
             <label class="form-label mb-1 small">จำนวนป้าย</label>
             <input type="number" id="lotlabel-qty" class="form-control form-control-sm" style="width:90px" min="1" value="1" oninput="_lotlabelRenderPreview()">
           </div>
-          <div class="col-auto text-muted small">
+          <div class="col-auto text-muted small" id="lotlabel-modal-hint">
             QR เข้ารหัสรหัส Lot ตรงๆ — สแกนที่หน้า "Lot Scan" เพื่อดูตรวจสอบย้อนกลับได้ทันที
           </div>
         </div>
@@ -7864,6 +7948,7 @@ const _PAGE_LOADERS = {
   'auditlog'  : auditlogLoadData,
   'signuprequests': signupreqLoadData,
   'lotscan'   : lotscanInit,
+  'scanprogress': scanprogressInit,
   'userroles' : userrolesLoadData,
 };
 
@@ -9071,6 +9156,9 @@ function renderMOTable() {
           </button>
           <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();moReleasedOpenModal(${r._row_id})" title="ออกใบ Released (สติกเกอร์เขียว QC)">
             <i class="fas fa-tag me-1"></i>ใบ Released
+          </button>
+          <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();progressqrPrintForMO('${r.MO_ID}','${(r.ProductName||'').replace(/'/g,"\\'")}')" title="พิมพ์ QR ติดหน้าไลน์ครบทุกไลน์ของ MO นี้ ใน 1 หน้า A4 — สำหรับสแกนอัปเดตยอดผลิตเรียลไทม์">
+            <i class="fas fa-qrcode me-1"></i>QR สแกนอัปเดต
           </button>
           ${!isDone ? `<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();moForceClose(${r._row_id})" title="ตัดจบงาน (ปิดแม้ผลิตไม่ครบ)">
             <i class="fas fa-flag-checkered me-1"></i>ตัดจบงาน
@@ -15923,6 +16011,139 @@ let _pubReportRefreshStarted = false;
 // เรียกจาก DOMContentLoaded ตอนพบ ?report=TOKEN — render หน้ารายงานสาธารณะแทนแอปปกติทั้งหมด ไม่ผ่าน
 // login/RLS เลย (ข้อมูลมาจาก Edge Function plan-report ที่อ่านด้วย service_role) ใช้ CSS/คลาสของแอป
 // เอง (glass-card, table, badge ฯลฯ) ที่โหลดอยู่แล้วในหน้านี้ ไม่ต้องทำหน้าแยก
+// ── สแกน QR "PFPROG" แล้วเปิดหน้านี้ตรงๆ ไม่ต้อง login เลย (?scanprog=1&mo=...&line=...) — กันด้วยเบอร์
+// โทรที่ต้องตรงกับพนักงาน (Status='ทำงานอยู่') ผ่าน Edge Function scan-progress เท่านั้น (service_role
+// ฝั่งนั้นเป็นทางเดียวที่คนไม่ login เขียนลง production_progress ได้ RLS ของตารางนี้ยังบังคับ authenticated
+// เหมือนเดิมทุกทางอื่น) — โครงหน้าคัดลอกจาก _renderPublicReport ด้านล่าง (fixed overlay เต็มจอ, ไม่มี
+// sidebar/login gate ใดๆ) ──
+async function _renderPublicScanProgress(moId, line) {
+  document.getElementById('scanProgressPublicView').style.display = 'block';
+  const bodyEl = document.getElementById('scanProgressPublicBody');
+  if (!moId || !line) {
+    bodyEl.innerHTML = `<div class="text-center py-5">
+      <div style="font-size:1.2rem;font-weight:700">⚠️ ลิงก์ไม่ถูกต้อง</div>
+      <div class="text-muted small mt-2">กรุณาสแกน QR ที่ติดหน้าไลน์ใหม่อีกครั้ง</div>
+    </div>`;
+    return;
+  }
+  const savedPhone = sessionStorage.getItem('scanprog_phone') || '';
+  bodyEl.innerHTML = `
+    <div class="text-center mb-3 pt-4">
+      <img src="wisenovation_LOGO -Cut.png" style="height:32px" class="mb-2"><br>
+      <h5 class="fw-bold" style="color:#1e3a8a">สแกนอัปเดตการผลิต</h5>
+      <div class="text-muted small">MO: <b>${moId}</b> · ไลน์: <b>${line}</b></div>
+    </div>
+    <div class="glass-card p-3">
+      <label class="form-label small fw-bold">เบอร์โทรศัพท์ (ยืนยันว่าใครกรอก)</label>
+      <input type="tel" id="scanprog-pub-phone" class="form-control mb-2" placeholder="0812345678" value="${savedPhone}" autofocus
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_scanprogPubVerify('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}');}">
+      <button class="btn btn-primary w-100" id="scanprog-pub-verify-btn" onclick="_scanprogPubVerify('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}')">
+        <i class="fas fa-arrow-right me-1"></i>ถัดไป
+      </button>
+      <div id="scanprog-pub-msg" class="text-danger small mt-2"></div>
+    </div>`;
+}
+
+async function _scanprogPubVerify(moId, line) {
+  const phone = (document.getElementById('scanprog-pub-phone').value || '').trim();
+  const msgEl = document.getElementById('scanprog-pub-msg');
+  msgEl.textContent = '';
+  if (!phone) { msgEl.textContent = 'กรุณากรอกเบอร์โทรศัพท์'; return; }
+  const btn = document.getElementById('scanprog-pub-verify-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังตรวจสอบ...';
+  let data;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-progress`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'load', phone, moId, line }),
+    });
+    data = await res.json();
+  } catch (e) {
+    msgEl.textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>ถัดไป';
+    return;
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>ถัดไป';
+  if (!data || !data.ok) {
+    const msgMap = {
+      phone_not_found: 'ไม่พบเบอร์นี้ในระบบพนักงานที่ยังทำงานอยู่ กรุณาตรวจสอบเบอร์อีกครั้ง',
+      mo_not_found: 'ไม่พบ MO นี้ในระบบ',
+      missing_phone: 'กรุณากรอกเบอร์โทรศัพท์',
+      missing_mo_or_line: 'ลิงก์ไม่ถูกต้อง',
+    };
+    msgEl.textContent = msgMap[data?.error] || 'ไม่สามารถตรวจสอบได้ ลองใหม่อีกครั้ง';
+    return;
+  }
+  sessionStorage.setItem('scanprog_phone', phone);
+  _scanprogPubRenderForm(moId, line, phone, data);
+}
+
+function _scanprogPubRenderForm(moId, line, phone, data) {
+  const bodyEl = document.getElementById('scanProgressPublicBody');
+  const mo = data.mo || {};
+  bodyEl.innerHTML = `
+    <div class="text-center mb-3 pt-4">
+      <img src="wisenovation_LOGO -Cut.png" style="height:32px" class="mb-2"><br>
+      <h5 class="fw-bold" style="color:#1e3a8a">สแกนอัปเดตการผลิต</h5>
+    </div>
+    <div class="glass-card p-3">
+      <div class="alert alert-success py-2 small mb-3"><i class="fas fa-user-check me-1"></i>ผู้กรอก: <b>${data.employeeName}</b></div>
+      <div class="mb-2">
+        <span class="badge bg-secondary me-2">${moId}</span>
+        <b>${mo.ProductName || '—'}</b>
+        <span class="badge ms-2" style="background:${_planLineColor(line)}">${line}</span>
+      </div>
+      <div class="text-muted small mb-3">
+        เป้าหมาย ${(parseFloat(mo.OrderQty)||0).toLocaleString()} ${mo.UOM||''}
+        ${data.lastQty != null ? `<br>ยอดล่าสุดที่กรอกไว้: <b>${(parseFloat(data.lastQty)||0).toLocaleString()}</b> ${mo.UOM||''} (${_fmtDateTime(data.lastAt)})` : ''}
+      </div>
+      <label class="form-label small fw-bold">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
+      <div class="input-group mb-2">
+        <input type="number" id="scanprog-pub-qty" class="form-control" min="0" step="any" value="${data.lastQty != null ? data.lastQty : ''}">
+        <span class="input-group-text">${mo.UOM||''}</span>
+      </div>
+      <button class="btn btn-primary w-100" id="scanprog-pub-submit-btn" onclick="_scanprogPubSubmit('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}','${phone}')">
+        <i class="fas fa-check me-1"></i>อัปเดต
+      </button>
+      <div id="scanprog-pub-msg2" class="text-danger small mt-2"></div>
+    </div>`;
+  const qtyInput = document.getElementById('scanprog-pub-qty');
+  if (qtyInput) qtyInput.focus();
+}
+
+async function _scanprogPubSubmit(moId, line, phone) {
+  const qtyInput = document.getElementById('scanprog-pub-qty');
+  const msgEl = document.getElementById('scanprog-pub-msg2');
+  const qty = parseFloat(qtyInput.value);
+  if (isNaN(qty) || qty < 0) { msgEl.textContent = 'กรุณากรอกตัวเลขที่ถูกต้อง'; return; }
+  const btn = document.getElementById('scanprog-pub-submit-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังบันทึก...';
+  let data;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-progress`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', phone, moId, line, qty }),
+    });
+    data = await res.json();
+  } catch (e) {
+    msgEl.textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>อัปเดต';
+    return;
+  }
+  if (!data || !data.ok) {
+    msgEl.textContent = 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>อัปเดต';
+    return;
+  }
+  const bodyEl = document.getElementById('scanProgressPublicBody');
+  bodyEl.innerHTML = `<div class="text-center py-5">
+    <div style="font-size:2.2rem;color:#22c55e"><i class="fas fa-circle-check"></i></div>
+    <div style="font-size:1.1rem;font-weight:700;margin-top:8px">อัปเดตแล้ว</div>
+    <div class="text-muted small mt-1">${(data.mo && data.mo.ProductName) || moId} · ${line}<br>ยอด ${qty.toLocaleString()} ${(data.mo && data.mo.UOM) || ''}</div>
+    <button class="btn btn-outline-primary btn-sm mt-3" onclick="location.reload()"><i class="fas fa-rotate me-1"></i>สแกนอีกครั้ง</button>
+  </div>`;
+}
+
 async function _renderPublicReport(token) {
   document.getElementById('publicReportView').style.display = 'block';
   const bodyEl = document.getElementById('publicReportBody');
@@ -16946,6 +17167,7 @@ let _prodStatusMOData      = [];   // manufacturing_orders ที่สถาน
 let _prodStatusPlanWeekData = [];  // production_plan rows ในช่วง 7 วัน (ย้อนหลัง 1 + วันนี้ + ล่วงหน้า 5)
 let _prodStatusPlanAllData  = [];  // production_plan rows ของ MO ที่กำลังดำเนินการ "ทุกวันที่" (เช็คว่ามีแผนหรือยัง)
 let _prodStatusRecords     = {};   // ProdRecord_ID → production_records row (เทียบแผน vs ผลจริงของวันนี้)
+let _prodStatusProgressData = {};  // "{MO_Ref}|{Line}" → แถวล่าสุดจาก production_progress (สแกน QR หน้างาน, เรียลไทม์)
 // รวม 'แพลนแล้ว' (จองวัตถุดิบ + มักมีแผนบนปฏิทินแล้วจากปุ่ม "แพลนการผลิต" ที่หน้า MO) ไว้ด้วย ไม่งั้น MO ที่แพลนไว้
 // จะหายไปจากแดชบอร์ดนี้ทั้งหมด (ตาราง MO, Gantt, และ moByID lookup ของการ์ด "รายละเอียดวันนี้") ทั้งที่กำลังจะผลิตจริง
 const _prodStatusActiveMOStatuses = ['แพลนแล้ว', 'ยืนยันการผลิต', 'เบิกแล้ว', 'กำลังผลิต'];
@@ -17000,6 +17222,18 @@ async function loadProdStatusData() {
     const { data: recData, error: recErr } = await _sb.from('production_records')
       .select('ProdRecord_ID,FG_Planned,FG_Actual,UOM').in('ProdRecord_ID', todayRefs);
     if (!recErr) (recData || []).forEach(rec => { _prodStatusRecords[rec.ProdRecord_ID] = rec; });
+  }
+
+  // ยอดสแกนล่าสุดจากหน้า "สแกนอัปเดตการผลิต" ต่อ (MO_Ref, Line) — ดึงทุกแถวของ MO ที่กำลังดำเนินการอยู่
+  // มาเรียงใหม่สุดก่อนแล้วเก็บเฉพาะแถวแรกต่อคีย์ (PostgREST ไม่มี DISTINCT ON ให้ใช้ตรงๆ)
+  _prodStatusProgressData = {};
+  if (moIds.length) {
+    const { data: progData, error: progErr } = await _sb.from('production_progress')
+      .select('MO_Ref,Line,Qty,CreatedAt').in('MO_Ref', moIds).order('CreatedAt', { ascending: false });
+    if (!progErr) (progData || []).forEach(p => {
+      const key = `${p.MO_Ref}|${p.Line}`;
+      if (!_prodStatusProgressData[key]) _prodStatusProgressData[key] = p;
+    });
   }
 
   _hideLoader();
@@ -17126,6 +17360,15 @@ function prodStatusRenderTodayCards() {
       </div>`;
     }
 
+    // ยอดสแกนสดจากหน้างาน (production_progress) — ชั้นแสดงผลเรียลไทม์แยกต่างหาก ไม่เกี่ยวกับ progressHtml
+    // ด้านบน (ซึ่งอิง production_records/FG_Actual ที่กรอกตอนจบล็อต) โชว์ต่อเมื่อมีคนสแกนไว้จริงเท่านั้น
+    const liveProg = r.MO_Ref ? _prodStatusProgressData[`${r.MO_Ref}|${r.Line}`] : null;
+    const liveProgHtml = !liveProg ? '' : `<div class="mt-2 small d-flex align-items-center gap-2">
+      <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="fas fa-tower-broadcast me-1"></i>LIVE จากสแกน</span>
+      <b>${(parseFloat(liveProg.Qty)||0).toLocaleString()} ${r.UOM||''}</b>
+      <span class="text-muted">(${_fmtDateTime(liveProg.CreatedAt)})</span>
+    </div>`;
+
     const mo = r.MO_Ref ? moByID[r.MO_Ref] : null;
     let moContextHtml = '';
     if (mo) {
@@ -17154,6 +17397,7 @@ function prodStatusRenderTodayCards() {
         <span><i class="fas fa-users"></i>${r.Workers||'ไม่ระบุ'}</span>
       </div>
       ${progressHtml}
+      ${liveProgHtml}
       ${moContextHtml}
     </div>`;
   }).join('');
@@ -30021,16 +30265,35 @@ let _lotlabelModal   = null;
 let _lotlabelCurrent = null;
 
 function lotlabelOpenPrint(kind, code, name, lot) {
-  if (!lot) { _err('ไม่มี Lot', 'รายการนี้ไม่มีรหัส Lot ให้พิมพ์ป้าย'); return; }
+  if (!lot) {
+    if (kind === 'PROG') { _err('ไม่มีไลน์ที่เลือก', 'กรุณาเลือกไลน์ผลิตก่อนพิมพ์ QR'); return; }
+    _err('ไม่มี Lot', 'รายการนี้ไม่มีรหัส Lot ให้พิมพ์ป้าย'); return;
+  }
   _lotlabelCurrent = { kind, code, name, lot };
   document.getElementById('lotlabel-qty').value = 1;
+  const qtyColEl = document.getElementById('lotlabel-qty-col');
+  if (qtyColEl) qtyColEl.style.display = ''; // โหมดป้ายเดี่ยว/ป้าย Lot ยังใช้ช่องจำนวนป้ายอยู่ (ต่างจากโหมด QR หลายไลน์ต่อ MO)
+  const titleEl = document.getElementById('lotlabel-modal-title');
+  const hintEl  = document.getElementById('lotlabel-modal-hint');
+  if (kind === 'PROG') {
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-qrcode me-2"></i>พิมพ์ QR สแกนอัปเดตการผลิต';
+    if (hintEl)  hintEl.textContent = 'QR นี้เป็นลิงก์จริง — สแกนด้วยกล้องมือถือทั่วไปได้เลย ไม่ต้องเข้าแอพ ระบบจะขอเบอร์โทรยืนยันตัวตนก่อนกรอกยอด';
+  } else {
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-qrcode me-2"></i>พิมพ์ป้าย Lot (QR)';
+    if (hintEl)  hintEl.textContent = 'QR เข้ารหัสรหัส Lot ตรงๆ — สแกนที่หน้า "Lot Scan" เพื่อดูตรวจสอบย้อนกลับได้ทันที';
+  }
   _lotlabelRenderPreview();
   if (!_lotlabelModal) _lotlabelModal = new bootstrap.Modal(document.getElementById('lotlabelPrintModal'));
   _lotlabelModal.show();
 }
 
+// kind='PROG' (added สำหรับฟีเจอร์ "สแกนอัปเดตการผลิต") ใช้พารามิเตอร์ lot piggyback เก็บชื่อไลน์ผลิต
+// แทน Lot จริง — เข้ารหัสเป็น "ลิงก์จริง" ไปหน้าสาธารณะ ?scanprog=1 (ไม่ใช่ข้อความดิบแบบ PFLOT) เพื่อให้
+// กล้องมือถือทั่วไปสแกนแล้วเปิดเว็บได้เลย ไม่ต้องผ่านแอพ/login (ดู _renderPublicScanProgress)
 function _lotlabelBuildItemHTML(d) {
-  const content = `PFLOT|${d.kind}|${d.code}|${d.lot}`;
+  const content = d.kind === 'PROG'
+    ? `https://proflow-mes.vercel.app/?scanprog=1&mo=${encodeURIComponent(d.code)}&line=${encodeURIComponent(d.lot)}`
+    : `PFLOT|${d.kind}|${d.code}|${d.lot}`;
   const qr = qrcode(0, 'L');
   qr.addData(content);
   qr.make();
@@ -30040,9 +30303,252 @@ function _lotlabelBuildItemHTML(d) {
     <div class="lotlabel-text">
       <div class="lotlabel-code">${d.code}</div>
       <div class="lotlabel-name">${d.name || ''}</div>
-      <div class="lotlabel-lot">Lot ${d.lot}</div>
+      <div class="lotlabel-lot">${d.kind === 'PROG' ? `ไลน์: ${d.lot}` : `Lot ${d.lot}`}</div>
     </div>
   </div>`;
+}
+
+// ── ปุ่ม "QR สแกนอัปเดต" ที่หน้า MO — เลือกไลน์ผลิตก่อนพิมพ์ (1 MO อาจวิ่งได้หลายไลน์) แล้วเข้า pipeline
+// พิมพ์ป้ายเดียวกับ Lot label ทุกอย่าง (print-root/pagination/CSS) ต่างแค่เนื้อหา QR ──
+async function progressqrPromptLine(moId, productName) {
+  const options = PLAN_LINES.map(l => `<option value="${l.replace(/"/g,'&quot;')}">${l}</option>`).join('');
+  const { value: line } = await Swal.fire({
+    title: 'เลือกไลน์ผลิตสำหรับพิมพ์ QR',
+    html: `<select id="progressqr-line-select" class="form-select">${options}</select>`,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'ถัดไป',
+    cancelButtonText: 'ยกเลิก',
+    preConfirm: () => document.getElementById('progressqr-line-select').value,
+  });
+  if (!line) return;
+  lotlabelOpenPrint('PROG', moId, productName, line);
+}
+
+// ── ปุ่ม "QR สแกนอัปเดต" ที่หน้า MO (ทางหลัก) — ดึงไลน์ผลิตจริงของ MO นี้จาก production_plan.Line (ผูกไว้
+// ตอน "สั่งผลิต"/planOrderProduction แล้ว ทุกไลน์ของ 1 งานแชร์ MO_Ref เดียวกัน) แล้วพิมพ์ QR ครบทุกไลน์ในหน้า
+// A4 เดียว ไม่ต้องเลือกเอง — ถ้า MO นี้ไม่เคยผ่านแผนผลิตเลย (ไม่มีแถว production_plan ผูกอยู่) ตกกลับไปให้
+// เลือกไลน์เอง (progressqrPromptLine เดิม) แทน ──
+async function progressqrPrintForMO(moId, productName) {
+  _showLoader();
+  const { data, error } = await _sb.from('production_plan').select('Line').eq('MO_Ref', moId);
+  _hideLoader();
+  if (error) { _err('โหลดไลน์ผลิตของ MO นี้ไม่ได้', error.message); return; }
+  const lines = [...new Set((data || []).map(r => r.Line).filter(Boolean))];
+  if (!lines.length) { await progressqrPromptLine(moId, productName); return; }
+  _progressqrRenderMultiPage(moId, productName, lines);
+}
+
+function _progressqrBuildItemHTML(moId, productName, line) {
+  // ลิงก์จริง ไม่ใช่ข้อความดิบ — กล้องมือถือทั่วไปสแกนแล้วเปิดหน้ากรอกได้เลย ไม่ต้องเข้าแอพ (ดู _renderPublicScanProgress)
+  const content = `https://proflow-mes.vercel.app/?scanprog=1&mo=${encodeURIComponent(moId)}&line=${encodeURIComponent(line)}`;
+  const qr = qrcode(0, 'L');
+  qr.addData(content);
+  qr.make();
+  const svg = qr.createSvgTag({ cellSize: 6, margin: 2 });
+  return `<div class="progqr-item">
+    <div class="qr">${svg}</div>
+    <div class="text">
+      <div class="line">${line}</div>
+      <div class="name">${productName || ''}</div>
+      <div class="mo">MO: ${moId}</div>
+    </div>
+  </div>`;
+}
+
+// 1 MO = 1 หน้า A4 แนวตั้ง, 1 QR ใหญ่ต่อไลน์ผลิต (ไม่ใช่ตารางป้ายเล็ก 24 ป้าย/แผ่นแบบ Lot label) — ใช้
+// print-root/ปุ่มพิมพ์ร่วมกับ #lotlabel-print-root/lotlabelPrint() เดิมทุกอย่าง แค่ข้าม _lotlabelRenderPreview()
+// (ซึ่งออกแบบไว้สำหรับ "ป้ายเดียวกัน N ใบ" ไม่ใช่ "คนละไลน์กัน N ใบ") แล้วเซ็ต HTML ของตัวเองตรงๆ แทน
+function _progressqrRenderMultiPage(moId, productName, lines) {
+  _lotlabelCurrent = null; // ปิดโหมดป้ายเดี่ยวเดิม กันปุ่มจำนวนป้าย/oninput เดิมมาชนกับ HTML ที่เซ็ตเอง
+  const items = lines.map(l => _progressqrBuildItemHTML(moId, productName, l)).join('');
+  const html = `<div class="progqr-page">
+    <div class="progqr-page-header">QR สแกนอัปเดตการผลิต — <span class="code">${moId}</span> · ${productName || ''} (${lines.length} ไลน์)</div>
+    ${items}
+  </div>`;
+  const titleEl = document.getElementById('lotlabel-modal-title');
+  const hintEl  = document.getElementById('lotlabel-modal-hint');
+  const qtyColEl = document.getElementById('lotlabel-qty-col');
+  if (titleEl) titleEl.innerHTML = '<i class="fas fa-qrcode me-2"></i>พิมพ์ QR สแกนอัปเดตการผลิต';
+  if (hintEl)  hintEl.textContent = `MO นี้ผลิต ${lines.length} ไลน์ (${lines.join(', ')}) — สแกนด้วยกล้องมือถือทั่วไปได้เลย ไม่ต้องเข้าแอพ ระบบจะขอเบอร์โทรยืนยันตัวตนก่อนกรอกยอด`;
+  if (qtyColEl) qtyColEl.style.display = 'none'; // โหมดนี้ 1 ไลน์ = 1 ใบตายตัว ไม่มีให้เลือกจำนวนซ้ำ
+  document.getElementById('lotlabel-preview-body').innerHTML = html;
+  document.getElementById('lotlabel-print-root').innerHTML   = html;
+  if (!_lotlabelModal) _lotlabelModal = new bootstrap.Modal(document.getElementById('lotlabelPrintModal'));
+  _lotlabelModal.show();
+}
+
+// ══════════════════════════════════════════════
+// PAGE: สแกนอัปเดตการผลิต — สแกน QR "PFPROG|{MO_ID}|{Line}" แล้วกรอกยอดสะสมรวม ณ ตอนนี้ ลง
+// production_progress (log ใหม่ทุกครั้ง ไม่ overwrite) — เป็นชั้นแสดงผลเรียลไทม์แยกต่างหาก ไม่แตะ
+// production_records/fg_receive/สถานะ MO ใดๆ เลย ดูหมายเหตุที่ create_production_progress.sql
+// ══════════════════════════════════════════════
+let _scanprogressCurrent       = null; // { moId, line, mo, lastQty, lastAt }
+let _scanprogressCameraModal   = null;
+let _scanprogressCameraStream  = null;
+let _scanprogressAutoScanRAF   = null;
+let _scanprogressScanCanvas    = null;
+
+function scanprogressInit() {
+  _scanprogressCurrent = null;
+  const codeEl = document.getElementById('scanprogress-f-code');
+  if (codeEl) codeEl.value = '';
+  document.getElementById('scanprogress-empty').classList.remove('d-none');
+  document.getElementById('scanprogress-notfound').classList.add('d-none');
+  document.getElementById('scanprogress-result').classList.add('d-none');
+}
+
+async function scanprogressOpenCamera() {
+  if (!_scanprogressCameraModal) _scanprogressCameraModal = new bootstrap.Modal(document.getElementById('scanprogressCameraModal'));
+  _scanprogressCameraModal.show();
+  document.getElementById('scanprogress-camera-status').textContent = 'กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR';
+  try {
+    _scanprogressCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('scanprogress-camera-video');
+    video.srcObject = _scanprogressCameraStream;
+    await video.play();
+    _scanprogressStartAutoScan();
+  } catch (e) {
+    _err('เปิดกล้องไม่สำเร็จ', 'กรุณาอนุญาตสิทธิ์กล้องให้เว็บนี้ หรือพิมพ์รหัส QR เองด้านบนแทน');
+    scanprogressCloseCamera();
+  }
+}
+
+// วนอ่าน jsQR จากเฟรมสดของวิดีโอ — ย่อภาพเหลือกว้างสุด 640px ก่อนถอด (เหมือน lotscan auto-scan) เร็วพอรันทุกเฟรม
+function _scanprogressStartAutoScan() {
+  const video = document.getElementById('scanprogress-camera-video');
+  if (!_scanprogressScanCanvas) _scanprogressScanCanvas = document.createElement('canvas');
+  const canvas = _scanprogressScanCanvas;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const tick = () => {
+    if (!_scanprogressCameraStream) return; // ปิดกล้องไปแล้ว หยุดลูปเงียบๆ
+    if (video.videoWidth && typeof jsQR === 'function') {
+      const scale = Math.min(1, 640 / video.videoWidth);
+      canvas.width  = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (qr && qr.data) {
+        const code = qr.data;
+        scanprogressCloseCamera();
+        document.getElementById('scanprogress-f-code').value = code;
+        scanprogressResolve(code);
+        return;
+      }
+    }
+    _scanprogressAutoScanRAF = requestAnimationFrame(tick);
+  };
+  _scanprogressAutoScanRAF = requestAnimationFrame(tick);
+}
+
+function scanprogressCloseCamera() {
+  if (_scanprogressCameraModal) _scanprogressCameraModal.hide();
+  if (_scanprogressAutoScanRAF) { cancelAnimationFrame(_scanprogressAutoScanRAF); _scanprogressAutoScanRAF = null; }
+  if (_scanprogressCameraStream) {
+    _scanprogressCameraStream.getTracks().forEach(t => t.stop());
+    _scanprogressCameraStream = null;
+  }
+}
+
+// รูปแบบรหัส "PFPROG|{MO_ID}|{Line}" — ตรงกับที่ progressqrPromptLine()/lotlabelOpenPrint('PROG',...) พิมพ์ไว้
+// รองรับ 2 รูปแบบ: ลิงก์จริง "https://.../?scanprog=1&mo=...&line=..." (รูปแบบปัจจุบันที่พิมพ์ออกมา ตั้งแต่
+// เปลี่ยนให้กล้องมือถือทั่วไปสแกนแล้วเปิดหน้าได้เลยไม่ต้องผ่านแอพ — ดู _renderPublicScanProgress) หรือ
+// ข้อความดิบ "PFPROG|{MO_ID}|{Line}" แบบเดิม (เผื่อยังมีป้ายเก่าที่พิมพ์ไว้ก่อนหน้านี้ค้างอยู่หน้างาน)
+async function scanprogressResolve(raw) {
+  const text = (raw || '').trim();
+  if (!text) return;
+  let moId = null, line = null;
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const u = new URL(text);
+      moId = u.searchParams.get('mo');
+      line = u.searchParams.get('line');
+    } catch (e) { /* ไม่ใช่ URL ที่ parse ได้ ปล่อยให้ moId/line เป็น null ต่อไป */ }
+  } else {
+    const parts = text.split('|');
+    if (parts[0] === 'PFPROG' && parts.length >= 3) {
+      moId = parts[1];
+      line = parts.slice(2).join('|'); // กันไว้เผื่อชื่อไลน์มี "|" ปนมา (ไม่น่าเกิดจริง)
+    }
+  }
+  if (!moId || !line) {
+    document.getElementById('scanprogress-empty').classList.add('d-none');
+    document.getElementById('scanprogress-result').classList.add('d-none');
+    document.getElementById('scanprogress-notfound').classList.remove('d-none');
+    document.getElementById('scanprogress-notfound-msg').textContent = 'รหัสนี้ไม่ใช่ QR สแกนอัปเดตการผลิต — สแกนป้ายที่พิมพ์จากปุ่ม "QR สแกนอัปเดต" ที่หน้า MO';
+    return;
+  }
+  await scanprogressLoad(moId, line);
+}
+
+async function scanprogressLoad(moId, line) {
+  _showLoader();
+  const [moRes, progRes] = await Promise.all([
+    _sb.from('manufacturing_orders').select('*').eq('MO_ID', moId),
+    _sb.from('production_progress').select('*').eq('MO_Ref', moId).eq('Line', line).order('CreatedAt', { ascending: false }).limit(1),
+  ]);
+  _hideLoader();
+  if (moRes.error || !moRes.data || !moRes.data.length) {
+    document.getElementById('scanprogress-empty').classList.add('d-none');
+    document.getElementById('scanprogress-result').classList.add('d-none');
+    document.getElementById('scanprogress-notfound').classList.remove('d-none');
+    document.getElementById('scanprogress-notfound-msg').textContent = `ไม่พบ MO "${moId}" ในระบบ`;
+    return;
+  }
+  const mo = moRes.data[0];
+  const last = (progRes.data && progRes.data[0]) || null;
+  _scanprogressCurrent = { moId, line, mo, lastQty: last ? parseFloat(last.Qty) : null, lastAt: last ? last.CreatedAt : null };
+  _scanprogressRender();
+}
+
+function _scanprogressRender() {
+  const s = _scanprogressCurrent;
+  document.getElementById('scanprogress-empty').classList.add('d-none');
+  document.getElementById('scanprogress-notfound').classList.add('d-none');
+  const el = document.getElementById('scanprogress-result');
+  el.classList.remove('d-none');
+  const mo = s.mo;
+  const orderQty = parseFloat(mo.OrderQty) || 0;
+  el.innerHTML = `<div class="glass-card p-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+      <div>
+        <span class="badge bg-secondary me-2">${mo.MO_ID}</span>
+        <b>${mo.ProductName || '—'}</b>
+        <span class="badge ms-2" style="background:${_planLineColor(s.line)}">${s.line}</span>
+      </div>
+      <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">เป้าหมาย ${orderQty.toLocaleString()} ${mo.UOM||''}</span>
+    </div>
+    <div class="text-muted small mb-3">
+      ${s.lastQty != null
+        ? `ยอดล่าสุดที่กรอกไว้: <b>${s.lastQty.toLocaleString()}</b> ${mo.UOM||''} (${_fmtDateTime(s.lastAt)})`
+        : 'ยังไม่มีใครกรอกยอดของไลน์นี้มาก่อน'}
+    </div>
+    <label class="form-label small fw-bold">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
+    <div class="input-group mb-2">
+      <input type="number" id="scanprogress-f-qty" class="form-control" min="0" step="any" value="${s.lastQty != null ? s.lastQty : ''}">
+      <span class="input-group-text">${mo.UOM||''}</span>
+    </div>
+    <button class="btn btn-primary w-100" onclick="scanprogressSubmit()"><i class="fas fa-check me-1"></i>อัปเดต</button>
+  </div>`;
+  const qtyInput = document.getElementById('scanprogress-f-qty');
+  if (qtyInput) qtyInput.focus();
+}
+
+async function scanprogressSubmit() {
+  const s = _scanprogressCurrent;
+  if (!s) return;
+  const qtyInput = document.getElementById('scanprogress-f-qty');
+  const qty = parseFloat(qtyInput.value);
+  if (isNaN(qty) || qty < 0) { _err('กรอกยอดไม่ถูกต้อง', 'กรุณากรอกตัวเลขยอดผลิตสะสม (0 ขึ้นไป)'); return; }
+  _showLoader();
+  const { error } = await _sb.from('production_progress').insert({
+    MO_Ref: s.moId, Line: s.line, Qty: qty, ScannedBy: _currentUser?.email || null,
+  });
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+  Swal.fire({ icon: 'success', title: 'อัปเดตแล้ว', text: `${s.mo.ProductName || s.moId} · ${s.line} — ${qty.toLocaleString()} ${s.mo.UOM||''}`, timer: 1400, showConfirmButton: false });
+  await scanprogressLoad(s.moId, s.line); // รีเฟรชยอดล่าสุดในหน้าตัวเอง ไม่ต้องรอ realtime debounce
 }
 
 // ── ตัดป้าย (ทั้งป้าย Lot และป้ายกล่องต่อใบส่ง) เป็นชุดๆ ต่อแผ่น A4 จริง ไม่ปล่อยให้ .lotlabel-sheet เดียวยาวเกิน
@@ -30567,7 +31073,7 @@ function _renderCurrentUserBadge() {
 //
 // หน้า Lot Scan (lotscanInit) exclude ออกทั้งหน้า — เรียกซ้ำจะรีเซ็ตผลค้นหา/ประวัติที่ผู้ใช้กำลังดูอยู่ทันที
 // (ฟังก์ชันนี้ออกแบบมาให้เรียกตอนเข้าเพจครั้งแรกเท่านั้น ไม่ใช่ตอนรีเฟรชข้อมูลเบื้องหลัง)
-const _REALTIME_SKIP_PAGES = new Set(['lotscan']);
+const _REALTIME_SKIP_PAGES = new Set(['lotscan', 'scanprogress']);
 let _realtimeChannel = null;
 let _realtimeRefreshTimer = null;
 // บัฟเฟอร์ payload ของ postgres_changes ที่มาระหว่างรอ debounce (แต่ละตัวมี {table,eventType,new,old})
@@ -30688,6 +31194,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // โหมดรายงานสาธารณะ (?report=TOKEN) — ข้าม login/auth ทั้งหมด ไม่ต้องรอ session ใดๆ
   const _reportToken = new URLSearchParams(location.search).get('report');
   if (_reportToken) { _renderPublicReport(_reportToken); return; }
+
+  // โหมดสแกน QR อัปเดตการผลิตแบบไม่ต้อง login (?scanprog=1&mo=...&line=...) — ข้าม login/auth ทั้งหมด
+  // เช่นกัน เหมือน ?report= ด้านบน แต่กันด้วยเบอร์โทรฝั่ง Edge Function แทน (ดู scan-progress)
+  const _qs = new URLSearchParams(location.search);
+  if (_qs.get('scanprog') === '1') { _renderPublicScanProgress(_qs.get('mo') || '', _qs.get('line') || ''); return; }
 
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
