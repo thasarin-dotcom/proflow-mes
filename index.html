@@ -16408,7 +16408,9 @@ function _scanlaborPubLineSectionHTML(ld, li) {
         <tbody id="scanlabor-pub-roster-tbody-${li}">${ld.roster.length ? ld.roster.map((r,i)=>_scanlaborPubRosterRowHTML(r,li,i)).join('') : emptyRowHTML}</tbody>
       </table>
     </div>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="_scanlaborPubAddWorker(${li})"><i class="fas fa-user-plus me-1"></i>เพิ่มคนอื่น</button>
+    <div id="scanlabor-pub-addbtn-wrap-${li}">
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="_scanlaborPubAddWorker(${li})"><i class="fas fa-user-plus me-1"></i>เพิ่มคนอื่น</button>
+    </div>
   </div>`;
 }
 
@@ -16434,29 +16436,57 @@ function _scanlaborPubRenderForm(moId, phone, employeeName, employeePosition) {
 
 // ปุ่ม "เพิ่มคนอื่น" ต่อไลน์ (li) ฝั่งลิงก์สาธารณะ — ต่างจากฝั่งในแอป (scanlaborAddWorker) ตรงที่ไม่มี login
 // เลย จึงต้องพึ่ง qualifiedPool ที่ Edge Function คำนวณให้ตอน action:'info' ต่อไลน์ (กรองด้วยสกิลฝั่งเซิร์ฟ
-// เวอร์ เพราะหน้านี้เรียก _sb ตรงไม่ได้ — RLS บล็อก anon key) เพิ่มแถวเข้า DOM ตรงๆ เหมือนฝั่งในแอปทุกประการ
-async function _scanlaborPubAddWorker(li) {
-  // ห่อ try/catch ทั้งฟังก์ชัน (เพิ่ม 2026-09-12) — เดิมถ้ามี exception เกิดขึ้นระหว่างทาง (เช่น element
-  // หาไม่เจอ) จะเงียบสนิท ไม่มีอะไรขึ้นให้เห็นเลยจากมุมมองผู้ใช้ (เป็น unhandled promise rejection ที่ไม่มี
-  // UI ให้เห็น) ผู้ใช้รายงานว่ากดปุ่มแล้ว "ไม่มีอะไรเกิดขึ้นเลย" — ครอบไว้ให้ error โผล่ชัดเจนแทนเงียบหาย
+// เวอร์ เพราะหน้านี้เรียก _sb ตรงไม่ได้ — RLS บล็อก anon key)
+//
+// **ไม่ใช้ Swal.fire เลยตั้งแต่ 2026-09-12** — ผู้ใช้รายงานว่ากดปุ่ม "เพิ่มคนอื่น" บนมือถือ (ลิงก์สาธารณะ)
+// แล้ว "ไม่มีอะไรเกิดขึ้นเลย ไม่มี error โผล่" แม้ห่อ try/catch ที่โชว์ error ผ่าน Swal.fire ไว้แล้วก็ตาม —
+// นี่คือหน้าสาธารณะเพจแรก (และเพจเดียว) ในทั้งแอปที่เรียก Swal.fire เลย (หน้าสาธารณะอื่นๆ ทั้งหมด —
+// scanprogress/report — ใช้ plain text/DOM ล้วนๆ ไม่เคยพึ่ง Swal) จึงสงสัยได้ว่า Swal อาจโหลด/ทำงานไม่ได้
+// ในบริบทหน้าโอเวอร์เลย์สาธารณะนี้บนอุปกรณ์บางเครื่อง (ถ้า Swal พังจริง แม้แต่ catch ที่เรียก Swal.fire ก็จะ
+// throw ซ้ำเงียบๆ อีกที ไม่มีอะไรขึ้นเลยเหมือนที่ผู้ใช้เจอ) — เปลี่ยนมาใช้ dropdown+ปุ่มธรรมดาแทรกลง DOM ตรงๆ
+// (toggle แสดง/ซ่อน) และ alert() ธรรมดา (built-in ของเบราว์เซอร์ ไม่พึ่ง library ใดๆ เลย รับประกันว่าต้องขึ้น
+// แน่นอนถ้าโค้ดทำงานถึงจุดนั้นจริง) แทนทุกจุดที่เคยเรียก Swal ในฟังก์ชันนี้
+function _scanlaborPubAddWorker(li) {
   try {
     const info = _scanlaborPubInfo;
-    if (!info) { Swal.fire({ icon: 'error', title: 'ยังโหลดข้อมูลไม่เสร็จ', text: 'กรุณารอสักครู่แล้วลองใหม่ (หรือกรอกเบอร์โทรยืนยันตัวตนก่อน)' }); return; }
-    if (!info.lines || !info.lines[li]) { Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลไลน์นี้', text: `li=${li}, lines=${info.lines ? info.lines.length : 'undefined'}` }); return; }
+    if (!info) { alert('ยังโหลดข้อมูลไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่'); return; }
+    if (!info.lines || !info.lines[li]) { alert(`ไม่พบข้อมูลไลน์นี้ (li=${li})`); return; }
     const ld = info.lines[li];
     const pool = ld.qualifiedPool || [];
-    if (!pool.length) { Swal.fire({ icon: 'info', title: 'เพิ่มคนไม่ได้', text: 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว' }); return; }
+    if (!pool.length) { alert('ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว'); return; }
+    const wrap = document.getElementById(`scanlabor-pub-addbtn-wrap-${li}`);
+    if (!wrap) { alert(`หา element ปุ่มไม่เจอ (scanlabor-pub-addbtn-wrap-${li})`); return; }
     const options = pool.map(e => `<option value="${e.code}">${e.name} — ${e.code}</option>`).join('');
-    const { value: code } = await Swal.fire({
-      title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
-      html: `<select id="scanlabor-pub-add-select" class="form-select">${options}</select>
-        <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
-      focusConfirm: false, showCancelButton: true,
-      confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
-      preConfirm: () => document.getElementById('scanlabor-pub-add-select').value,
-    });
-    if (!code) return;
+    wrap.innerHTML = `
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <select id="scanlabor-pub-addpicker-${li}" class="form-select form-select-sm" style="max-width:220px">${options}</select>
+        <button type="button" class="btn btn-sm btn-primary" onclick="_scanlaborPubConfirmAdd(${li})">เพิ่ม</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="_scanlaborPubRenderAddButton(${li})">ยกเลิก</button>
+      </div>
+      <div class="text-muted small mt-1">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`;
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด (เพิ่มคนอื่น): ' + (e && e.message ? e.message : e));
+  }
+}
+
+// คืนปุ่ม "เพิ่มคนอื่น" กลับมาแทน dropdown (กด "ยกเลิก" หรือหลังเพิ่มสำเร็จแล้ว)
+function _scanlaborPubRenderAddButton(li) {
+  const wrap = document.getElementById(`scanlabor-pub-addbtn-wrap-${li}`);
+  if (wrap) wrap.innerHTML = `<button type="button" class="btn btn-sm btn-outline-primary" onclick="_scanlaborPubAddWorker(${li})"><i class="fas fa-user-plus me-1"></i>เพิ่มคนอื่น</button>`;
+}
+
+// กด "เพิ่ม" ใน dropdown ที่แทรกไว้ — อ่านค่าที่เลือกแล้วเพิ่มแถวเข้า DOM ตรงๆ เหมือนฝั่งในแอปทุกประการ
+function _scanlaborPubConfirmAdd(li) {
+  try {
+    const info = _scanlaborPubInfo;
+    if (!info || !info.lines || !info.lines[li]) { alert(`ไม่พบข้อมูลไลน์นี้ (li=${li})`); return; }
+    const ld = info.lines[li];
+    const select = document.getElementById(`scanlabor-pub-addpicker-${li}`);
+    const code = select ? select.value : '';
+    if (!code) { alert('กรุณาเลือกพนักงานก่อน'); return; }
+    const pool = ld.qualifiedPool || [];
     const picked = pool.find(e => e.code === code);
+    if (!picked) { alert('ไม่พบพนักงานรหัสนี้ในรายการ'); return; }
     const i = ld.roster.length;
     const row = { code, name: picked.name, present: true, timeIn: ld.timeStart || '', timeOut: ld.timeEnd || '' };
     ld.roster.push(row);
@@ -16464,8 +16494,9 @@ async function _scanlaborPubAddWorker(li) {
     document.getElementById(`scanlabor-pub-roster-empty-${li}`)?.remove();
     document.getElementById(`scanlabor-pub-roster-tbody-${li}`)?.insertAdjacentHTML('beforeend', _scanlaborPubRosterRowHTML(row, li, i));
     _scanlaborPubToggleRow(li, i);
+    _scanlaborPubRenderAddButton(li);
   } catch (e) {
-    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด (เพิ่มคนอื่น)', html: `<pre style="text-align:left;white-space:pre-wrap;font-size:11px">${String(e && e.stack || e)}</pre>` });
+    alert('เกิดข้อผิดพลาด (ยืนยันเพิ่มคน): ' + (e && e.message ? e.message : e));
   }
 }
 
