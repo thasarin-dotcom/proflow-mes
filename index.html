@@ -5330,11 +5330,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               </div>
               <div class="col-md-2">
                 <label class="form-label">เวลาเริ่ม</label>
-                <input type="time" id="prodrecord-f-timestart" class="form-control">
+                <input type="time" step="300" id="prodrecord-f-timestart" class="form-control">
               </div>
               <div class="col-md-2">
                 <label class="form-label">เวลาเสร็จ</label>
-                <input type="time" id="prodrecord-f-timeend" class="form-control">
+                <input type="time" step="300" id="prodrecord-f-timeend" class="form-control">
               </div>
             </div>
             <div class="row g-3 mb-2">
@@ -20157,11 +20157,12 @@ function _prodrecordUpdateStationSummary(key, seq) {
 // prodrecordEntrySubmit ตรงจุดอ่านค่า ftWorkers/ptWorkers/osWorkers เลย (ความเสี่ยงต่ำ จุดเดียวที่กระทบคือ
 // การกรอก ไม่ใช่การบันทึก)
 function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, normal, ot) {
+  // step="300" (วินาที = 5 นาที) ให้ picker เวลาเลื่อนทีละ 5 นาที ไม่ละเอียดถึงหลักนาที ตามคำขอผู้ใช้ 2026-09-12
   return `
     <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}" readonly style="background:#f1f5f9" title="คำนวณอัตโนมัติจากรายชื่อที่เลือกด้านล่าง"></td>
-    <td><input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')"></td>
+    <td><input type="time" step="300" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')"></td>
     <td>
-      <input type="time" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')">
+      <input type="time" step="300" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')">
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}normal" value="${normal ?? 0}">
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}ot" value="${ot ?? 0}">
     </td>`;
@@ -25326,6 +25327,27 @@ function _issueIsWaitingStatus(status) {
   return s.includes('รอเบิก') || s.includes('รอ') || s === 'wait' || status === 'แพลนแล้ว' || status === 'ยืนยันการผลิต';
 }
 
+// ลำดับวัตถุดิบของสินค้านี้ตาม BOM — Pac (บรรจุภัณฑ์) มาก่อน แล้วตามด้วย Bulk เสมอ ตามลำดับเดิมใน bom
+// (_row_id ที่ _issueBOM ถูกดึงมาเรียงไว้แล้ว) — ตรงกับลำดับที่หน้า BPR ใช้ (bprPrint/_bprBuildHTML:
+// pmItems ก่อน bulkItems) เพื่อให้รายการเบิกในหน้านี้อ่านลำดับตรงกับใบ BPR ที่จะพิมพ์จริง
+// คืนค่าเป็น Map ของ MaterialCode → ลำดับ (index) หรือ null ถ้าไม่มี productCode ให้เทียบ
+function _issueBomOrderForProduct(productCode) {
+  if (!productCode) return null;
+  const seenBomKeys = new Set();
+  const deduped = _issueBOM.filter(b => {
+    if (b.ProductCode !== productCode) return false;
+    const key = (b.MaterialCode||'') + '|' + (b.Remark||'').toLowerCase();
+    if (seenBomKeys.has(key)) return false;
+    seenBomKeys.add(key);
+    return true;
+  });
+  const pac  = deduped.filter(b => (b.Remark||'').toLowerCase() === 'pac');
+  const bulk = deduped.filter(b => (b.Remark||'').toLowerCase() !== 'pac');
+  const map = new Map();
+  [...pac, ...bulk].forEach((b, i) => { if (!map.has(b.MaterialCode)) map.set(b.MaterialCode, i); });
+  return map;
+}
+
 async function loadIssueData() {
   _showLoader();
   const _cancelPlaceholder = _deferLoadingPlaceholder('issue-tbody', '<tr><td colspan="10" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
@@ -25515,13 +25537,26 @@ function issueRenderTable() {
     groupMap.get(key).push(r);
   });
 
-  const groups = Array.from(groupMap.entries()).map(([moId, lines]) => ({
-    moId,
-    mo: moId !== '__none__' ? _issueMOAllMap[moId] : null,
-    lines,
-    latestRowId: Math.max(...lines.map(l => l._row_id)),
-    latestDate: lines.reduce((max, l) => (l.Date||'') > max ? l.Date : max, lines[0].Date||''),
-  })).sort((a,b) => b.latestRowId - a.latestRowId);
+  const groups = Array.from(groupMap.entries()).map(([moId, lines]) => {
+    const mo = moId !== '__none__' ? _issueMOAllMap[moId] : null;
+    // เรียงรายการวัตถุดิบให้ตรงกับลำดับที่ขึ้นในหน้า BPR (Pac/บรรจุภัณฑ์ก่อน แล้วตามด้วย Bulk,
+    // ตามลำดับเดิมใน BOM ของสินค้านั้น) แทนลำดับเดิมที่มาตามลำดับแถวที่เบิก
+    const bomOrder = mo?.ProductCode ? _issueBomOrderForProduct(mo.ProductCode) : null;
+    const sortedLines = bomOrder
+      ? lines.map((l, idx) => ({ l, idx })).sort((a, b) => {
+          const ai = bomOrder.has(a.l.MaterialCode) ? bomOrder.get(a.l.MaterialCode) : Infinity;
+          const bi = bomOrder.has(b.l.MaterialCode) ? bomOrder.get(b.l.MaterialCode) : Infinity;
+          return ai !== bi ? ai - bi : a.idx - b.idx;
+        }).map(x => x.l)
+      : lines;
+    return {
+      moId,
+      mo,
+      lines: sortedLines,
+      latestRowId: Math.max(...lines.map(l => l._row_id)),
+      latestDate: lines.reduce((max, l) => (l.Date||'') > max ? l.Date : max, lines[0].Date||''),
+    };
+  }).sort((a,b) => b.latestRowId - a.latestRowId);
 
   _issueLastGroups = groups;
 
