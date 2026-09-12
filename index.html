@@ -2760,7 +2760,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           ต้นทุนจ้างพนักงาน 1 คนทั้งเดือน — ถ้า ≈0.8 คนขึ้นไปติดต่อกันหลายเดือน แปลว่าจ่าย OT แพงพอๆ กับจ้าง
           เพิ่ม ควรพิจารณาจ้างประจำแทนการใช้ OT · คอลัมน์ "PT OT (เทียบเท่าจ้างเพิ่ม)" เทียบเป็น "จำนวนวัน-คน"
           แทน (PT จ้างเป็นวัน ไม่มีหัวคนคงที่) — ถ้า OT ที่จ่ายเทียบเท่าจ้าง PT เพิ่ม ≥15 วัน-คน/เดือน อาจคุ้ม
-          กว่าจ้าง PT ประจำเพิ่มแทนการให้ OT บ่อยๆ
+          กว่าจ้าง PT ประจำเพิ่มแทนการให้ OT บ่อยๆ · "รายได้"/"กำไร" คือยอดที่ส่งถึงลูกค้าจริงเดือนนั้น (สูตร
+          เดียวกับการ์ด KPI ด้านบนสุดของหน้านี้ นับตามเดือนที่ "ส่งถึงแล้ว" ไม่ใช่เดือนที่ผลิต จึงอาจคนละเดือนกับ
+          ค่าแรง/ต้นทุนในแถวเดียวกันได้ถ้าของถูกผลิตไว้ก่อนแล้วเพิ่งส่งภายหลัง) · "ค่าใช้จ่ายจริงรวม" = FT+OS
+          ที่จ่ายจริง (กรอกเอง) รวมกับ PT ที่คำนวณจากชั่วโมงจริง×เรทที่อนุมัติ (PT ไม่มียอดเหมาจ่ายรายเดือนให้กรอก)
+          — ใช้เทียบกับรายได้/กำไรทางซ้ายได้ตรงๆ ว่าค่าแรงเดือนนั้นกินสัดส่วนไปเท่าไหร่
         </div>
         <div id="admindash-payroll-table"><div class="text-center text-muted py-3">ยังไม่มีข้อมูลค่าจ้างจริง — กด "บันทึก/แก้ไขค่าจ้างจริง" เพื่อเริ่มกรอก</div></div>
       </div>
@@ -3046,23 +3050,28 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 
     <div class="scroll-content">
       <!-- KPI -->
-      <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
+      <div class="row row-cols-2 row-cols-md-5 g-3 mb-3">
+        <div class="col">
           <div class="kpi-card"><div class="kpi-num" id="mr-kpi-total">—</div><div class="kpi-label">รายการทั้งหมด</div></div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col">
           <div class="kpi-card" style="border-color:#22c55e">
             <div class="kpi-num text-success" id="mr-kpi-today">—</div><div class="kpi-label">รับวันนี้</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col">
           <div class="kpi-card" style="border-color:#3b82f6">
             <div class="kpi-num text-primary" id="mr-kpi-month">—</div><div class="kpi-label">รับเดือนนี้</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col">
           <div class="kpi-card" style="border-color:#8b5cf6">
             <div class="kpi-num text-purple" id="mr-kpi-value" style="color:#8b5cf6">—</div><div class="kpi-label">มูลค่ารวม (฿)</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="kpi-card" style="border-color:#0ea5e9">
+            <div class="kpi-num" id="mr-kpi-month-value" style="color:#0ea5e9">—</div><div class="kpi-label">มูลค่ารับเดือนนี้ (฿)</div>
           </div>
         </div>
       </div>
@@ -10125,12 +10134,14 @@ function mrUpdateKPIs() {
   const todayRows = _mrData.filter(r => (r.Date||r.ReceiveDate||'').startsWith(today));
   const monthRows = _mrData.filter(r => (r.Date||r.ReceiveDate||'').startsWith(month));
   const totalVal  = _mrData.reduce((s, r) => s + (parseFloat(r.TotalCost)||0), 0);
+  const monthVal  = monthRows.reduce((s, r) => s + (parseFloat(r.TotalCost)||0), 0);
 
   const el = id => document.getElementById(id);
   if (el('mr-kpi-total'))  el('mr-kpi-total').textContent  = _mrData.length.toLocaleString();
   if (el('mr-kpi-today'))  el('mr-kpi-today').textContent  = todayRows.length;
   if (el('mr-kpi-month'))  el('mr-kpi-month').textContent  = monthRows.length;
   if (el('mr-kpi-value'))  el('mr-kpi-value').textContent  = '฿' + totalVal.toLocaleString('th-TH', {maximumFractionDigits:0});
+  if (el('mr-kpi-month-value')) el('mr-kpi-month-value').textContent = '฿' + monthVal.toLocaleString('th-TH', {maximumFractionDigits:0});
 }
 
 function mrToggleGroup(gi) {
@@ -13459,19 +13470,26 @@ async function _planLoadSkillData(force = false) {
 // อาจต้องแก้ไลน์ผิดจริง) key ของบล็อกตอนนี้เป็นโทเคนปลอดภัย ('L0','L1',...,'manual','edit') ไม่ใช่ชื่อไลน์
 // จริง (ชื่อไลน์มีเว้นวรรค/วงเล็บ ใช้เป็น HTML id ตรงๆ ไม่ได้) — ผูกกับไลน์จริงผ่าน _planLineBlockFixedLine
 //
-// ช่วงเวลา (กะ) แสดง UI ให้กรอกแค่ที่บล็อกแรกที่เป็นหมวด "ไลน์บรรจุ" เท่านั้น (added 2026-09-05 ตามคำขอ
-// ผู้ใช้ "เวลาทำงานใส่แค่ไลน์บรรจุ") — เก็บไว้ที่ _planPrimaryTimeBlockKey บล็อกอื่นในแผนเดียวกัน (แพ็ค/
-// ยิง Lot) ไม่มี UI เวลาให้กรอกซ้ำ แต่ตอนบันทึก/เช็คชนกัน (planSubmit, _planEffectiveShift) จะ "ยืม" เวลา
-// จากบล็อกหลักนี้มาใช้แทนเสมอ (ทุกไลน์ในแผนเดียวกันวันเดียวกันถือว่าเริ่ม/เลิกพร้อมกัน) — ถ้าสินค้านี้ไม่มี
-// บล็อกไลน์บรรจุเลย (เช่น ตั้งค่าไว้แค่ไลน์แพ็ค) บล็อกแรกสุดที่มีจะเป็นบล็อกหลักแทน
+// วันที่+ช่วงเวลา (กะ) ของแต่ละไลน์แยกอิสระจากกันได้ทุกบล็อก (added 2026-09-19 ตามคำขอผู้ใช้ "ให้แต่ละไลน์
+// ใส่วันที่กับเวลาแยกไลน์กันได้") — เดิมมีแค่ไลน์ "ยิง Lot" ที่มีช่องวันที่ของตัวเอง (ดู _planDateForBlock,
+// ก่อนหน้านี้เรียก _planLotDateManuallySet/planLotDateChanged เฉพาะไลน์ยิง Lot) ส่วนเวลาทุกบล็อกยืมจากบล็อก
+// "ไลน์บรรจุ" หมดเลย (เดิมชื่อ _planPrimaryTimeBlockKey, ตามคำขอ 2026-09-05 "เวลาทำงานใส่แค่ไลน์บรรจุ") —
+// ตอนนี้ทุกบล็อกมีช่องวันที่+เวลาของตัวเองเสมอเมื่อสินค้ามีมากกว่า 1 ไลน์ (`optional`, ดู _planLineBlockHTML)
+// **ยกเว้นไลน์ "บรรจุ" ที่ยังคงใช้ช่องวันที่หลักของฟอร์ม (#plan-f-date) ตรงๆ เหมือนเดิม** ไม่มีช่องซ้ำซ้อน —
+// เป็นค่าเริ่มต้น/จุดยึดที่ทุกบล็อกอื่นใช้คำนวณคำแนะนำวันที่ครั้งแรก (ดู _planApplyBlockDateSuggestion) และ
+// เป็นบล็อกเดียวที่การแก้ไขวันที่ "ไล่ตามอัตโนมัติ" ไปให้ไลน์อื่นที่ยังไม่เคยถูกแก้เอง (ดู
+// _planCascadeSharedFieldsToSiblings) — ไลน์ "ยิง Lot" ยังคงมีสูตรแนะนำแบบ -1/-2 วันสำหรับสินค้า "ขวด"
+// เหมือนเดิม (ดู _planComputeLotDateSuggestion) ไลน์อื่น (เช่นแพ็ค) แนะนำเป็นวันเดียวกับไลน์บรรจุตรงๆ
+// (offset=0) — ถ้ามีบล็อกเดียว (สินค้ามีไลน์เดียว/โหมดแก้ไข/fallback ยังไม่ตั้งค่าไลน์) ยังคงใช้ช่องวันที่
+// หลักของฟอร์มตรงๆ เหมือนเดิมทุกอย่าง ไม่มีช่องซ้ำ — เวลาเป็นอิสระต่อบล็อกเสมอไม่ว่าจะมีกี่บล็อก (บล็อกละ
+// checkbox ของตัวเอง ไม่ยืมกันอีกต่อไป ดู _planEffectiveShift)
 let _planLineBlockIds = [];          // key ของบล็อกที่กำลังแสดงอยู่ตอนนี้ ตามลำดับ
 let _planLineBlockFixedLine = {};    // key -> ไลน์จริงที่ตายตัวจาก BOM (ไม่มี = บล็อกเลือกเอง)
-let _planLineBlockCategory = {};     // key -> 'fill'/'pack'/'lot'/null (ไว้ทำ header label + หาบล็อกหลัก)
+let _planLineBlockCategory = {};     // key -> 'fill'/'pack'/'lot'/null (ไว้ทำ header label + รู้ว่าบล็อกไหนคือไลน์บรรจุ)
 let _planLineManualOverrideByBlock = {}; // key -> true ถ้ากด "เปลี่ยนไลน์นี้/แสดงไลน์อื่น (ฉุกเฉิน)" แล้ว
-let _planPrimaryTimeBlockKey = null; // key ของบล็อกที่มี UI เวลาให้กรอกจริง
 
 function _planLineBlockHTML(b, opts) {
-  const { optional = false, showTime = true, categoryKey = null } = opts || {};
+  const { optional = false, categoryKey = null } = opts || {};
   const sec = PLAN_LINE_SECTIONS.find(s => s.key === categoryKey);
   const headerLabel = sec ? sec.label : 'เลือกไลน์ผลิต';
   const headerIcon  = sec ? sec.icon : 'fa-industry';
@@ -13511,8 +13529,15 @@ function _planLineBlockHTML(b, opts) {
       <div class="col-12 text-danger small" id="plan-worker-conflict-hint-${b}" style="display:none">
         <i class="fas fa-user-clock me-1"></i><span></span>
       </div>
-      ${showTime ? `
-      <div class="col-md-8">
+      <!-- วันที่: ทุกบล็อกมีช่องของตัวเอง ยกเว้นไลน์ "บรรจุ" (หรือบล็อกเดียว ไม่ว่าหมวดไหน) ที่ใช้ช่องวันที่
+           หลักของฟอร์ม (#plan-f-date) ตรงๆ อยู่แล้ว ไม่ต้องมีช่องซ้ำ — ดูหมายเหตุที่ _planLineBlockIds ด้านบน -->
+      ${(optional && categoryKey !== 'fill') ? `
+      <div class="col-md-4">
+        <label class="form-label">วันที่ <span class="text-danger">*</span></label>
+        <input type="date" class="form-control" id="plan-block-date-${b}" onchange="planBlockDateChanged('${b}')">
+        <small class="text-muted d-block" id="plan-block-date-note-${b}"></small>
+      </div>` : ''}
+      <div class="col-md-${(optional && categoryKey !== 'fill') ? 8 : 12}">
         <label class="form-label">ช่วงเวลา <span class="text-danger">*</span></label>
         <div class="d-flex gap-2 flex-nowrap border rounded p-2 plan-shift-row">
           <div class="form-check text-nowrap mb-0">
@@ -13529,18 +13554,7 @@ function _planLineBlockHTML(b, opts) {
           </div>
         </div>
         <small class="text-muted" id="plan-shift-preview-${b}">เลือกช่วงเวลาอย่างน้อย 1 ช่วง (ติ๊กเช้า+บ่ายพร้อมกัน = เช้าบ่าย 08:30–17:30)</small>
-      </div>` : (categoryKey === 'lot' && optional) ? `
-      <div class="col-md-4">
-        <label class="form-label">วันที่ยิง Lot <span class="text-danger">*</span></label>
-        <input type="date" class="form-control" id="plan-lot-date-${b}" onchange="planLotDateChanged('${b}')">
-        <small class="text-muted d-block" id="plan-lot-date-note-${b}"></small>
       </div>
-      <div class="col-md-4 small text-muted d-flex align-items-center">
-        <i class="fas fa-clock me-1"></i>เวลาเดียวกับ "ไลน์บรรจุ"
-      </div>` : `
-      <div class="col-md-8 small text-muted d-flex align-items-center">
-        <i class="fas fa-clock me-1"></i>ใช้ช่วงเวลาเดียวกับ "ไลน์บรรจุ" ด้านบน (ไม่ต้องกรอกซ้ำที่นี่)
-      </div>`}
       <div class="col-md-4">
         <div id="plan-f-conflict-hint-${b}" class="text-danger small mt-4" style="display:none">
           <i class="fas fa-exclamation-triangle me-1"></i><span></span>
@@ -13553,7 +13567,7 @@ function _planLineBlockHTML(b, opts) {
 function _planRenderLineBlocksContainer() {
   const optional = _planLineBlockIds.length > 1; // >1 บล็อกแสดง = เลือกใช้ได้อิสระ (ไม่บังคับทุกบล็อก)
   document.getElementById('plan-line-blocks').innerHTML = _planLineBlockIds.map(b => _planLineBlockHTML(b, {
-    optional, showTime: b === _planPrimaryTimeBlockKey, categoryKey: _planLineBlockCategory[b] || null,
+    optional, categoryKey: _planLineBlockCategory[b] || null,
   })).join('');
 }
 
@@ -13571,7 +13585,7 @@ function planSetupLineBlocksForProduct(mode, code, matchLine) {
   _planLineBlockFixedLine = {};
   _planLineBlockCategory = {};
   _planLineManualOverrideByBlock = {};
-  _planLotDateManuallySet = {};
+  _planBlockDateManuallySet = {};
   let keys;
   if (mode === 'edit') {
     keys = ['edit'];
@@ -13589,29 +13603,26 @@ function planSetupLineBlocksForProduct(mode, code, matchLine) {
     }
   }
   _planLineBlockIds = keys;
-  _planPrimaryTimeBlockKey = keys.find(k => _planLineBlockCategory[k] === 'fill') || keys[0];
   _planRenderLineBlocksContainer();
 }
 
-// เดียวกับก่อนหน้า (ยืมเวลาจากบล็อกหลักถ้าบล็อกนี้ไม่มี UI เวลาของตัวเอง) ใช้แทน
-// _planComputeShift(_planSelectedShiftKeys(b)) ตรงๆ ในทุกจุดที่ต้องรู้ "เวลาที่แท้จริง" ของบล็อกนี้
-// (เช็คชนกัน/auto-pick/conflict คนซ้ำ) เพราะบล็อกที่ไม่ใช่บล็อกหลักไม่มี checkbox เวลาให้อ่านค่าเองแล้ว
+// เวลาของบล็อกนี้ตรงๆ — ทุกบล็อกมี checkbox เวลาของตัวเองเสมอแล้ว (ไม่ยืมจากบล็อกอื่นอีกต่อไป ดูหมายเหตุที่
+// _planLineBlockIds ด้านบน) เก็บไว้เป็นฟังก์ชันแยก (แทนการอ่าน _planComputeShift(_planSelectedShiftKeys(b))
+// ตรงๆ) เพราะยังมีผู้เรียกเดิมหลายจุด (เช็คชนกัน/auto-pick/conflict คนซ้ำ) อยู่แล้ว ไม่ต้องแก้จุดเรียกทั้งหมด
 function _planEffectiveShift(b) {
-  const own = _planComputeShift(_planSelectedShiftKeys(b));
-  if (own) return own;
-  if (b !== _planPrimaryTimeBlockKey) return _planComputeShift(_planSelectedShiftKeys(_planPrimaryTimeBlockKey));
-  return null;
+  return _planComputeShift(_planSelectedShiftKeys(b));
 }
 
-// ── วันที่ยิง Lot แยกจากวันที่หลักของแผนได้ (added 2026-09-08 ตามคำขอผู้ใช้ "งานขวดที่เป็น 360 จะต้องยิง
-// Lot ล่วงหน้าก่อน 1 วัน...ควรให้เห็นแพลนว่าต้องยิง Lot วันไหนก่อน") — ก่อนหน้านี้ไลน์ยิง Lot "ยืม" ทั้งวันที่
-// และเวลาจากบล็อกไลน์บรรจุเหมือนกันหมดทุกบล็อก (ดูหมายเหตุ _planEffectiveShift/PrimaryTimeBlockKey) ทำให้
-// ไม่มีทางแสดงว่ายิง Lot ต้องทำวันไหนก่อนเลย — ตอนนี้ไลน์ยิง Lot มีช่องวันที่ของตัวเอง (แยกจาก plan-f-date
-// ที่เหลือใช้ร่วมกันของไลน์บรรจุ/แพ็ค) ส่วนเวลายังคง "ยืม" จากไลน์บรรจุเหมือนเดิม (ผู้ใช้ขอแค่วันที่แยก
-// ไม่ได้ขอเวลาแยกด้วย) — มีผลตามมา: _planFilterRowsForDisplay จัดกลุ่ม "1 งาน" จาก PlanDate+ProductCode
-// ดังนั้นยิง Lot ที่มี PlanDate ต่างจากไลน์บรรจุ/แพ็ค จะไม่ถูกจัดเป็นไลน์พี่น้องที่ซ่อนไว้อีกต่อไป แต่จะโผล่
-// เป็นแผนแยกในวันที่ของมันเองบนปฏิทินโดยอัตโนมัติ (ไม่ต้องแก้ตรงนั้นเพิ่มเลย) — ตรงตามที่ผู้ใช้ต้องการเป๊ะ
-let _planLotDateManuallySet = {}; // key: block id -> true ถ้าผู้ใช้แก้วันที่ยิง Lot เองแล้ว (ไม่ auto-suggest ทับอีก)
+// ── วันที่แยกอิสระต่อไลน์ (เดิมมีแค่ไลน์ยิง Lot ที่แยกได้ — added 2026-09-08 ตามคำขอ "งานขวดที่เป็น 360
+// จะต้องยิง Lot ล่วงหน้าก่อน 1 วัน" — ขยายให้ทุกไลน์แยกอิสระได้ added 2026-09-19 ตามคำขอ "ให้แต่ละไลน์ใส่
+// วันที่กับเวลาแยกไลน์กันได้") — ทุกบล็อกยกเว้น "ไลน์บรรจุ" (ซึ่งใช้ #plan-f-date ตรงๆ อยู่แล้ว ไม่มีช่องซ้ำ
+// ดูหมายเหตุที่ _planLineBlockIds ด้านบน) มีช่องวันที่ของตัวเอง คำแนะนำเริ่มต้นต่างกันตามหมวด: ไลน์ยิง Lot
+// ของสินค้า "ขวด" แนะนำล่วงหน้า 1 วัน (หรือ 2 ถ้าติดวันอาทิตย์ หยุดตามปฏิทินนี้) ก่อนไลน์บรรจุ, หมวดอื่น
+// (เช่นแพ็ค) แนะนำวันเดียวกับไลน์บรรจุตรงๆ — เป็นแค่คำแนะนำเริ่มต้นเท่านั้น แก้ไขเป็นวันอื่นเองได้เสมอทุกบล็อก
+// มีผลตามมา (ไม่ต้องแก้เพิ่ม): _planFilterRowsForDisplay จัดกลุ่ม "1 งาน" จาก PlanDate+ProductCode ดังนั้น
+// ไลน์ไหนก็ตามที่มี PlanDate ต่างจากไลน์บรรจุ จะไม่ถูกจัดเป็นไลน์พี่น้องที่ซ่อนไว้ แต่จะโผล่เป็นแผนแยกในวันที่
+// ของมันเองบนปฏิทินโดยอัตโนมัติ
+let _planBlockDateManuallySet = {}; // key: block id -> true ถ้าผู้ใช้แก้วันที่ของบล็อกนี้เองแล้ว (ไม่ auto-suggest ทับอีก)
 
 function _planIsSunday(dateStr) {
   if (!dateStr) return false;
@@ -13630,56 +13641,58 @@ function _planAddDays(dateStr, delta) {
 // ล่วงหน้า 1 วันก่อนไลน์บรรจุ แต่ถ้าวันที่แนะนำนั้นตรงกับวันอาทิตย์ (หยุดตามปฏิทินนี้ — ดู isSunday ใน
 // planRenderCalendar) เลื่อนล่วงหน้าเพิ่มอีก 1 วัน (รวมเป็น 2 วันก่อน) สินค้าอื่นที่ไม่ใช่ขวดแนะนำวันเดียว
 // กับไลน์บรรจุเหมือนเดิม (ไม่ต้องล่วงหน้า) — เป็นแค่คำแนะนำเริ่มต้น แก้ไขเป็นวันอื่นเองได้เสมอ
-// แยก core ออกจาก _planSuggestLotDate ให้เป็น pure function (added 2026-09-08) — เดิมอ่านฟิลด์ DOM ตรงๆ
-// เรียกได้แค่ตอนฟอร์มเพิ่ม/แก้แผนเปิดอยู่เท่านั้น แต่ _planCascadeSharedFieldsToSiblings ต้องคำนวณ "ควรจะ
-// เป็นวันไหน" ทั้งวันเดิม (ก่อนแก้) และวันใหม่ (หลังแก้) โดยไม่มีฟอร์มเปิดอยู่เลย (cascade เกิดหลัง submit
-// เสร็จแล้ว) จึงต้องรับ mainDate/uom เป็นพารามิเตอร์ตรงๆ แทน
+// แยก core ออกจาก _planApplyBlockDateSuggestion ให้เป็น pure function (added 2026-09-08) — เดิมอ่านฟิลด์
+// DOM ตรงๆ เรียกได้แค่ตอนฟอร์มเพิ่ม/แก้แผนเปิดอยู่เท่านั้น แต่ _planCascadeSharedFieldsToSiblings ต้องคำนวณ
+// "ควรจะเป็นวันไหน" ทั้งวันเดิม (ก่อนแก้) และวันใหม่ (หลังแก้) โดยไม่มีฟอร์มเปิดอยู่เลย (cascade เกิดหลัง
+// submit เสร็จแล้ว) จึงต้องรับ mainDate/uom เป็นพารามิเตอร์ตรงๆ แทน — ใช้เฉพาะไลน์ยิง Lot
 function _planComputeLotDateSuggestion(mainDate, uom) {
   if (!mainDate) return '';
   if (uom !== 'ขวด') return mainDate;
   const oneDayBefore = _planAddDays(mainDate, -1);
   return _planIsSunday(oneDayBefore) ? _planAddDays(mainDate, -2) : oneDayBefore;
 }
-function _planSuggestLotDate() {
-  const mainDate = document.getElementById('plan-f-date')?.value || '';
-  const uom = document.getElementById('plan-f-uom')?.value || '';
-  return _planComputeLotDateSuggestion(mainDate, uom);
+// คำแนะนำวันที่เริ่มต้นของบล็อกนี้ ตามหมวดไลน์ — ไลน์ยิง Lot ใช้สูตร -1/-2 วันของสินค้าขวด (ด้านบน) หมวดอื่น
+// (เช่นแพ็ค) แนะนำวันเดียวกับไลน์บรรจุตรงๆ (offset=0) ไม่มีหมวดพิเศษเพิ่มเติม
+function _planComputeBlockDateSuggestion(mainDate, uom, categoryKey) {
+  if (categoryKey === 'lot') return _planComputeLotDateSuggestion(mainDate, uom);
+  return mainDate || '';
 }
 
-// เติมคำแนะนำวันที่ยิง Lot ให้บล็อก b — ข้ามถ้าผู้ใช้แก้เองไปแล้ว (_planLotDateManuallySet) หรือบล็อกนี้ไม่มี
-// ช่องวันที่ยิง Lot เลย (ไม่ใช่บล็อกยิง Lot ที่อยู่ร่วมกับบล็อกอื่น — ดู categoryKey==='lot' && optional ใน
-// _planLineBlockHTML)
-function _planApplyLotDateSuggestion(b) {
-  const el = document.getElementById(`plan-lot-date-${b}`);
-  if (!el || _planLotDateManuallySet[b]) return;
-  const suggested = _planSuggestLotDate();
+// เติมคำแนะนำวันที่ให้บล็อก b — ข้ามถ้าผู้ใช้แก้เองไปแล้ว (_planBlockDateManuallySet) หรือบล็อกนี้ไม่มีช่อง
+// วันที่ของตัวเองเลย (เป็นไลน์บรรจุ/บล็อกเดียว — ดู (optional && categoryKey!=='fill') ใน _planLineBlockHTML)
+function _planApplyBlockDateSuggestion(b) {
+  const el = document.getElementById(`plan-block-date-${b}`);
+  if (!el || _planBlockDateManuallySet[b]) return;
+  const mainDate = document.getElementById('plan-f-date')?.value || '';
+  const uom = document.getElementById('plan-f-uom')?.value || '';
+  const categoryKey = _planLineBlockCategory[b] || null;
+  const suggested = _planComputeBlockDateSuggestion(mainDate, uom, categoryKey);
   el.value = suggested;
-  const note = document.getElementById(`plan-lot-date-note-${b}`);
+  const note = document.getElementById(`plan-block-date-note-${b}`);
   if (note) {
-    const uom = document.getElementById('plan-f-uom')?.value || '';
-    note.innerHTML = (uom === 'ขวด' && suggested)
+    note.innerHTML = (categoryKey === 'lot' && uom === 'ขวด' && suggested)
       ? `<i class="fas fa-wand-magic-sparkles me-1 text-primary"></i>แนะนำล่วงหน้าก่อนไลน์บรรจุ (งานขวด) — แก้ไขเองได้`
-      : '';
+      : (suggested ? `<i class="fas fa-wand-magic-sparkles me-1 text-primary"></i>แนะนำวันเดียวกับไลน์บรรจุ — แก้ไขเองได้` : '');
   }
 }
 
-// ผู้ใช้แก้วันที่ยิง Lot เอง — จำไว้ไม่ให้ auto-suggest ทับอีก (เหมือน pattern เดียวกับ
+// ผู้ใช้แก้วันที่ของบล็อกนี้เอง — จำไว้ไม่ให้ auto-suggest ทับอีก (เหมือน pattern เดียวกับ
 // _planLineManualOverrideByBlock ของ "เปลี่ยนไลน์นี้") แล้วรีเช็คชนกัน/สกิลด้วยวันที่ใหม่
-function planLotDateChanged(b) {
-  _planLotDateManuallySet[b] = true;
-  const note = document.getElementById(`plan-lot-date-note-${b}`);
+function planBlockDateChanged(b) {
+  _planBlockDateManuallySet[b] = true;
+  const note = document.getElementById(`plan-block-date-note-${b}`);
   if (note) note.innerHTML = '';
   planCheckConflictLive(b);
   planCheckSkillCoverage(b);
 }
 
-// วันที่ "จริง" ของบล็อกนี้ — บล็อกยิง Lot ที่มีช่องวันที่ของตัวเอง (ดูหมายเหตุด้านบน) ใช้ค่าจากช่องนั้น
-// โดยตรง บล็อกอื่นๆ (รวมถึงยิง Lot ที่ไม่มีช่องแยก เช่นตอนแก้ไข/fallback บล็อกเดียว) ใช้วันที่หลักร่วมกัน
+// วันที่ "จริง" ของบล็อกนี้ — บล็อกที่มีช่องวันที่ของตัวเอง (ทุกบล็อกยกเว้นไลน์บรรจุ — ดูหมายเหตุด้านบน) ใช้
+// ค่าจากช่องนั้นโดยตรง บล็อกไลน์บรรจุ/บล็อกเดียว (แก้ไข/fallback ไม่มีช่องแยก) ใช้วันที่หลักร่วมกัน
 // (plan-f-date) เหมือนเดิมทุกอย่าง — เรียกแทนการอ่าน plan-f-date ตรงๆ ทุกจุดที่ต้องรู้วันที่จริงของบล็อกนี้
 // (เช็คชนกันไลน์/คน, payload ตอนบันทึก)
 function _planDateForBlock(b) {
-  const lotDateEl = document.getElementById(`plan-lot-date-${b}`);
-  if (lotDateEl) return lotDateEl.value || '';
+  const blockDateEl = document.getElementById(`plan-block-date-${b}`);
+  if (blockDateEl) return blockDateEl.value || '';
   return document.getElementById('plan-f-date')?.value || '';
 }
 
@@ -14632,7 +14645,7 @@ function _planRefreshAllBlocksForProductOrDate() {
       _planPopulateWorkersSelect(b, []);
       planApplyAllowedLines(b, '');
       planAutoPickFreeLine(b);
-      _planApplyLotDateSuggestion(b);
+      _planApplyBlockDateSuggestion(b);
       planCheckSkillCoverage(b);
     });
     return;
@@ -14647,7 +14660,7 @@ function _planRefreshAllBlocksForProductOrDate() {
 
 function planOnDateChanged() {
   _planLineBlockIds.forEach(b => {
-    _planApplyLotDateSuggestion(b);
+    _planApplyBlockDateSuggestion(b);
     planCheckConflictLive(b);
     planAutoPickFreeLine(b);
     planCheckSkillCoverage(b);
@@ -14816,7 +14829,7 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
       document.getElementById(`plan-f-workers-legacy-note-${b}`).style.display = 'none';
       _planPopulateWorkersSelect(b, []);
       planApplyAllowedLines(b, '');
-      _planApplyLotDateSuggestion(b);
+      _planApplyBlockDateSuggestion(b);
     });
   }
   _planUpdateCORefBadge();
@@ -14903,15 +14916,12 @@ function planShiftChanged(b) {
       ? `รวมเวลา: ${shift.timeStart}–${includesOT ? 'เป็นต้นไป' : shift.timeEnd}${shift.shiftLabel.includes('+') && includesOT && keys.length > 1 ? ' (มีช่วงพักก่อนโอทีที่ไม่นับเป็นเวลาทำงาน)' : ''}`
       : 'เลือกช่วงเวลาอย่างน้อย 1 ช่วง';
   }
-  // บล็อกที่เรียก onchange นี้ได้มี checkbox เวลาของตัวเอง แปลว่าเป็นบล็อกหลัก (_planPrimaryTimeBlockKey)
-  // เสมอ (added 2026-09-05 ตามคำขอผู้ใช้ "เวลาทำงานใส่แค่ไลน์บรรจุ") — บล็อกอื่นในแผนเดียวกัน (แพ็ค/ยิง
-  // Lot) ไม่มี UI เวลาของตัวเอง แต่ "ยืม" เวลานี้ไปใช้ (ดู _planEffectiveShift) จึงต้องรีเช็คทุกบล็อกด้วย
-  // เมื่อเวลาหลักเปลี่ยน ไม่ใช่แค่บล็อกนี้บล็อกเดียว
-  _planLineBlockIds.forEach(other => {
-    planCheckConflictLive(other);
-    planAutoPickFreeLine(other);
-    planCheckSkillCoverage(other);
-  });
+  // แต่ละบล็อกมีเวลาของตัวเองอิสระแล้ว (added 2026-09-19 — เดิมบล็อกอื่นที่ไม่ใช่ไลน์บรรจุ "ยืม" เวลาจาก
+  // ไลน์บรรจุผ่าน _planEffectiveShift จึงต้องรีเช็คทุกบล็อกเวลาไลน์บรรจุเปลี่ยน ตอนนี้ไม่ยืมกันอีกต่อไป
+  // รีเช็คแค่บล็อกนี้บล็อกเดียวพอ)
+  planCheckConflictLive(b);
+  planAutoPickFreeLine(b);
+  planCheckSkillCoverage(b);
 }
 
 function planCheckConflictLive(b) {
@@ -14941,14 +14951,22 @@ function planCheckConflictLive(b) {
 // `oldRow.ProductCode`+`oldRow.PlanDate` ตรงๆ ซึ่งพังทันทีที่แก้จากไลน์ "ยิง Lot" ที่มีวันที่ของตัวเอง (คนละ
 // วันกับไลน์บรรจุ/แพ็คโดยเจตนา ดู independent-Lot-date feature) — บั๊กจริงที่ผู้ใช้เจอ: "แก้ไขจำนวนสั่งผลิต
 // จากหน้าไลน์ยิงล็อต ไลน์บรรจุข้อมูลไม่เปลี่ยนตาม" เพราะจับคู่ไม่เจอเลย จึงไม่เผยแพร่อะไรทั้งนั้น
-// **วันที่ (PlanDate) เป็นกรณีพิเศษเสมอสำหรับไลน์ "ยิง Lot"** ต่างจากฟิลด์อื่น — ไม่เผยแพร่ค่าตรงๆ แบบเดียวกับ
-// ไลน์อื่น (การแก้วันที่จากไลน์บรรจุ เช่นเลื่อนทั้งงานไปสัปดาห์หน้า ไม่ควรไปทับวันที่ล่วงหน้าของยิง Lot ตรงๆ
-// ทันที) แต่**ตามไปด้วย -1 วัน (หรือ -2 ถ้าติดวันอาทิตย์) แบบเดียวกับตอนสร้างแผนครั้งแรก ถ้ายังไม่เคยถูกแก้ไข
-// เองมาก่อน** (added 2026-09-08 follow-up ตามคำขอ "เปลี่ยนวันที่ไลน์บรรจุ ให้ไลน์ยิงล็อตตามมาด้วย -1 วัน
-// เหมือนเดิม" — ดูรายละเอียดการตรวจ "เคยแก้เองหรือยัง" แบบย้อนกลับที่ loop ด้านล่าง เพราะไม่มีฟลากนี้เก็บถาวร
-// ในฐานข้อมูลจริง) ถ้าเคยถูกแก้ไขเองแล้ว (ผ่าน `planEditLotDate`) จะไม่แตะเลยไม่ว่าไลน์บรรจุจะย้ายไปไหน — และ
-// ถ้าแก้วันที่จากไลน์ยิง Lot เอง ก็ไม่เผยแพร่ออกไปไหนเลย (การแก้วันที่ยิง Lot ควรเป็นเรื่องเฉพาะไลน์นั้น) —
-// ฟิลด์ระดับงานอื่นๆ (จำนวน/สินค้า/MO/CO/หมายเหตุ) เผยแพร่ครบทุกไลน์รวมยิง Lot ด้วยเสมอ ไม่ว่าจะแก้จากไลน์ไหน
+// **วันที่ (PlanDate) เป็นกรณีพิเศษเสมอ ทุกไลน์ยกเว้นไลน์ "บรรจุ"** (ขยายจากเดิมที่เป็นกรณีพิเศษแค่ไลน์ยิง
+// Lot อย่างเดียว — ตั้งแต่ทุกไลน์แยกวันที่อิสระได้แล้ว added 2026-09-19 ดูหมายเหตุที่ _planLineBlockIds) —
+// ไม่เผยแพร่ค่าตรงๆ แบบเดียวกับฟิลด์อื่น (การแก้วันที่จากไลน์บรรจุ เช่นเลื่อนทั้งงานไปสัปดาห์หน้า ไม่ควรไปทับ
+// วันที่ที่ตั้งไว้เองของไลน์อื่นตรงๆ ทันที) แต่**ตามไปด้วยสูตรคำแนะนำของแต่ละหมวด** (ไลน์ยิง Lot: -1/-2 วัน
+// ของสินค้าขวด, ไลน์อื่น: วันเดียวกัน offset=0 — ดู _planComputeBlockDateSuggestion) **เฉพาะถ้ายังไม่เคยถูก
+// แก้ไขเองมาก่อน** (added 2026-09-08 follow-up ตามคำขอ "เปลี่ยนวันที่ไลน์บรรจุ ให้ไลน์ยิงล็อตตามมาด้วย -1
+// วันเหมือนเดิม", ขยายเป็นทุกไลน์ 2026-09-19) — ไม่มีฟลาก "เคยแก้เองไหม" เก็บถาวรในฐานข้อมูลจริง
+// (`_planBlockDateManuallySet` เป็นแค่ state ชั่วคราวตอนฟอร์มเปิดอยู่ ไม่ persist) จึงตรวจย้อนกลับแทน:
+// คำนวณว่า "ถ้าไม่เคยแก้เอง วันที่เดิมของไลน์นี้ควรจะเป็นอะไร" จากวันที่เดิมของไลน์บรรจุ (`oldRow.PlanDate`)
+// — ถ้าตรงกับวันที่จริงที่เก็บไว้เป๊ะ ถือว่ายังไม่เคยแก้เอง (หรือบังเอิญตรงกับค่าแนะนำ ซึ่งปลอดภัยเหมือนกันที่
+// จะให้ตามต่อ) จึงคำนวณค่าใหม่ตามวันที่ใหม่แล้วอัปเดตให้ — ถ้าไม่ตรง แปลว่าผู้ใช้เคยแก้เองแล้ว ไม่แตะเลย
+// (เคารพการแก้ไขเองเหมือนเดิม) เช็ค conflict ไลน์/คนซ้ำก่อนเสมอ — ถ้าชนกัน ไม่บังคับย้ายให้ แค่แจ้งเตือนให้
+// ผู้ใช้ไปแก้วันที่ของไลน์นั้นเอง ดีกว่าสร้างปัญหาจองซ้อนกันเงียบๆ — **การตามไปนี้เกิดขึ้นเฉพาะตอนแก้จากไลน์
+// "บรรจุ" เท่านั้น** (`oldIsFill`) แก้จากไลน์อื่น (แพ็ค/ยิง Lot) โดยตรงไม่เผยแพร่วันที่ออกไปไหนเลย (การแก้
+// วันที่ของไลน์นั้นควรเป็นเรื่องเฉพาะไลน์นั้น) — ฟิลด์ระดับงานอื่นๆ (จำนวน/สินค้า/MO/CO/หมายเหตุ) เผยแพร่ครบ
+// ทุกไลน์เสมอไม่ว่าจะแก้จากไลน์ไหน (ไม่เกี่ยวกับ oldIsFill)
 const _PLAN_JOB_LEVEL_FIELDS = ['PlanDate', 'ProductCode', 'ProductName', 'PlanQty', 'UOM', 'MO_Ref', 'CO_Ref', 'Remark'];
 async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
   const siblings = _planJobSiblingsOf(oldRow);
@@ -14956,8 +14974,8 @@ async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
 
   const otherFields  = _PLAN_JOB_LEVEL_FIELDS.filter(f => f !== 'PlanDate');
   const otherChanged = otherFields.some(f => (oldRow[f] ?? null) !== (payload[f] ?? null));
-  const oldIsLot     = _planLineCategoryOf(oldRow.Line || '') === 'lot';
-  const dateChanged  = !oldIsLot && (oldRow.PlanDate ?? null) !== (payload.PlanDate ?? null);
+  const oldIsFill    = _planLineCategoryOf(oldRow.Line || '') === 'fill';
+  const dateChanged  = oldIsFill && (oldRow.PlanDate ?? null) !== (payload.PlanDate ?? null);
   if (!otherChanged && !dateChanged) return;
 
   const errors = [];
@@ -14969,39 +14987,23 @@ async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
     if (error) errors.push({ lines: siblings.map(s => s.Line), message: error.message });
   }
   if (dateChanged) {
-    const nonLotSiblings = siblings.filter(s => _planLineCategoryOf(s.Line || '') !== 'lot');
-    if (nonLotSiblings.length) {
-      const ids = nonLotSiblings.map(s => s._row_id);
-      const { error } = await _sb.from('production_plan').update({ PlanDate: payload.PlanDate }).in('_row_id', ids);
-      if (error) errors.push({ lines: nonLotSiblings.map(s => s.Line), message: error.message });
-    }
-
-    // ไลน์ยิง Lot ตามวันที่ใหม่ไปด้วย -1 วัน (หรือ -2 ถ้าติดวันอาทิตย์ เหมือนตอนสร้างแผนครั้งแรก) แต่**เฉพาะ
-    // ถ้ายังไม่เคยถูกแก้ไขเอง** (added 2026-09-08 ตามคำขอ "เปลี่ยนวันที่ไลน์บรรจุ ให้ไลน์ยิงล็อตตามมาด้วย -1
-    // วันเหมือนเดิม") — ไม่มีฟลาก "เคยแก้เองไหม" เก็บถาวรในฐานข้อมูลจริง (`_planLotDateManuallySet` เป็นแค่
-    // state ชั่วคราวตอนฟอร์มเปิดอยู่ ไม่ persist) จึงตรวจย้อนกลับแทน: คำนวณว่า "ถ้าไม่เคยแก้เอง วันที่เดิม
-    // ของยิง Lot ควรจะเป็นอะไร" จากวันที่เดิมของไลน์บรรจุ (`oldRow.PlanDate`) — ถ้าตรงกับวันที่จริงที่เก็บไว้
-    // เป๊ะ ถือว่ายังไม่เคยแก้เอง (หรือบังเอิญตรงกับค่าแนะนำ ซึ่งปลอดภัยเหมือนกันที่จะให้ตามต่อ) จึงคำนวณค่า
-    // ใหม่ตามวันที่ใหม่แล้วอัปเดตให้ — ถ้าไม่ตรง แปลว่าผู้ใช้เคยแก้เองผ่าน `planEditLotDate` มาแล้ว ไม่แตะเลย
-    // (เคารพการแก้ไขเองเหมือนเดิม) เช็ค conflict ไลน์/คนซ้ำก่อนเสมอเหมือน `planEditLotDate` — ถ้าชนกัน ไม่บังคับ
-    // ย้ายให้ แค่แจ้งเตือนให้ผู้ใช้ไปแก้วันที่ยิง Lot เอง ดีกว่าสร้างปัญหาจองซ้อนกันเงียบๆ
-    const lotSiblings = siblings.filter(s => _planLineCategoryOf(s.Line || '') === 'lot');
-    for (const s of lotSiblings) {
-      const expectedOldLotDate = _planComputeLotDateSuggestion(oldRow.PlanDate, oldRow.UOM);
-      if (s.PlanDate !== expectedOldLotDate) continue; // เคยแก้เอง ไม่แตะ
-      const newLotDate = _planComputeLotDateSuggestion(payload.PlanDate, payload.UOM ?? oldRow.UOM);
-      if (!newLotDate || newLotDate === s.PlanDate) continue;
+    for (const s of siblings) {
+      const sCategory = _planLineCategoryOf(s.Line || '');
+      const expectedOldDate = _planComputeBlockDateSuggestion(oldRow.PlanDate, oldRow.UOM, sCategory);
+      if (s.PlanDate !== expectedOldDate) continue; // เคยแก้เอง ไม่แตะ
+      const newDate = _planComputeBlockDateSuggestion(payload.PlanDate, payload.UOM ?? oldRow.UOM, sCategory);
+      if (!newDate || newDate === s.PlanDate) continue;
       const timeStart = (s.TimeStart || '').slice(0, 5);
       const timeEnd   = (s.TimeEnd || '').slice(0, 5);
-      const conflict = _planFindConflict(newLotDate, s.Line, timeStart, timeEnd, s._row_id);
+      const conflict = _planFindConflict(newDate, s.Line, timeStart, timeEnd, s._row_id);
       const workerCodes = (s.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-      const workerConflicts = conflict ? [] : _planFindWorkerConflicts(newLotDate, timeStart, timeEnd, workerCodes, s._row_id);
+      const workerConflicts = conflict ? [] : _planFindWorkerConflicts(newDate, timeStart, timeEnd, workerCodes, s._row_id);
       if (conflict || workerConflicts.length) {
         errors.push({ lines: [s.Line],
-          message: `วันที่ใหม่ที่ควรตามไป (${_planFmtDateLabel(newLotDate)}) ชนกับแผนอื่นอยู่ — ไม่ได้ปรับวันที่ยิง Lot ให้อัตโนมัติ กรุณาแก้ไขวันที่ยิง Lot เอง` });
+          message: `วันที่ใหม่ที่ควรตามไป (${_planFmtDateLabel(newDate)}) ชนกับแผนอื่นอยู่ — ไม่ได้ปรับวันที่ให้อัตโนมัติ กรุณาแก้ไขวันที่ของไลน์นี้เอง` });
         continue;
       }
-      const { error } = await _sb.from('production_plan').update({ PlanDate: newLotDate }).eq('_row_id', s._row_id);
+      const { error } = await _sb.from('production_plan').update({ PlanDate: newDate }).eq('_row_id', s._row_id);
       if (error) errors.push({ lines: [s.Line], message: error.message });
     }
   }
@@ -15043,9 +15045,9 @@ async function planSubmit(e) {
   // แผนมีจำนวนบล็อกตามที่สินค้ากำหนด (planSetupLineBlocksForProduct) — บล็อกที่ตายตัวจาก BOM มีค่าไลน์
   // เติมไว้ให้เสมอตั้งแต่แรก (นั่นคือประเด็นของฟีเจอร์นี้) จึง "ข้ามบล็อกที่ไม่ต้องการ" เช็คจาก checkbox
   // "ใช้ไลน์นี้ในแผนนี้" (#plan-line-use-${b}, added 2026-09-05) แทนการเช็คว่าไลน์ว่างแบบเดิม (ไลน์ไม่มีทาง
-  // ว่างอีกต่อไปสำหรับบล็อกตายตัว) — ไม่มี checkbox (บล็อกเดียว) แปลว่าใช้เสมอ ถ้าใช้อยู่ต้องมีช่วงเวลาด้วย
-  // เสมอ (ยืมจากบล็อกหลัก "ไลน์บรรจุ" ผ่าน _planEffectiveShift — ดูหมายเหตุที่ planSetupLineBlocksForProduct
-  // เรื่อง "เวลาทำงานใส่แค่ไลน์บรรจุ") — validate ทีละบล็อกก่อนสร้าง payload ถัดไป ถ้าบล็อกไหนไม่ผ่านหยุด
+  // ว่างอีกต่อไปสำหรับบล็อกตายตัว) — ไม่มี checkbox (บล็อกเดียว) แปลว่าใช้เสมอ ถ้าใช้อยู่ต้องมีวันที่+ช่วงเวลา
+  // ด้วยเสมอ (แต่ละบล็อกมีวันที่+เวลาของตัวเองอิสระแล้ว ดู _planDateForBlock/_planEffectiveShift และ
+  // หมายเหตุที่ _planLineBlockIds ด้านบน) — validate ทีละบล็อกก่อนสร้าง payload ถัดไป ถ้าบล็อกไหนไม่ผ่านหยุด
   // ทั้งหมดทันที ไม่บันทึกบางส่วน
   const isMultiSection = _planLineBlockIds.length > 1;
   const blockPayloads = [];
@@ -15061,8 +15063,8 @@ async function planSubmit(e) {
     // _planDateForBlock) อาจไม่ใช่วันเดียวกับ `date` (วันที่หลักของแผน ใช้กับไลน์บรรจุ/แพ็ค) เลย
     const blockDate = _planDateForBlock(b);
     if (!line)      { _err(`กรุณาเลือกไลน์ผลิต${label}`, ''); return; }
-    if (!blockDate) { _err(`กรุณาระบุวันที่${label}`, 'ไลน์ยิง Lot ต้องระบุวันที่ยิง Lot ด้วย'); return; }
-    if (!shift)     { _err(`กรุณาเลือกช่วงเวลา${label}`, 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง ที่บล็อก "ไลน์บรรจุ"'); return; }
+    if (!blockDate) { _err(`กรุณาระบุวันที่${label}`, ''); return; }
+    if (!shift)     { _err(`กรุณาเลือกช่วงเวลา${label}`, 'เลือก เช้า/บ่าย/โอที อย่างน้อย 1 ช่วง'); return; }
 
     const conflict = _planFindConflict(blockDate, line, shift.timeStart, shift.timeEnd, excludeRowId);
     if (conflict) {
@@ -24690,12 +24692,23 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
   const byMonthMap = {};
   byMonth.forEach(m => { byMonthMap[m.month] = m; });
 
-  if (!(_admindashPayrollActual || []).length) {
-    el.innerHTML = '<div class="text-center text-muted py-3">ยังไม่มีข้อมูลค่าจ้างจริง — กด "บันทึก/แก้ไขค่าจ้างจริง" เพื่อเริ่มกรอก</div>';
-    return;
-  }
+  // รายได้/กำไรที่ "ส่งถึงลูกค้าแล้วจริง" ต่อเดือน — สูตรเดียวกับการ์ด KPI รายได้/กำไรด้านบนสุดของหน้านี้เป๊ะ
+  // (_admindashDlvProfit) ไม่คำนวณซ้ำสูตรใหม่ อ่านจาก _admindashLastDlv/_admindashPriceMap/_admindashCostByLot
+  // ที่ admindashLoadData เก็บเป็น module state ไว้แล้ว — เดือนฐานของรายได้/กำไรนี้คือเดือนที่ "ส่งถึงแล้ว"
+  // (ArrivedDate/Date ของ delivery, ดู _admindashDlvMonthKey) ไม่ใช่เดือนที่ผลิต จึงอาจไม่ตรงเดือนกับค่าแรง/
+  // ต้นทุนแถวเดียวกันถ้าของถูกผลิตไว้ก่อนแล้วเพิ่งส่งภายหลัง — เป็นข้อจำกัดเดียวกับที่ระบุไว้บนสุดของไฟล์นี้
+  const dlvByMonth = {};
+  (_admindashLastDlv || []).forEach(r => {
+    const p = _admindashDlvProfit(r, _admindashPriceMap, _admindashCostByLot);
+    if (!p) return;
+    const mk = _admindashDlvMonthKey(r);
+    if (!dlvByMonth[mk]) dlvByMonth[mk] = { revenue: 0, profit: 0 };
+    dlvByMonth[mk].revenue += p.revenue;
+    dlvByMonth[mk].profit  += p.profit;
+  });
 
   const fmtB = v => (v == null ? '—' : '฿' + Math.round(v).toLocaleString());
+  const fmtSigned = v => (v == null ? '—' : (v < 0 ? '-' : '') + '฿' + Math.round(Math.abs(v)).toLocaleString());
   // เขียวถ้าใกล้เคียง 100% (85-115%), เหลืองถ้าเบี่ยงปานกลาง, แดงถ้าเบี่ยงมาก (<70% จ่ายเกินสิ่งที่ใช้จริงมาก
   // = อาจมีกำลังคนเหลือ, >130% = ใช้งานหนักเกินอัตรากำลังจ่ายจริง = อาจต้องเพิ่มคน)
   const utilClass = pct => pct == null ? '' : (pct < 70 || pct > 130 ? 'text-danger' : (pct < 85 || pct > 115 ? 'text-warning' : 'text-success'));
@@ -24705,11 +24718,15 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     const label = `${mo}/${y.slice(2)}`;
     const p = _admindashPayrollActual.find(x => x.Month === m);
     const t = byMonthMap[m] || { ftCost: 0, osCost: 0 };
+    const d = dlvByMonth[m] || { revenue: 0, profit: 0 };
+    const revCell    = `<td class="text-end">${fmtB(d.revenue)}</td>`;
+    const profitCell = `<td class="text-end fw-bold ${d.profit >= 0 ? 'text-success' : 'text-danger'}">${fmtSigned(d.profit)}</td>`;
 
     if (!p) {
       return `<tr class="text-muted">
         <td class="fw-bold">${label}</td>
-        <td colspan="10" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
+        ${revCell}${profitCell}
+        <td colspan="11" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="admindashOpenPayrollModal('${m}')" title="กรอกค่าจ้างจริง"><i class="fas fa-plus"></i></button></td>
       </tr>`;
     }
@@ -24724,6 +24741,10 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     const ftUtil = ftPaid > 0 ? Math.round(t.ftCost / ftPaid * 1000) / 10 : null;
     const osUtil = osPaid > 0 ? Math.round(t.osCost / osPaid * 1000) / 10 : null;
     const ptDiffPct = (ptDayRate && avgPtRateDay) ? Math.round((avgPtRateDay - ptDayRate) / ptDayRate * 1000) / 10 : null;
+    // ค่าใช้จ่ายจริงรวมทั้งเดือน (ให้เทียบตรงกับรายได้/กำไรทางซ้ายได้) — FT/OS ใช้ยอดจ่ายจริงคงที่ที่กรอกไว้
+    // (FT_TotalCost/OS_TotalCost) ส่วน PT ไม่มียอดเหมาจ่ายรายเดือนให้กรอก (จ้างเป็นวัน ไม่ใช่เงินเดือน) จึงใช้
+    // ต้นทุนที่ระบบคำนวณจากชั่วโมงจริง×เรทที่อนุมัติแทน (t.ptCost) — นี่คือค่าจ้าง PT จริงที่จ่ายไปเดือนนั้นแล้ว
+    const totalPaidActual = ftPaid + osPaid + (t.ptCost || 0);
 
     // "ควรเพิ่ม-ลด OT ไหม" — เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ต่อจากตัวเลข Utilization เดิม: เทียบ "ค่า OT ที่จ่าย
     // เดือนนี้" กับ "ต้นทุนจ้างพนักงาน 1 คนทั้งเดือน" (= ค่าจ้างจริงรวม ÷ จำนวนหัวคนของประเภทนั้น) — ถ้า OT ที่
@@ -24753,6 +24774,8 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
 
     return `<tr>
       <td class="fw-bold">${label}</td>
+      ${revCell}${profitCell}
+      <td class="text-end fw-bold">${fmtB(totalPaidActual)}</td>
       <td class="text-end">${fmtB(ftPaid)}${ftHeadcount ? ` <span class="text-muted" style="font-size:.68rem">(${ftHeadcount} คน)</span>` : ''}</td>
       <td class="text-end">${fmtB(t.ftCost)}</td>
       <td class="text-end fw-bold ${utilClass(ftUtil)}">${ftUtil != null ? ftUtil + '%' : '—'}</td>
@@ -24770,6 +24793,7 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
   el.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
     <thead><tr>
       <th>เดือน</th>
+      <th class="text-end">รายได้ (ส่งลูกค้า)</th><th class="text-end">กำไร</th><th class="text-end">ค่าใช้จ่ายจริงรวม</th>
       <th class="text-end">FT จ่ายจริง</th><th class="text-end">FT ใช้จริงในผลิต</th><th class="text-end">FT Utilization</th><th class="text-end">FT OT (เทียบเท่าจ้างเพิ่ม)</th>
       <th class="text-end">OS จ่ายจริง</th><th class="text-end">OS ใช้จริงในผลิต</th><th class="text-end">OS Utilization</th><th class="text-end">OS OT (เทียบเท่าจ้างเพิ่ม)</th>
       <th class="text-end">PT เรทจริง/เรทระบบ (฿/วัน)</th><th class="text-end">PT OT (เทียบเท่าจ้างเพิ่ม)</th><th></th>
