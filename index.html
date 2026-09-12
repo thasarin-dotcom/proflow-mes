@@ -5916,7 +5916,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="col-md-6">
             <label class="form-label mb-1 small">รหัส QR (พิมพ์เอง หรือสแกนกล้อง)</label>
             <div class="input-group input-group-sm">
-              <input type="text" id="scanlabor-f-code" class="form-control" placeholder="เช่น PFLABOR|MO-2609-07|ห้องบรรจุครีมโลชั่น"
+              <input type="text" id="scanlabor-f-code" class="form-control" placeholder="เช่น PFLABOR|MO-2609-07"
                 autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();scanlaborResolve(this.value);}">
               <button class="btn btn-outline-secondary" onclick="scanlaborResolve(document.getElementById('scanlabor-f-code').value)" title="ค้นหา"><i class="fas fa-search"></i></button>
               <button class="btn btn-outline-secondary" onclick="scanlaborOpenCamera()" title="เปิดกล้องสแกน"><i class="fas fa-camera"></i> สแกน</button>
@@ -9226,7 +9226,7 @@ function renderMOTable() {
           <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();progressqrPrintForMO('${r.MO_ID}','${(r.ProductName||'').replace(/'/g,"\\'")}')" title="พิมพ์ QR ติดหน้าไลน์ครบทุกไลน์ของ MO นี้ ใน 1 หน้า A4 — สำหรับสแกนอัปเดตยอดผลิตเรียลไทม์">
             <i class="fas fa-qrcode me-1"></i>QR สแกนอัปเดต
           </button>
-          <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();laborqrPrintForMO('${r.MO_ID}','${(r.ProductName||'').replace(/'/g,"\\'")}')" title="พิมพ์ QR ติดหน้าไลน์ครบทุกไลน์ของ MO นี้ ใน 1 หน้า A4 — สำหรับผู้ควบคุมงานผลิตสแกนบันทึกเวลาแรงงาน">
+          <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();laborqrPrintForMO('${r.MO_ID}','${(r.ProductName||'').replace(/'/g,"\\'")}')" title="พิมพ์ QR เดียว ใช้ได้กับทุกไลน์ผลิตของ MO นี้ — สแกนแล้วบันทึกเวลาแรงงานแยกแต่ละไลน์ในหน้าเดียว">
             <i class="fas fa-user-clock me-1"></i>QR บันทึกเวลาแรงงาน
           </button>
           ${!isDone ? `<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();moForceClose(${r._row_id})" title="ตัดจบงาน (ปิดแม้ผลิตไม่ครบ)">
@@ -16265,15 +16265,17 @@ async function _scanprogPubSubmit(moId, line, phone) {
   </div>`;
 }
 
-// ── สแกน QR "PFLABOR" แล้วเปิดหน้านี้ตรงๆ ไม่ต้อง login เลย (?scanlabor=1&mo=...&line=...) — กลไกเดียวกับ
-// _renderPublicScanProgress เป๊ะ (ยืนยันตัวด้วยเบอร์โทรผ่าน Edge Function scan-labor ก่อนเห็นฟอร์ม) ต่างกัน
-// แค่เนื้อหาฟอร์ม: roster ผู้ปฏิบัติงานตามแผนผลิต + เวลาเข้า-ออก แทนช่องยอดผลิตช่องเดียว ──
-let _scanlaborPubInfo = null; // ผลจาก action:'info' ({mo, plan, workDate, roster}) — โหลดครั้งเดียว ใช้ซ้ำตอนแสดงฟอร์ม
+// ── สแกน QR "PFLABOR" แล้วเปิดหน้านี้ตรงๆ ไม่ต้อง login เลย (?scanlabor=1&mo=...) — กลไกเดียวกับ
+// _renderPublicScanProgress (ยืนยันตัวด้วยเบอร์โทรผ่าน Edge Function scan-labor ก่อนเห็นฟอร์ม) ต่างกันที่
+// **ไม่มี &line= อีกต่อไป** (2026-09-12, ดูหมายเหตุยาวที่ laborqrPrintForMO) — QR ใบเดียวครอบคลุมทุกไลน์
+// ผลิตของ MO นี้ Edge Function คืนข้อมูลเป็น `lines` array แทน roster เดียว หน้านี้จึงแสดงทุกไลน์แยกส่วน
+// กันชัดเจนในหน้าเดียว (การ์ดต่อไลน์ ตารางของใครของมัน) แต่ยืนยันตัวด้วยเบอร์โทรแค่ครั้งเดียวสำหรับทั้ง MO
+let _scanlaborPubInfo = null; // ผลจาก action:'info' ({mo, workDate, lines:[{line,shift,timeStart,timeEnd,roster,qualifiedPool}]}) — โหลดครั้งเดียว ใช้ซ้ำตอนแสดงฟอร์ม
 
-async function _renderPublicScanLabor(moId, line) {
+async function _renderPublicScanLabor(moId) {
   document.getElementById('scanLaborPublicView').style.display = 'block';
   const bodyEl = document.getElementById('scanLaborPublicBody');
-  if (!moId || !line) {
+  if (!moId) {
     bodyEl.innerHTML = `<div class="text-center py-5">
       <div style="font-size:1.2rem;font-weight:700">⚠️ ลิงก์ไม่ถูกต้อง</div>
       <div class="text-muted small mt-2">กรุณาสแกน QR ที่ติดหน้าไลน์ใหม่อีกครั้ง</div>
@@ -16292,22 +16294,22 @@ async function _renderPublicScanLabor(moId, line) {
     <div class="glass-card p-3">
       <label class="form-label small fw-bold">เบอร์โทรศัพท์ (ยืนยันว่าใครกรอก — ผู้ควบคุมงานผลิต)</label>
       <input type="tel" id="scanlabor-pub-phone" class="form-control mb-2" placeholder="0812345678" value="${savedPhone}" autofocus
-        onkeydown="if(event.key==='Enter'){event.preventDefault();_scanlaborPubVerify('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}');}">
-      <button class="btn btn-primary w-100" id="scanlabor-pub-verify-btn" onclick="_scanlaborPubVerify('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}')">
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_scanlaborPubVerify('${moId.replace(/'/g,"\\'")}');}">
+      <button class="btn btn-primary w-100" id="scanlabor-pub-verify-btn" onclick="_scanlaborPubVerify('${moId.replace(/'/g,"\\'")}')">
         <i class="fas fa-arrow-right me-1"></i>ถัดไป
       </button>
       <div id="scanlabor-pub-msg" class="text-danger small mt-2"></div>
     </div>`;
-  _scanlaborPubLoadInfo(moId, line);
+  _scanlaborPubLoadInfo(moId);
 }
 
-async function _scanlaborPubLoadInfo(moId, line) {
+async function _scanlaborPubLoadInfo(moId) {
   const cardEl = document.getElementById('scanlabor-pub-info-card');
   let data;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-labor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'info', moId, line }),
+      body: JSON.stringify({ action: 'info', moId }),
     });
     data = await res.json();
   } catch (e) {
@@ -16315,37 +16317,31 @@ async function _scanlaborPubLoadInfo(moId, line) {
     return;
   }
   if (!data || !data.ok) {
-    const msgMap = { mo_not_found: 'ไม่พบ MO นี้ในระบบ', missing_mo_or_line: 'ลิงก์ไม่ถูกต้อง' };
+    const msgMap = { mo_not_found: 'ไม่พบ MO นี้ในระบบ', missing_mo: 'ลิงก์ไม่ถูกต้อง' };
     cardEl.innerHTML = `<div class="text-danger small"><i class="fas fa-circle-exclamation me-1"></i>${msgMap[data?.error] || 'โหลดรายละเอียดไม่สำเร็จ'}</div>`;
     return;
   }
   _scanlaborPubInfo = data;
-  cardEl.innerHTML = _scanlaborPubInfoHTML(moId, line, data);
+  cardEl.innerHTML = _scanlaborPubInfoHTML(moId, data);
 }
 
-function _scanlaborPubInfoHTML(moId, line, data, employeeName, employeePosition) {
+function _scanlaborPubInfoHTML(moId, data, employeeName, employeePosition) {
   const mo = data.mo || {};
-  const plan = data.plan || null;
-  const shiftLine = plan
-    ? `<div><i class="fas fa-business-time me-1 text-muted"></i>กะ: <b>${plan.Shift || '—'}</b>${plan.TimeStart ? ` (${plan.TimeStart}${plan.TimeEnd ? '–'+plan.TimeEnd : ''})` : ''}</div>`
-    : '';
-  const roster = data.roster || [];
+  const lines = data.lines || [];
   const empLine = employeeName
     ? `<div class="alert alert-success py-2 small mb-2"><i class="fas fa-user-check me-1"></i>ผู้กรอก (หัวหน้างาน): <b>${employeeName}</b>${employeePosition ? ` — ${employeePosition}` : ''}</div>` : '';
   return `${empLine}
     <div class="mb-1">
       <span class="badge bg-secondary me-2">${moId}</span>
       <b>${mo.ProductName || '—'}</b>
-      <span class="badge ms-2" style="background:${_planLineColor(line)}">${line}</span>
     </div>
     <div class="small text-muted d-flex flex-column gap-1 mt-2">
       <div><i class="fas fa-calendar-day me-1 text-muted"></i>วันที่: <b>${_fmtDate(data.workDate)}</b></div>
-      ${shiftLine}
-      <div><i class="fas fa-users me-1 text-muted"></i>ผู้ปฏิบัติงานตามแผน: <b>${roster.length}</b> คน</div>
+      <div><i class="fas fa-industry me-1 text-muted"></i>ไลน์ผลิต: <b>${lines.length}</b> ไลน์${lines.length ? ` (${lines.map(l=>l.line).join(', ')})` : ''}</div>
     </div>`;
 }
 
-async function _scanlaborPubVerify(moId, line) {
+async function _scanlaborPubVerify(moId) {
   const phone = (document.getElementById('scanlabor-pub-phone').value || '').trim();
   const msgEl = document.getElementById('scanlabor-pub-msg');
   msgEl.textContent = '';
@@ -16356,7 +16352,7 @@ async function _scanlaborPubVerify(moId, line) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-labor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify', phone, moId, line }),
+      body: JSON.stringify({ action: 'verify', phone, moId }),
     });
     data = await res.json();
   } catch (e) {
@@ -16369,68 +16365,114 @@ async function _scanlaborPubVerify(moId, line) {
     const msgMap = {
       phone_not_found: 'ไม่พบเบอร์นี้ในระบบพนักงานที่ยังทำงานอยู่ กรุณาตรวจสอบเบอร์อีกครั้ง',
       missing_phone: 'กรุณากรอกเบอร์โทรศัพท์',
-      missing_mo_or_line: 'ลิงก์ไม่ถูกต้อง',
+      missing_mo: 'ลิงก์ไม่ถูกต้อง',
     };
     msgEl.textContent = msgMap[data?.error] || 'ไม่สามารถตรวจสอบได้ ลองใหม่อีกครั้ง';
     return;
   }
   sessionStorage.setItem('scanlabor_phone', phone);
-  if (!_scanlaborPubInfo) await _scanlaborPubLoadInfo(moId, line);
-  _scanlaborPubRenderForm(moId, line, phone, data.employeeName, data.employeePosition);
+  if (!_scanlaborPubInfo) await _scanlaborPubLoadInfo(moId);
+  _scanlaborPubRenderForm(moId, phone, data.employeeName, data.employeePosition);
 }
 
-function _scanlaborPubRosterRowHTML(r, i) {
+function _scanlaborPubRosterRowHTML(r, li, i) {
   return `<tr>
-    <td class="text-center"><input type="checkbox" class="form-check-input scanlabor-pub-present" data-i="${i}" ${r.present ? 'checked' : ''} onchange="_scanlaborPubToggleRow(${i})"></td>
+    <td class="text-center"><input type="checkbox" class="form-check-input scanlabor-pub-present" data-li="${li}" data-i="${i}" ${r.present ? 'checked' : ''} onchange="_scanlaborPubToggleRow(${li},${i})"></td>
     <td>${r.name} <span class="text-muted small">(${r.code})</span></td>
-    <td><input type="time" class="form-control form-control-sm scanlabor-pub-timein" data-i="${i}" value="${r.timeIn||''}" ${r.present ? '' : 'disabled'}></td>
-    <td><input type="time" class="form-control form-control-sm scanlabor-pub-timeout" data-i="${i}" value="${r.timeOut||''}" ${r.present ? '' : 'disabled'}></td>
+    <td>${_prodrecordTimeSelectHTML(`scanlabor-pub-timein-${li}-${i}`, r.timeIn)}</td>
+    <td>${_prodrecordTimeSelectHTML(`scanlabor-pub-timeout-${li}-${i}`, r.timeOut)}</td>
   </tr>`;
 }
 
-function _scanlaborPubToggleRow(i) {
-  const chk  = document.querySelector(`.scanlabor-pub-present[data-i="${i}"]`);
-  const inEl = document.querySelector(`.scanlabor-pub-timein[data-i="${i}"]`);
-  const outEl = document.querySelector(`.scanlabor-pub-timeout[data-i="${i}"]`);
-  if (inEl) inEl.disabled = !chk.checked;
-  if (outEl) outEl.disabled = !chk.checked;
+function _scanlaborPubToggleRow(li, i) {
+  const chk = document.querySelector(`.scanlabor-pub-present[data-li="${li}"][data-i="${i}"]`);
+  [`scanlabor-pub-timein-${li}-${i}`, `scanlabor-pub-timeout-${li}-${i}`].forEach(id => {
+    const hEl = document.getElementById(`${id}-h`), mEl = document.getElementById(`${id}-m`);
+    if (hEl) hEl.disabled = !chk.checked;
+    if (mEl) mEl.disabled = !chk.checked;
+  });
 }
 
-function _scanlaborPubRenderForm(moId, line, phone, employeeName, employeePosition) {
+// การ์ด 1 ใบต่อไลน์ผลิต (li = index ใน info.lines) — "แบ่งเป็นไลน์ชัดเจน" ตามคำขอผู้ใช้ 2026-09-12
+function _scanlaborPubLineSectionHTML(ld, li) {
+  const emptyRowHTML = `<tr id="scanlabor-pub-roster-empty-${li}"><td colspan="4" class="text-muted text-center small py-2">ยังไม่มีรายชื่อ — กด "เพิ่มคนอื่น" ด้านล่าง</td></tr>`;
+  return `<div class="glass-card p-3 mb-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <span class="badge" style="background:${_planLineColor(ld.line)}">${ld.line}</span>
+      <span class="text-muted small">${ld.shift ? `กะ ${ld.shift}` : ''}</span>
+    </div>
+    ${!ld.roster.length ? `<div class="alert alert-warning small mb-2 py-1"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — เพิ่มเองด้านล่างได้</div>` : ''}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-2">
+        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเข้า</th><th style="width:135px">เวลาออก</th></tr></thead>
+        <tbody id="scanlabor-pub-roster-tbody-${li}">${ld.roster.length ? ld.roster.map((r,i)=>_scanlaborPubRosterRowHTML(r,li,i)).join('') : emptyRowHTML}</tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="_scanlaborPubAddWorker(${li})"><i class="fas fa-user-plus me-1"></i>เพิ่มคนอื่น</button>
+  </div>`;
+}
+
+function _scanlaborPubRenderForm(moId, phone, employeeName, employeePosition) {
   const bodyEl = document.getElementById('scanLaborPublicBody');
-  const info = _scanlaborPubInfo || { mo: {}, roster: [] };
-  const roster = info.roster || [];
-  const rosterHTML = roster.length
-    ? `<div class="table-responsive"><table class="table table-sm align-middle mb-2">
-        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:110px">เวลาเข้า</th><th style="width:110px">เวลาออก</th></tr></thead>
-        <tbody>${roster.map((r,i)=>_scanlaborPubRosterRowHTML(r,i)).join('')}</tbody>
-      </table></div>`
-    : `<div class="alert alert-warning small mb-2"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — แจ้งผู้วางแผนผลิตให้เพิ่มรายชื่อที่หน้า "แผนผลิต" ก่อน</div>`;
+  const info = _scanlaborPubInfo || { mo: {}, lines: [] };
+  const lines = info.lines || [];
   bodyEl.innerHTML = `
     <div class="text-center mb-3 pt-4">
       <img src="wisenovation_LOGO -Cut.png" style="height:32px" class="mb-2"><br>
       <h5 class="fw-bold" style="color:#1e3a8a">สแกนบันทึกเวลาแรงงาน</h5>
     </div>
-    <div class="glass-card p-3">
-      ${_scanlaborPubInfoHTML(moId, line, info, employeeName, employeePosition)}
-      <hr>
-      ${rosterHTML}
-      ${roster.length ? `<button class="btn btn-primary w-100" id="scanlabor-pub-submit-btn" onclick="_scanlaborPubSubmit('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}','${phone}')">
-        <i class="fas fa-check me-1"></i>บันทึก
-      </button>` : ''}
-      <div id="scanlabor-pub-msg2" class="text-danger small mt-2"></div>
-    </div>`;
+    <div class="glass-card p-3 mb-2">
+      ${_scanlaborPubInfoHTML(moId, info, employeeName, employeePosition)}
+    </div>
+    ${lines.length ? lines.map((ld,li) => _scanlaborPubLineSectionHTML(ld,li)).join('') : `<div class="alert alert-warning small mb-2">MO นี้ยังไม่มีไลน์ผลิตในแผนผลิตเลย</div>`}
+    ${lines.length ? `<button class="btn btn-primary w-100" id="scanlabor-pub-submit-btn" onclick="_scanlaborPubSubmit('${moId.replace(/'/g,"\\'")}','${phone}')">
+      <i class="fas fa-check me-1"></i>บันทึกทั้งหมด
+    </button>` : ''}
+    <div id="scanlabor-pub-msg2" class="text-danger small mt-2"></div>`;
+  lines.forEach((ld, li) => ld.roster.forEach((r, i) => _scanlaborPubToggleRow(li, i)));
 }
 
-async function _scanlaborPubSubmit(moId, line, phone) {
-  const info = _scanlaborPubInfo || { roster: [] };
-  const roster = info.roster || [];
+// ปุ่ม "เพิ่มคนอื่น" ต่อไลน์ (li) ฝั่งลิงก์สาธารณะ — ต่างจากฝั่งในแอป (scanlaborAddWorker) ตรงที่ไม่มี login
+// เลย จึงต้องพึ่ง qualifiedPool ที่ Edge Function คำนวณให้ตอน action:'info' ต่อไลน์ (กรองด้วยสกิลฝั่งเซิร์ฟ
+// เวอร์ เพราะหน้านี้เรียก _sb ตรงไม่ได้ — RLS บล็อก anon key) เพิ่มแถวเข้า DOM ตรงๆ เหมือนฝั่งในแอปทุกประการ
+async function _scanlaborPubAddWorker(li) {
+  const info = _scanlaborPubInfo;
+  if (!info || !info.lines[li]) return;
+  const ld = info.lines[li];
+  const pool = ld.qualifiedPool || [];
+  if (!pool.length) { Swal.fire({ icon: 'info', title: 'เพิ่มคนไม่ได้', text: 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว' }); return; }
+  const options = pool.map(e => `<option value="${e.code}">${e.name} — ${e.code}</option>`).join('');
+  const { value: code } = await Swal.fire({
+    title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
+    html: `<select id="scanlabor-pub-add-select" class="form-select">${options}</select>
+      <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
+    focusConfirm: false, showCancelButton: true,
+    confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
+    preConfirm: () => document.getElementById('scanlabor-pub-add-select').value,
+  });
+  if (!code) return;
+  const picked = pool.find(e => e.code === code);
+  const i = ld.roster.length;
+  const row = { code, name: picked.name, present: true, timeIn: ld.timeStart || '', timeOut: ld.timeEnd || '' };
+  ld.roster.push(row);
+  ld.qualifiedPool = pool.filter(e => e.code !== code);
+  document.getElementById(`scanlabor-pub-roster-empty-${li}`)?.remove();
+  document.getElementById(`scanlabor-pub-roster-tbody-${li}`).insertAdjacentHTML('beforeend', _scanlaborPubRosterRowHTML(row, li, i));
+  _scanlaborPubToggleRow(li, i);
+}
+
+async function _scanlaborPubSubmit(moId, phone) {
+  const info = _scanlaborPubInfo || { lines: [] };
+  const lines = info.lines || [];
   const msgEl = document.getElementById('scanlabor-pub-msg2');
-  const rows = roster.map((r, i) => {
-    const present = document.querySelector(`.scanlabor-pub-present[data-i="${i}"]`)?.checked || false;
-    const timeIn  = document.querySelector(`.scanlabor-pub-timein[data-i="${i}"]`)?.value || null;
-    const timeOut = document.querySelector(`.scanlabor-pub-timeout[data-i="${i}"]`)?.value || null;
-    return { code: r.code, present, timeIn, timeOut };
+  const payloadLines = lines.map((ld, li) => {
+    const rows = ld.roster.map((r, i) => {
+      const present = document.querySelector(`.scanlabor-pub-present[data-li="${li}"][data-i="${i}"]`)?.checked || false;
+      const timeIn  = document.getElementById(`scanlabor-pub-timein-${li}-${i}`)?.value || null;
+      const timeOut = document.getElementById(`scanlabor-pub-timeout-${li}-${i}`)?.value || null;
+      return { code: r.code, present, timeIn, timeOut };
+    });
+    return { line: ld.line, rows };
   });
   const btn = document.getElementById('scanlabor-pub-submit-btn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังบันทึก...';
@@ -16438,17 +16480,17 @@ async function _scanlaborPubSubmit(moId, line, phone) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-labor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'submit', phone, moId, line, rows }),
+      body: JSON.stringify({ action: 'submit', phone, moId, lines: payloadLines }),
     });
     data = await res.json();
   } catch (e) {
     msgEl.textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง';
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึก';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึกทั้งหมด';
     return;
   }
   if (!data || !data.ok) {
     msgEl.textContent = 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึก';
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>บันทึกทั้งหมด';
     return;
   }
   const mo = (info && info.mo) || data.mo || {};
@@ -16456,7 +16498,7 @@ async function _scanlaborPubSubmit(moId, line, phone) {
   bodyEl.innerHTML = `<div class="text-center py-5">
     <div style="font-size:2.2rem;color:#22c55e"><i class="fas fa-circle-check"></i></div>
     <div style="font-size:1.1rem;font-weight:700;margin-top:8px">บันทึกแล้ว</div>
-    <div class="text-muted small mt-1">${mo.ProductName || moId} · ${line}<br>บันทึก ${data.savedCount ?? 0} คน</div>
+    <div class="text-muted small mt-1">${mo.ProductName || moId}<br>บันทึก ${data.savedCount ?? 0} คน (${lines.length} ไลน์)</div>
     <button class="btn btn-outline-primary btn-sm mt-3" onclick="location.reload()"><i class="fas fa-rotate me-1"></i>สแกนอีกครั้ง</button>
   </div>`;
 }
@@ -30862,62 +30904,35 @@ function _progressqrRenderMultiPage(moId, productName, lines) {
   _lotlabelModal.show();
 }
 
-// ── ปุ่ม "QR บันทึกเวลาแรงงาน" ที่หน้า MO — ก็อปปี้ progressqrPrintForMO/_progressqrRenderMultiPage เป๊ะ
-// ต่างแค่เนื้อหาลิงก์ (?scanlabor=1 แทน ?scanprog=1) และใช้กับหน้า "สแกนบันทึกเวลาแรงงาน" (scan-labor Edge
-// Function) แทน — ยังใช้โมดัลพิมพ์ร่วม #lotlabelPrintModal/#lotlabel-print-root ตัวเดิมทุกอย่าง ──
-async function laborqrPromptLine(moId, productName) {
-  const options = PLAN_LINES.map(l => `<option value="${l.replace(/"/g,'&quot;')}">${l}</option>`).join('');
-  const { value: line } = await Swal.fire({
-    title: 'เลือกไลน์ผลิตสำหรับพิมพ์ QR',
-    html: `<select id="laborqr-line-select" class="form-select">${options}</select>`,
-    focusConfirm: false,
-    showCancelButton: true,
-    confirmButtonText: 'ถัดไป',
-    cancelButtonText: 'ยกเลิก',
-    preConfirm: () => document.getElementById('laborqr-line-select').value,
-  });
-  if (!line) return;
-  _laborqrRenderMultiPage(moId, productName, [line]);
-}
-
-async function laborqrPrintForMO(moId, productName) {
-  _showLoader();
-  const { data, error } = await _sb.from('production_plan').select('Line').eq('MO_Ref', moId);
-  _hideLoader();
-  if (error) { _err('โหลดไลน์ผลิตของ MO นี้ไม่ได้', error.message); return; }
-  const lines = [...new Set((data || []).map(r => r.Line).filter(Boolean))];
-  if (!lines.length) { await laborqrPromptLine(moId, productName); return; }
-  _laborqrRenderMultiPage(moId, productName, lines);
-}
-
-function _laborqrBuildItemHTML(moId, productName, line) {
-  const content = `https://proflow-mes.vercel.app/?scanlabor=1&mo=${encodeURIComponent(moId)}&line=${encodeURIComponent(line)}`;
+// ── ปุ่ม "QR บันทึกเวลาแรงงาน" ที่หน้า MO — **1 MO = 1 QR เดียวเท่านั้น** ครอบคลุมทุกไลน์ผลิตของ MO นี้
+// (เปลี่ยนจาก "1 QR ต่อไลน์" มาเป็นนี้ 2026-09-12 ตามคำขอผู้ใช้ "ให้เป็น QR เดียว และมีทุกไลน์ผลิต แบ่งเป็น
+// ไลน์ชัดเจน" — เดิมก็อปปี้ progressqrPrintForMO/_progressqrRenderMultiPage มาตรงๆ ซึ่งพิมพ์ QR แยกใบต่อ
+// ไลน์เหมือนหน้าสแกนอัปเดตการผลิต ผู้ใช้บอกว่าไม่สะดวก อยากสแกนครั้งเดียวแล้วเห็นครบทุกไลน์แยกส่วนกันชัดเจน
+// ในหน้าเดียว) ลิงก์จึงไม่มี &line= เลย — หน้าสแกน/Edge Function scan-labor เป็นฝ่ายค้นหาทุกไลน์ของ MO นี้
+// จาก production_plan เองตอนเปิด (ดู action:'info' คืน `lines` array) — ยังใช้โมดัลพิมพ์ร่วม
+// #lotlabelPrintModal/#lotlabel-print-root ตัวเดิมทุกอย่าง ──
+function laborqrPrintForMO(moId, productName) {
+  _lotlabelCurrent = null; // ปิดโหมดป้ายเดี่ยวเดิม กันปุ่มจำนวนป้าย/oninput เดิมมาชนกับ HTML ที่เซ็ตเอง
+  const content = `https://proflow-mes.vercel.app/?scanlabor=1&mo=${encodeURIComponent(moId)}`;
   const qr = qrcode(0, 'L');
   qr.addData(content);
   qr.make();
-  const svg = qr.createSvgTag({ cellSize: 6, margin: 2 });
-  return `<div class="progqr-item">
-    <div class="qr">${svg}</div>
-    <div class="text">
-      <div class="line">${line}</div>
-      <div class="name">${productName || ''}</div>
-      <div class="mo">MO: ${moId}</div>
-    </div>
-  </div>`;
-}
-
-function _laborqrRenderMultiPage(moId, productName, lines) {
-  _lotlabelCurrent = null;
-  const items = lines.map(l => _laborqrBuildItemHTML(moId, productName, l)).join('');
+  const svg = qr.createSvgTag({ cellSize: 8, margin: 2 });
   const html = `<div class="progqr-page">
-    <div class="progqr-page-header">QR บันทึกเวลาแรงงาน — <span class="code">${moId}</span> · ${productName || ''} (${lines.length} ไลน์)</div>
-    ${items}
+    <div class="progqr-page-header">QR บันทึกเวลาแรงงาน — <span class="code">${moId}</span> · ${productName || ''}</div>
+    <div class="progqr-item">
+      <div class="qr">${svg}</div>
+      <div class="text">
+        <div class="name">${productName || ''}</div>
+        <div class="mo">MO: ${moId}</div>
+      </div>
+    </div>
   </div>`;
   const titleEl = document.getElementById('lotlabel-modal-title');
   const hintEl  = document.getElementById('lotlabel-modal-hint');
   const qtyColEl = document.getElementById('lotlabel-qty-col');
   if (titleEl) titleEl.innerHTML = '<i class="fas fa-user-clock me-2"></i>พิมพ์ QR บันทึกเวลาแรงงาน';
-  if (hintEl)  hintEl.textContent = `MO นี้ผลิต ${lines.length} ไลน์ (${lines.join(', ')}) — ผู้ควบคุมงานผลิตสแกนด้วยกล้องมือถือทั่วไปได้เลย ไม่ต้องเข้าแอพ ระบบจะขอเบอร์โทรยืนยันตัวตนก่อนกรอกเวลาแรงงาน`;
+  if (hintEl)  hintEl.textContent = 'QR ใบเดียวใช้ได้กับทุกไลน์ผลิตของ MO นี้ — สแกนแล้วเห็นแต่ละไลน์แยกส่วนกันชัดเจนในหน้าเดียว ผู้ควบคุมงานผลิตสแกนด้วยกล้องมือถือทั่วไปได้เลย ไม่ต้องเข้าแอพ ระบบจะขอเบอร์โทรยืนยันตัวตนก่อนกรอกเวลาแรงงาน';
   if (qtyColEl) qtyColEl.style.display = 'none';
   document.getElementById('lotlabel-preview-body').innerHTML = html;
   document.getElementById('lotlabel-print-root').innerHTML   = html;
@@ -31173,41 +31188,41 @@ function scanlaborCloseCamera() {
   }
 }
 
-// รูปแบบรหัส "PFLABOR|{MO_ID}|{Line}" หรือลิงก์จริง "?scanlabor=1&mo=...&line=..." (ดู laborqrPrintForMO)
+// รูปแบบรหัส "PFLABOR|{MO_ID}" หรือลิงก์จริง "?scanlabor=1&mo=..." (ดู laborqrPrintForMO) — **ไม่มี &line=
+// แล้ว** ตั้งแต่เปลี่ยนมาเป็น QR เดียวครอบคลุมทุกไลน์ผลิตต่อ MO (2026-09-12) — scanlaborLoad ค้นหาทุกไลน์
+// ของ MO นี้เอง ไม่ต้องรู้ไลน์ล่วงหน้าจาก QR
 async function scanlaborResolve(raw) {
   const text = (raw || '').trim();
   if (!text) return;
-  let moId = null, line = null;
+  let moId = null;
   if (/^https?:\/\//i.test(text)) {
     try {
       const u = new URL(text);
       moId = u.searchParams.get('mo');
-      line = u.searchParams.get('line');
     } catch (e) { /* ไม่ใช่ URL ที่ parse ได้ */ }
   } else {
     const parts = text.split('|');
-    if (parts[0] === 'PFLABOR' && parts.length >= 3) {
-      moId = parts[1];
-      line = parts.slice(2).join('|');
-    }
+    if (parts[0] === 'PFLABOR' && parts.length >= 2) moId = parts[1];
   }
-  if (!moId || !line) {
+  if (!moId) {
     document.getElementById('scanlabor-empty').classList.add('d-none');
     document.getElementById('scanlabor-result').classList.add('d-none');
     document.getElementById('scanlabor-notfound').classList.remove('d-none');
     document.getElementById('scanlabor-notfound-msg').textContent = 'รหัสนี้ไม่ใช่ QR บันทึกเวลาแรงงาน — สแกนป้ายที่พิมพ์จากปุ่ม "QR บันทึกเวลาแรงงาน" ที่หน้า MO';
     return;
   }
-  await scanlaborLoad(moId, line);
+  await scanlaborLoad(moId);
 }
 
-async function scanlaborLoad(moId, line) {
+// โหลดทุกไลน์ผลิตของ MO นี้พร้อมกัน (จาก production_plan, distinct Line เอาแถวล่าสุดต่อไลน์) — คนละแบบกับ
+// เดิมที่รู้ไลน์เดียวจาก QR ตรงๆ ตอนนี้ QR รู้แค่ MO ต้องหาทุกไลน์เอง (ดูหมายเหตุ scanlaborResolve ด้านบน)
+async function scanlaborLoad(moId) {
   _showLoader();
   const workDate = _planWeekLocalDateStr(new Date());
   const [moRes, planRes, existingRes] = await Promise.all([
     _sb.from('manufacturing_orders').select('*').eq('MO_ID', moId),
-    _sb.from('production_plan').select('Shift,TimeStart,TimeEnd,WorkerCodes,PlanDate').eq('MO_Ref', moId).eq('Line', line).order('PlanDate', { ascending: false }).limit(1),
-    _sb.from('production_labor_log').select('EmployeeCode,TimeIn,TimeOut').eq('MO_Ref', moId).eq('Line', line).eq('WorkDate', workDate),
+    _sb.from('production_plan').select('Line,Shift,TimeStart,TimeEnd,WorkerCodes,PlanDate').eq('MO_Ref', moId).order('PlanDate', { ascending: false }),
+    _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut').eq('MO_Ref', moId).eq('WorkDate', workDate),
   ]);
   if (moRes.error || !moRes.data || !moRes.data.length) {
     _hideLoader();
@@ -31217,45 +31232,84 @@ async function scanlaborLoad(moId, line) {
     document.getElementById('scanlabor-notfound-msg').textContent = `ไม่พบ MO "${moId}" ในระบบ`;
     return;
   }
+  // ใช้ _planEmployees/_planSkills/_planSkillLevels ชุดเดียวกับหน้าแผนผลิต/บันทึกผลิต (ไม่สร้างชุดข้อมูลซ้ำ)
+  // ทั้งสำหรับ roster เริ่มต้นและตัวกรองสกิลของปุ่ม "เพิ่มคนอื่น" ด้านล่าง
+  await _planLoadSkillData();
   const mo = moRes.data[0];
-  const plan = (planRes.data && planRes.data[0]) || null;
-  const codes = (plan?.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-  const empRes = codes.length
-    ? await _sb.from('employees').select('EmployeeCode,FirstName,NickName,Position').in('EmployeeCode', codes)
-    : { data: [] };
-  _hideLoader();
-  const existingByCode = new Map((existingRes.data || []).map(r => [r.EmployeeCode, r]));
-  const roster = codes.map(code => {
-    const emp = (empRes.data || []).find(e => e.EmployeeCode === code);
-    const existing = existingByCode.get(code);
-    return {
-      code,
-      name: emp ? (emp.NickName || emp.FirstName || code) : code,
-      position: emp?.Position || '',
-      present: existingByCode.size ? !!existing : true, // ยังไม่เคยสแกนวันนี้เลย -> เริ่มต้นติ๊กว่ามาทุกคนตามแผน
-      timeIn: existing?.TimeIn || plan?.TimeStart || '',
-      timeOut: existing?.TimeOut || plan?.TimeEnd || '',
-    };
+
+  // แถวล่าสุดต่อไลน์เท่านั้น (order desc แล้ว แถวแรกที่เจอของแต่ละ Line คือแถวล่าสุด)
+  const planByLine = new Map();
+  (planRes.data || []).forEach(p => { if (p.Line && !planByLine.has(p.Line)) planByLine.set(p.Line, p); });
+  const existingByLine = {};
+  (existingRes.data || []).forEach(r => {
+    if (!existingByLine[r.Line]) existingByLine[r.Line] = [];
+    existingByLine[r.Line].push(r);
   });
-  _scanlaborCurrent = { moId, line, mo, plan, workDate, roster };
+  _hideLoader();
+
+  const lines = [...planByLine.keys()].map(line => {
+    const plan = planByLine.get(line);
+    const codes = (plan.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+    const existingRows = existingByLine[line] || [];
+    const existingByCode = new Map(existingRows.map(r => [r.EmployeeCode, r]));
+    const roster = codes.map(code => {
+      const emp = _planEmployees.find(e => e.EmployeeCode === code);
+      const existing = existingByCode.get(code);
+      return {
+        code,
+        name: emp ? (emp.NickName || emp.FirstName || code) : code,
+        present: existingByCode.size ? !!existing : true, // ยังไม่เคยสแกนวันนี้เลย -> เริ่มต้นติ๊กว่ามาทุกคนตามแผน
+        timeIn: existing?.TimeIn || plan.TimeStart || '',
+        timeOut: existing?.TimeOut || plan.TimeEnd || '',
+      };
+    });
+    return { line, plan, roster };
+  });
+
+  _scanlaborCurrent = { moId, mo, workDate, lines };
   _scanlaborRender();
 }
 
-function _scanlaborRosterRowHTML(r, i) {
+// แถวพนักงาน 1 คน ในตารางของไลน์ที่ li (index ใน s.lines) — id มีทั้ง li+i กันชนกันข้ามไลน์ (หลายไลน์แสดง
+// พร้อมกันในหน้าเดียวตอนนี้ ไม่ใช่ทีละไลน์แบบเดิม)
+function _scanlaborRosterRowHTML(r, li, i) {
   return `<tr>
-    <td class="text-center"><input type="checkbox" class="form-check-input scanlabor-present" data-i="${i}" ${r.present ? 'checked' : ''} onchange="_scanlaborToggleRow(${i})"></td>
-    <td>${r.name} <span class="text-muted small">(${r.code})</span>${r.position ? ` <span class="text-muted small">— ${r.position}</span>` : ''}</td>
-    <td><input type="time" class="form-control form-control-sm scanlabor-timein" data-i="${i}" value="${r.timeIn||''}" ${r.present ? '' : 'disabled'}></td>
-    <td><input type="time" class="form-control form-control-sm scanlabor-timeout" data-i="${i}" value="${r.timeOut||''}" ${r.present ? '' : 'disabled'}></td>
+    <td class="text-center"><input type="checkbox" class="form-check-input scanlabor-present" data-li="${li}" data-i="${i}" ${r.present ? 'checked' : ''} onchange="_scanlaborToggleRow(${li},${i})"></td>
+    <td>${r.name} <span class="text-muted small">(${r.code})</span></td>
+    <td>${_prodrecordTimeSelectHTML(`scanlabor-timein-${li}-${i}`, r.timeIn)}</td>
+    <td>${_prodrecordTimeSelectHTML(`scanlabor-timeout-${li}-${i}`, r.timeOut)}</td>
   </tr>`;
 }
 
-function _scanlaborToggleRow(i) {
-  const chk  = document.querySelector(`.scanlabor-present[data-i="${i}"]`);
-  const inEl = document.querySelector(`.scanlabor-timein[data-i="${i}"]`);
-  const outEl = document.querySelector(`.scanlabor-timeout[data-i="${i}"]`);
-  if (inEl) inEl.disabled = !chk.checked;
-  if (outEl) outEl.disabled = !chk.checked;
+// เปิด/ปิดช่องเวลา (select ชม./นาที คู่หนึ่งต่อช่อง) ตามติ๊ก "มา" — เรียกทั้งตอนติ๊กเปลี่ยนเองและตอน render
+// ครั้งแรกเพื่อ sync สถานะเริ่มต้นให้ตรงกับ r.present (ดู _scanlaborRender/scanlaborAddWorker)
+function _scanlaborToggleRow(li, i) {
+  const chk = document.querySelector(`.scanlabor-present[data-li="${li}"][data-i="${i}"]`);
+  [`scanlabor-timein-${li}-${i}`, `scanlabor-timeout-${li}-${i}`].forEach(id => {
+    const hEl = document.getElementById(`${id}-h`), mEl = document.getElementById(`${id}-m`);
+    if (hEl) hEl.disabled = !chk.checked;
+    if (mEl) mEl.disabled = !chk.checked;
+  });
+}
+
+// การ์ด 1 ใบต่อไลน์ผลิต — "แบ่งเป็นไลน์ชัดเจน" ตามคำขอผู้ใช้ (2026-09-12): badge สีไลน์ + ตารางรายชื่อ +
+// ปุ่ม "เพิ่มคนอื่น" ของตัวเอง แยกจากไลน์อื่นโดยสิ้นเชิงแม้จะอยู่ในหน้าเดียวกัน (คนละ tbody id ต่อไลน์)
+function _scanlaborLineSectionHTML(ld, li) {
+  const emptyRowHTML = `<tr id="scanlabor-roster-empty-${li}"><td colspan="4" class="text-muted text-center small py-2">ยังไม่มีรายชื่อ — กด "เพิ่มคนอื่น" ด้านล่าง</td></tr>`;
+  return `<div class="glass-card p-3 mb-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <span class="badge" style="background:${_planLineColor(ld.line)}">${ld.line}</span>
+      <span class="text-muted small">${ld.plan?.Shift ? `กะ ${ld.plan.Shift}` : ''}</span>
+    </div>
+    ${!ld.roster.length ? `<div class="alert alert-warning small mb-2 py-1"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — เพิ่มเองด้านล่างได้</div>` : ''}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-2">
+        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเข้า</th><th style="width:135px">เวลาออก</th></tr></thead>
+        <tbody id="scanlabor-roster-tbody-${li}">${ld.roster.length ? ld.roster.map((r,i)=>_scanlaborRosterRowHTML(r,li,i)).join('') : emptyRowHTML}</tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="scanlaborAddWorker(${li})"><i class="fas fa-user-plus me-1"></i>เพิ่มคนอื่น</button>
+  </div>`;
 }
 
 function _scanlaborRender() {
@@ -31265,61 +31319,105 @@ function _scanlaborRender() {
   const el = document.getElementById('scanlabor-result');
   el.classList.remove('d-none');
   const mo = s.mo;
-  if (!s.roster.length) {
+  if (!s.lines.length) {
     el.innerHTML = `<div class="glass-card p-3">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-        <div><span class="badge bg-secondary me-2">${mo.MO_ID}</span><b>${mo.ProductName || '—'}</b>
-        <span class="badge ms-2" style="background:${_planLineColor(s.line)}">${s.line}</span></div>
-      </div>
-      <div class="alert alert-warning small mb-0"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — ไปเพิ่มรายชื่อที่หน้า "แผนผลิต" ก่อน จึงจะบันทึกเวลาที่นี่ได้</div>
+      <div class="mb-2"><span class="badge bg-secondary me-2">${mo.MO_ID}</span><b>${mo.ProductName || '—'}</b></div>
+      <div class="alert alert-warning small mb-0"><i class="fas fa-triangle-exclamation me-1"></i>MO นี้ยังไม่มีไลน์ผลิตในแผนผลิตเลย — ไปวางแผนที่หน้า "แผนผลิต" ก่อน</div>
     </div>`;
     return;
   }
-  el.innerHTML = `<div class="glass-card p-3">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-      <div><span class="badge bg-secondary me-2">${mo.MO_ID}</span><b>${mo.ProductName || '—'}</b>
-      <span class="badge ms-2" style="background:${_planLineColor(s.line)}">${s.line}</span></div>
-      <span class="text-muted small">วันที่ ${_fmtDate(s.workDate)}${s.plan?.Shift ? ` · กะ ${s.plan.Shift}` : ''}</span>
+  el.innerHTML = `
+    <div class="glass-card p-3 mb-2">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div><span class="badge bg-secondary me-2">${mo.MO_ID}</span><b>${mo.ProductName || '—'}</b></div>
+        <span class="text-muted small">วันที่ ${_fmtDate(s.workDate)} · ${s.lines.length} ไลน์ผลิต</span>
+      </div>
     </div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-2">
-        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:110px">เวลาเข้า</th><th style="width:110px">เวลาออก</th></tr></thead>
-        <tbody>${s.roster.map((r,i)=>_scanlaborRosterRowHTML(r,i)).join('')}</tbody>
-      </table>
-    </div>
-    <button class="btn btn-primary w-100" onclick="scanlaborSubmit()"><i class="fas fa-check me-1"></i>บันทึก</button>
-  </div>`;
+    ${s.lines.map((ld,li) => _scanlaborLineSectionHTML(ld,li)).join('')}
+    <button class="btn btn-primary w-100" onclick="scanlaborSubmit()"><i class="fas fa-check me-1"></i>บันทึกทั้งหมด</button>
+  `;
+  s.lines.forEach((ld, li) => ld.roster.forEach((r, i) => _scanlaborToggleRow(li, i))); // sync ปิด/เปิดช่องเวลาตาม present เริ่มต้น
 }
 
+// เกณฑ์เดียวกับ planHighlightQualifiedWorkers ของหน้าแผนผลิตเป๊ะ: สกิลที่ Lines มีไลน์นี้ตรงๆ, Level >= 1
+// ถือว่าผ่าน — ไม่มีใครผ่านเลย (แมททริกสกิลยังไม่สมบูรณ์) fallback เป็นพนักงานทั้งหมดแทน ไม่ปล่อยให้เพิ่ม
+// คนไม่ได้เลย ตัดคนที่อยู่ใน roster อยู่แล้วออก (excludeCodes)
+function _scanlaborQualifiedPool(line, excludeCodes) {
+  const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(line));
+  let pool = required.length
+    ? _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 1))
+    : _planEmployees;
+  if (!pool.length) pool = _planEmployees;
+  return pool.filter(e => !excludeCodes.includes(e.EmployeeCode));
+}
+
+// ปุ่ม "เพิ่มคนอื่น" ต่อไลน์ (li = index ใน s.lines) — เพิ่มแถวเข้า DOM ตรงๆ (insertAdjacentHTML) แทนการ
+// re-render ทั้งตาราง กันข้อมูลที่กรอกไว้แล้วในแถวเดิม (ของไลน์นี้และไลน์อื่นบนหน้าเดียวกัน) หาย
+async function scanlaborAddWorker(li) {
+  const s = _scanlaborCurrent;
+  if (!s || !s.lines[li]) return;
+  const ld = s.lines[li];
+  const excludeCodes = ld.roster.map(r => r.code);
+  const pool = _scanlaborQualifiedPool(ld.line, excludeCodes);
+  if (!pool.length) { _err('เพิ่มคนไม่ได้', 'ไม่มีพนักงานที่มีสกิลตรงกับไลน์นี้เหลือให้เพิ่มแล้ว (หรือถูกเพิ่มไว้ในรายชื่อครบหมดแล้ว)'); return; }
+  const options = pool.map(e => {
+    const name = `${e.FirstName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim() || e.EmployeeCode;
+    return `<option value="${e.EmployeeCode}">${name} — ${e.EmployeeCode}</option>`;
+  }).join('');
+  const { value: code } = await Swal.fire({
+    title: `เพิ่มผู้ปฏิบัติงาน — ${ld.line}`,
+    html: `<select id="scanlabor-add-select" class="form-select">${options}</select>
+      <div class="text-muted small mt-2 text-start">แสดงเฉพาะพนักงานที่มีสกิลตรงกับไลน์นี้ (หรือทั้งหมดถ้ายังไม่มีใครผ่านเกณฑ์ในแมททริกสกิล)</div>`,
+    focusConfirm: false, showCancelButton: true,
+    confirmButtonText: 'เพิ่ม', cancelButtonText: 'ยกเลิก',
+    preConfirm: () => document.getElementById('scanlabor-add-select').value,
+  });
+  if (!code) return;
+  const emp = pool.find(e => e.EmployeeCode === code);
+  const i = ld.roster.length;
+  const row = { code, name: emp.NickName || emp.FirstName || code, present: true, timeIn: ld.plan?.TimeStart || '', timeOut: ld.plan?.TimeEnd || '' };
+  ld.roster.push(row);
+  document.getElementById(`scanlabor-roster-empty-${li}`)?.remove();
+  document.getElementById(`scanlabor-roster-tbody-${li}`).insertAdjacentHTML('beforeend', _scanlaborRosterRowHTML(row, li, i));
+  _scanlaborToggleRow(li, i);
+}
+
+// บันทึกทุกไลน์ที่แสดงอยู่ในหน้าเดียวพร้อมกัน (ปุ่มเดียว "บันทึกทั้งหมด") — วน upsert/delete ทีละไลน์
+// (กติกา onConflict เดิมของแต่ละไลน์ยังแยกจากกัน ไม่ปนกัน)
 async function scanlaborSubmit() {
   const s = _scanlaborCurrent;
-  if (!s || !s.roster.length) return;
-  const rows = s.roster.map((r, i) => {
-    const present = document.querySelector(`.scanlabor-present[data-i="${i}"]`)?.checked || false;
-    const timeIn  = document.querySelector(`.scanlabor-timein[data-i="${i}"]`)?.value || null;
-    const timeOut = document.querySelector(`.scanlabor-timeout[data-i="${i}"]`)?.value || null;
-    return { code: r.code, name: r.name, present, timeIn, timeOut };
-  });
-  const toUpsert = rows.filter(r => r.present).map(r => ({
-    MO_Ref: s.moId, Line: s.line, WorkDate: s.workDate, EmployeeCode: r.code, EmployeeName: r.name,
-    TimeIn: r.timeIn, TimeOut: r.timeOut,
-    RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null,
-    UpdatedAt: new Date().toISOString(),
-  }));
-  const toDeleteCodes = rows.filter(r => !r.present).map(r => r.code);
+  if (!s || !s.lines.length) return;
   _showLoader();
-  if (toUpsert.length) {
-    const { error } = await _sb.from('production_labor_log').upsert(toUpsert, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
-    if (error) { _hideLoader(); _err('บันทึกไม่สำเร็จ', error.message); return; }
-  }
-  if (toDeleteCodes.length) {
-    const { error } = await _sb.from('production_labor_log').delete()
-      .eq('MO_Ref', s.moId).eq('Line', s.line).eq('WorkDate', s.workDate).in('EmployeeCode', toDeleteCodes);
-    if (error) { _hideLoader(); _err('ลบข้อมูลคนที่ไม่มาไม่สำเร็จ', error.message); return; }
+  let totalSaved = 0;
+  for (let li = 0; li < s.lines.length; li++) {
+    const ld = s.lines[li];
+    const rows = ld.roster.map((r, i) => {
+      const present = document.querySelector(`.scanlabor-present[data-li="${li}"][data-i="${i}"]`)?.checked || false;
+      const timeIn  = document.getElementById(`scanlabor-timein-${li}-${i}`)?.value || null;
+      const timeOut = document.getElementById(`scanlabor-timeout-${li}-${i}`)?.value || null;
+      return { code: r.code, name: r.name, present, timeIn, timeOut };
+    });
+    const toUpsert = rows.filter(r => r.present).map(r => ({
+      MO_Ref: s.moId, Line: ld.line, WorkDate: s.workDate, EmployeeCode: r.code, EmployeeName: r.name,
+      TimeIn: r.timeIn, TimeOut: r.timeOut,
+      RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null,
+      UpdatedAt: new Date().toISOString(),
+    }));
+    const toDeleteCodes = rows.filter(r => !r.present).map(r => r.code);
+    if (toUpsert.length) {
+      const { error } = await _sb.from('production_labor_log').upsert(toUpsert, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
+      if (error) { _hideLoader(); _err(`บันทึกไม่สำเร็จ (${ld.line})`, error.message); return; }
+      totalSaved += toUpsert.length;
+    }
+    if (toDeleteCodes.length) {
+      const { error } = await _sb.from('production_labor_log').delete()
+        .eq('MO_Ref', s.moId).eq('Line', ld.line).eq('WorkDate', s.workDate).in('EmployeeCode', toDeleteCodes);
+      if (error) { _hideLoader(); _err(`ลบข้อมูลคนที่ไม่มาไม่สำเร็จ (${ld.line})`, error.message); return; }
+    }
   }
   _hideLoader();
-  Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', text: `${s.mo.ProductName || s.moId} · ${s.line} — ${toUpsert.length} คน`, timer: 1400, showConfirmButton: false });
-  await scanlaborLoad(s.moId, s.line);
+  Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', text: `${s.mo.ProductName || s.moId} — ${totalSaved} คน (${s.lines.length} ไลน์)`, timer: 1600, showConfirmButton: false });
+  await scanlaborLoad(s.moId);
 }
 
 // ── ตัดป้าย (ทั้งป้าย Lot และป้ายกล่องต่อใบส่ง) เป็นชุดๆ ต่อแผ่น A4 จริง ไม่ปล่อยให้ .lotlabel-sheet เดียวยาวเกิน
@@ -31972,7 +32070,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (_qs.get('scanprog') === '1') { _renderPublicScanProgress(_qs.get('mo') || '', _qs.get('line') || ''); return; }
   // โหมดสแกน QR บันทึกเวลาแรงงานแบบไม่ต้อง login (?scanlabor=1&mo=...&line=...) — กลไกเดียวกับ ?scanprog=1
   // เป๊ะ แค่กันด้วยเบอร์โทรฝั่ง Edge Function คนละตัว (ดู scan-labor)
-  if (_qs.get('scanlabor') === '1') { _renderPublicScanLabor(_qs.get('mo') || '', _qs.get('line') || ''); return; }
+  if (_qs.get('scanlabor') === '1') { _renderPublicScanLabor(_qs.get('mo') || ''); return; }
 
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
