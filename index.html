@@ -16016,6 +16016,8 @@ let _pubReportRefreshStarted = false;
 // ฝั่งนั้นเป็นทางเดียวที่คนไม่ login เขียนลง production_progress ได้ RLS ของตารางนี้ยังบังคับ authenticated
 // เหมือนเดิมทุกทางอื่น) — โครงหน้าคัดลอกจาก _renderPublicReport ด้านล่าง (fixed overlay เต็มจอ, ไม่มี
 // sidebar/login gate ใดๆ) ──
+let _scanprogPubInfo = null; // ผลจาก action:'info' ({mo, plan, lastQty, lastAt}) — โหลดครั้งเดียว ใช้ซ้ำตอนแสดงฟอร์มกรอกยอด
+
 async function _renderPublicScanProgress(moId, line) {
   document.getElementById('scanProgressPublicView').style.display = 'block';
   const bodyEl = document.getElementById('scanProgressPublicBody');
@@ -16031,7 +16033,9 @@ async function _renderPublicScanProgress(moId, line) {
     <div class="text-center mb-3 pt-4">
       <img src="wisenovation_LOGO -Cut.png" style="height:32px" class="mb-2"><br>
       <h5 class="fw-bold" style="color:#1e3a8a">สแกนอัปเดตการผลิต</h5>
-      <div class="text-muted small">MO: <b>${moId}</b> · ไลน์: <b>${line}</b></div>
+    </div>
+    <div id="scanprog-pub-info-card" class="glass-card p-3 mb-3">
+      <div class="text-center text-muted small py-2"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลดข้อมูล...</div>
     </div>
     <div class="glass-card p-3">
       <label class="form-label small fw-bold">เบอร์โทรศัพท์ (ยืนยันว่าใครกรอก)</label>
@@ -16041,6 +16045,60 @@ async function _renderPublicScanProgress(moId, line) {
         <i class="fas fa-arrow-right me-1"></i>ถัดไป
       </button>
       <div id="scanprog-pub-msg" class="text-danger small mt-2"></div>
+    </div>`;
+  _scanprogPubLoadInfo(moId, line);
+}
+
+// โหลดรายละเอียด MO/แผนของไลน์นี้ทันที — ไม่ต้องรอกรอกเบอร์ก่อน (action 'info' ไม่เช็คเบอร์เลย ดูหมายเหตุใน
+// scan-progress Edge Function) ให้คนสแกนเห็นว่ากำลังผลิตอะไรอยู่ตั้งแต่หน้าแรก ไม่ใช่จอโล่งๆ
+async function _scanprogPubLoadInfo(moId, line) {
+  const cardEl = document.getElementById('scanprog-pub-info-card');
+  let data;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-progress`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'info', moId, line }),
+    });
+    data = await res.json();
+  } catch (e) {
+    cardEl.innerHTML = `<div class="text-danger small"><i class="fas fa-triangle-exclamation me-1"></i>โหลดรายละเอียดไม่สำเร็จ (เชื่อมต่อไม่ได้) — ยังกรอกเบอร์ด้านล่างต่อได้ตามปกติ</div>`;
+    return;
+  }
+  if (!data || !data.ok) {
+    const msgMap = { mo_not_found: 'ไม่พบ MO นี้ในระบบ', missing_mo_or_line: 'ลิงก์ไม่ถูกต้อง' };
+    cardEl.innerHTML = `<div class="text-danger small"><i class="fas fa-circle-exclamation me-1"></i>${msgMap[data?.error] || 'โหลดรายละเอียดไม่สำเร็จ'}</div>`;
+    return;
+  }
+  _scanprogPubInfo = data;
+  cardEl.innerHTML = _scanprogPubInfoHTML(moId, line, data);
+}
+
+// การ์ดรายละเอียด ใช้ร่วมกันทั้งหน้าแรก (ก่อนกรอกเบอร์) และหน้าฟอร์มกรอกยอด (หลังกรอกเบอร์) — ตัวเดียว
+// ไม่ต้องพิมพ์ซ้ำ 2 ที่ ต่างกันแค่ว่ามี "ผู้กรอก" ต่อท้ายหรือเปล่า (employeeName)
+function _scanprogPubInfoHTML(moId, line, data, employeeName, employeePosition) {
+  const mo = data.mo || {};
+  const plan = data.plan || null;
+  const shiftLine = plan
+    ? `<div><i class="fas fa-business-time me-1 text-muted"></i>กะ: <b>${plan.Shift || '—'}</b>${plan.TimeStart ? ` (${plan.TimeStart}${plan.TimeEnd ? '–'+plan.TimeEnd : ''})` : ''}</div>`
+    : '';
+  const workersLine = plan && plan.Workers
+    ? `<div><i class="fas fa-users me-1 text-muted"></i>ผู้ปฏิบัติงาน: <b>${plan.Workers}</b></div>` : '';
+  const lastLine = data.lastQty != null
+    ? `<div class="mt-1"><i class="fas fa-clock-rotate-left me-1 text-muted"></i>ยอดล่าสุดที่กรอกไว้: <b>${(parseFloat(data.lastQty)||0).toLocaleString()}</b> ${mo.UOM||''} (${_fmtDateTime(data.lastAt)})</div>` : '';
+  const empLine = employeeName
+    ? `<div class="alert alert-success py-2 small mb-2"><i class="fas fa-user-check me-1"></i>ผู้กรอก: <b>${employeeName}</b>${employeePosition ? ` — ${employeePosition}` : ''}</div>` : '';
+  return `${empLine}
+    <div class="mb-1">
+      <span class="badge bg-secondary me-2">${moId}</span>
+      <b>${mo.ProductName || '—'}</b>
+      <span class="badge ms-2" style="background:${_planLineColor(line)}">${line}</span>
+    </div>
+    <div class="small text-muted d-flex flex-column gap-1 mt-2">
+      <div><i class="fas fa-layer-group me-1 text-muted"></i>Lot: <b>${mo.LOT || '—'}</b></div>
+      <div><i class="fas fa-boxes-stacked me-1 text-muted"></i>สั่งผลิต: <b>${(parseFloat(mo.OrderQty)||0).toLocaleString()} ${mo.UOM||''}</b></div>
+      ${shiftLine}
+      ${workersLine}
+      ${lastLine}
     </div>`;
 }
 
@@ -16055,7 +16113,7 @@ async function _scanprogPubVerify(moId, line) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-progress`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'load', phone, moId, line }),
+      body: JSON.stringify({ action: 'verify', phone, moId, line }),
     });
     data = await res.json();
   } catch (e) {
@@ -16067,7 +16125,6 @@ async function _scanprogPubVerify(moId, line) {
   if (!data || !data.ok) {
     const msgMap = {
       phone_not_found: 'ไม่พบเบอร์นี้ในระบบพนักงานที่ยังทำงานอยู่ กรุณาตรวจสอบเบอร์อีกครั้ง',
-      mo_not_found: 'ไม่พบ MO นี้ในระบบ',
       missing_phone: 'กรุณากรอกเบอร์โทรศัพท์',
       missing_mo_or_line: 'ลิงก์ไม่ถูกต้อง',
     };
@@ -16075,31 +16132,25 @@ async function _scanprogPubVerify(moId, line) {
     return;
   }
   sessionStorage.setItem('scanprog_phone', phone);
-  _scanprogPubRenderForm(moId, line, phone, data);
+  // ถ้า action:'info' ตอนแรกโหลดไม่สำเร็จ (เช่นเน็ตหลุด) ให้ลองใหม่ก่อนแสดงฟอร์ม กันฟอร์มไม่มีเป้าหมาย/UOM ให้ดู
+  if (!_scanprogPubInfo) await _scanprogPubLoadInfo(moId, line);
+  _scanprogPubRenderForm(moId, line, phone, data.employeeName, data.employeePosition);
 }
 
-function _scanprogPubRenderForm(moId, line, phone, data) {
+function _scanprogPubRenderForm(moId, line, phone, employeeName, employeePosition) {
   const bodyEl = document.getElementById('scanProgressPublicBody');
-  const mo = data.mo || {};
+  const info = _scanprogPubInfo || { mo: {} };
+  const mo = info.mo || {};
   bodyEl.innerHTML = `
     <div class="text-center mb-3 pt-4">
       <img src="wisenovation_LOGO -Cut.png" style="height:32px" class="mb-2"><br>
       <h5 class="fw-bold" style="color:#1e3a8a">สแกนอัปเดตการผลิต</h5>
     </div>
     <div class="glass-card p-3">
-      <div class="alert alert-success py-2 small mb-3"><i class="fas fa-user-check me-1"></i>ผู้กรอก: <b>${data.employeeName}</b></div>
-      <div class="mb-2">
-        <span class="badge bg-secondary me-2">${moId}</span>
-        <b>${mo.ProductName || '—'}</b>
-        <span class="badge ms-2" style="background:${_planLineColor(line)}">${line}</span>
-      </div>
-      <div class="text-muted small mb-3">
-        เป้าหมาย ${(parseFloat(mo.OrderQty)||0).toLocaleString()} ${mo.UOM||''}
-        ${data.lastQty != null ? `<br>ยอดล่าสุดที่กรอกไว้: <b>${(parseFloat(data.lastQty)||0).toLocaleString()}</b> ${mo.UOM||''} (${_fmtDateTime(data.lastAt)})` : ''}
-      </div>
-      <label class="form-label small fw-bold">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
+      ${_scanprogPubInfoHTML(moId, line, info, employeeName, employeePosition)}
+      <label class="form-label small fw-bold mt-3">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
       <div class="input-group mb-2">
-        <input type="number" id="scanprog-pub-qty" class="form-control" min="0" step="any" value="${data.lastQty != null ? data.lastQty : ''}">
+        <input type="number" id="scanprog-pub-qty" class="form-control" min="0" step="any" value="${info.lastQty != null ? info.lastQty : ''}">
         <span class="input-group-text">${mo.UOM||''}</span>
       </div>
       <button class="btn btn-primary w-100" id="scanprog-pub-submit-btn" onclick="_scanprogPubSubmit('${moId.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}','${phone}')">
@@ -16135,11 +16186,12 @@ async function _scanprogPubSubmit(moId, line, phone) {
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-check me-1"></i>อัปเดต';
     return;
   }
+  const mo = (_scanprogPubInfo && _scanprogPubInfo.mo) || data.mo || {};
   const bodyEl = document.getElementById('scanProgressPublicBody');
   bodyEl.innerHTML = `<div class="text-center py-5">
     <div style="font-size:2.2rem;color:#22c55e"><i class="fas fa-circle-check"></i></div>
     <div style="font-size:1.1rem;font-weight:700;margin-top:8px">อัปเดตแล้ว</div>
-    <div class="text-muted small mt-1">${(data.mo && data.mo.ProductName) || moId} · ${line}<br>ยอด ${qty.toLocaleString()} ${(data.mo && data.mo.UOM) || ''}</div>
+    <div class="text-muted small mt-1">${mo.ProductName || moId} · ${line}<br>ยอด ${qty.toLocaleString()} ${mo.UOM || ''}</div>
     <button class="btn btn-outline-primary btn-sm mt-3" onclick="location.reload()"><i class="fas fa-rotate me-1"></i>สแกนอีกครั้ง</button>
   </div>`;
 }
