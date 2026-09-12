@@ -5330,11 +5330,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               </div>
               <div class="col-md-2">
                 <label class="form-label">เวลาเริ่ม</label>
-                <input type="time" step="300" id="prodrecord-f-timestart" class="form-control">
+                <div id="prodrecord-f-timestart-wrap"></div>
               </div>
               <div class="col-md-2">
                 <label class="form-label">เวลาเสร็จ</label>
-                <input type="time" step="300" id="prodrecord-f-timeend" class="form-control">
+                <div id="prodrecord-f-timeend-wrap"></div>
               </div>
             </div>
             <div class="row g-3 mb-2">
@@ -17388,16 +17388,44 @@ function prodStatusRenderTodayCards() {
   container.innerHTML = todayItems.map(r => {
     const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
     const planQty = parseFloat(r.PlanQty) || 0;
+    const mo = r.MO_Ref ? moByID[r.MO_Ref] : null;
+
+    // ยอดสแกนสดจากหน้างาน (production_progress) — คำนวณก่อน progressHtml เพราะตอนยังไม่มีผลจริงอย่างเป็น
+    // ทางการ (FG_Actual จาก production_records) ให้เอายอดสแกนมาขยับสเกลบาร์แทนไปก่อนเลย ไม่ใช่ค้างที่ 0%
+    // ตลอดจนกว่าจะกรอกบันทึกผลิต — ดู liveProgHtml ด้านล่างสำหรับ badge/เวลาแยกต่างหาก (ยังโชว์คู่กันเสมอ)
+    //
+    // เทียบกับ "สั่งผลิต" (mo.OrderQty) ไม่ใช่ planQty ของแผนวันนี้ — เพราะ production_progress เก็บ "ยอด
+    // สะสมรวม" ต่อ (MO, ไลน์) ตลอดทั้งงาน ไม่ใช่ยอดของวันนี้วันเดียว (1 MO วิ่งข้ามหลายวัน/หลายแผนย่อยได้ —
+    // ดูหมายเหตุ "แผนผลิตหลายวัน" ในโปรเจกต์) ถ้าเทียบกับ planQty ของวันนี้ % จะเกิน 100 ทั้งที่ยังไม่ครบยอด
+    // สั่งจริง (พบจากรายงานผู้ใช้: สั่ง 5,500 สแกนได้ 5,367 แต่ planQty วันนี้แค่ 5,000 → ขึ้น 107% ผิด)
+    const liveProg = r.MO_Ref ? _prodStatusProgressData[`${r.MO_Ref}|${r.Line}`] : null;
+    const liveQty = liveProg ? (parseFloat(liveProg.Qty) || 0) : null;
+    const scanTarget = (mo && parseFloat(mo.OrderQty)) || planQty;
+    const _liveScanBarHTML = (qty, target, uom) => {
+      const pct = target > 0 ? Math.round(qty / target * 1000) / 10 : 0;
+      return `<div class="planweek-progress-wrap">
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-danger fw-bold"><i class="fas fa-tower-broadcast me-1"></i>จากสแกน ${qty.toLocaleString()} ${uom||''} (${pct}%)</span>
+          <span class="text-muted">เป้าหมาย ${target.toLocaleString()} ${uom||''}</span>
+        </div>
+        <div class="planweek-progress-bar-bg"><div class="planweek-progress-bar-fill" style="width:${Math.min(pct,100)}%;background:#ef4444"></div></div>
+      </div>`;
+    };
 
     let progressHtml;
     if (r.Status !== 'ยืนยันแล้ว') {
-      progressHtml = `<div class="text-muted small"><i class="fas fa-clock me-1"></i>ยังไม่ยืนยัน — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
+      progressHtml = liveQty != null
+        ? _liveScanBarHTML(liveQty, scanTarget, r.UOM)
+        : `<div class="text-muted small"><i class="fas fa-clock me-1"></i>ยังไม่ยืนยัน — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
     } else if (!rec || rec.FG_Actual == null) {
-      progressHtml = `<div class="planweek-progress-wrap">
+      progressHtml = liveQty != null
+        ? _liveScanBarHTML(liveQty, scanTarget, r.UOM)
+        : `<div class="planweek-progress-wrap">
         <div class="d-flex justify-content-between small text-warning mb-1"><span><i class="fas fa-hourglass-half me-1"></i>รอกรอกผลจริง</span><span>เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</span></div>
         <div class="planweek-progress-bar-bg"><div class="planweek-progress-bar-fill" style="width:0%;background:#fbbf24"></div></div>
       </div>`;
     } else {
+      // มีผลจริงที่บันทึกอย่างเป็นทางการแล้ว (Stage A) — ใช้เลขนี้เป็นหลักเสมอ ไม่ใช้ยอดสแกนแทน
       const planned = parseFloat(rec.FG_Planned) || planQty;
       const actual  = parseFloat(rec.FG_Actual) || 0;
       const pct = planned > 0 ? Math.round(actual/planned*1000)/10 : 0;
@@ -17412,16 +17440,13 @@ function prodStatusRenderTodayCards() {
       </div>`;
     }
 
-    // ยอดสแกนสดจากหน้างาน (production_progress) — ชั้นแสดงผลเรียลไทม์แยกต่างหาก ไม่เกี่ยวกับ progressHtml
-    // ด้านบน (ซึ่งอิง production_records/FG_Actual ที่กรอกตอนจบล็อต) โชว์ต่อเมื่อมีคนสแกนไว้จริงเท่านั้น
-    const liveProg = r.MO_Ref ? _prodStatusProgressData[`${r.MO_Ref}|${r.Line}`] : null;
+    // badge/เวลาแยกต่างหาก ให้เห็นเวลาสแกนล่าสุดชัดๆ เสมอ ไม่ว่าบาร์ด้านบนจะใช้เลขไหนอยู่ก็ตาม
     const liveProgHtml = !liveProg ? '' : `<div class="mt-2 small d-flex align-items-center gap-2">
       <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="fas fa-tower-broadcast me-1"></i>LIVE จากสแกน</span>
       <b>${(parseFloat(liveProg.Qty)||0).toLocaleString()} ${r.UOM||''}</b>
       <span class="text-muted">(${_fmtDateTime(liveProg.CreatedAt)})</span>
     </div>`;
 
-    const mo = r.MO_Ref ? moByID[r.MO_Ref] : null;
     let moContextHtml = '';
     if (mo) {
       const orderQty   = parseFloat(mo.OrderQty) || 0;
@@ -20156,13 +20181,47 @@ function _prodrecordUpdateStationSummary(key, seq) {
 // ใต้แถวนี้ (ดู _prodrecordRecalcWorkerCounts) แต่ id/ค่าที่ submit อ่านยังเหมือนเดิมทุกอย่าง — ไม่ต้องแก้
 // prodrecordEntrySubmit ตรงจุดอ่านค่า ftWorkers/ptWorkers/osWorkers เลย (ความเสี่ยงต่ำ จุดเดียวที่กระทบคือ
 // การกรอก ไม่ใช่การบันทึก)
+// รายการ <option> ของ select ชม./นาที ใช้ร่วมกันทั้งช่องเวลาแบบ dynamic (ต่อแถวด้านล่าง) และแบบ static
+// (เวลาเริ่ม/เสร็จ ด้านบนฟอร์ม, ดู prodrecordOpenEntryModal) — นาทีจำกัดแค่ 00,05,...,55 (ทีละ 5) ตามคำขอ
+// ผู้ใช้ 2026-09-12 เพราะ step="300" ของ native <input type="time"> ไม่ถูกบังคับใช้จริงในหลาย browser
+// (ยืนยันจากสกรีนช็อตจริงของผู้ใช้ — picker ของเบราว์เซอร์ยังโชว์ทุกนาทีต่อเนื่องอยู่ดี ไม่ snap ตาม step เลย)
+function _prodrecordTimeSelectOptionsHTML(kind, current) {
+  const values = kind === 'h'
+    ? Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
+    : Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  return '<option value="">--</option>' + values.map(v => `<option value="${v}" ${v === current ? 'selected' : ''}>${v}</option>`).join('');
+}
+
+// วาด select ชม./นาที คู่หนึ่ง + input hidden (id เดิม เก็บค่า "HH:MM" 24 ชม. รูปแบบเดียวกับ .value ของ
+// native <input type="time"> เป๊ะ — โค้ดที่อ่านค่าที่อื่นทั้งหมด เช่น _prodrecordStationTimeRecalc/
+// prodrecordEntrySubmit จึงไม่ต้องแก้อะไรเลย) — afterCall (ถ้ามี) คือ JS call ที่จะรันต่อหลัง sync ค่าแล้ว
+function _prodrecordTimeSelectHTML(id, value, afterCall) {
+  const parts = (value || '').split(':');
+  const hh = parts[0] || '', mm = parts[1] || '';
+  const onchg = `_prodrecordSyncTimeSelect('${id}')${afterCall ? `;${afterCall}` : ''}`;
+  return `<div class="d-flex align-items-center gap-1">
+    <select class="form-select form-select-sm" style="width:58px;padding:2px 4px" id="${id}-h" onchange="${onchg}">${_prodrecordTimeSelectOptionsHTML('h', hh)}</select>
+    <span>:</span>
+    <select class="form-select form-select-sm" style="width:58px;padding:2px 4px" id="${id}-m" onchange="${onchg}">${_prodrecordTimeSelectOptionsHTML('m', mm)}</select>
+    <input type="hidden" id="${id}" value="${value || ''}">
+  </div>`;
+}
+
+// sync ค่า select ชม./นาที → hidden input (id เดิม) เรียกทุกครั้งที่เปลี่ยนช่องใดช่องหนึ่ง — ถ้าเลือกไม่ครบ
+// ทั้งคู่ (ว่างอันใดอันหนึ่ง) ให้ hidden เป็นค่าว่าง เหมือน native time input ตอนกรอกไม่ครบ
+function _prodrecordSyncTimeSelect(id) {
+  const h = document.getElementById(`${id}-h`)?.value || '';
+  const m = document.getElementById(`${id}-m`)?.value || '';
+  const hidden = document.getElementById(id);
+  if (hidden) hidden.value = (h && m) ? `${h}:${m}` : '';
+}
+
 function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, normal, ot) {
-  // step="300" (วินาที = 5 นาที) ให้ picker เวลาเลื่อนทีละ 5 นาที ไม่ละเอียดถึงหลักนาที ตามคำขอผู้ใช้ 2026-09-12
   return `
     <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}" readonly style="background:#f1f5f9" title="คำนวณอัตโนมัติจากรายชื่อที่เลือกด้านล่าง"></td>
-    <td><input type="time" step="300" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')"></td>
+    <td>${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-${type}start`, start, `_prodrecordStationTimeRecalc('${key}',${seq},'${type}')`)}</td>
     <td>
-      <input type="time" step="300" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}" oninput="_prodrecordStationTimeRecalc('${key}',${seq},'${type}')">
+      ${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-${type}end`, end, `_prodrecordStationTimeRecalc('${key}',${seq},'${type}')`)}
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}normal" value="${normal ?? 0}">
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}ot" value="${ot ?? 0}">
     </td>`;
@@ -20449,8 +20508,8 @@ async function prodrecordOpenEntryModal(gi) {
   document.getElementById('prodrecord-f-fgactual').value   = r.FG_Actual ?? '';
   document.getElementById('prodrecord-f-datestart').value  = r.Date_Start || '';
   document.getElementById('prodrecord-f-dateend').value    = r.Date_End || '';
-  document.getElementById('prodrecord-f-timestart').value  = r.Time_Start || '';
-  document.getElementById('prodrecord-f-timeend').value    = r.Time_End || '';
+  document.getElementById('prodrecord-f-timestart-wrap').innerHTML = _prodrecordTimeSelectHTML('prodrecord-f-timestart', r.Time_Start || '');
+  document.getElementById('prodrecord-f-timeend-wrap').innerHTML   = _prodrecordTimeSelectHTML('prodrecord-f-timeend', r.Time_End || '');
   document.getElementById('prodrecord-f-avgweight').value  = r.AVG_Weight ?? '';
   document.getElementById('prodrecord-f-note').value       = r.ProductionNote || '';
   // เรียกอีกครั้งท้ายฟังก์ชันหลังโหลดแถววัตถุดิบ+_prodrecordEntryBulkCodes เสร็จแล้ว (ตัวหารต้องใช้ทั้ง 2 อย่าง) —
