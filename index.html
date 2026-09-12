@@ -1701,10 +1701,18 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต">
+    <!-- ซ่อนจากเมนูถาวรตามคำขอผู้ใช้ 2026-09-13 ("ไม่ต้องขึ้นที่เมนูก็ได้ให้ทำงานเบื้องหลัง") — ฟีเจอร์นี้ใช้
+         งานจริงผ่าน QR/ลิงก์สาธารณะ (?scanprog=1&mo=...&line=...) เท่านั้น ไม่ผ่านเมนูฝั่งในแอปแล้ว การซ่อนนี้
+         เป็นแค่ระดับ UI (ไม่ได้ลบหน้า/ฟังก์ชัน/เส้นทางลิงก์สาธารณะออกเลย) เรียลไทม์ (production_progress ผ่าน
+         Realtime subscription) ยังทำงานเหมือนเดิมทุกประการ ไม่เกี่ยวกับการซ่อนเมนูนี้เลย -->
+    <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต" style="display:none">
       <i class="fas fa-camera me-2"></i><span>สแกนอัปเดตการผลิต</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน">
+    <!-- แอดมินเท่านั้นที่เห็นในเมนู (added 2026-09-13 ตามคำขอผู้ใช้) — ซ่อนเริ่มต้นด้วย display:none แล้วให้
+         JS เปิดกลับให้เฉพาะ _currentUser.isAdmin เหมือน nav-skillmatrix/nav-weeklyreport/nav-admindash ทุก
+         ประการ (ดูจุดที่ toggle ใน onAuthStateChange/ฟังก์ชันอัปเดต badge ผู้ใช้) — ซ่อนแค่ระดับ UI เท่านั้น
+         ไม่ได้ผูก RLS เพิ่ม -->
+    <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน" style="display:none">
       <i class="fas fa-user-clock me-2"></i><span>สแกนบันทึกเวลาแรงงาน</span>
     </a>
     </div>
@@ -5926,6 +5934,56 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       </div>
     </div>
     <div class="scroll-content">
+      <!-- คำขอแก้ไข/ลบที่รออนุมัติ (added 2026-09-13 ตามคำขอผู้ใช้ "เมื่อกดบันทึกแล้วไม่สามารถแก้ไขได้
+           ถ้าแก้ไขต้องรอแอดมินอนุมัติ ... ในส่วนของแอพจะขึ้นข้อมูลเทียบให้เห็นว่าแก้จากอะไรเป็นอะไร") —
+           รายการที่ผู้ควบคุมงานขอแก้ไข/ลบผ่านลิงก์สาธารณะ (เฉพาะรายการที่ "เคยบันทึกไว้แล้ว" เท่านั้น รายการ
+           ใหม่ยังบันทึกตรงได้ตามปกติ) แสดงอยู่บนสุดเสมอ ไม่พับเก็บ (ต่างจากพาแนลประวัติด้านล่าง) เพราะเป็น
+           งานที่ต้องรีบทำ ไม่ใช่แค่ดูข้อมูลย้อนหลังเฉยๆ -->
+      <div class="lotscan-panel mb-2 py-3" id="scanlabor-pending-panel" style="display:none">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0"><i class="fas fa-triangle-exclamation me-2 text-warning"></i>คำขอแก้ไขที่รออนุมัติ
+            <span class="badge bg-warning text-dark rounded-pill" id="scanlabor-pending-count">0</span></h6>
+        </div>
+        <div id="scanlabor-pending-results"></div>
+      </div>
+
+      <!-- ประวัติการบันทึกเวลาแรงงานที่ผ่านมา (added 2026-09-13 ตามคำขอผู้ใช้ "สร้างไว้ที่หน้าสแกนบันทึก
+           เวลาแรงงาน ตามไลน์/สินค้า") — พับเก็บเป็นค่าเริ่มต้น กด "ดูประวัติ" ถึงจะ query ครั้งแรก
+           (scanlaborHistoryToggle → scanlaborHistoryInit) ไม่ให้ query ทุกครั้งที่เปิดหน้าโดยไม่จำเป็น
+           กรองได้ตามไลน์ + ค้นหาชื่อสินค้า/MO + ช่วงวันที่ แล้วจัดกลุ่มผลลัพธ์เป็นไลน์ → สินค้า/MO → แถวราย
+           วัน/พนักงาน ตามที่ผู้ใช้ขอ "ตามไลน์/สินค้า" ตรงๆ -->
+      <div class="lotscan-panel mb-2 py-3">
+        <div class="d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="scanlaborHistoryToggle()">
+          <h6 class="mb-0"><i class="fas fa-clock-rotate-left me-2"></i>ประวัติการบันทึกเวลาแรงงาน <span class="lotscan-flat-subtitle">ตามไลน์/สินค้า</span></h6>
+          <i class="fas fa-chevron-down" id="scanlabor-history-chevron"></i>
+        </div>
+        <div id="scanlabor-history-body" class="d-none mt-3">
+          <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label mb-1 small">ไลน์</label>
+              <select id="scanlabor-hist-line" class="form-select form-select-sm"><option value="">ทุกไลน์</option></select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label mb-1 small">สินค้า / MO</label>
+              <input type="text" id="scanlabor-hist-search" class="form-control form-control-sm" placeholder="ค้นหาชื่อสินค้าหรือ MO"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();scanlaborHistorySearch();}">
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="form-label mb-1 small">จากวันที่</label>
+              <input type="date" id="scanlabor-hist-from" class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="form-label mb-1 small">ถึงวันที่</label>
+              <input type="date" id="scanlabor-hist-to" class="form-control form-control-sm">
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end">
+              <button type="button" class="btn btn-sm btn-primary w-100" onclick="scanlaborHistorySearch()"><i class="fas fa-search me-1"></i>ค้นหา</button>
+            </div>
+          </div>
+          <div id="scanlabor-hist-results"></div>
+        </div>
+      </div>
+
       <div id="scanlabor-empty" class="lotscan-panel text-center py-5 lotscan-flat-muted">
         <i class="fas fa-user-clock fa-2x mb-3 d-block"></i>สแกน QR ที่ติดหน้าไลน์ (หรือพิมพ์รหัสเอง) เพื่อบันทึกเวลาแรงงาน
       </div>
@@ -5950,6 +6008,20 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </div>
           <div id="scanlabor-camera-status" class="text-muted small mt-2 text-center">กำลังสแกนอัตโนมัติ... เล็งกล้องไปที่ QR</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- โมดัลรายละเอียดประวัติต่อ MO (added 2026-09-13) — กดการ์ดในพาแนล "ประวัติการบันทึกเวลาแรงงาน" มาเปิด
+       ดูว่า MO นี้วิ่งกี่ไลน์ แต่ละไลน์มีวันทำงานกี่วัน พร้อมแก้ไข/ลบ/เพิ่มรายการได้ (ดู scanlaborHistoryOpenDetail) -->
+  <div class="modal fade" id="scanlaborHistDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold" id="scanlabor-histdetail-title">รายละเอียด</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="scanlabor-histdetail-body"></div>
       </div>
     </div>
   </div>
@@ -16554,11 +16626,14 @@ async function _scanlaborPubSubmit(moId, phone) {
     return;
   }
   const mo = (info && info.mo) || data.mo || {};
+  // บันทึกรายการใหม่ (ยังไม่เคยมี) ตรงได้เลย — ส่วนที่แก้ไข/ลบรายการที่เคยบันทึกไปแล้ว ต้องรอแอดมินอนุมัติ
+  // ก่อน (added 2026-09-13) แจ้งแยกให้ชัดว่าอันไหนสำเร็จแล้ว อันไหนแค่ "ส่งคำขอ" รอตรวจสอบ
+  const pendingLine = data.pendingCount ? `<br><span class="text-warning">ส่งคำขอแก้ไข ${data.pendingCount} รายการ — รอแอดมินอนุมัติ</span>` : '';
   const bodyEl = document.getElementById('scanLaborPublicBody');
   bodyEl.innerHTML = `<div class="text-center py-5">
     <div style="font-size:2.2rem;color:#22c55e"><i class="fas fa-circle-check"></i></div>
     <div style="font-size:1.1rem;font-weight:700;margin-top:8px">บันทึกแล้ว</div>
-    <div class="text-muted small mt-1">${mo.ProductName || moId}<br>บันทึก ${data.savedCount ?? 0} คน (${lines.length} ไลน์)</div>
+    <div class="text-muted small mt-1">${mo.ProductName || moId}<br>บันทึกใหม่ ${data.savedCount ?? 0} คน (${lines.length} ไลน์)${pendingLine}</div>
     <button class="btn btn-outline-primary btn-sm mt-3" onclick="location.reload()"><i class="fas fa-rotate me-1"></i>สแกนอีกครั้ง</button>
   </div>`;
 }
@@ -31194,6 +31269,458 @@ function scanlaborInit() {
   document.getElementById('scanlabor-empty').classList.remove('d-none');
   document.getElementById('scanlabor-notfound').classList.add('d-none');
   document.getElementById('scanlabor-result').classList.add('d-none');
+  _scanlaborHistorySetupFilters();
+  scanlaborPendingLoad();
+}
+
+// ══════════════════════════════════════════════
+// คำขอแก้ไข/ลบที่รออนุมัติ (added 2026-09-13) — ผู้ควบคุมงานขอแก้ไขเวลา/ติ๊กออกรายการที่ "เคยบันทึกไว้แล้ว"
+// ผ่านลิงก์สาธารณะ ระบบไม่แก้ production_labor_log ตรงๆ แล้ว (ดูหมายเหตุยาวใน scan-labor/index.ts) แต่ไปสร้าง
+// แถวรออนุมัติใน production_labor_edit_requests แทน — พาแนลนี้โชว์ให้แอดมินดูก่อน-หลังเทียบกัน แล้วอนุมัติ/
+// ปฏิเสธ อนุมัติแล้วค่อยไปแก้ไข/ลบจริงที่ production_labor_log ตอนนั้น ปฏิเสธแล้วข้อมูลเดิมคงอยู่เหมือนเดิม
+// ══════════════════════════════════════════════
+async function scanlaborPendingLoad() {
+  const panel = document.getElementById('scanlabor-pending-panel');
+  const { data, error } = await _sb.from('production_labor_edit_requests').select('*')
+    .eq('Status', 'รออนุมัติ').order('CreatedAt', { ascending: false });
+  if (error) { if (panel) panel.style.display = 'none'; return; } // graceful-degrade ถ้ายังไม่ได้รัน SQL สร้างตาราง
+  const rows = data || [];
+  document.getElementById('scanlabor-pending-count').textContent = rows.length;
+  if (panel) panel.style.display = rows.length ? '' : 'none';
+  if (!rows.length) return;
+
+  document.getElementById('scanlabor-pending-results').innerHTML = rows.map(r => {
+    const isDelete = r.RequestType === 'DELETE';
+    const oldText = `${r.OldTimeIn || '—'}–${r.OldTimeOut || '—'}`;
+    const newText = isDelete ? '<span class="text-danger">ลบรายการนี้ทิ้ง</span>' : `${r.NewTimeIn || '—'}–${r.NewTimeOut || '—'}`;
+    return `<div class="border rounded p-2 mb-2">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <span class="badge bg-secondary me-1">${r.MO_Ref}</span>
+          <span class="badge me-1" style="background:${_planLineColor(r.Line)}">${r.Line}</span>
+          <b>${r.EmployeeName || r.EmployeeCode}</b> <span class="text-muted small">(${r.EmployeeCode})</span>
+          <span class="text-muted small ms-1">· ${_fmtDate(r.WorkDate)}</span>
+        </div>
+        <div class="text-muted small">ขอโดย ${r.RequestedByName || '—'}</div>
+      </div>
+      <div class="small mt-1">
+        <span class="text-muted">จาก</span> <span class="text-decoration-line-through">${oldText}</span>
+        <i class="fas fa-arrow-right mx-1 text-muted"></i>
+        <span class="fw-semibold">${newText}</span>
+      </div>
+      <div class="mt-2">
+        <button type="button" class="btn btn-sm btn-success py-0 px-2" onclick="scanlaborPendingApprove(${r._row_id})"><i class="fas fa-check me-1"></i>อนุมัติ</button>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="scanlaborPendingReject(${r._row_id})"><i class="fas fa-xmark me-1"></i>ปฏิเสธ</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function scanlaborPendingApprove(reqId) {
+  const { data: reqRows, error: getErr } = await _sb.from('production_labor_edit_requests').select('*').eq('_row_id', reqId);
+  if (getErr || !reqRows || !reqRows.length) { _err('ไม่พบคำขอนี้', getErr?.message || ''); return; }
+  const r = reqRows[0];
+  _showLoader();
+  if (r.RequestType === 'DELETE') {
+    const { error } = await _sb.from('production_labor_log').delete()
+      .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', r.WorkDate).eq('EmployeeCode', r.EmployeeCode);
+    if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
+  } else {
+    const { error } = await _sb.from('production_labor_log')
+      .update({ TimeIn: r.NewTimeIn, TimeOut: r.NewTimeOut, UpdatedAt: new Date().toISOString() })
+      .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', r.WorkDate).eq('EmployeeCode', r.EmployeeCode);
+    if (error) { _hideLoader(); _err('บันทึกไม่สำเร็จ', error.message); return; }
+  }
+  const { error: updReqErr } = await _sb.from('production_labor_edit_requests')
+    .update({ Status: 'อนุมัติแล้ว', ReviewedAt: new Date().toISOString(), ReviewedByName: _currentUser?.name || _currentUser?.email || null })
+    .eq('_row_id', reqId);
+  _hideLoader();
+  if (updReqErr) { _err('อนุมัติสำเร็จบางส่วน', `แก้ข้อมูลจริงแล้ว แต่ปรับสถานะคำขอไม่สำเร็จ: ${updReqErr.message}`); }
+  await scanlaborPendingLoad();
+  if (_scanlaborHistoryLoaded) await scanlaborHistorySearch(); // รีเฟรชพาแนลประวัติด้วยถ้าเปิดค้างอยู่ ให้เห็นผลลัพธ์ล่าสุด
+}
+
+async function scanlaborPendingReject(reqId) {
+  const result = await Swal.fire({
+    icon: 'warning', title: 'ปฏิเสธคำขอนี้?', text: 'ข้อมูลเดิมจะคงอยู่เหมือนเดิม ไม่มีการเปลี่ยนแปลง',
+    showCancelButton: true, confirmButtonText: 'ปฏิเสธ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545',
+  });
+  if (!result.isConfirmed) return;
+  _showLoader();
+  const { error } = await _sb.from('production_labor_edit_requests')
+    .update({ Status: 'ปฏิเสธ', ReviewedAt: new Date().toISOString(), ReviewedByName: _currentUser?.name || _currentUser?.email || null })
+    .eq('_row_id', reqId);
+  _hideLoader();
+  if (error) { _err('ปฏิเสธไม่สำเร็จ', error.message); return; }
+  await scanlaborPendingLoad();
+}
+
+// ══════════════════════════════════════════════
+// ประวัติการบันทึกเวลาแรงงาน (added 2026-09-13 ตามคำขอผู้ใช้ "สร้างไว้ที่หน้าสแกนบันทึกเวลาแรงงาน ตามไลน์/
+// สินค้า") — พับเก็บเป็นค่าเริ่มต้น, query ครั้งแรกตอนกดเปิดดูเท่านั้น (ดู scanlaborHistoryToggle) กรองได้
+// ตามไลน์ + ค้นหาสินค้า/MO + ช่วงวันที่ (ค่าเริ่มต้น 30 วันล่าสุด) แล้วจัดกลุ่มผลลัพธ์เป็นไลน์ → สินค้า/MO →
+// รายวัน/พนักงาน — อ่านอย่างเดียว ไม่มีปุ่มแก้ไข/ลบ (แก้ข้อมูลจริงต้องกลับไปสแกน QR/พิมพ์รหัส MO เดิมใหม่)
+// ══════════════════════════════════════════════
+let _scanlaborHistoryLoaded = false;
+let _scanlaborHistoryData = [];
+
+function _scanlaborHistorySetupFilters() {
+  const lineSel = document.getElementById('scanlabor-hist-line');
+  if (lineSel && lineSel.options.length <= 1) {
+    lineSel.innerHTML = '<option value="">ทุกไลน์</option>' + PLAN_LINES.map(l => `<option value="${l.replace(/"/g,'&quot;')}">${l}</option>`).join('');
+  }
+  const fromEl = document.getElementById('scanlabor-hist-from');
+  const toEl = document.getElementById('scanlabor-hist-to');
+  if (fromEl && !fromEl.value) {
+    const from = new Date();
+    from.setDate(from.getDate() - 30);
+    fromEl.value = _planWeekLocalDateStr(from);
+  }
+  if (toEl && !toEl.value) toEl.value = _planWeekLocalDateStr(new Date());
+}
+
+function scanlaborHistoryToggle() {
+  const body = document.getElementById('scanlabor-history-body');
+  const chevron = document.getElementById('scanlabor-history-chevron');
+  if (!body) return;
+  const nowHidden = body.classList.toggle('d-none');
+  if (chevron) { chevron.classList.toggle('fa-chevron-down', nowHidden); chevron.classList.toggle('fa-chevron-up', !nowHidden); }
+  if (!nowHidden && !_scanlaborHistoryLoaded) {
+    _scanlaborHistoryLoaded = true;
+    scanlaborHistorySearch();
+  }
+}
+
+async function scanlaborHistorySearch() {
+  const line = document.getElementById('scanlabor-hist-line')?.value || '';
+  const search = (document.getElementById('scanlabor-hist-search')?.value || '').trim().toLowerCase();
+  const from = document.getElementById('scanlabor-hist-from')?.value || '';
+  const to = document.getElementById('scanlabor-hist-to')?.value || '';
+  const resultsEl = document.getElementById('scanlabor-hist-results');
+  resultsEl.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-1"></i>กำลังค้นหา...</div>';
+
+  const { data, error } = await _fetchAllPagedRange(
+    'production_labor_log', 'MO_Ref,Line,WorkDate,EmployeeCode,EmployeeName,TimeIn,TimeOut,RecordedByName',
+    'WorkDate', from || '2000-01-01', to || '2999-12-31'
+  );
+  if (error) { resultsEl.innerHTML = ''; _err('ค้นหาประวัติไม่สำเร็จ', error.message); return; }
+
+  let rows = data || [];
+  if (line) rows = rows.filter(r => r.Line === line);
+
+  // ดึงชื่อสินค้า+Lot จาก MO มาแนบทุกแถว (added 2026-09-13 ตามคำขอผู้ใช้ "ให้ขึ้นเป็นการ์ดแยก ผลิตภัณฑ์อะไร
+  // Lotไหน") — การ์ดระดับบนสุดจัดกลุ่มตาม MO/สินค้า/Lot แทนที่จะเป็นไลน์เหมือนเดิม
+  const moIds = [...new Set(rows.map(r => r.MO_Ref).filter(Boolean))];
+  const moMap = {};
+  if (moIds.length) {
+    const { data: moRows } = await _sb.from('manufacturing_orders').select('MO_ID,ProductName,LOT').in('MO_ID', moIds);
+    (moRows || []).forEach(m => { moMap[m.MO_ID] = { productName: m.ProductName, lot: m.LOT }; });
+  }
+  rows = rows.map(r => ({ ...r, ProductName: moMap[r.MO_Ref]?.productName || '', LOT: moMap[r.MO_Ref]?.lot || '' }));
+
+  if (search) {
+    rows = rows.filter(r => (r.MO_Ref || '').toLowerCase().includes(search) || (r.ProductName || '').toLowerCase().includes(search));
+  }
+
+  _scanlaborHistoryData = rows;
+  _scanlaborRenderHistory();
+}
+
+// การ์ดระดับบนสุด — แยกตาม MO/สินค้า/Lot (added 2026-09-13) กดเข้าไปดูรายละเอียดต่อไลน์/ต่อวันในโมดัล
+// (ดู scanlaborHistoryOpenDetail) แทนที่การแสดงผลแบบตารางแบนตามไลน์เดิม
+function _scanlaborRenderHistory() {
+  const resultsEl = document.getElementById('scanlabor-hist-results');
+  const rows = _scanlaborHistoryData;
+  if (!rows.length) { resultsEl.innerHTML = '<div class="text-center text-muted py-4">ไม่พบข้อมูลตามเงื่อนไขที่กรอง</div>'; return; }
+
+  const byMo = {};
+  rows.forEach(r => {
+    if (!byMo[r.MO_Ref]) byMo[r.MO_Ref] = { productName: r.ProductName, lot: r.LOT, rows: [] };
+    byMo[r.MO_Ref].rows.push(r);
+  });
+  const moKeys = Object.keys(byMo).sort((a, b) => b.localeCompare(a)); // MO_ID ใหม่ล่าสุดก่อน (เลขรันเรียงตามวันที่ออกอยู่แล้ว)
+
+  resultsEl.innerHTML = `<div class="row g-2">${moKeys.map(moRef => {
+    const g = byMo[moRef];
+    const lineCount = new Set(g.rows.map(r => r.Line)).size;
+    const dayCount = new Set(g.rows.map(r => r.WorkDate)).size;
+    return `<div class="col-md-6 col-lg-4">
+      <div class="glass-card p-3 h-100" style="cursor:pointer" onclick="scanlaborHistoryOpenDetail('${moRef.replace(/'/g,"\\'")}')">
+        <div class="fw-bold">${g.productName || '—'}</div>
+        <div class="text-muted small mb-2">Lot: ${g.lot || '—'}</div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+          <span class="badge bg-secondary">${moRef}</span>
+          <span class="text-muted small">${lineCount} ไลน์ · ${dayCount} วัน · ${g.rows.length} รายการ</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════
+// โมดัลรายละเอียดต่อ MO (added 2026-09-13) — กดการ์ดแล้วเห็นว่า MO นี้วิ่งกี่ไลน์ แต่ละไลน์มีวันทำงานกี่วัน
+// พร้อมปุ่มแก้ไข/ลบต่อรายการ + เพิ่มรายการใหม่ (คนละวัน/คนละคนได้อิสระ ไม่จำกัดแค่วันนี้เหมือนหน้าสแกนหลัก)
+// ══════════════════════════════════════════════
+let _scanlaborHistDetailModal = null;
+let _scanlaborHistCurrentMoRef = null;
+let _scanlaborHistRowsBySeq = {};
+let _scanlaborHistRowSeq = 0;
+
+function scanlaborHistoryOpenDetail(moRef) {
+  _scanlaborHistCurrentMoRef = moRef;
+  _scanlaborHistRenderDetail();
+  if (!_scanlaborHistDetailModal) _scanlaborHistDetailModal = new bootstrap.Modal(document.getElementById('scanlaborHistDetailModal'));
+  _scanlaborHistDetailModal.show();
+}
+
+function _scanlaborHistRowHTML(r) {
+  const seq = _scanlaborHistRowSeq++;
+  _scanlaborHistRowsBySeq[seq] = r;
+  return `<tr data-seq="${seq}">
+    <td>${r.EmployeeName || r.EmployeeCode} <span class="text-muted small">(${r.EmployeeCode})</span></td>
+    <td id="scanlabor-histrow-time-${seq}">${r.TimeIn || '—'}–${r.TimeOut || '—'}</td>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="scanlaborHistOpenEdit(${seq})" title="แก้ไขเวลา"><i class="fas fa-pen"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="scanlaborHistDeleteRow(${seq})" title="ลบ"><i class="fas fa-trash"></i></button>
+    </td>
+  </tr>`;
+}
+
+function _scanlaborHistRenderDetail() {
+  const moRef = _scanlaborHistCurrentMoRef;
+  const rows = _scanlaborHistoryData.filter(r => r.MO_Ref === moRef);
+  const titleEl = document.getElementById('scanlabor-histdetail-title');
+  const bodyEl = document.getElementById('scanlabor-histdetail-body');
+  const first = rows[0] || {};
+  if (titleEl) titleEl.innerHTML = `<span class="badge bg-secondary me-2">${moRef}</span>${first.ProductName || '—'} <span class="text-muted small ms-1">Lot: ${first.LOT || '—'}</span>`;
+  if (!rows.length) { bodyEl.innerHTML = '<div class="text-center text-muted py-4">ไม่มีรายการแล้ว</div>'; return; }
+
+  _scanlaborHistRowsBySeq = {}; _scanlaborHistRowSeq = 0; // reset ทุกครั้งที่ re-render กัน seq ค้างชี้ของเก่า
+
+  const byLine = {};
+  rows.forEach(r => {
+    if (!byLine[r.Line]) byLine[r.Line] = {};
+    if (!byLine[r.Line][r.WorkDate]) byLine[r.Line][r.WorkDate] = [];
+    byLine[r.Line][r.WorkDate].push(r);
+  });
+  const lineKeys = Object.keys(byLine).sort((a, b) => PLAN_LINES.indexOf(a) - PLAN_LINES.indexOf(b));
+
+  bodyEl.innerHTML = lineKeys.map(line => {
+    const dates = Object.keys(byLine[line]).sort((a, b) => b.localeCompare(a));
+    return `<div class="glass-card p-3 mb-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="badge" style="background:${_planLineColor(line)}">${line}</span>
+        <span class="text-muted small">${dates.length} วันที่ทำงาน</span>
+      </div>
+      ${dates.map(date => `
+        <div class="mb-2">
+          <div class="fw-semibold small mb-1">${_fmtDate(date)}</div>
+          <table class="table table-sm mb-1">
+            <tbody>${byLine[line][date].map(r => _scanlaborHistRowHTML(r)).join('')}</tbody>
+          </table>
+        </div>`).join('')}
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="scanlaborHistOpenAdd('${moRef.replace(/'/g,"\\'")}','${line.replace(/'/g,"\\'")}','')"><i class="fas fa-calendar-plus me-1"></i>เพิ่มรายการ/วันใหม่</button>
+    </div>`;
+  }).join('');
+}
+
+// แก้ไขวันที่+เวลาเข้า-ออกของแถวเดิม (เพิ่มแก้วันที่ได้ 2026-09-13 ตามคำขอผู้ใช้ — เดิมแก้ได้แค่เวลา) เวลายัง
+// เป็น 5 นาทีต่อขั้นเหมือนหน้าสแกนหลัก (ใช้ _prodrecordTimeSelectHTML ตัวเดียวกัน)
+function scanlaborHistOpenEdit(seq) {
+  const r = _scanlaborHistRowsBySeq[seq];
+  const td = document.getElementById(`scanlabor-histrow-time-${seq}`);
+  if (!r || !td) return;
+  td.innerHTML = `<div class="d-flex align-items-center gap-1 flex-wrap">
+    <input type="date" id="scanlabor-histedit-date-${seq}" class="form-control form-control-sm" style="width:135px" value="${r.WorkDate}">
+    ${_prodrecordTimeSelectHTML(`scanlabor-histedit-in-${seq}`, r.TimeIn)}
+    <span>–</span>
+    ${_prodrecordTimeSelectHTML(`scanlabor-histedit-out-${seq}`, r.TimeOut)}
+    <button type="button" class="btn btn-sm btn-primary py-0 px-2" onclick="scanlaborHistSaveEdit(${seq})">บันทึก</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="_scanlaborHistRenderDetail()">ยกเลิก</button>
+  </div>`;
+}
+
+// ถ้าวันที่ไม่เปลี่ยน — update แถวเดิมตรงๆ (เหมือนเดิม) แต่ถ้าวันที่เปลี่ยน — WorkDate เป็นส่วนหนึ่งของ UNIQUE
+// constraint (MO_Ref,Line,WorkDate,EmployeeCode) จึง "ย้าย" ตรงๆ ด้วย .update() ไม่ได้ ต้อง upsert แถวใหม่ที่
+// วันเป้าหมายก่อน (เช็คก่อนว่ามีแถวซ้ำอยู่แล้วไหม ถ้ามีให้ยืนยันว่าจะเขียนทับ) แล้วค่อยลบแถวเดิมทิ้ง
+async function scanlaborHistSaveEdit(seq) {
+  const r = _scanlaborHistRowsBySeq[seq];
+  if (!r) return;
+  const newDate = document.getElementById(`scanlabor-histedit-date-${seq}`)?.value || r.WorkDate;
+  const timeIn = document.getElementById(`scanlabor-histedit-in-${seq}`)?.value || null;
+  const timeOut = document.getElementById(`scanlabor-histedit-out-${seq}`)?.value || null;
+
+  if (newDate !== r.WorkDate) {
+    _showLoader();
+    const { data: existing, error: chkErr } = await _sb.from('production_labor_log').select('_row_id')
+      .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', newDate).eq('EmployeeCode', r.EmployeeCode);
+    _hideLoader();
+    if (chkErr) { _err('ตรวจสอบไม่สำเร็จ', chkErr.message); return; }
+    if (existing && existing.length) {
+      const confirmResult = await Swal.fire({
+        icon: 'warning', title: 'มีข้อมูลอยู่แล้วที่วันนี้',
+        text: `${r.EmployeeName || r.EmployeeCode} มีรายการที่ ${_fmtDate(newDate)} (${r.Line}) อยู่แล้ว — ย้ายมาทับเวลาเดิมหรือไม่?`,
+        showCancelButton: true, confirmButtonText: 'ทับเลย', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545',
+      });
+      if (!confirmResult.isConfirmed) return;
+    }
+    _showLoader();
+    const { error: upErr } = await _sb.from('production_labor_log').upsert({
+      MO_Ref: r.MO_Ref, Line: r.Line, WorkDate: newDate, EmployeeCode: r.EmployeeCode,
+      EmployeeName: r.EmployeeName, TimeIn: timeIn, TimeOut: timeOut,
+      RecordedByName: r.RecordedByName, UpdatedAt: new Date().toISOString(),
+    }, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
+    if (upErr) { _hideLoader(); _err('บันทึกไม่สำเร็จ', upErr.message); return; }
+    const { error: delErr } = await _sb.from('production_labor_log').delete()
+      .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', r.WorkDate).eq('EmployeeCode', r.EmployeeCode);
+    _hideLoader();
+    if (delErr) { _err('ย้ายวันที่สำเร็จบางส่วน', `บันทึกที่วันใหม่แล้ว แต่ลบแถวเดิมไม่สำเร็จ: ${delErr.message} — กรุณาลบแถวที่วันเดิมด้วยตัวเอง`); }
+    r.WorkDate = newDate; r.TimeIn = timeIn; r.TimeOut = timeOut;
+    _scanlaborHistRenderDetail(); // วันที่เปลี่ยน แถวนี้ต้องย้ายไปอยู่กลุ่มวันที่อื่น — re-render ทั้งโมดัลง่ายกว่าย้าย DOM เอง
+    return;
+  }
+
+  _showLoader();
+  const { error } = await _sb.from('production_labor_log')
+    .update({ TimeIn: timeIn, TimeOut: timeOut, UpdatedAt: new Date().toISOString() })
+    .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', r.WorkDate).eq('EmployeeCode', r.EmployeeCode);
+  _hideLoader();
+  if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+  r.TimeIn = timeIn; r.TimeOut = timeOut; // r ชี้ไปที่ object เดียวกับใน _scanlaborHistoryData อยู่แล้ว sync ให้อัตโนมัติ
+  const td = document.getElementById(`scanlabor-histrow-time-${seq}`);
+  if (td) td.textContent = `${timeIn || '—'}–${timeOut || '—'}`;
+}
+
+async function scanlaborHistDeleteRow(seq) {
+  const r = _scanlaborHistRowsBySeq[seq];
+  if (!r) return;
+  const result = await Swal.fire({
+    icon: 'warning', title: 'ลบรายการนี้?',
+    text: `${r.EmployeeName || r.EmployeeCode} — ${_fmtDate(r.WorkDate)} (${r.Line})`,
+    showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545',
+  });
+  if (!result.isConfirmed) return;
+  _showLoader();
+  const { error } = await _sb.from('production_labor_log').delete()
+    .eq('MO_Ref', r.MO_Ref).eq('Line', r.Line).eq('WorkDate', r.WorkDate).eq('EmployeeCode', r.EmployeeCode);
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  _scanlaborHistoryData = _scanlaborHistoryData.filter(x => x !== r);
+  _scanlaborHistRenderDetail();
+  _scanlaborRenderHistory();
+}
+
+// เพิ่มรายการใหม่ — เลือกพนักงานได้หลายคนพร้อมกัน แต่ค่าเริ่มต้นคือ "ใส่เวลาแยกแต่ละคน" (ต่อคนที่ติ๊กเลือก
+// จะมีช่องเวลาของตัวเอง) + มีติ๊ก "ใช้เวลาเดียวกันทุกคนที่เลือก" ไว้เผื่อกรณีเข้า-ออกพร้อมกันจริง (added
+// 2026-09-13 ตามคำขอผู้ใช้ "ให้เลือกหลายคนได้ทีเดียว แต่ใส่เวลาแยกแต่ละคน และมีปุ่มให้ติ๊กว่าใช้เวลาเดียวกัน
+// เผื่อไว้" — เดิมมีแค่โหมดเวลาร่วมเดียว) ต้องโต้ตอบ (โชว์/ซ่อนช่องเวลาต่อแถวตามติ๊ก) ซึ่งทำใน Swal แบบ static
+// HTML เดิมได้ยาก จึงเปลี่ยนมาแทรกเป็นฟอร์มธรรมดาไว้บนสุดของโมดัลรายละเอียดแทนการเปิด Swal แยก
+let _scanlaborAddFormPool = [];
+let _scanlaborAddFormMoRef = null;
+let _scanlaborAddFormLine = null;
+
+async function scanlaborHistOpenAdd(moRef, line, date) {
+  await _planLoadSkillData();
+  const required = _planSkills.filter(s => (s.Lines || '').split(',').map(x => x.trim()).includes(line));
+  let pool = required.length
+    ? _planEmployees.filter(e => required.some(s => (_planSkillLevels[`${e.EmployeeCode}|${s.SkillCode}`] || 0) >= 1))
+    : _planEmployees;
+  if (!pool.length) pool = _planEmployees;
+  if (!pool.length) { _err('เพิ่มไม่ได้', 'ไม่มีพนักงานในระบบ (เพิ่มได้ที่หน้า "พนักงาน")'); return; }
+
+  _scanlaborAddFormPool = pool;
+  _scanlaborAddFormMoRef = moRef;
+  _scanlaborAddFormLine = line;
+
+  const rowsHTML = pool.map(e => {
+    const name = `${e.FirstName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim() || e.EmployeeCode;
+    return `<div class="d-flex align-items-center gap-2 py-1 border-bottom flex-wrap">
+      <div class="form-check mb-0" style="min-width:180px">
+        <input class="form-check-input scanlabor-addform-chk" type="checkbox" value="${e.EmployeeCode}" id="scanlabor-addform-chk-${e.EmployeeCode}" onchange="_scanlaborAddFormToggleRow('${e.EmployeeCode}')">
+        <label class="form-check-label small" for="scanlabor-addform-chk-${e.EmployeeCode}">${name} — ${e.EmployeeCode}</label>
+      </div>
+      <div class="scanlabor-addform-rowtime d-none align-items-center gap-1" id="scanlabor-addform-timewrap-${e.EmployeeCode}">
+        ${_prodrecordTimeSelectHTML(`scanlabor-addform-in-${e.EmployeeCode}`, '')}
+        <span>–</span>
+        ${_prodrecordTimeSelectHTML(`scanlabor-addform-out-${e.EmployeeCode}`, '')}
+      </div>
+    </div>`;
+  }).join('');
+
+  const html = `<div class="glass-card p-3 mb-2" id="scanlabor-addform-panel">
+    <div class="fw-semibold small mb-2"><i class="fas fa-calendar-plus me-1"></i>เพิ่มรายการ — ${line}</div>
+    <label class="form-label small mb-1">วันที่</label>
+    <input type="date" id="scanlabor-addform-date" class="form-control form-control-sm mb-2" style="max-width:180px" value="${date || ''}">
+    <div class="form-check mb-2">
+      <input class="form-check-input" type="checkbox" id="scanlabor-addform-shared-chk" onchange="_scanlaborAddFormToggleShared()">
+      <label class="form-check-label small" for="scanlabor-addform-shared-chk">ใช้เวลาเดียวกันทุกคนที่เลือก</label>
+    </div>
+    <div class="scanlabor-addform-rowtime d-none align-items-center gap-1 mb-2" id="scanlabor-addform-shared-time">
+      ${_prodrecordTimeSelectHTML('scanlabor-addform-shared-in', '')}
+      <span>–</span>
+      ${_prodrecordTimeSelectHTML('scanlabor-addform-shared-out', '')}
+    </div>
+    <div class="border rounded p-2 mb-2" style="max-height:220px;overflow-y:auto">${rowsHTML}</div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-primary" onclick="scanlaborHistSaveAdd()"><i class="fas fa-check me-1"></i>เพิ่ม</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="_scanlaborHistRenderDetail()">ยกเลิก</button>
+    </div>
+  </div>`;
+
+  const bodyEl = document.getElementById('scanlabor-histdetail-body');
+  document.getElementById('scanlabor-addform-panel')?.remove(); // เปิดฟอร์มใหม่ทับของเดิม (เผื่อกดเพิ่มไลน์อื่นค้างไว้)
+  bodyEl.insertAdjacentHTML('afterbegin', html);
+  document.getElementById('scanlabor-addform-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// โชว์/ซ่อนช่องเวลาของแต่ละคน ตามติ๊กเลือกคนนั้น + โหมด "ใช้เวลาเดียวกัน" (ถ้าเปิดโหมดร่วมอยู่ ซ่อนช่องรายคน
+// ไว้ทั้งหมดเสมอ ไม่ว่าจะติ๊กเลือกไว้กี่คน)
+function _scanlaborAddFormToggleRow(code) {
+  const chk = document.getElementById(`scanlabor-addform-chk-${code}`);
+  const wrap = document.getElementById(`scanlabor-addform-timewrap-${code}`);
+  if (!chk || !wrap) return;
+  const sharedOn = document.getElementById('scanlabor-addform-shared-chk')?.checked;
+  wrap.classList.toggle('d-none', !(chk.checked && !sharedOn));
+  wrap.classList.toggle('d-flex', chk.checked && !sharedOn);
+}
+
+function _scanlaborAddFormToggleShared() {
+  const sharedOn = document.getElementById('scanlabor-addform-shared-chk')?.checked;
+  const sharedTimeEl = document.getElementById('scanlabor-addform-shared-time');
+  if (sharedTimeEl) { sharedTimeEl.classList.toggle('d-none', !sharedOn); sharedTimeEl.classList.toggle('d-flex', !!sharedOn); }
+  document.querySelectorAll('.scanlabor-addform-chk').forEach(chk => _scanlaborAddFormToggleRow(chk.value));
+}
+
+async function scanlaborHistSaveAdd() {
+  const moRef = _scanlaborAddFormMoRef, line = _scanlaborAddFormLine, pool = _scanlaborAddFormPool;
+  const d = document.getElementById('scanlabor-addform-date')?.value;
+  const sharedOn = document.getElementById('scanlabor-addform-shared-chk')?.checked;
+  const checked = Array.from(document.querySelectorAll('.scanlabor-addform-chk:checked')).map(c => c.value);
+  if (!d) { _err('กรอกไม่ครบ', 'กรุณาเลือกวันที่'); return; }
+  if (!checked.length) { _err('กรอกไม่ครบ', 'กรุณาเลือกพนักงานอย่างน้อย 1 คน'); return; }
+
+  const sharedIn = sharedOn ? (document.getElementById('scanlabor-addform-shared-in')?.value || null) : null;
+  const sharedOut = sharedOn ? (document.getElementById('scanlabor-addform-shared-out')?.value || null) : null;
+
+  const toUpsert = checked.map(code => {
+    const emp = pool.find(e => e.EmployeeCode === code);
+    const timeIn = sharedOn ? sharedIn : (document.getElementById(`scanlabor-addform-in-${code}`)?.value || null);
+    const timeOut = sharedOn ? sharedOut : (document.getElementById(`scanlabor-addform-out-${code}`)?.value || null);
+    return {
+      MO_Ref: moRef, Line: line, WorkDate: d, EmployeeCode: code,
+      EmployeeName: emp ? (emp.NickName || emp.FirstName || code) : code,
+      TimeIn: timeIn, TimeOut: timeOut,
+      RecordedByName: _currentUser?.name || _currentUser?.email || null,
+      UpdatedAt: new Date().toISOString(),
+    };
+  });
+
+  _showLoader();
+  const { error } = await _sb.from('production_labor_log').upsert(toUpsert, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
+  _hideLoader();
+  if (error) { _err('เพิ่มไม่สำเร็จ', error.message); return; }
+  await scanlaborHistorySearch(); // โหลดใหม่ทั้งหมดให้ตรงกับฐานข้อมูลเป๊ะ (ง่ายและชัวร์กว่าคำนวณ diff เอง)
+  scanlaborHistoryOpenDetail(moRef);
 }
 
 async function scanlaborOpenCamera() {
@@ -32038,6 +32565,9 @@ function _renderCurrentUserBadge() {
   // เห็นเลย เหมือน nav-weeklyreport/nav-admindash: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navSkillmatrix = document.getElementById('nav-skillmatrix');
   if (navSkillmatrix) navSkillmatrix.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "สแกนบันทึกเวลาแรงงาน" — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-13) เหมือน nav-skillmatrix ทุกประการ
+  const navScanlabor = document.getElementById('nav-scanlabor');
+  if (navScanlabor) navScanlabor.style.display = _currentUser.isAdmin ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
