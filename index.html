@@ -15245,18 +15245,17 @@ function planToggleDaySiblings(rowId) {
   if (chevron) chevron.classList.toggle('fa-chevron-right', !show);
 }
 
-// แก้ไข "วันที่" ของแถวไลน์ยิง Lot ได้แม้เป็นแถวพี่น้องที่ถูกซ่อน (added 2026-09-08 ตามคำขอผู้ใช้ "ยิงLot
-// ให้แก้วันที่ได้") — แถวพี่น้องอื่นๆ (แพ็ค ฯลฯ) ยังไม่มีปุ่มจัดการใดๆ ตามคำขอเดิม "ปุ่มแก้ไข และลบด้วย ให้
-// เอาออก" เจตนา (ดูหมายเหตุที่ _planRowActions) — เฉพาะยิง Lot ได้ปุ่มนี้คืนมาแบบเจาะจง เพราะยิง Lot มีวันที่
-// ของตัวเองที่แก้ไขได้ตั้งแต่ตอนสร้างแผน (_planDateForBlock/planLotDateChanged) แต่หลังบันทึกแผนไปแล้วกลับ
-// ไม่มีช่องทางแก้ไขวันที่นี้อีกเลย (ต่างจากไลน์อื่นที่ไม่มีวันที่ของตัวเองให้ต้องแก้แยก) — เช็ค conflict
-// ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/_planFindWorkerConflicts) ก่อนบันทึกเสมอ ไม่ข้าม
+// แก้ไข "วันที่" ของแถวพี่น้องที่ถูกซ่อน — เริ่มจากเจาะจงเฉพาะไลน์ยิง Lot (added 2026-09-08 ตามคำขอผู้ใช้
+// "ยิงLot ให้แก้วันที่ได้") แล้วขยายเป็นทุกไลน์พี่น้อง (2026-09-14 ตามคำขอ "ทุกไลน์ให้แก้ได้ทั้ง คน และวัน")
+// — ปุ่มนี้เข้าถึงได้เฉพาะ Admin เท่านั้น (ดูเงื่อนไข `_hasRole('admin')` ที่ sIsDateEditable ใน
+// _planRenderDayTable) ส่วนหัวหน้างานแก้ได้แค่ผู้ปฏิบัติงานผ่าน planEditSiblingWorkers เท่านั้น — เช็ค
+// conflict ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/_planFindWorkerConflicts) ก่อนบันทึกเสมอ ไม่ข้าม
 async function planEditLotDate(rowId) {
-  if (!_hasRole('admin')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขวันที่ยิง Lot ได้เฉพาะ Admin เท่านั้น', 'info'); return; }
+  if (!_hasRole('admin')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขวันที่ของไลน์ผลิตได้เฉพาะ Admin เท่านั้น', 'info'); return; }
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
   const { value: newDate } = await Swal.fire({
-    title: 'แก้ไขวันที่ยิง Lot',
+    title: `แก้ไขวันที่ — ${r.Line || ''}`,
     html: `<div class="text-start small mb-2">${r.ProductName||''} (${r.ProductCode||''})<br>ไลน์ "${r.Line||''}" · ${r.Shift||'—'} (${_planShiftTimeLabel(r)})</div>`,
     input: 'date',
     inputValue: r.PlanDate || '',
@@ -15289,16 +15288,18 @@ async function planEditLotDate(rowId) {
   const { error } = await _sb.from('production_plan').update({ PlanDate: newDate }).eq('_row_id', r._row_id);
   _hideLoader();
   if (error) { _err('แก้ไขวันที่ไม่สำเร็จ', error.message); return; }
-  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode, `แก้ไขวันที่ยิง Lot จาก ${_planFmtDateLabel(r.PlanDate)} เป็น ${_planFmtDateLabel(newDate)}`);
+  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode, `แก้ไขวันที่ไลน์ ${r.Line||''} จาก ${_planFmtDateLabel(r.PlanDate)} เป็น ${_planFmtDateLabel(newDate)}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขวันที่สำเร็จ', showConfirmButton:false, timer:1500 });
   await planLoadData();
   const openDate = document.getElementById('plan-day-date-value')?.value;
   if (openDate) _planRenderDayTable(openDate);
 }
 
-// แก้ไข "ผู้ปฏิบัติงาน" ของแถวไลน์แพ็คได้แม้เป็นแถวพี่น้องที่ถูกซ่อน (added 2026-09-08 ตามคำขอผู้ใช้ "ห้องแพ็ค
-// ให้มีแก้ไขคนทำงานได้") — สโคปเจาะจงเฉพาะไลน์แพ็คเหมือน planEditLotDate เจาะจงเฉพาะไลน์ยิง Lot (ไลน์อื่นยัง
-// ไม่มีปุ่มใดๆ ตามคำขอเดิม "ปุ่มแก้ไข และลบด้วย ให้เอาออก") — ใช้ Swal แบบ custom checklist แทนโมดัลเต็มรูปแบบ
+// แก้ไข "ผู้ปฏิบัติงาน" ของแถวพี่น้องที่ถูกซ่อน — เริ่มจากเจาะจงเฉพาะไลน์แพ็ค (added 2026-09-08 ตามคำขอผู้ใช้
+// "ห้องแพ็ค ให้มีแก้ไขคนทำงานได้") แล้วขยายเป็นทุกไลน์พี่น้อง (2026-09-14 ตามคำขอ "ทุกไลน์ให้แก้ได้ทั้ง คน
+// และวัน") — ปุ่มนี้เข้าถึงได้ตั้งแต่หัวหน้างานขึ้นไป (ดูเงื่อนไข `_hasRole('supervisor')` ที่
+// sIsWorkersEditable ใน _planRenderDayTable) ต่างจาก planEditLotDate ที่ Admin เท่านั้น — ใช้ Swal แบบ
+// custom checklist แทนโมดัลเต็มรูปแบบ
 // ของฟอร์มเพิ่ม/แก้แผน (ซับซ้อนเกินจำเป็นสำหรับแก้แค่ผู้ปฏิบัติงานฟิลด์เดียว) กรองรายชื่อตามสกิลที่ตรงกับไลน์
 // นี้เหมือน planHighlightQualifiedWorkers (fallback โชว์ทุกคนถ้ายังไม่มีใครผ่านสกิลเลย)
 async function planEditSiblingWorkers(rowId) {
@@ -15422,15 +15423,15 @@ function _planRenderDayTable(dateStr) {
               const sBadge = s.Status === 'ยืนยันแล้ว'
                 ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
                 : '<span class="badge bg-secondary">วางแผน</span>';
-              // ไม่มี action ให้กดเลย (added 2026-09-08 ตามคำขอผู้ใช้ "ปุ่มแก้ไข และลบด้วย ให้เอาออก") —
-              // แถวนี้เป็นแค่รายการอ่านอย่างเดียว ดูหมายเหตุที่ _planRowActions — ยกเว้นไลน์ "ยิง Lot" ที่มี
-              // วันที่ของตัวเอง (added 2026-09-08 ตามคำขอ "ยิงLot ให้แก้วันที่ได้") ได้ปุ่มแก้ไขวันที่คืนมา
-              // เจาะจงเฉพาะฟิลด์นี้ (ดูหมายเหตุที่ planEditLotDate) — ไลน์อื่นยังไม่มีปุ่มใดๆ เหมือนเดิม
+              // เดิม (2026-09-08) แก้วันที่ได้เฉพาะไลน์ "ยิง Lot" เท่านั้น — ขยายเป็นทุกไลน์พี่น้อง
+              // (2026-09-14 ตามคำขอผู้ใช้ "ทุกไลน์ให้แก้ได้ทั้ง คน และวัน") เพราะ planEditLotDate ไม่มี
+              // ตรรกะเจาะจง Lot อยู่ในตัวฟังก์ชันเลย (อัปเดต PlanDate + เช็ค conflict เดียวกันทุกไลน์) —
+              // ชื่อฟังก์ชัน/คอมเมนต์เดิมยังคงไว้ ไม่ได้ rename ทั้งระบบ กันงานเปลี่ยนชื่อที่ไม่จำเป็น
               // แก้วันที่ = Admin เท่านั้น (ตามคำขอผู้ใช้ 2026-09-14 "แอดมินแก้วันที่ได้ หัวหน้าแก้ได้แค่
               // รายชื่อพนักงาน") — ปุ่มไม่โผล่เลยถ้าไม่ใช่ admin ไม่ใช่แค่ซ่อนแล้วบล็อกที่ฟังก์ชันอย่างเดียว
-              const sIsLotEditable = _planLineCategoryOf(s.Line || '') === 'lot' && s.Status === 'วางแผน' && _hasRole('admin');
-              const editDateBtn = sIsLotEditable
-                ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่ยิง Lot"><i class="fas fa-pen text-primary"></i></a>`
+              const sIsDateEditable = s.Status === 'วางแผน' && _hasRole('admin');
+              const editDateBtn = sIsDateEditable
+                ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
               // เลข Lot ของ MO (added 2026-09-08 ตามคำขอ "พอออก MO มีเลข LOT แล้ว ให้ซิ้งค์เลขกลับมาที่แผนผลิต
               // ด้วย ไลน์พี่น้องทั้งหมด") — แถวหลักมีคอลัมน์นี้อยู่แล้ว (ดู `lot` ด้านบน) แต่แถวพี่น้องไม่เคยมี
@@ -15440,12 +15441,13 @@ function _planRenderDayTable(dateStr) {
               // ค่าแล้วหลังแก้ planOrderProduction ให้ผูก MO_Ref ครบทุกไลน์) fallback ไปที่ `r.MO_Ref` (แถวหลัก)
               // เผื่อเป็นข้อมูลเก่าก่อนแก้บั๊กนั้นที่ยังไม่มี MO_Ref ของตัวเอง
               const sLot = _planMOLot(s.MO_Ref || r.MO_Ref);
-              // แก้ไข "ผู้ปฏิบัติงาน" เฉพาะไลน์แพ็ค (added 2026-09-08 ตามคำขอ "ห้องแพ็คให้มีแก้ไขคนทำงานได้")
-              // — สโคปเจาะจงเฉพาะหมวดแพ็คเหมือนที่ยิง Lot ได้แค่ปุ่มแก้วันที่ ไลน์อื่นยังไม่มีปุ่มใดๆ
+              // เดิม (2026-09-08) แก้ผู้ปฏิบัติงานได้เฉพาะไลน์แพ็คเท่านั้น — ขยายเป็นทุกไลน์พี่น้อง
+              // (2026-09-14 ตามคำขอผู้ใช้ "ทุกไลน์ให้แก้ได้ทั้ง คน และวัน") เพราะ planEditSiblingWorkers
+              // ไม่มีตรรกะเจาะจงหมวดแพ็คอยู่ในตัวฟังก์ชันเลย (กรองสกิลตาม `r.Line` แบบไดนามิกอยู่แล้ว)
               // แก้ผู้ปฏิบัติงาน = หัวหน้างานขึ้นไป (ตามคำขอผู้ใช้ 2026-09-14 — Admin แก้ได้ทั้งวันที่+
               // ผู้ปฏิบัติงาน, หัวหน้าแก้ได้แค่ผู้ปฏิบัติงาน) ปุ่มไม่โผล่เลยถ้าเป็น operator
-              const sIsPackWorkersEditable = _planLineCategoryOf(s.Line || '') === 'pack' && s.Status === 'วางแผน' && _hasRole('supervisor');
-              const editWorkersBtn = sIsPackWorkersEditable
+              const sIsWorkersEditable = s.Status === 'วางแผน' && _hasRole('supervisor');
+              const editWorkersBtn = sIsWorkersEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditSiblingWorkers(${s._row_id})" title="แก้ไขผู้ปฏิบัติงาน"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
               return `<tr>
