@@ -6,6 +6,9 @@
 <title>ProFlow Wise MES</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<!-- ใช้เฉพาะหน้า "ผังโรงงานเรียลไทม์" (#page-floorpulse) — Chakra Petch สำหรับหัวข้อ/ป้ายข้อมูลโทนไฮเทค,
+     IBM Plex Mono สำหรับตัวเลข/รหัส MO ให้ตัวเลขเรียงคอลัมน์สวย ส่วนเนื้อหาไทยทั่วไปในหน้านี้ยังใช้ Sarabun เดิม -->
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -1576,6 +1579,141 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 /* หน้าสต็อก Defect/Retain มีปุ่มต่อแถวเยอะ (สูงสุด 6 ปุ่มตอนมีคำขอเปลี่ยนประเภทค้าง) — ย่อขนาดเฉพาะปุ่ม
    กลุ่มนี้ ไม่กระทบ .btn-sm ที่ใช้ทั่วทั้งแอป */
 .holdstock-action-btn { padding: .15rem .38rem; font-size: .72rem; line-height: 1.2; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   หน้า "ผังโรงงานเรียลไทม์" (#page-floorpulse) — โทนสว่าง minimal (ยืนยันกับผู้ใช้แล้ว 2026-09-14
+   เปลี่ยนจากธีมมืดเดิม) ให้เข้ากับธีมสว่างของแอปหลัก แยกโทเคนสีของตัวเองไว้ (--fp-*) เผื่อกลับไปปรับ
+   เข้มอีกทีในอนาคต คลาสทั้งหมด prefix ด้วย fp- กันชนกับ .zone/.progress/.kpi-card ฯลฯ ที่ใช้ทั่วแอปนี้
+   ══════════════════════════════════════════════════════════════════════════ */
+#page-floorpulse {
+  --fp-bg: #eef2f7; --fp-surface: #ffffff; --fp-surface-2: #f4f7fb;
+  --fp-wall-soft: #dbe3ee;
+  --fp-text: #1e293b; --fp-text-dim: #64748b; --fp-text-faint: #94a3b8;
+  --fp-accent: #0d9488; --fp-accent-2: #7c3aed; --fp-warn: #d97706;
+  --fp-muted: #94a3b8; --fp-muted-fill: #eef2f7;
+}
+#page-floorpulse .fp-stage {
+  background: var(--fp-bg); border-radius: 16px; padding: 18px;
+  color: var(--fp-text); font-family: 'Sarabun', sans-serif;
+}
+#page-floorpulse .fp-topbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+}
+#page-floorpulse .fp-kpi {
+  background: var(--fp-surface); border: 1px solid var(--fp-wall-soft); border-radius: 10px;
+  padding: 7px 14px; min-width: 104px;
+}
+#page-floorpulse .fp-kpi b {
+  display: block; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
+  font-size: 17px; font-weight: 600; color: var(--fp-accent); line-height: 1.25;
+}
+#page-floorpulse .fp-kpi span { font-size: 10px; color: var(--fp-text-dim); }
+#page-floorpulse .fp-clock {
+  margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
+  font-size: 12px; color: var(--fp-text-dim);
+}
+#page-floorpulse .fp-clock b { color: var(--fp-text); font-size: 14px; }
+#page-floorpulse .fp-main { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+@media (max-width: 980px) { #page-floorpulse .fp-main { grid-template-columns: 1fr; } }
+/* aspect-ratio ตรงกับ viewBox "0 0 800 580" ของ SVG — ทำให้ขนาดกรอบไม่ขึ้นกับความสูงของ .fp-drawer
+   ข้างๆ (เดิม align-items:stretch ของ .fp-main ทำให้กรอบนี้ถูกยืดสูงตามแผงรายละเอียด แต่ตัว SVG ข้างในไม่
+   ได้โตตาม เลยเหลือพื้นที่ว่างเยอะด้านล่าง — ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าอยากให้แต่ละห้องขยายเต็มพื้นที่) */
+#page-floorpulse .fp-floor-wrap {
+  position: relative; background: var(--fp-surface); border: 1px solid var(--fp-wall-soft);
+  border-radius: 14px; padding: 16px; aspect-ratio: 800 / 580;
+}
+#page-floorpulse .fp-floor-tilt { position: relative; width: 100%; height: 100%; }
+#page-floorpulse svg.fp-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#page-floorpulse .fp-zone rect.fp-room {
+  stroke-width: 1.4; cursor: pointer; transition: filter .15s ease;
+}
+#page-floorpulse .fp-zone:hover rect.fp-room { filter: saturate(1.6) brightness(0.97); }
+#page-floorpulse .fp-zone.fp-selected rect.fp-room { filter: saturate(1.8); stroke-width: 2.4; }
+#page-floorpulse .fp-room-label {
+  font-family: 'Chakra Petch', sans-serif; font-weight: 500; fill: var(--fp-text); pointer-events: none;
+}
+#page-floorpulse .fp-room-sub {
+  font-family: 'IBM Plex Mono', monospace; fill: var(--fp-text-dim); pointer-events: none;
+}
+#page-floorpulse .fp-zone.fp-dim .fp-room-label,
+#page-floorpulse .fp-zone.fp-dim .fp-room-sub { fill: var(--fp-text-faint); }
+#page-floorpulse .fp-metric-track { fill: #00000014; }
+/* จุดสถานะ "กำลังผลิต" กะพริบเบาๆ ให้รู้สึกว่ากำลังทำงานอยู่จริง (ยืนยันกับผู้ใช้แล้ว 2026-09-14) —
+   สถานะอื่น (ล่าช้า/เสร็จตามแผน) เป็นจุดนิ่ง ไม่กะพริบ กันดูรกเกินไป */
+#page-floorpulse .fp-dot-live { animation: fpDotBlink 1.6s ease-in-out infinite; }
+@keyframes fpDotBlink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  #page-floorpulse .fp-dot-live { animation: none !important; }
+}
+#page-floorpulse .fp-drawer {
+  background: var(--fp-surface); border: 1px solid var(--fp-wall-soft); border-radius: 14px;
+  padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 620px;
+}
+#page-floorpulse .fp-drawer h2 { font-family: 'Chakra Petch', sans-serif; font-size: 15px; margin: 0 0 2px; color: var(--fp-text); }
+#page-floorpulse .fp-eyebrow {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--fp-text-faint);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+#page-floorpulse .fp-status-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500; border: 1px solid currentColor; width: fit-content;
+}
+#page-floorpulse .fp-status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+#page-floorpulse .fp-status-running { color: var(--fp-accent); }
+#page-floorpulse .fp-status-behind { color: var(--fp-warn); }
+#page-floorpulse .fp-status-done { color: var(--fp-accent-2); }
+#page-floorpulse .fp-status-idle { color: var(--fp-text-dim); }
+#page-floorpulse .fp-hold-chip {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  padding: 3px 8px; border-radius: 999px; color: #fff;
+}
+#page-floorpulse .fp-hold-defect { background: var(--fp-warn); }
+#page-floorpulse .fp-hold-retain { background: var(--fp-accent-2); }
+#page-floorpulse .fp-field { display: flex; flex-direction: column; gap: 3px; }
+#page-floorpulse .fp-field label {
+  font-size: 10px; color: var(--fp-text-faint); text-transform: uppercase; letter-spacing: .05em;
+}
+#page-floorpulse .fp-field .fp-val { font-size: 13.5px; color: var(--fp-text); }
+#page-floorpulse .fp-mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+#page-floorpulse .fp-progress { height: 8px; border-radius: 5px; background: var(--fp-muted-fill); overflow: hidden; border: 1px solid var(--fp-wall-soft); }
+#page-floorpulse .fp-progress i { display: block; height: 100%; background: var(--fp-accent); }
+#page-floorpulse .fp-staff-list { display: flex; flex-direction: column; gap: 7px; }
+#page-floorpulse .fp-staff-chip {
+  display: flex; align-items: center; gap: 9px; background: var(--fp-surface-2);
+  border: 1px solid var(--fp-wall-soft); border-radius: 10px; padding: 6px 10px;
+}
+#page-floorpulse .fp-staff-chip.fp-staff-planned { opacity: .55; border-style: dashed; }
+#page-floorpulse .fp-avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--fp-accent-2);
+  display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600;
+  color: #ffffff; font-family: 'Chakra Petch', sans-serif; flex-shrink: 0;
+}
+#page-floorpulse .fp-staff-chip .fp-name { font-size: 12.5px; color: var(--fp-text); }
+#page-floorpulse .fp-staff-chip .fp-role { font-size: 10.5px; color: var(--fp-text-dim); }
+#page-floorpulse .fp-back-link {
+  background: none; border: none; color: var(--fp-accent); font-size: 12px; cursor: pointer;
+  padding: 0; display: flex; align-items: center; gap: 5px; font-family: 'Sarabun', sans-serif;
+}
+#page-floorpulse .fp-overview-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 9px; cursor: pointer; border: 1px solid transparent;
+}
+#page-floorpulse .fp-overview-row:hover { background: var(--fp-surface-2); border-color: var(--fp-wall-soft); }
+#page-floorpulse .fp-overview-row .fp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+#page-floorpulse .fp-overview-row .fp-oname { font-size: 12.5px; flex: 1; }
+#page-floorpulse .fp-overview-row .fp-oval { font-size: 11px; color: var(--fp-text-dim); }
+#page-floorpulse .fp-hint {
+  display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--fp-text-faint);
+  background: var(--fp-surface-2); border: 1px dashed var(--fp-wall-soft); border-radius: 10px; padding: 8px 10px;
+}
+#page-floorpulse .fp-legend {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 11.5px;
+  color: var(--fp-text-dim); margin-top: 14px;
+}
+#page-floorpulse .fp-legend .fp-swatch { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 6px; }
+#page-floorpulse .fp-legend .fp-demo {
+  margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--fp-text-faint);
+  border: 1px solid var(--fp-wall-soft); border-radius: 999px; padding: 3px 10px;
+}
 </style>
 </head>
 <body>
@@ -1614,6 +1752,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </a>
     <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
       <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-floorpulse" onclick="showPage('floorpulse',this)" title="ผังโรงงานเรียลไทม์" style="display:none">
+      <i class="fas fa-satellite-dish me-2"></i><span>ผังโรงงานเรียลไทม์</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-lotqueue" onclick="showPage('lotqueue',this)" title="คิวห้องยิง Lot">
       <i class="fas fa-barcode me-2"></i><span>คิวห้องยิง Lot</span>
@@ -1687,7 +1828,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-prodrecord" onclick="showPage('prodrecord',this)" title="บันทึกผลิต">
+    <a href="#" class="nav-link mb-1" id="nav-prodrecord" onclick="showPage('prodrecord',this)" title="บันทึกผลิต" style="display:none">
       <i class="fas fa-clipboard-list me-2"></i><span>บันทึกผลิต</span>
       <span id="nav-prodrecord-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิต"></span>
       <span id="nav-prodrecord-approve-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="บันทึกผลิตรอเช็คต้นทุน"></span>
@@ -5466,6 +5607,26 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   </div>
 
   <!-- ════════════════════════════════════ -->
+  <!-- PAGE: ผังโรงงานเรียลไทม์ (nav-floorpulse, admin เท่านั้น — ดู _renderCurrentUserBadge) — ผังห้อง/
+       ไลน์ผลิตแบบ SVG ทับข้อมูลสด (สถานะ/สินค้า/จำนวน/คนงาน) ต่อ 1 ใน PLAN_LINES ต่อยอดจาก
+       _whLineStatus/production_labor_log ที่มีอยู่แล้ว (ดู loadFloorPulseData/FP_GEOM/FP_ROOMS ท้ายไฟล์)
+       ธีมมืดมินิมอลสโคปเฉพาะใน #page-floorpulse เท่านั้น ไม่กระทบธีมสว่างของแอปหน้าอื่น -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-floorpulse">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-satellite-dish me-2"></i>ผังโรงงานเรียลไทม์</h4>
+        <button class="btn btn-sm btn-light fw-bold text-primary" onclick="loadFloorPulseData()">
+          <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+        </button>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div id="fp-root"></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
   <!-- PAGE: คิวห้องยิง Lot — เครื่อง/สถานียิง Lot ตัวเดียวใช้ร่วมกันทุกไลน์ผลิต (nav-lotqueue) -->
   <!-- คำนวณจาก bom.CapacityFillPerDay/CapacityLotPerDay เหมือนภาพรวมการผลิต/Gantt แต่จำลองเป็น -->
   <!-- ทรัพยากรเดียว เรียงคิวแบบ FCFS ตามวันที่ "บรรจุ" เสร็จของแต่ละ MO ไม่ใช่ต่างไลน์ต่างขนานกันแบบ Gantt เดิม -->
@@ -7681,6 +7842,467 @@ function _whRenderLineCards() {
   }).join('');
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// หน้า "ผังโรงงานเรียลไทม์" (#page-floorpulse) — ผังห้อง SVG ทับสถานะไลน์ผลิตสด ต่อยอดจาก
+// _whLineStatus/PLAN_LINES ข้างบนตรงๆ (ไม่ query ซ้ำ) + production_labor_log สำหรับ "ใครอยู่ไลน์นี้
+// ตอนนี้" (ยืนยันกับผู้ใช้แล้ว: ใช้ WorkerCodes ในแผนเป็น fallback ถ้ายังไม่มีคนสแกนเข้าเลยวันนี้)
+// พิกัดห้องแปลงจากระยะจริงในแปลนสถาปนิก (ชั้น 3 บลูมมิ่ง) scale ~34px/ม. — เป็นผังเวกเตอร์จำลอง
+// สัดส่วนจริง ไม่ใช่รูปสแกนแปลนจริง (เครื่องนี้ไม่มีตัวแปลง PDF→รูปภาพ ยืนยันแนวทางนี้กับผู้ใช้แล้ว
+// 2026-09-13 — ถ้าต้องการเปลี่ยนเป็นรูปจริงทีหลัง แค่แทน svg rect ด้วย <image> เดียว ไม่กระทบส่วนอื่น)
+// ══════════════════════════════════════════════════════════════════════════
+
+// ห้อง "บรรจุหีบห่อ" ห้องเดียวแบ่ง 5 สถานี (ยืนยันกับผู้ใช้แล้ว): 4 ไลน์แพ็ค + ยิง Lot
+const FP_PACK_SUBLINES = [
+  { key: 'pack-mix',    label: 'แพ็ค-ผสมใหญ่',   line: 'ห้องแพ็ค (ห้องผสมใหญ่)' },
+  { key: 'pack-lotion', label: 'แพ็ค-ครีมโลชั่น', line: 'ห้องแพ็ค (ห้องบรรจุครีมโลชั่น)' },
+  { key: 'pack-sham',   label: 'แพ็ค-แชมพู',     line: 'ห้องแพ็ค (ห้องบรรจุแชมพูครีมอาบน้ำ)' },
+  { key: 'pack-aroma',  label: 'แพ็ค-อโรม่า',    line: 'ห้องแพ็ค (ห้องบรรจุน้ำมัน Aroma)' },
+  { key: 'lot',         label: 'ยิง Lot',        line: 'ยิง Lot' },
+];
+
+// ห้องเดี่ยวที่ผูกกับ 1 ไลน์ใน PLAN_LINES ตรงๆ (ห้องที่ไม่อยู่ในนี้ = ไม่ผูกไลน์ ดู FP_ROOM_NOTE)
+const FP_ROOM_LINE = {
+  mixall:     'ห้องผสมใหญ่',
+  filllotion: 'ห้องบรรจุครีมโลชั่น',
+  fillsh:     'ห้องบรรจุแชมพูครีมอาบน้ำ',
+  filloil:    'ห้องบรรจุน้ำมัน Aroma',
+};
+
+// หมายเหตุห้องที่ไม่มีไลน์ผูก (คลัง/สนับสนุน) — "ห้องผสมน้ำมัน(อโรม่า)" ยืนยันแล้วว่าอยู่กลุ่มนี้ด้วย
+// แม้อยู่ติดห้องบรรจุน้ำมัน เพราะ PLAN_LINES ไม่มีไลน์แยกให้ขั้นตอนผสม (ห้ามเดาว่าใช้ข้อมูลร่วมกัน)
+const FP_ROOM_NOTE = {
+  prep:    'พื้นที่จัดเก็บวัตถุดิบ/บรรจุภัณฑ์ก่อนเบิกเข้าสายผลิต (FG/RM/PM)',
+  bulk:    'จุดพัก Bulk เครื่องสำอางรอก่อนส่งเข้าไลน์บรรจุ',
+  mixoil:  'ขั้นผสมน้ำมันหอมระเหยก่อนส่งต่อห้องบรรจุ — ระบบยังไม่มีไลน์แยกติดตามขั้นตอนนี้',
+  fgstore: 'จุดพักสินค้าสำเร็จรูปก่อนส่งต่อคลังกลาง',
+  locker:  'พื้นที่เปลี่ยนชุด/ล็อกเกอร์พนักงานก่อนเข้าสายผลิต',
+  qc:      'ตรวจสอบคุณภาพ (COA) ของล็อตผลิต — ยังไม่ผูกกับข้อมูลไลน์ผลิตในเดโมนี้',
+  samples: 'อ้างอิง/เก็บกันตัวอย่างเครื่องสำอาง แยกจากห้องทดสอบคุณภาพ',
+};
+
+// พิกัดห้อง (px, scale ~34px/ม. จากระยะจริงในแปลน) — viewBox "0 0 800 580"
+// แต่ละแถวยืดให้เต็มความกว้างพื้นที่จริง (x:40 ถึง x:760 เท่ากันทุกแถว) แทนที่จะปล่อยเป็นสัดส่วนเมตรดิบๆ
+// ซึ่งบางแถวสั้นกว่าความกว้างเต็มจนเหลือพื้นที่ว่างด้านขวา (คำขอผู้ใช้ 2026-09-14 "ขยายออกข้างให้เต็ม
+// พื้นที่") — สัดส่วนห้องต่อห้อง "ภายในแถวเดียวกัน" ยังคงอิงระยะจริงจากแปลนเหมือนเดิม แค่สเกล px/ม. ของ
+// แต่ละแถวไม่เท่ากันแล้ว (แถวไหนห้องรวมกันสั้นกว่าจริง จะขยายสเกลนั้นมากกว่า) เพราะเราไม่มีตัวเลขระยะจริง
+// ครบทุกห้อง (โดยเฉพาะ locker/qc/samples/fillsh/filllotion/fgstore เป็นค่าประมาณอยู่แล้วตั้งแต่แรก)
+const FP_GEOM = {
+  prep:       { x:40,  y:40,  w:158, h:190 },
+  weigh:      { x:206, y:40,  w:69,  h:190 },
+  bulk:       { x:283, y:40,  w:87,  h:190 },
+  packbox:    { x:378, y:40,  w:157, h:190 },  // แบ่ง 5 สถานีข้างใน (FP_PACK_SUBLINES)
+  mixoil:     { x:543, y:40,  w:105, h:190 },  // ไม่ผูกไลน์ (ดู FP_ROOM_NOTE)
+  filloil:    { x:656, y:40,  w:104, h:190 },
+  locker:     { x:40,  y:255, w:106, h:150 },
+  qc:         { x:154, y:255, w:174, h:150 },
+  samples:    { x:336, y:255, w:128, h:150 },
+  fillsh:     { x:472, y:255, w:128, h:150 },
+  filllotion: { x:608, y:255, w:152, h:150 },
+  fgstore:    { x:40,  y:430, w:218, h:110 },
+  mixall:     { x:266, y:430, w:494, h:110 },
+};
+
+const FP_ROOM_LABEL = {
+  prep: 'เตรียมวัตถุดิบ', weigh: 'ห้องชั่งสาร', bulk: 'เก็บ Bulk', packbox: 'บรรจุหีบห่อ',
+  mixoil: 'ผสมน้ำมัน (อโรม่า)', filloil: 'บรรจุน้ำมัน (อโรม่า)', locker: 'Locker',
+  qc: 'ทดสอบคุณภาพ', samples: 'เก็บตัวอย่าง', fillsh: 'บรรจุแชมพู', filllotion: 'บรรจุครีม/โลชั่น',
+  fgstore: 'คลังสำเร็จรูป', mixall: 'ผสมรวม',
+};
+const FP_ROOM_FULL = {
+  prep: 'ห้องเก็บสินค้าสำหรับเตรียมการผลิต (FG/RM/PM)', weigh: 'ห้องชั่งสาร',
+  bulk: 'ห้องเก็บ Bulk เครื่องสำอางรอบรรจุ', packbox: 'ห้องบรรจุหีบห่อ',
+  mixoil: 'ห้องผสมน้ำมัน (อโรม่า)', filloil: 'ห้องบรรจุน้ำมัน (อโรม่า)',
+  locker: 'ห้องสวมชุดปฏิบัติงาน / Locker', qc: 'ห้องทดสอบคุณภาพ (QC)',
+  samples: 'ห้องเก็บตัวอย่างเครื่องสำอาง', fillsh: 'ห้องบรรจุแชมพู/ครีมนวด/เจลอาบน้ำ',
+  filllotion: 'ห้องบรรจุครีม/โลชั่น/สครับขัดผิว', fgstore: 'ห้องเก็บเครื่องสำอางสำเร็จรูป',
+  mixall: 'ห้องผสมแชมพู/ผสมครีม/โลชั่น/ครีมนวด/เจลอาบน้ำ/สครับขัดผิว',
+};
+
+let _fpData = {};       // line name (PLAN_LINES) -> _whLineStatus() + .roster
+let _fpHoldStock = [];  // hold_stock rows (DEFECT+RETAIN, QtyBalance>0) โชว์ในห้องเก็บตัวอย่าง (ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าเอาทั้ง 2 ประเภทมารวมกัน)
+let _fpInterval = null;
+let _fpSelectedId = null;
+
+function _fpStatusMeta(status) {
+  return {
+    running: { label: 'กำลังผลิต',    cls: 'fp-status-running' },
+    behind:  { label: 'ล่าช้ากว่าแผน', cls: 'fp-status-behind' },
+    done:    { label: 'เสร็จตามแผน',  cls: 'fp-status-done' },
+    idle:    { label: 'ว่าง/รอคิว',   cls: 'fp-status-idle' },
+  }[status] || { label: status, cls: 'fp-status-idle' };
+}
+
+// รวมรายชื่อคนของ 1 ไลน์วันนี้: คนตามแผน (WorkerCodes) + คนที่มีแถวสแกนจริง (production_labor_log)
+// แนวทางเดียวกับ scanlaborLoad() ข้างบน แค่ scope เป็น "ต่อไลน์/วันนี้" แทน "ต่อ MO เดียว"
+function _fpBuildRoster(line, planItem, laborRowsByLine) {
+  const planCodes = planItem && planItem.WorkerCodes
+    ? planItem.WorkerCodes.split(',').map(x => x.trim()).filter(Boolean) : [];
+  const laborRows = laborRowsByLine[line] || [];
+  const laborByCode = new Map(laborRows.map(r => [r.EmployeeCode, r]));
+  const codes = [...new Set([...planCodes, ...laborByCode.keys()])];
+  return codes.map(code => {
+    const emp = _planEmployees.find(e => e.EmployeeCode === code);
+    const row = laborByCode.get(code);
+    const confirmed = !!(row && row.TimeIn && !row.TimeOut); // สแกนเข้าแล้วและยังไม่สแกนออก = อยู่จริงตอนนี้
+    return { code, name: emp ? (emp.NickName || emp.FirstName || code) : code, confirmed };
+  });
+}
+
+async function loadFloorPulseData() {
+  await Promise.all([ loadProdStatusData(), _planLoadSkillData() ]);
+
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const [laborRes, holdRes] = await Promise.all([
+    _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut').eq('WorkDate', todayStr),
+    _sb.from('hold_stock').select('HoldType,ItemType,ItemCode,ItemName,Lot,UOM,QtyBalance').gt('QtyBalance', 0),
+  ]);
+  const laborRowsByLine = {};
+  (laborRes.data || []).forEach(row => {
+    if (!laborRowsByLine[row.Line]) laborRowsByLine[row.Line] = [];
+    laborRowsByLine[row.Line].push(row);
+  });
+  _fpHoldStock = holdRes.data || [];
+
+  _fpData = {};
+  PLAN_LINES.forEach(line => {
+    const r = _whLineStatus(line);
+    r.roster = _fpBuildRoster(line, r.item, laborRowsByLine);
+
+    // ยังไม่มีผลจริงอย่างเป็นทางการ (production_records) แต่พนักงานอาจสแกนความคืบหน้าเข้ามาแล้วผ่านหน้า
+    // "สแกนอัปเดตการผลิต" (production_progress) — ใช้ยอดนั้นแสดงแทนไปก่อน ไม่งั้นห้องจะค้าง 0%/ไม่ขึ้น
+    // สถานะทั้งที่หน้า "ภาพรวมการผลิต" (prodStatusRenderTodayCards) โชว์ความคืบหน้านี้อยู่แล้ว — เทียบกับ
+    // mo.OrderQty ไม่ใช่ planQty ของวันนี้ (เหตุผลเดียวกับคอมเมนต์ที่ prodStatusRenderTodayCards เรื่องบั๊ก
+    // %>100 เดิม เพราะ production_progress เก็บยอดสะสมทั้งงาน ไม่ใช่แค่ของวันนี้)
+    if (r.item && r.actual == null) {
+      const liveProg = r.item.MO_Ref ? _prodStatusProgressData[`${r.item.MO_Ref}|${line}`] : null;
+      if (liveProg) {
+        const liveQty = parseFloat(liveProg.Qty) || 0;
+        const target = (r.mo && parseFloat(r.mo.OrderQty)) || r.planned;
+        r.actual = liveQty;
+        r.planned = target;
+        r.pct = target > 0 ? Math.round(liveQty / target * 100) : 0;
+        r.status = liveQty >= target ? 'done' : (r.pct < 70 ? 'behind' : 'running');
+        r.isLiveScan = true; // บอกใน UI ว่าเลขนี้มาจากสแกนสด ยังไม่ใช่ผลจริงที่ยืนยันอย่างเป็นทางการ
+      }
+    }
+
+    _fpData[line] = r;
+  });
+
+  _fpRender();
+  _fpStartAutoRefresh();
+}
+
+// รีเฟรชทุก 60 วิ เฉพาะขณะหน้านี้ active เท่านั้น (ยืนยันกับผู้ใช้แล้ว) — เช็คคลาส active ทุก tick แทนการ
+// พึ่ง hook "ออกจากหน้า" ที่ไม่มีอยู่ในระบบ showPage เดิม กัน query ค้างเมื่อสลับไปหน้าอื่น
+function _fpStartAutoRefresh() {
+  if (_fpInterval) clearInterval(_fpInterval);
+  _fpInterval = setInterval(() => {
+    const pageEl = document.getElementById('page-floorpulse');
+    if (!pageEl || !pageEl.classList.contains('active')) { clearInterval(_fpInterval); _fpInterval = null; return; }
+    loadFloorPulseData();
+  }, 60000);
+}
+
+function _fpRender() {
+  const root = document.getElementById('fp-root');
+  if (!root) return;
+  root.innerHTML = `
+    <div class="fp-stage">
+      <div class="fp-topbar" id="fp-kpi-strip"></div>
+      <div class="fp-main">
+        <div class="fp-floor-wrap">
+          <div class="fp-floor-tilt">
+            <svg class="fp-svg" viewBox="0 0 800 580" xmlns="http://www.w3.org/2000/svg" id="fp-svg"></svg>
+          </div>
+        </div>
+        <aside class="fp-drawer" id="fp-drawer"></aside>
+      </div>
+      <div class="fp-legend">
+        <span><span class="fp-swatch" style="background:var(--fp-accent)"></span>กำลังผลิต</span>
+        <span><span class="fp-swatch" style="background:var(--fp-accent-2)"></span>เสร็จตามแผน</span>
+        <span><span class="fp-swatch" style="background:var(--fp-warn)"></span>ล่าช้า/ว่าง</span>
+        <span><span class="fp-swatch" style="background:var(--fp-muted)"></span>คลัง/สนับสนุน (ไม่ผูกไลน์)</span>
+        <span class="fp-demo" id="fp-updated-at"></span>
+      </div>
+    </div>
+  `;
+  _fpBuildSvg();
+  _fpRenderKpis();
+  if (_fpSelectedId) _fpSelectRoom(_fpSelectedId); else _fpRenderOverview();
+  const upd = document.getElementById('fp-updated-at');
+  if (upd) upd.textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function _fpRenderKpis() {
+  let running = 0, behind = 0;
+  const confirmedStaff = new Set();
+  PLAN_LINES.forEach(line => {
+    const r = _fpData[line];
+    if (!r) return;
+    if (r.status === 'running') running++;
+    else if (r.status === 'behind') behind++;
+    (r.roster || []).forEach(p => { if (p.confirmed) confirmedStaff.add(p.code); });
+  });
+  const el = document.getElementById('fp-kpi-strip');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="fp-kpi"><b>${running + behind}/${PLAN_LINES.length}</b><span>ไลน์มีแผนวันนี้</span></div>
+    <div class="fp-kpi"><b>${behind}</b><span>ล่าช้ากว่าแผน</span></div>
+    <div class="fp-kpi"><b>${confirmedStaff.size}</b><span>พนักงานสแกนเข้าแล้ว</span></div>
+    <div class="fp-clock"><b id="fp-clock-time">--:--:--</b></div>
+  `;
+  const clockEl = document.getElementById('fp-clock-time');
+  if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function _fpSvgEl(tag, attrs) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+// ตัดชื่อห้องให้ไม่ยาวเกินพื้นที่ที่มี (กันจุดสถานะที่มุมขวาบนทับตัวหนังสือ — วัดความกว้าง SVG text จริง
+// ไม่ได้เพราะ element ยังไม่ถูก attach เข้า DOM ตอนสร้าง เลยประมาณจากความกว้างเฉลี่ยตัวอักษรแทน)
+function _fpFitLabel(text, maxPx, fontPx) {
+  const maxChars = Math.max(3, Math.floor(maxPx / (fontPx * 0.62)));
+  return text.length <= maxChars ? text : text.slice(0, maxChars - 1) + '…';
+}
+
+// เหมือน _fpFitLabel แต่ตัดขึ้นบรรทัดใหม่ได้สูงสุด maxLines บรรทัดก่อนค่อยตัดจบด้วย "…" (ให้ชื่อห้องยาวๆ
+// อ่านออกครบแทนที่จะโดนตัดสั้นจนอ่านไม่รู้เรื่องในบรรทัดเดียว — คำขอผู้ใช้ 2026-09-14) ตัดตามจำนวนตัวอักษร
+// ล้วนๆ ไม่สนใจเว้นวรรค เพราะภาษาไทยส่วนใหญ่ไม่มีช่องว่างระหว่างคำให้ตัดตามอยู่แล้ว
+function _fpWrapLabel(text, maxPx, fontPx, maxLines) {
+  maxLines = maxLines || 2;
+  const maxChars = Math.max(3, Math.floor(maxPx / (fontPx * 0.62)));
+  if (text.length <= maxChars) return [text];
+  const lines = [];
+  for (let i = 0; i < maxLines; i++) {
+    const start = i * maxChars;
+    if (start >= text.length) break;
+    let chunk = text.slice(start, start + maxChars);
+    if (i === maxLines - 1 && start + maxChars < text.length) chunk = chunk.slice(0, -1) + '…';
+    lines.push(chunk);
+  }
+  return lines;
+}
+
+function _fpBuildSvg() {
+  const svg = document.getElementById('fp-svg');
+  if (!svg) return;
+  svg.innerHTML = '';
+  const mk = _fpSvgEl;
+
+  Object.keys(FP_GEOM).forEach(roomId => {
+    const g = FP_GEOM[roomId];
+    if (roomId === 'packbox') { _fpBuildPackRoom(svg, g); return; }
+
+    const line = FP_ROOM_LINE[roomId];
+    const r = line ? _fpData[line] : null;
+    const isMonitored = !!r;
+    const status = isMonitored ? r.status : null;
+
+    let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
+    if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
+    else if (status === 'behind')  { color = 'var(--fp-warn)';     fill = '#fdf1e0'; }
+    else if (status === 'done')    { color = 'var(--fp-accent-2)'; fill = '#f0e9fc'; }
+
+    const dim = !isMonitored || status === 'idle';
+    const grp = mk('g', { class: `fp-zone${dim ? ' fp-dim' : ''}${_fpSelectedId === roomId ? ' fp-selected' : ''}`,
+      'data-id': roomId, tabindex: '0', role: 'button', 'aria-label': FP_ROOM_LABEL[roomId] });
+    grp.addEventListener('click', () => _fpSelectRoom(roomId));
+    grp.addEventListener('keypress', e => { if (e.key === 'Enter') _fpSelectRoom(roomId); });
+    grp.appendChild(mk('rect', { class: 'fp-room', x: g.x, y: g.y, width: g.w, height: g.h, rx: 10, fill, stroke: color, 'stroke-opacity': .85 }));
+
+    const hasDot = isMonitored && status !== 'idle';
+    const labelFs = 11.5;
+    const label = mk('text', { class: 'fp-room-label', x: g.x + 12, y: g.y + 22, 'font-size': labelFs });
+    _fpWrapLabel(FP_ROOM_LABEL[roomId], g.w - 24 - (hasDot ? 16 : 0), labelFs, 2).forEach((line, i) => {
+      const tspan = mk('tspan', { x: g.x + 12, dy: i === 0 ? 0 : labelFs + 2 });
+      tspan.textContent = line;
+      label.appendChild(tspan);
+    });
+    grp.appendChild(label);
+
+    if (hasDot) {
+      grp.appendChild(mk('circle', {
+        class: status === 'running' ? 'fp-dot-live' : '',
+        cx: g.x + g.w - 18, cy: g.y + 18, r: 5, fill: color,
+      }));
+    }
+
+    if (hasDot) {
+      const pct = r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
+      const barY = g.y + g.h - 22, barX = g.x + 12, barW = g.w - 24;
+      const sub = mk('text', { class: 'fp-room-sub', x: barX, y: barY - 6, 'font-size': 10 });
+      sub.textContent = `${r.isLiveScan ? 'สแกนสด ' : ''}${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()} ${r.item.UOM || ''}`;
+      grp.appendChild(sub);
+      grp.appendChild(mk('rect', { class: 'fp-metric-track', x: barX, y: barY, width: barW, height: 6, rx: 3 }));
+      grp.appendChild(mk('rect', { x: barX, y: barY, width: Math.max(0, barW * pct / 100), height: 6, rx: 3, fill: color }));
+    } else {
+      const sub = mk('text', { class: 'fp-room-sub', x: g.x + 12, y: g.y + 40, 'font-size': 9.5 });
+      sub.textContent = isMonitored ? 'ว่าง/ไม่มีแผนวันนี้'
+        : roomId === 'samples' ? `${_fpHoldStock.length.toLocaleString()} รายการ (Defect/Retain)`
+        : 'ไม่ติดตามเรียลไทม์';
+      grp.appendChild(sub);
+    }
+    svg.appendChild(grp);
+  });
+}
+
+function _fpBuildPackRoom(svg, g) {
+  const mk = _fpSvgEl;
+  const outer = mk('g', { class: 'fp-zone fp-dim' });
+  outer.appendChild(mk('rect', { class: 'fp-room', x: g.x, y: g.y, width: g.w, height: g.h, rx: 10, fill: 'var(--fp-muted-fill)', stroke: 'var(--fp-muted)', 'stroke-opacity': .6 }));
+  const title = mk('text', { class: 'fp-room-label', x: g.x + 10, y: g.y + 16, 'font-size': 10 });
+  title.textContent = 'บรรจุหีบห่อ (5 สถานี)';
+  outer.appendChild(title);
+  svg.appendChild(outer);
+
+  const slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
+  FP_PACK_SUBLINES.forEach((sub, i) => {
+    const sy = g.y + 24 + i * slotH;
+    const r = _fpData[sub.line];
+    const status = r ? r.status : 'idle';
+    const id = `packbox__${sub.key}`;
+    let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
+    if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
+    else if (status === 'behind')  { color = 'var(--fp-warn)';     fill = '#fdf1e0'; }
+    else if (status === 'done')    { color = 'var(--fp-accent-2)'; fill = '#f0e9fc'; }
+
+    const sg = mk('g', { class: `fp-zone${status === 'idle' ? ' fp-dim' : ''}${_fpSelectedId === id ? ' fp-selected' : ''}`,
+      'data-id': id, tabindex: '0', role: 'button', 'aria-label': sub.label });
+    sg.addEventListener('click', () => _fpSelectRoom(id));
+    sg.appendChild(mk('rect', { class: 'fp-room', x: g.x + 6, y: sy, width: g.w - 12, height: slotH - 4, rx: 6, fill, stroke: color, 'stroke-opacity': .85 }));
+    const hasDot = status !== 'idle';
+    const lbl = mk('text', { class: 'fp-room-label', x: g.x + 14, y: sy + slotH / 2 - 2, 'font-size': 8.5 });
+    lbl.textContent = _fpFitLabel(sub.label, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
+    sg.appendChild(lbl);
+    if (hasDot) {
+      sg.appendChild(mk('circle', {
+        class: status === 'running' ? 'fp-dot-live' : '',
+        cx: g.x + g.w - 16, cy: sy + slotH / 2 - 4, r: 3.4, fill: color,
+      }));
+    }
+    svg.appendChild(sg);
+  });
+}
+
+// รายการทั้งหมดสำหรับภาพรวม/เลือกดูรายละเอียด: ห้องเดี่ยว (ไม่รวมกรอบนอกของห้องบรรจุหีบห่อ) + 5 สถานี
+// ข้างในห้องบรรจุหีบห่อ แยกกัน เพราะแต่ละสถานีมีข้อมูล/สถานะเป็นของตัวเอง
+function _fpAllEntries() {
+  const rooms = Object.keys(FP_GEOM).filter(id => id !== 'packbox');
+  const entries = rooms.map(id => ({ id, label: FP_ROOM_LABEL[id], full: FP_ROOM_FULL[id], line: FP_ROOM_LINE[id] || null }));
+  FP_PACK_SUBLINES.forEach(sub => entries.push({ id: `packbox__${sub.key}`, label: sub.label, full: `ห้องบรรจุหีบห่อ — ${sub.label}`, line: sub.line }));
+  return entries;
+}
+
+function _fpRenderOverview() {
+  const drawer = document.getElementById('fp-drawer');
+  if (!drawer) return;
+  const entries = _fpAllEntries();
+  const rows = entries.map(entry => {
+    const r = entry.line ? _fpData[entry.line] : null;
+    const dotColor = !entry.line ? 'var(--fp-muted)'
+      : r.status === 'running' ? 'var(--fp-accent)'
+      : r.status === 'behind'  ? 'var(--fp-warn)'
+      : r.status === 'done'    ? 'var(--fp-accent-2)' : 'var(--fp-muted)';
+    const val = !entry.line ? 'คลัง/สนับสนุน'
+      : (r.status !== 'idle' && r.item) ? `${(r.actual ?? 0).toLocaleString()}/${r.planned.toLocaleString()}`
+      : _fpStatusMeta(r.status).label;
+    return `<div class="fp-overview-row" onclick="_fpSelectRoom('${entry.id}')">
+      <span class="fp-dot" style="background:${dotColor}"></span>
+      <span class="fp-oname">${entry.label}</span>
+      <span class="fp-oval fp-mono">${val}</span>
+    </div>`;
+  }).join('');
+  drawer.innerHTML = `
+    <div class="fp-eyebrow">ภาพรวมทั้งโรงงาน</div>
+    <h2>${entries.length} จุดตรวจสอบ</h2>
+    <div class="fp-hint">คลิกห้องบนผัง หรือรายการด้านล่าง เพื่อดูรายละเอียด</div>
+    <div>${rows}</div>
+  `;
+}
+
+// รายการสินค้าที่ถือครองอยู่ใน hold_stock (DEFECT+RETAIN, QtyBalance>0) แสดงในห้องเก็บตัวอย่าง —
+// ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าเอาทั้ง 2 ประเภทมารวมกัน ไม่ใช่ RETAIN อย่างเดียว
+function _fpHoldStockListHtml() {
+  if (!_fpHoldStock.length) {
+    return `<div class="fp-hint">ไม่มีรายการค้างในสต็อก Defect/Retain ตอนนี้</div>`;
+  }
+  const rows = _fpHoldStock
+    .slice().sort((a, b) => (a.HoldType === b.HoldType ? 0 : a.HoldType === 'DEFECT' ? -1 : 1))
+    .map(r => `
+      <div class="fp-staff-chip">
+        <span class="fp-hold-chip fp-hold-${r.HoldType.toLowerCase()}">${r.HoldType === 'DEFECT' ? 'Defect' : 'Retain'}</span>
+        <div>
+          <div class="fp-name">${r.ItemName || r.ItemCode}</div>
+          <div class="fp-role">Lot ${r.Lot || '—'} · ${(r.QtyBalance ?? 0).toLocaleString()} ${r.UOM || ''}</div>
+        </div>
+      </div>`).join('');
+  return `
+    <div class="fp-field">
+      <label>รายการในสต็อก Defect/Retain (${_fpHoldStock.length})</label>
+      <div class="fp-staff-list">${rows}</div>
+    </div>`;
+}
+
+function _fpSelectRoom(id) {
+  _fpSelectedId = id;
+  _fpBuildSvg(); // rebuild เพื่ออัปเดตคลาส fp-selected บนห้องที่เพิ่งเลือก
+
+  const entry = _fpAllEntries().find(e => e.id === id);
+  const drawer = document.getElementById('fp-drawer');
+  if (!entry || !drawer) return;
+
+  if (!entry.line) {
+    drawer.innerHTML = `
+      <button class="fp-back-link" onclick="_fpSelectedId=null;_fpRenderOverview();_fpBuildSvg()">← ภาพรวมทั้งหมด</button>
+      <div><div class="fp-eyebrow">${entry.id.toUpperCase()}</div><h2>${entry.full}</h2></div>
+      <p class="fp-val" style="color:var(--fp-text-dim);font-size:13px">${FP_ROOM_NOTE[entry.id] || 'พื้นที่นี้ไม่ผูกกับไลน์ผลิตในระบบ'}</p>
+      ${entry.id === 'samples' ? _fpHoldStockListHtml() : ''}
+    `;
+    return;
+  }
+
+  const r = _fpData[entry.line];
+  const meta = _fpStatusMeta(r.status);
+  let body;
+  if (r.status === 'idle' || !r.item) {
+    body = `<p class="fp-val" style="color:var(--fp-text-dim);font-size:13px">ไม่มีแผนผลิตของไลน์นี้ในวันนี้</p>`;
+  } else {
+    const pct = r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
+    body = `
+      <div class="fp-field"><label>สินค้า</label><div class="fp-val">${r.item.ProductName || '—'}</div></div>
+      <div class="fp-field"><label>เลขที่ใบสั่งผลิต</label><div class="fp-val fp-mono">${r.mo ? r.mo.MO_ID : '—'}</div></div>
+      <div class="fp-field">
+        <label>ผลิตแล้ว / แผน${r.isLiveScan ? ' (จากสแกนสด — ยังไม่ยืนยันผลจริงเป็นทางการ)' : ''}</label>
+        <div class="fp-val fp-mono">${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()} ${r.item.UOM || ''}</div>
+        <div class="fp-progress"><i style="width:${pct}%"></i></div>
+      </div>
+      <div class="fp-field"><label>กะ</label><div class="fp-val fp-mono">${r.item.Shift || '—'}</div></div>
+      <div class="fp-field">
+        <label>พนักงานในไลน์ (${r.roster.length})</label>
+        <div class="fp-staff-list">
+          ${ r.roster.length ? r.roster.map(p => `
+            <div class="fp-staff-chip${p.confirmed ? '' : ' fp-staff-planned'}">
+              <div class="fp-avatar">${p.name.slice(0,1)}</div>
+              <div><div class="fp-name">${p.name}</div><div class="fp-role">${p.confirmed ? 'สแกนเข้าแล้ว' : 'ตามแผน — ยังไม่สแกนเข้า'}</div></div>
+            </div>`).join('') : '<div class="fp-val" style="color:var(--fp-text-dim)">ยังไม่มีข้อมูลพนักงานประจำไลน์นี้</div>' }
+        </div>
+      </div>`;
+  }
+  drawer.innerHTML = `
+    <button class="fp-back-link" onclick="_fpSelectedId=null;_fpRenderOverview();_fpBuildSvg()">← ภาพรวมทั้งหมด</button>
+    <div>
+      <div class="fp-eyebrow">${entry.line}</div>
+      <h2>${entry.full}</h2>
+      <span class="fp-status-pill ${meta.cls}">${meta.label}</span>
+    </div>
+    ${body}
+  `;
+}
+
 function _whRenderSchedule() {
   const el = document.getElementById('wh-schedule-list');
   if (!el) return;
@@ -8079,6 +8701,7 @@ const _PAGE_LOADERS = {
   'stockcard' : stockcardLoadData,
   'codash'    : codashLoadData,
   'prodstatus': loadProdStatusData,
+  'floorpulse': loadFloorPulseData,
   'lotqueue'  : loadLotQueueData,
   'weeklyreport': weeklyreportLoadData,
   'admindash' : admindashLoadData,
@@ -14629,6 +15252,7 @@ function planToggleDaySiblings(rowId) {
 // ไม่มีช่องทางแก้ไขวันที่นี้อีกเลย (ต่างจากไลน์อื่นที่ไม่มีวันที่ของตัวเองให้ต้องแก้แยก) — เช็ค conflict
 // ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/_planFindWorkerConflicts) ก่อนบันทึกเสมอ ไม่ข้าม
 async function planEditLotDate(rowId) {
+  if (!_hasRole('admin')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขวันที่ยิง Lot ได้เฉพาะ Admin เท่านั้น', 'info'); return; }
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
   const { value: newDate } = await Swal.fire({
@@ -14678,6 +15302,7 @@ async function planEditLotDate(rowId) {
 // ของฟอร์มเพิ่ม/แก้แผน (ซับซ้อนเกินจำเป็นสำหรับแก้แค่ผู้ปฏิบัติงานฟิลด์เดียว) กรองรายชื่อตามสกิลที่ตรงกับไลน์
 // นี้เหมือน planHighlightQualifiedWorkers (fallback โชว์ทุกคนถ้ายังไม่มีใครผ่านสกิลเลย)
 async function planEditSiblingWorkers(rowId) {
+  if (!_hasRole('supervisor')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขผู้ปฏิบัติงานได้เฉพาะหัวหน้างานขึ้นไป', 'info'); return; }
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
   await _planLoadSkillData();
@@ -14801,7 +15426,9 @@ function _planRenderDayTable(dateStr) {
               // แถวนี้เป็นแค่รายการอ่านอย่างเดียว ดูหมายเหตุที่ _planRowActions — ยกเว้นไลน์ "ยิง Lot" ที่มี
               // วันที่ของตัวเอง (added 2026-09-08 ตามคำขอ "ยิงLot ให้แก้วันที่ได้") ได้ปุ่มแก้ไขวันที่คืนมา
               // เจาะจงเฉพาะฟิลด์นี้ (ดูหมายเหตุที่ planEditLotDate) — ไลน์อื่นยังไม่มีปุ่มใดๆ เหมือนเดิม
-              const sIsLotEditable = _planLineCategoryOf(s.Line || '') === 'lot' && s.Status === 'วางแผน';
+              // แก้วันที่ = Admin เท่านั้น (ตามคำขอผู้ใช้ 2026-09-14 "แอดมินแก้วันที่ได้ หัวหน้าแก้ได้แค่
+              // รายชื่อพนักงาน") — ปุ่มไม่โผล่เลยถ้าไม่ใช่ admin ไม่ใช่แค่ซ่อนแล้วบล็อกที่ฟังก์ชันอย่างเดียว
+              const sIsLotEditable = _planLineCategoryOf(s.Line || '') === 'lot' && s.Status === 'วางแผน' && _hasRole('admin');
               const editDateBtn = sIsLotEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่ยิง Lot"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
@@ -14815,7 +15442,9 @@ function _planRenderDayTable(dateStr) {
               const sLot = _planMOLot(s.MO_Ref || r.MO_Ref);
               // แก้ไข "ผู้ปฏิบัติงาน" เฉพาะไลน์แพ็ค (added 2026-09-08 ตามคำขอ "ห้องแพ็คให้มีแก้ไขคนทำงานได้")
               // — สโคปเจาะจงเฉพาะหมวดแพ็คเหมือนที่ยิง Lot ได้แค่ปุ่มแก้วันที่ ไลน์อื่นยังไม่มีปุ่มใดๆ
-              const sIsPackWorkersEditable = _planLineCategoryOf(s.Line || '') === 'pack' && s.Status === 'วางแผน';
+              // แก้ผู้ปฏิบัติงาน = หัวหน้างานขึ้นไป (ตามคำขอผู้ใช้ 2026-09-14 — Admin แก้ได้ทั้งวันที่+
+              // ผู้ปฏิบัติงาน, หัวหน้าแก้ได้แค่ผู้ปฏิบัติงาน) ปุ่มไม่โผล่เลยถ้าเป็น operator
+              const sIsPackWorkersEditable = _planLineCategoryOf(s.Line || '') === 'pack' && s.Status === 'วางแผน' && _hasRole('supervisor');
               const editWorkersBtn = sIsPackWorkersEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditSiblingWorkers(${s._row_id})" title="แก้ไขผู้ปฏิบัติงาน"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
@@ -16474,9 +17103,10 @@ function _scanlaborPubLineSectionHTML(ld, li) {
       <span class="text-muted small">${ld.shift ? `กะ ${ld.shift}` : ''}</span>
     </div>
     ${!ld.roster.length ? `<div class="alert alert-warning small mb-2 py-1"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — เพิ่มเองด้านล่างได้</div>` : ''}
+    <div class="text-muted mb-1" style="font-size:11px"><i class="fas fa-circle-info me-1"></i>เวลาเริ่ม = รวมเวลาเตรียมเครื่อง · เวลาเสร็จ = ไม่รวมเวลาเก็บล้าง</div>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-2">
-        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเข้า</th><th style="width:135px">เวลาออก</th></tr></thead>
+        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเริ่ม</th><th style="width:135px">เวลาเสร็จ</th></tr></thead>
         <tbody id="scanlabor-pub-roster-tbody-${li}">${ld.roster.length ? ld.roster.map((r,i)=>_scanlaborPubRosterRowHTML(r,li,i)).join('') : emptyRowHTML}</tbody>
       </table>
     </div>
@@ -31893,9 +32523,10 @@ function _scanlaborLineSectionHTML(ld, li) {
       <span class="text-muted small">${ld.plan?.Shift ? `กะ ${ld.plan.Shift}` : ''}</span>
     </div>
     ${!ld.roster.length ? `<div class="alert alert-warning small mb-2 py-1"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ได้ระบุผู้ปฏิบัติงานในแผนผลิตของไลน์นี้ — เพิ่มเองด้านล่างได้</div>` : ''}
+    <div class="text-muted mb-1" style="font-size:11px"><i class="fas fa-circle-info me-1"></i>เวลาเริ่ม = รวมเวลาเตรียมเครื่อง · เวลาเสร็จ = ไม่รวมเวลาเก็บล้าง</div>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-2">
-        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเข้า</th><th style="width:135px">เวลาออก</th></tr></thead>
+        <thead><tr class="text-muted small"><th style="width:40px">มา</th><th>พนักงาน</th><th style="width:135px">เวลาเริ่ม</th><th style="width:135px">เวลาเสร็จ</th></tr></thead>
         <tbody id="scanlabor-roster-tbody-${li}">${ld.roster.length ? ld.roster.map((r,i)=>_scanlaborRosterRowHTML(r,li,i)).join('') : emptyRowHTML}</tbody>
       </table>
     </div>
@@ -32554,6 +33185,8 @@ function _renderCurrentUserBadge() {
   // เหมือน nav-weeklyreport: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navAdmindash = document.getElementById('nav-admindash');
   if (navAdmindash) navAdmindash.style.display = _currentUser.isAdmin ? '' : 'none';
+  const navFloorpulse = document.getElementById('nav-floorpulse');
+  if (navFloorpulse) navFloorpulse.style.display = _currentUser.isAdmin ? '' : 'none';
   // ปุ่ม "คำนวณ Overhead ใหม่ทั้งหมด" (หน้าบันทึกผลิต) — เขียนทับ Overhead/TotalCost/CostPerUnit ของบันทึก
   // ที่อนุมัติต้นทุนไปแล้วทุกใบ admin เท่านั้น เหตุผลเดียวกับปุ่มอนุมัติต้นทุน/ดูต้นทุนที่อนุมัติ (2026-08-27)
   const recalcOhBtn = document.getElementById('prodrecord-recalc-oh-btn');
@@ -32568,6 +33201,12 @@ function _renderCurrentUserBadge() {
   // "สแกนบันทึกเวลาแรงงาน" — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-13) เหมือน nav-skillmatrix ทุกประการ
   const navScanlabor = document.getElementById('nav-scanlabor');
   if (navScanlabor) navScanlabor.style.display = _currentUser.isAdmin ? '' : 'none';
+  // "บันทึกผลิต" — ผู้ใช้ขอให้ระดับพนักงาน (operator) ไม่เห็นหน้านี้ (2026-09-14) หัวหน้างานขึ้นไปยังเห็น
+  // ปกติ (ใช้ _hasRole('supervisor') ไม่ใช่ isAdmin เพราะเป็น 2 ระดับ ไม่ใช่ admin-only เหมือนแมททริกสกิล) —
+  // ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม (production_records ยังเปิด authenticated_full_access
+  // เหมือนเดิม เผื่อพนักงานเข้าตรงๆ ผ่าน console ก็ยังทำงานได้ ไม่ error)
+  const navProdrecord = document.getElementById('nav-prodrecord');
+  if (navProdrecord) navProdrecord.style.display = _hasRole('supervisor') ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
