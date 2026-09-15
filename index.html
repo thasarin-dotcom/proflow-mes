@@ -21390,15 +21390,29 @@ function _prodrecordStationSummaryText(d) {
 // อ่านค่าปัจจุบันจาก DOM ของทั้ง 3 ประเภทพนักงานในแถววันเดียวกัน มาประกอบเป็นข้อความสรุปแล้วเขียนลงแถว
 // สรุปที่อยู่ใต้แถวกรอกเวลา (2026-08-20 ตามคำขอผู้ใช้ — เดิมโชว์เป็นบรรทัดเล็กใต้ช่อง "เลิกงาน" ของแต่ละ
 // ประเภทแยกกัน ผู้ใช้บอกว่าเบียดกันไป ขอเป็นแถวสรุปรวมแยกต่างหากด้านล่างแทน ไม่ให้ช่องกรอกแคบลง)
+// ชม.ปกติ/ชม.OT ที่แสดงตอนนี้ = ชม.ของช่องกลุ่มเดิม (เฉพาะ "เพิ่มเอง") + รวมชม.ของทุกคนที่เลือกจากรายชื่อ
+// ที่กรอกเวลาของตัวเองไว้แล้ว (added 2026-09-15 — ผลรวมนี้เอาไว้โชว์ให้ผู้ใช้เห็นเท่านั้น ไม่ได้เขียนทับ hidden
+// ...normal/...ot ที่ยังเก็บแค่ส่วนของ "เพิ่มเอง" ไว้เหมือนเดิม — ตัวเลขจริงที่ใช้คิดต้นทุนคำนวณแยกจาก
+// WorkerTimes สดอีกทีตอนอนุมัติ ดู _prodrecordComputeLaborCost)
 function _prodrecordUpdateStationSummary(key, seq) {
   const el = document.getElementById(`prodrecord-st-${key}-${seq}-summary`);
   if (!el) return;
+  const checkedCodes = Array.from(document.querySelectorAll(`#prodrecord-st-${key}-${seq}-workers-list .prodrecord-worker-chk:checked`)).map(c => c.value);
   const d = {};
   ['ft', 'pt', 'os'].forEach(type => {
-    d[`${type}Start`]      = document.getElementById(`prodrecord-st-${key}-${seq}-${type}start`)?.value || '';
-    d[`${type}End`]        = document.getElementById(`prodrecord-st-${key}-${seq}-${type}end`)?.value || '';
-    d[`${type}NormalHrs`]  = document.getElementById(`prodrecord-st-${key}-${seq}-${type}normal`)?.value || 0;
-    d[`${type}OtHrs`]      = document.getElementById(`prodrecord-st-${key}-${seq}-${type}ot`)?.value || 0;
+    d[`${type}Start`] = document.getElementById(`prodrecord-st-${key}-${seq}-${type}start`)?.value || '';
+    d[`${type}End`]   = document.getElementById(`prodrecord-st-${key}-${seq}-${type}end`)?.value || '';
+    let normal = parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-${type}normal`)?.value) || 0;
+    let ot     = parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-${type}ot`)?.value) || 0;
+    checkedCodes.forEach(code => {
+      const emp = _planEmployees.find(e => e.EmployeeCode === code);
+      if ((emp ? String(emp.EmployeeType || '').toLowerCase() : '') !== type) return;
+      const baseId = `prodrecord-wktime-${key}-${seq}-${code}`;
+      const h = _prodrecordCalcHoursFromTime(document.getElementById(`${baseId}-start`)?.value, document.getElementById(`${baseId}-end`)?.value, type);
+      normal += h.normal; ot += h.ot;
+    });
+    d[`${type}NormalHrs`] = normal;
+    d[`${type}OtHrs`]     = ot;
   });
   el.textContent = _prodrecordStationSummaryText(d);
 }
@@ -21475,7 +21489,7 @@ function _prodrecordStationWorkersRowHTML(key, seq) {
       </div>
       <div id="prodrecord-st-${key}-${seq}-workers-list" class="border rounded p-2 bg-white" style="max-height:130px;overflow-y:auto"></div>
       <div class="d-flex flex-wrap gap-3 mt-1 align-items-center" style="font-size:.75rem">
-        <span class="text-muted">เพิ่มเอง (คนที่ไม่อยู่ใน Employee Master):</span>
+        <span class="text-muted">เพิ่มเอง (คนที่ไม่อยู่ใน Employee Master — ใช้เวลาเริ่ม/เสร็จช่องบนสุดของประเภทนี้):</span>
         <span>ประจำ <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
           id="prodrecord-st-${key}-${seq}-ftextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
         <span>Part Time <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
@@ -21527,20 +21541,20 @@ function _prodrecordStationBlockHTML(key, label, days) {
           </tr>
           <tr class="text-muted text-center" style="font-size:.68rem">
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px">เริ่ม</th>
-            <th style="min-width:80px">เสร็จ</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px">เริ่ม</th>
-            <th style="min-width:80px">เสร็จ</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
             <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px">เริ่ม</th>
-            <th style="min-width:80px">เสร็จ</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
+            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
           </tr>
         </thead>
         <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
       </table>
     </div>
-    <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เวลาทำงานปกติ: ประจำ/Part Time 08:30–17:30, Outsource 08:30–19:00 · OT นับจากหลัง: ประจำ/Part Time 18:00 น., Outsource 19:00 น.</div>
+    <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เวลาทำงานปกติ: ประจำ/Part Time 08:30–17:30, Outsource 08:30–19:00 · OT นับจากหลัง: ประจำ/Part Time 18:00 น., Outsource 19:00 น. · * ช่องเวลาเริ่ม/เสร็จบนสุด ใช้กับคนกลุ่ม "เพิ่มเอง" เท่านั้น คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองในรายชื่อ "ผู้ปฏิบัติงาน" ด้านล่าง</div>
     <div class="text-muted text-center prodrecord-station-empty ${days.length ? 'd-none' : ''}" style="font-size:.75rem">ยังไม่มีข้อมูลวันทำงาน — กด "เพิ่มวัน"</div>
   </div>`;
   return { html, entries };
@@ -21623,38 +21637,6 @@ function _prodrecordLaborLogFor(stepKey, dateStr) {
   return rows.length ? rows : null;
 }
 
-// รวมเวลาเข้า-ออกรายคนจาก production_labor_log เป็นช่วงเวลากลุ่มต่อประเภทพนักงาน (FT/PT/OS) — เข้าเร็วสุด/
-// ออกช้าสุด — เพื่อเติมลงช่องเวลาเข้า-ออกกลุ่มที่หน้านี้ใช้อยู่แล้ว (คนละโมเดลกับ per-employee ของ QR แต่ไม่
-// ต้องรื้อ StationsData/สูตรต้นทุนที่อนุมัติไปแล้ว — ดูหมายเหตุ 2026-08-17/09-01 ด้านบน)
-function _prodrecordGroupTimesFromLabor(laborRows) {
-  const out = { ft: { start: null, end: null }, pt: { start: null, end: null }, os: { start: null, end: null } };
-  laborRows.forEach(r => {
-    const emp = _planEmployees.find(e => e.EmployeeCode === r.EmployeeCode);
-    const t = emp ? String(emp.EmployeeType || '').toLowerCase() : '';
-    if (!out[t]) return;
-    if (r.TimeIn && (!out[t].start || r.TimeIn < out[t].start)) out[t].start = r.TimeIn;
-    if (r.TimeOut && (!out[t].end || r.TimeOut > out[t].end)) out[t].end = r.TimeOut;
-  });
-  return out;
-}
-
-// ตั้งช่องเวลาเข้า/ออกกลุ่ม (select ชม./นาที คู่หนึ่ง) จากค่า "HH:MM" แล้ว sync+คำนวณ ชม.ปกติ/OT ต่อ — ใช้ตอน
-// prefill จาก production_labor_log เท่านั้น (ผู้ใช้แก้เองทีหลังได้ตามปกติผ่าน UI เดิม)
-function _prodrecordSetGroupTime(stepKey, seq, type, g) {
-  if (!g || (!g.start && !g.end)) return;
-  const setOne = (kind, val) => {
-    if (!val) return;
-    const [hh, mm] = val.split(':');
-    const id = `prodrecord-st-${stepKey}-${seq}-${type}${kind}`;
-    const hEl = document.getElementById(`${id}-h`), mEl = document.getElementById(`${id}-m`);
-    if (hEl) hEl.value = hh; if (mEl) mEl.value = mm;
-    _prodrecordSyncTimeSelect(id);
-  };
-  setOne('start', g.start);
-  setOne('end', g.end);
-  _prodrecordStationTimeRecalc(stepKey, seq, type);
-}
-
 // วาด checklist พนักงาน 1 แถว — กรองเหลือเฉพาะคนมีสกิลตรงกับ "ประเภทงาน" นี้ (ไม่ใช่ไลน์เป๊ะแบบหน้าแผนผลิต
 // เพราะหน้านี้ไม่รู้ห้อง/ไลน์ที่แน่นอน รู้แค่ประเภทงาน — เช็คว่ามีสกิลอย่างน้อย 1 อันที่ Lines ตัดกับไลน์ใน
 // หมวดนั้นบ้างก็พอ) เหมือนหลักการเดียวกับ planHighlightQualifiedWorkers ของหน้าแผนผลิต — ไม่มีใครผ่านเลย
@@ -21662,9 +21644,15 @@ function _prodrecordSetGroupTime(stepKey, seq, type, g) {
 // เกณฑ์ "ผ่าน" คือ Level >= 1 (กำลังฝึก ขึ้นไป) ตามคำขอผู้ใช้ 2026-09-10 — เดิมตัดที่ >= 2 (ทำได้เอง)
 // ทำให้คนที่กำลังฝึกอยู่ (ให้ Level 1 ไว้ในแมททริกสกิลแล้ว) หายไปจากลิสต์ทั้งที่กรอกสกิลไว้แล้ว มีแค่
 // Level 0 (ยังไม่ฝึก) เท่านั้นที่ยังไม่นับว่าผ่าน
-function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes) {
+// รับ workerTimes เพิ่ม (added 2026-09-15 ตามคำขอผู้ใช้ "ให้แยกเวลาแต่ละคนตามชื่อเลย") — {EmployeeCode:
+// {start,end}} ใช้ prefill ช่องเวลาของคนที่ "ติ๊กเลือกอยู่" เท่านั้น (คนที่ยังไม่ติ๊กไม่โชว์ช่องเวลาให้รก) —
+// ช่องเวลาเข้า-ออกกลุ่มเดิมที่หัวตาราง (ft/pt/osStart/End) ตอนนี้ใช้เฉพาะกับคนกลุ่ม "เพิ่มเอง" เท่านั้น
+// (ดู _prodrecordComputeLaborCost/_prodrecordStationWorkersRowHTML) — คนที่เลือกจากรายชื่อทุกคนกรอกเวลา
+// ของตัวเองแยกตรงนี้แทน
+function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes, workerTimes) {
   const wrap = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-list`);
   if (!wrap) return;
+  workerTimes = workerTimes || {};
   const cat = _PRODRECORD_STEP_TO_PLAN_CATEGORY[stepKey];
   const sec = PLAN_LINE_SECTIONS.find(s => s.key === cat);
   const categoryLines = sec ? sec.lines : [];
@@ -21677,15 +21665,82 @@ function _prodrecordRenderWorkersList(stepKey, seq, selectedCodes) {
     if (qualified.length) pool = qualified;
   }
   const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
-  wrap.innerHTML = pool.length ? pool.map(e => {
+  // คนที่ติ๊กเลือกไว้ขึ้นบนสุดเสมอ (added 2026-09-15 ตามคำขอผู้ใช้ "ไม่ต้องสกอลหา") — sort แบบ stable
+  // (Array.sort เสถียรมาตรฐานตั้งแต่ ES2019 ทุก browser ที่แอปนี้รองรับ) กันคนที่ยังไม่ติ๊กสลับลำดับกันไปมา
+  // ทุกครั้งที่ re-render
+  const sortedPool = [...pool].sort((a, b) => {
+    const aSel = selectedCodes.includes(a.EmployeeCode) ? 0 : 1;
+    const bSel = selectedCodes.includes(b.EmployeeCode) ? 0 : 1;
+    return aSel - bSel;
+  });
+  wrap.innerHTML = sortedPool.length ? sortedPool.map(e => {
     const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
     const id = `prodrecord-worker-chk-${stepKey}-${seq}-${e.EmployeeCode}`;
+    const checked = selectedCodes.includes(e.EmployeeCode);
+    let timeHTML = '';
+    if (checked) {
+      const t = workerTimes[e.EmployeeCode] || {};
+      const baseId = `prodrecord-wktime-${stepKey}-${seq}-${e.EmployeeCode}`;
+      timeHTML = `<div class="ms-4 mt-1 mb-1 d-flex align-items-center gap-1" style="font-size:.72rem">
+        <span class="text-muted">เวลา</span>
+        ${_prodrecordTimeSelectHTML(`${baseId}-start`, t.start || '', `_prodrecordRecalcWorkerCounts('${stepKey}',${seq})`)}
+        <span class="text-muted">–</span>
+        ${_prodrecordTimeSelectHTML(`${baseId}-end`, t.end || '', `_prodrecordRecalcWorkerCounts('${stepKey}',${seq})`)}
+      </div>`;
+    }
     return `<div class="form-check mb-1">
       <input class="form-check-input prodrecord-worker-chk" type="checkbox" value="${e.EmployeeCode}" id="${id}"
-        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="_prodrecordRecalcWorkerCounts('${stepKey}',${seq})">
+        ${checked ? 'checked' : ''} onchange="_prodrecordOnWorkerCheckToggle('${stepKey}',${seq})">
       <label class="form-check-label small" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
+      ${timeHTML}
     </div>`;
   }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานในระบบ (เพิ่มได้ที่หน้า "พนักงาน")</div>';
+}
+
+// อ่านเวลาเข้า-ออกรายคน (+ประเภทพนักงานจริงจาก Employee Master) ของ "คนที่ติ๊กเลือกอยู่ตอนนี้" จาก DOM ปัจจุบัน
+// — ใช้ทั้ง (1) เก็บค่าไว้ก่อน re-render checklist ตอนติ๊ก/ยกเลิกติ๊ก (ไม่งั้นเวลาที่กรอกไว้จะหายเวลา re-render)
+// และ (2) ตอน submit จริง (ดู prodrecordEntrySubmit) — คืน {EmployeeCode: {start,end,type}}
+function _prodrecordCollectWorkerTimes(stepKey, seq) {
+  const out = {};
+  document.querySelectorAll(`#prodrecord-st-${stepKey}-${seq}-workers-list .prodrecord-worker-chk:checked`).forEach(chk => {
+    const code = chk.value;
+    const emp = _planEmployees.find(e => e.EmployeeCode === code);
+    const type = emp ? String(emp.EmployeeType || '').toLowerCase() : '';
+    const baseId = `prodrecord-wktime-${stepKey}-${seq}-${code}`;
+    out[code] = {
+      start: document.getElementById(`${baseId}-start`)?.value || '',
+      end: document.getElementById(`${baseId}-end`)?.value || '',
+      type,
+    };
+  });
+  return out;
+}
+
+// เรียกแทน _prodrecordRecalcWorkerCounts ตรงๆ ตอนติ๊ก/ยกเลิกติ๊กคนในรายชื่อ (checklist ต้อง re-render ใหม่
+// เพื่อโชว์/ซ่อนช่องเวลาของคนที่เพิ่งติ๊ก) — เก็บเวลาที่กรอกไว้ของคนอื่นๆ ก่อน re-render แล้วเติมเวลาจริงจาก QR
+// (production_labor_log) ให้คนที่เพิ่งติ๊กและยังไม่มีเวลาเลยอัตโนมัติ ถ้ามีสแกนไว้จริงสำหรับวัน+ประเภทงานนี้
+function _prodrecordOnWorkerCheckToggle(stepKey, seq) {
+  const selectedCodes = Array.from(document.querySelectorAll(`#prodrecord-st-${stepKey}-${seq}-workers-list .prodrecord-worker-chk:checked`)).map(c => c.value);
+  const times = _prodrecordCollectWorkerTimes(stepKey, seq);
+  const dateStr = document.getElementById(`prodrecord-st-${stepKey}-${seq}-date`)?.value || '';
+  const laborRows = _prodrecordLaborLogFor(stepKey, dateStr) || [];
+  selectedCodes.forEach(code => {
+    if (times[code] && (times[code].start || times[code].end)) return;
+    const lr = laborRows.find(r => r.EmployeeCode === code);
+    if (lr && (lr.TimeIn || lr.TimeOut)) times[code] = { start: lr.TimeIn || '', end: lr.TimeOut || '' };
+  });
+  _prodrecordRenderWorkersList(stepKey, seq, selectedCodes, times);
+  _prodrecordRecalcWorkerCounts(stepKey, seq);
+}
+
+// รวม production_labor_log (QR สแกนจริง) เป็น {EmployeeCode: {start,end}} ต่อคน — ใช้ prefill ช่องเวลาราย
+// คนตอนติ๊ก/โหลดแถวใหม่ (แทนที่การยุบรวมเป็นช่วงเวลากลุ่มแบบเดิม เพราะตอนนี้มีช่องเวลาต่อคนอยู่แล้ว)
+function _prodrecordWorkerTimesFromLabor(laborRows) {
+  const out = {};
+  (laborRows || []).forEach(r => {
+    if (r.TimeIn || r.TimeOut) out[r.EmployeeCode] = { start: r.TimeIn || '', end: r.TimeOut || '' };
+  });
+  return out;
 }
 
 // รวมยอดคนที่ติ๊กเลือก (แยกตาม EmployeeType จริงจาก Employee Master) + ยอด "เพิ่มเอง" แล้วเติมลงช่อง "จำนวน"
@@ -21718,23 +21773,20 @@ function _prodrecordSetupStationDayWorkers(stepKey, seq, d) {
   const selectedCodes = fromSaved
     ? (d.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean)
     : (laborRows ? laborRows.map(r => r.EmployeeCode) : (planCodes || []));
+  // เวลาต่อคน — บันทึกที่เคยกรอกไว้แล้วใช้ค่าเดิมเสมอ (ไม่ทับ), แถวใหม่ล้วนๆ ลอง prefill จาก QR สแกนจริงก่อน
+  // (added 2026-09-15 — เดิมยุบรวมเป็นช่วงเวลากลุ่มเดียว ตอนนี้มีช่องเวลาต่อคนแล้วจึง prefill ตรงตัวได้เลย)
+  const workerTimes = fromSaved ? (d.WorkerTimes || {}) : _prodrecordWorkerTimesFromLabor(laborRows);
   const ftExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ftextra`);
   const ptExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ptextra`);
   const osExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-osextra`);
   if (ftExtraEl) ftExtraEl.value = d.ftExtra || 0;
   if (ptExtraEl) ptExtraEl.value = d.ptExtra || 0;
   if (osExtraEl) osExtraEl.value = d.osExtra || 0;
-  _prodrecordRenderWorkersList(stepKey, seq, selectedCodes);
+  _prodrecordRenderWorkersList(stepKey, seq, selectedCodes, workerTimes);
   _prodrecordRecalcWorkerCounts(stepKey, seq);
-  // เติมเวลาเข้า-ออกจาก QR อัตโนมัติด้วย ถ้ามี (เฉพาะแถวที่ยังไม่เคยบันทึกเวลาเองมาก่อน — ไม่ทับเวลาที่กรอกไว้
-  // แล้วในบันทึกที่บันทึกไว้ก่อนหน้า)
-  if (!fromSaved && laborRows && laborRows.length) {
-    const grouped = _prodrecordGroupTimesFromLabor(laborRows);
-    ['ft', 'pt', 'os'].forEach(type => _prodrecordSetGroupTime(stepKey, seq, type, grouped[type]));
-  }
   const note = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-plan-note`);
   if (note) note.textContent = (!fromSaved && laborRows && laborRows.length)
-    ? '(ข้อมูลจริงจาก QR ที่ผู้ควบคุมงานผลิตสแกนหน้าไลน์ — แก้ไขได้ตามจริง)'
+    ? '(เวลาจริงจาก QR ที่ผู้ควบคุมงานผลิตสแกนหน้าไลน์ ต่อคน — แก้ไขได้ตามจริง)'
     : (!fromSaved && planCodes && planCodes.length) ? '(ดึงจากแผนผลิตอัตโนมัติ — แก้ไขได้ตามจริง)' : '';
 }
 
@@ -21750,15 +21802,12 @@ function _prodrecordDateChangedForWorkers(stepKey, seq) {
   const planCodes = _prodrecordPlanWorkersFor(stepKey, dateStr);
   const codes = laborRows ? laborRows.map(r => r.EmployeeCode) : planCodes;
   if (codes && codes.length) {
-    _prodrecordRenderWorkersList(stepKey, seq, codes);
+    const workerTimes = _prodrecordWorkerTimesFromLabor(laborRows);
+    _prodrecordRenderWorkersList(stepKey, seq, codes, workerTimes);
     _prodrecordRecalcWorkerCounts(stepKey, seq);
-    if (laborRows && laborRows.length) {
-      const grouped = _prodrecordGroupTimesFromLabor(laborRows);
-      ['ft', 'pt', 'os'].forEach(type => _prodrecordSetGroupTime(stepKey, seq, type, grouped[type]));
-    }
     const note = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-plan-note`);
     if (note) note.textContent = (laborRows && laborRows.length)
-      ? '(ข้อมูลจริงจาก QR ที่ผู้ควบคุมงานผลิตสแกนหน้าไลน์ — แก้ไขได้ตามจริง)'
+      ? '(เวลาจริงจาก QR ที่ผู้ควบคุมงานผลิตสแกนหน้าไลน์ ต่อคน — แก้ไขได้ตามจริง)'
       : '(ดึงจากแผนผลิตอัตโนมัติ — แก้ไขได้ตามจริง)';
   }
 }
@@ -22028,6 +22077,10 @@ async function prodrecordEntrySubmit(e) {
         // เปิดแก้ไขซ้ำ (ftWorkers/ptWorkers/osWorkers ด้านบนเป็นแค่ผลรวมที่คำนวณแล้ว บอกไม่ได้ว่าใครถูกเลือก
         // บ้าง ต้องเก็บ WorkerCodes แยกไว้ต่างหาก — ดู _prodrecordSetupStationDayWorkers ตอนโหลดกลับ)
         WorkerCodes: Array.from(document.querySelectorAll(`#prodrecord-st-${key}-${seq}-workers-list .prodrecord-worker-chk:checked`)).map(c => c.value).join(','),
+        // เวลาเข้า-ออกแยกรายคน (added 2026-09-15 ตามคำขอผู้ใช้ "ให้แยกเวลาแต่ละคนตามชื่อเลย") — {EmployeeCode:
+        // {start,end,type}} เก็บ type (ft/pt/os) ไว้ในนี้ตรงๆ ไม่ต้อง join _planEmployees สดตอนอ่านย้อนหลัง
+        // (แดชบอร์ด/หน้าอนุมัติต้นทุนอาจไม่เคยโหลด _planEmployees เลยในเซสชันนั้น) ดู _prodrecordComputeLaborCost
+        WorkerTimes: _prodrecordCollectWorkerTimes(key, seq),
         ftExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ftextra`)?.value) || 0,
         ptExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-ptextra`)?.value) || 0,
         osExtra    : parseFloat(document.getElementById(`prodrecord-st-${key}-${seq}-osextra`)?.value) || 0,
@@ -22245,6 +22298,16 @@ function _prodrecordComputeOverheadHours(stations, workDays) {
         if (d.ftWorkers) dayHours = Math.max(dayHours, (d.ftNormalHrs||0) + (d.ftOtHrs||0));
         if (d.ptWorkers) dayHours = Math.max(dayHours, (d.ptNormalHrs||0) + (d.ptOtHrs||0));
         if (d.osWorkers) dayHours = Math.max(dayHours, (d.osNormalHrs||0) + (d.osOtHrs||0));
+        // เวลาต่อคน (added 2026-09-15) — ftNormalHrs/ftOtHrs ข้างบนตอนนี้เป็นแค่ของกลุ่ม "เพิ่มเอง" ต้อง
+        // เช็คชม.ของแต่ละคนที่เลือกจากรายชื่อเข้าไปในผลเปรียบเทียบ max ด้วย ไม่งั้นวันที่ไม่มี "เพิ่มเอง" เลย
+        // (มีแต่คนจากรายชื่อ) จะนับชม.เป็น 0 ทั้งที่มีคนทำงานจริง
+        if (d.WorkerTimes) {
+          Object.values(d.WorkerTimes).forEach(t => {
+            if (!t || !t.type) return;
+            const h = _prodrecordCalcHoursFromTime(t.start, t.end, t.type);
+            dayHours = Math.max(dayHours, h.normal + h.ot);
+          });
+        }
         dayHours = _prodrecordFillShiftGap(dayHours);
         const dateKey = d.date || '';
         if (dayHours > (ohDateMax[dateKey] || 0)) ohDateMax[dateKey] = dayHours;
@@ -22266,6 +22329,12 @@ function _prodrecordComputeOverheadHours(stations, workDays) {
 // _prodrecordFillShiftGap คืนค่าจริงตรงๆ อยู่แล้ว (ไม่ปัด) — คำนวณชม.รวมที่ปรับแล้วก่อน แล้วค่อยแยกกลับเป็น
 // normal (capped ที่ threshold) / OT (ส่วนเกิน threshold) เพื่อคูณกับคนละเรต — Out Source ไม่ปรับเลย ใช้
 // ชม.ดิบตรงๆ (จ้างตามสัญญา ฿/ชม.จริง ไม่ใช่เงินเดือนคงที่)
+// d.WorkerTimes != null (added 2026-09-15) = บันทึกวันนี้กรอกผ่านช่องเวลาต่อคนแล้ว (ตามคำขอผู้ใช้ "ให้แยก
+// เวลาแต่ละคนตามชื่อเลย") — เปลี่ยนความหมาย ftWorkers/ftNormalHrs/ftOtHrs ของกลุ่มเป็น "เฉพาะคนเพิ่มเอง"
+// เท่านั้น (คูณด้วย ftExtra ไม่ใช่ ftWorkers ทั้งหมดแบบเดิม) ส่วนคนที่เลือกจากรายชื่อคิดจากเวลาของตัวเองแยก
+// คนต่อคน (ปรับด้วย splitAdjusted เหมือนกัน เพราะเป็นพนักงานประจำ/พาร์ทไทม์เงินเดือนคงที่เหมือนกัน — Out
+// Source ไม่ปรับเช่นเดิม) แล้วรวมเข้าไป — บันทึกเก่าที่ไม่มี WorkerTimes เลย (ก่อนวันนี้) ยังคำนวณแบบเดิม
+// เป๊ะทุกอย่าง ไม่กระทบ
 function _prodrecordComputeLaborCost(stations, workDays, rates) {
   const { ftRate, ftOt, ptRate, ptOt, osRate, osOt } = rates;
   const FT_PT_THRESHOLD = 8;
@@ -22274,11 +22343,34 @@ function _prodrecordComputeLaborCost(stations, workDays, rates) {
     const total = _prodrecordFillShiftGap((normalHrs||0) + (otHrs||0));
     return { normal: Math.min(total, FT_PT_THRESHOLD), ot: Math.max(0, total - FT_PT_THRESHOLD) };
   };
+  const rateOf = type => type === 'ft' ? [ftRate, ftOt] : type === 'pt' ? [ptRate, ptOt] : [osRate, osOt];
+  const individualCost = workerTimes => {
+    let cost = 0;
+    Object.values(workerTimes || {}).forEach(t => {
+      if (!t || !t.type) return;
+      const h = _prodrecordCalcHoursFromTime(t.start, t.end, t.type);
+      const [rate, otRate] = rateOf(t.type);
+      if (t.type === 'os') { cost += h.normal * rate + h.ot * otRate; return; }
+      const adj = splitAdjusted(1, h.normal, h.ot);
+      cost += adj.normal * rate + adj.ot * otRate;
+    });
+    return cost;
+  };
 
   let laborCost = 0;
   stations.forEach(s => {
     if (Array.isArray(s.days)) {
       s.days.forEach(d => {
+        if (d.WorkerTimes != null) {
+          const ft = splitAdjusted(d.ftExtra, d.ftNormalHrs, d.ftOtHrs);
+          const pt = splitAdjusted(d.ptExtra, d.ptNormalHrs, d.ptOtHrs);
+          laborCost += (d.ftExtra||0) * ft.normal * ftRate + (d.ftExtra||0) * ft.ot * ftOt;
+          laborCost += (d.ptExtra||0) * pt.normal * ptRate + (d.ptExtra||0) * pt.ot * ptOt;
+          laborCost += (d.osExtra||0) * (d.osNormalHrs||0) * osRate;
+          laborCost += (d.osExtra||0) * (d.osOtHrs||0) * osOt;
+          laborCost += individualCost(d.WorkerTimes);
+          return;
+        }
         const ft = splitAdjusted(d.ftWorkers, d.ftNormalHrs, d.ftOtHrs);
         const pt = splitAdjusted(d.ptWorkers, d.ptNormalHrs, d.ptOtHrs);
         laborCost += (d.ftWorkers||0) * ft.normal * ftRate + (d.ftWorkers||0) * ft.ot * ftOt;
@@ -25985,9 +26077,25 @@ function _admindashLaborByType(r) {
     if (workers > 0) { result[prefix + 'ManDays'] += workers * mult; result[prefix + 'DaysWorked'] += mult; }
   };
 
+  // d.WorkerTimes != null (added 2026-09-15) = วันนี้กรอกผ่านช่องเวลาต่อคนแล้ว — ftWorkers/ftNormalHrs/
+  // ftOtHrs ของกลุ่มตอนนี้เป็นแค่ของ "เพิ่มเอง" (ใช้ ftExtra แทน ftWorkers) ส่วนคนที่เลือกจากรายชื่อนับเป็น
+  // 1 man-day ต่อคนต่อวัน คิดชม./ต้นทุนจากเวลาของตัวเอง (type เก็บไว้ในนี้ตรงๆ ไม่ต้องพึ่ง _planEmployees)
   stations.forEach(s => {
     if (Array.isArray(s.days)) {
       s.days.forEach(d => {
+        if (d.WorkerTimes != null) {
+          addType('ft', d.ftExtra || 0, d.ftNormalHrs || 0, d.ftOtHrs || 0, ftRate, ftOt, 1);
+          addType('pt', d.ptExtra || 0, d.ptNormalHrs || 0, d.ptOtHrs || 0, ptRate, ptOt, 1);
+          addType('os', d.osExtra || 0, d.osNormalHrs || 0, d.osOtHrs || 0, osRate, osOt, 1);
+          Object.values(d.WorkerTimes).forEach(t => {
+            if (!t || !t.type) return;
+            const h = _prodrecordCalcHoursFromTime(t.start, t.end, t.type);
+            const rate = t.type === 'ft' ? ftRate : t.type === 'pt' ? ptRate : osRate;
+            const otRate = t.type === 'ft' ? ftOt : t.type === 'pt' ? ptOt : osOt;
+            addType(t.type, 1, h.normal, h.ot, rate, otRate, 1);
+          });
+          return;
+        }
         addType('ft', d.ftWorkers || 0, d.ftNormalHrs || 0, d.ftOtHrs || 0, ftRate, ftOt, 1);
         addType('pt', d.ptWorkers || 0, d.ptNormalHrs || 0, d.ptOtHrs || 0, ptRate, ptOt, 1);
         addType('os', d.osWorkers || 0, d.osNormalHrs || 0, d.osOtHrs || 0, osRate, osOt, 1);
@@ -26025,7 +26133,34 @@ function _admindashLaborByStep(r) {
   // ขั้นตอน" ได้ (proxy เดียวกับ man-days÷daysWorked ที่ _admindashLaborByType ใช้อยู่แล้วสำหรับ FT/PT/OS)
   // **แยก man-days ต่อประเภท (ftW/ptW/osW) เพิ่มอีกรอบ 2026-09-06 เดียวกัน** ตามคำขอผู้ใช้ "อยากให้เพิ่มต่อจาก
   // จำนวนคน ว่าเป็น FT OS PT กี่คนบ้าง" — ให้ตาราง productivity โชว์ทั้งยอดรวมและแยกประเภทในบรรทัดเดียวกัน
+  // d.WorkerTimes != null (added 2026-09-15) = วันนี้กรอกผ่านช่องเวลาต่อคนแล้ว — ftWorkers ของกลุ่มใช้ไม่ได้
+  // อีกต่อไป (นับแค่ "เพิ่มเอง" ผ่าน ftExtra) คนที่เลือกจากรายชื่อคิดจากเวลาของตัวเอง คนละ 1 man-day, type
+  // เก็บไว้ในนี้ตรงๆ ไม่ต้องพึ่ง _planEmployees (หน้าแดชบอร์ดนี้อาจไม่เคยโหลดเลยในเซสชันนั้น)
   const dayDelta = d => {
+    if (d.WorkerTimes != null) {
+      const ftW = d.ftExtra || 0, ptW = d.ptExtra || 0, osW = d.osExtra || 0;
+      const ftN = d.ftNormalHrs || 0, ftO = d.ftOtHrs || 0;
+      const ptN = d.ptNormalHrs || 0, ptO = d.ptOtHrs || 0;
+      const osN = d.osNormalHrs || 0, osO = d.osOtHrs || 0;
+      let normalCost = ftW * ftN * ftRate + ptW * ptN * ptRate + osW * osN * osRate;
+      let otCost = ftW * ftO * ftOt + ptW * ptO * ptOt + osW * osO * osOt;
+      let normalHours = ftW * ftN + ptW * ptN + osW * osN;
+      let otHours = ftW * ftO + ptW * ptO + osW * osO;
+      let ftWTotal = ftW, ptWTotal = ptW, osWTotal = osW;
+      Object.values(d.WorkerTimes).forEach(t => {
+        if (!t || !t.type) return;
+        const h = _prodrecordCalcHoursFromTime(t.start, t.end, t.type);
+        const rate = t.type === 'ft' ? ftRate : t.type === 'pt' ? ptRate : osRate;
+        const otRate = t.type === 'ft' ? ftOt : t.type === 'pt' ? ptOt : osOt;
+        normalCost += h.normal * rate; otCost += h.ot * otRate;
+        normalHours += h.normal; otHours += h.ot;
+        if (t.type === 'ft') ftWTotal++; else if (t.type === 'pt') ptWTotal++; else if (t.type === 'os') osWTotal++;
+      });
+      return {
+        cost: normalCost + otCost, normalCost, otCost, normalHours, otHours,
+        workers: ftWTotal + ptWTotal + osWTotal, ftW: ftWTotal, ptW: ptWTotal, osW: osWTotal,
+      };
+    }
     const ftW = d.ftWorkers || 0, ptW = d.ptWorkers || 0, osW = d.osWorkers || 0;
     const ftN = d.ftNormalHrs || 0, ftO = d.ftOtHrs || 0;
     const ptN = d.ptNormalHrs || 0, ptO = d.ptOtHrs || 0;
