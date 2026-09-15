@@ -21461,41 +21461,50 @@ function _prodrecordSyncTimeSelect(id) {
   if (hidden) hidden.value = (h && m) ? `${h}:${m}` : '';
 }
 
+// ตารางบนสุดเหลือแค่ "จำนวน" ต่อประเภทเท่านั้น (redesign 2026-09-15 รอบ 2 ตามคำขอผู้ใช้) — ช่อง
+// เริ่ม/เสร็จกลุ่มเดิมของ FT/OS ถูกตัดออกจาก UI ทั้งหมด (ตัดความสามารถ "เพิ่มเอง" ของ FT/OS ไปเลย ทุกคน
+// ต้องมาจากรายชื่อ Employee Master เท่านั้น กรอกเวลาของตัวเองในรายชื่อ "ผู้ปฏิบัติงาน") แต่ยังคง input
+// hidden ไว้ (id เดิมเป๊ะ ค่าคงที่ตามที่เคยบันทึกไว้ ไม่มีทางแก้จาก UI นี้อีก) กันข้อมูลเก่าก่อน redesign
+// หายไปเงียบๆ — _prodrecordRecalcWorkerCounts/_prodrecordComputeLaborCost ยังอ่าน id เดิมได้ปกติ ไม่ต้องแก้
+// ส่วน PT ช่องเวลาย้ายไปรวมกับแถว "เพิ่มเอง" ด้านล่างแทน (ดู _prodrecordStationWorkersRowHTML) ตรงนี้จึง
+// เหลือแค่ hidden ของ normal/ot เท่านั้น (ไม่มี start/end ซ้ำ เพราะ visible อยู่ที่แถวเพิ่มเองแล้ว)
 function _prodrecordStationTypeColsHTML(key, seq, type, workers, start, end, normal, ot) {
+  const isPt = type === 'pt';
   return `
-    <td style="${_PRODRECORD_ST_GROUP_BORDER}"><input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}" readonly style="background:#f1f5f9" title="คำนวณอัตโนมัติจากรายชื่อที่เลือกด้านล่าง"></td>
-    <td>${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-${type}start`, start, `_prodrecordStationTimeRecalc('${key}',${seq},'${type}')`)}</td>
-    <td>
-      ${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-${type}end`, end, `_prodrecordStationTimeRecalc('${key}',${seq},'${type}')`)}
+    <td style="${_PRODRECORD_ST_GROUP_BORDER}">
+      <input type="number" class="form-control form-control-sm" id="prodrecord-st-${key}-${seq}-${type}workers" min="0" step="1" value="${workers ?? 0}" readonly style="background:#f1f5f9" title="คำนวณอัตโนมัติจากรายชื่อที่เลือกด้านล่าง${isPt ? ' + เพิ่มเอง (Part Time)' : ''}">
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}normal" value="${normal ?? 0}">
       <input type="hidden" id="prodrecord-st-${key}-${seq}-${type}ot" value="${ot ?? 0}">
+      ${isPt ? '' : `<input type="hidden" id="prodrecord-st-${key}-${seq}-${type}start" value="${start || ''}"><input type="hidden" id="prodrecord-st-${key}-${seq}-${type}end" value="${end || ''}">`}
     </td>`;
 }
 
-// จำนวนคอลัมน์รวมของตาราง (สำหรับ colspan แถวสรุป): วันที่(1) + 3 ประเภทพนักงาน×3 คอลัมน์(9) + ปุ่มลบ(1)
-const _PRODRECORD_ST_TOTAL_COLS = 11;
+// จำนวนคอลัมน์รวมของตาราง (สำหรับ colspan แถวสรุป): วันที่(1) + 3 ประเภทพนักงาน×1 คอลัมน์(3) + ปุ่มลบ(1)
+const _PRODRECORD_ST_TOTAL_COLS = 5;
 
-// แถว "ผู้ปฏิบัติงาน" ใหม่ (added 2026-09-06 ตามคำขอผู้ใช้ "ช่องที่ใส่จำนวนพนักงาน เปลี่ยนเป็นให้เลือกจาก
-// ชื่อที่บันทึกไว้จากแผน...และให้เพิ่มเองได้อีก...ให้เลือกตามสกิลของแต่ละประเภทงาน") — แทรกไว้ใต้แถวกรอก
-// เวลา/เหนือแถวสรุป: 1 checklist รวม (ไม่แยก FT/PT/OS เป็น 3 ลิสต์ เพราะประเภทของแต่ละคนรู้อยู่แล้วจาก
-// Employee Master — ดู _prodrecordRenderWorkersList) + ช่อง "เพิ่มเอง" 3 ช่องสำหรับคนที่ไม่ได้อยู่ใน
-// Employee Master เลย (ยืนยันกับผู้ใช้แล้วว่ายังต้องมีทางกรอกแบบตัวเลขอิสระได้เผื่อฉุกเฉิน) — ผลรวมของ 2
-// อย่างนี้คือค่าที่ไปเติมช่อง "จำนวน" (readonly) ของ FT/PT/OS ด้านบน (ดู _prodrecordRecalcWorkerCounts)
-function _prodrecordStationWorkersRowHTML(key, seq) {
+// แถว "ผู้ปฏิบัติงาน" (added 2026-09-06, redesign 2026-09-15 รอบ 2 ตามคำขอผู้ใช้ "กลุ่มเพิ่มเองให้เหลือแค่
+// PT พอ...ให้อยู่กลุ่มเพิ่มเอง") — 1 checklist รวม (ไม่แยก FT/PT/OS เป็น 3 ลิสต์ เพราะประเภทของแต่ละคนรู้
+// อยู่แล้วจาก Employee Master — ดู _prodrecordRenderWorkersList) + "เพิ่มเอง" เหลือแค่ Part Time ช่องเดียว
+// (จำนวน + เวลาเข้า-ออกรวมอยู่บรรทัดเดียวกัน — ใช้ id เดิม ptextra/ptstart/ptend เป๊ะ แค่ย้ายตำแหน่ง UI จาก
+// ตารางบนสุดมารวมที่นี่แทน ไม่กระทบโค้ดจุดอื่นที่อ่าน id เหล่านี้เลย) — เดิมมี ftextra/osextra ด้วย ตัดออก
+// ตามคำขอ (ประจำ/Outsource ไม่รองรับ "เพิ่มเอง" อีกต่อไป — element หายไปเฉยๆ ก็ปลอดภัย เพราะทุกจุดที่อ่าน
+// ftextra/osextra ใช้ optional chaining `?.value` อยู่แล้ว ไม่ error แค่ได้ 0)
+function _prodrecordStationWorkersRowHTML(key, seq, d) {
+  d = d || {};
   return `<tr class="prodrecord-station-workers-row" data-seq="${seq}">
     <td colspan="${_PRODRECORD_ST_TOTAL_COLS}" style="background:#fbfbfc;border-top:none">
       <div class="small text-muted mb-1"><i class="fas fa-users me-1"></i>ผู้ปฏิบัติงาน
         <span id="prodrecord-st-${key}-${seq}-workers-plan-note" class="fst-italic"></span>
       </div>
-      <div id="prodrecord-st-${key}-${seq}-workers-list" class="border rounded p-2 bg-white" style="max-height:130px;overflow-y:auto"></div>
-      <div class="d-flex flex-wrap gap-3 mt-1 align-items-center" style="font-size:.75rem">
-        <span class="text-muted">เพิ่มเอง (คนที่ไม่อยู่ใน Employee Master — ใช้เวลาเริ่ม/เสร็จช่องบนสุดของประเภทนี้):</span>
-        <span>ประจำ <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
-          id="prodrecord-st-${key}-${seq}-ftextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
-        <span>Part Time <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
-          id="prodrecord-st-${key}-${seq}-ptextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
-        <span>Outsource <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
-          id="prodrecord-st-${key}-${seq}-osextra" value="0" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
+      <div id="prodrecord-st-${key}-${seq}-workers-list" class="border rounded p-2 bg-white" style="max-height:255px;overflow-y:auto"></div>
+      <div class="d-flex flex-wrap gap-2 mt-1 align-items-center" style="font-size:.75rem">
+        <span class="text-muted">เพิ่มเอง (Part Time ที่ไม่อยู่ใน Employee Master):</span>
+        <span>จำนวน <input type="number" class="form-control form-control-sm d-inline-block" style="width:56px" min="0" step="1"
+          id="prodrecord-st-${key}-${seq}-ptextra" value="${d.ptExtra || 0}" oninput="_prodrecordRecalcWorkerCounts('${key}',${seq})"></span>
+        <span class="text-muted">เวลา</span>
+        ${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-ptstart`, d.ptStart, `_prodrecordStationTimeRecalc('${key}',${seq},'pt')`)}
+        <span class="text-muted">–</span>
+        ${_prodrecordTimeSelectHTML(`prodrecord-st-${key}-${seq}-ptend`, d.ptEnd, `_prodrecordStationTimeRecalc('${key}',${seq},'pt')`)}
       </div>
     </td>
   </tr>`;
@@ -21510,7 +21519,7 @@ function _prodrecordStationDayRowHTML(key, seq, d) {
     ${_prodrecordStationTypeColsHTML(key, seq, 'os', d.osWorkers, d.osStart, d.osEnd, d.osNormalHrs, d.osOtHrs)}
     <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="prodrecordRemoveStationDay(${seq})" title="ลบวันนี้"><i class="fas fa-times"></i></button></td>
   </tr>
-  ${_prodrecordStationWorkersRowHTML(key, seq)}
+  ${_prodrecordStationWorkersRowHTML(key, seq, d)}
   <tr class="prodrecord-station-summary-row" data-seq="${seq}">
     <td colspan="${_PRODRECORD_ST_TOTAL_COLS}" style="background:#f8fafc;border-top:none">
       <small class="text-muted fst-italic" id="prodrecord-st-${key}-${seq}-summary">${_prodrecordStationSummaryText(d)}</small>
@@ -21533,28 +21542,17 @@ function _prodrecordStationBlockHTML(key, label, days) {
       <table class="table table-sm table-borderless mb-0 align-middle" style="font-size:.78rem">
         <thead>
           <tr class="text-muted text-center" style="font-size:.68rem">
-            <th rowspan="2" style="min-width:130px;vertical-align:middle">วันที่</th>
-            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">พนักงานประจำ</th>
-            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">Part Time</th>
-            <th colspan="3" style="${_PRODRECORD_ST_GROUP_BORDER}">Outsource</th>
-            <th rowspan="2" style="width:36px"></th>
-          </tr>
-          <tr class="text-muted text-center" style="font-size:.68rem">
-            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
-            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
-            <th style="min-width:50px;${_PRODRECORD_ST_GROUP_BORDER}">จำนวน</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เริ่ม*</th>
-            <th style="min-width:80px" title="ใช้กับคนกลุ่ม &quot;เพิ่มเอง&quot; เท่านั้น — คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองด้านล่าง">เสร็จ*</th>
+            <th style="min-width:110px">วันที่</th>
+            <th style="min-width:70px;${_PRODRECORD_ST_GROUP_BORDER}">พนักงานประจำ</th>
+            <th style="min-width:70px;${_PRODRECORD_ST_GROUP_BORDER}">Part Time</th>
+            <th style="min-width:70px;${_PRODRECORD_ST_GROUP_BORDER}">Outsource</th>
+            <th style="width:36px"></th>
           </tr>
         </thead>
         <tbody id="prodrecord-station-days-${key}">${rows}</tbody>
       </table>
     </div>
-    <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เวลาทำงานปกติ: ประจำ/Part Time 08:30–17:30, Outsource 08:30–19:00 · OT นับจากหลัง: ประจำ/Part Time 18:00 น., Outsource 19:00 น. · * ช่องเวลาเริ่ม/เสร็จบนสุด ใช้กับคนกลุ่ม "เพิ่มเอง" เท่านั้น คนที่เลือกจากรายชื่อกรอกเวลาแยกของตัวเองในรายชื่อ "ผู้ปฏิบัติงาน" ด้านล่าง</div>
+    <div class="text-muted mt-1" style="font-size:.7rem">พักเที่ยงหักอัตโนมัติ 12:00–13:00 · เวลาทำงานปกติ: ประจำ/Part Time 08:30–17:30, Outsource 08:30–19:00 · OT นับจากหลัง: ประจำ/Part Time 18:00 น., Outsource 19:00 น. · "เพิ่มเอง" (คนนอก Employee Master) รองรับเฉพาะ Part Time เท่านั้น — ประจำ/Outsource ต้องเลือกจากรายชื่อ "ผู้ปฏิบัติงาน" เท่านั้น</div>
     <div class="text-muted text-center prodrecord-station-empty ${days.length ? 'd-none' : ''}" style="font-size:.75rem">ยังไม่มีข้อมูลวันทำงาน — กด "เพิ่มวัน"</div>
   </div>`;
   return { html, entries };
@@ -21768,24 +21766,33 @@ function _prodrecordRecalcWorkerCounts(stepKey, seq) {
 function _prodrecordSetupStationDayWorkers(stepKey, seq, d) {
   d = d || {};
   const fromSaved = d.WorkerCodes != null;
-  const laborRows = fromSaved ? null : _prodrecordLaborLogFor(stepKey, d.date);
+  // ดึง laborRows เสมอ (ไม่ใช่แค่ !fromSaved อีกต่อไป) — บันทึกที่เคยบันทึกไว้แล้วแต่ยังไม่เคยมีเวลารายคน
+  // เลย (เช่นบันทึกเก่าก่อนมีฟีเจอร์นี้) ก็ควรเติมจาก QR สแกนจริงให้เหมือนแถวใหม่ (2026-09-15 รอบ 2 — พบว่า
+  // ช่องเวลารายคนของบันทึกที่เปิดแก้ไขซ้ำขึ้นว่างเปล่าหมดทั้งที่มีข้อมูลสแกนจริงอยู่ เพราะรอบแรกเช็คแค่ไม่
+  // fromSaved เท่านั้น)
+  const laborRows = _prodrecordLaborLogFor(stepKey, d.date);
   const planCodes = fromSaved ? null : _prodrecordPlanWorkersFor(stepKey, d.date);
   const selectedCodes = fromSaved
     ? (d.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean)
     : (laborRows ? laborRows.map(r => r.EmployeeCode) : (planCodes || []));
-  // เวลาต่อคน — บันทึกที่เคยกรอกไว้แล้วใช้ค่าเดิมเสมอ (ไม่ทับ), แถวใหม่ล้วนๆ ลอง prefill จาก QR สแกนจริงก่อน
-  // (added 2026-09-15 — เดิมยุบรวมเป็นช่วงเวลากลุ่มเดียว ตอนนี้มีช่องเวลาต่อคนแล้วจึง prefill ตรงตัวได้เลย)
-  const workerTimes = fromSaved ? (d.WorkerTimes || {}) : _prodrecordWorkerTimesFromLabor(laborRows);
-  const ftExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ftextra`);
-  const ptExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-ptextra`);
-  const osExtraEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-osextra`);
-  if (ftExtraEl) ftExtraEl.value = d.ftExtra || 0;
-  if (ptExtraEl) ptExtraEl.value = d.ptExtra || 0;
-  if (osExtraEl) osExtraEl.value = d.osExtra || 0;
+  // เวลาต่อคน — เริ่มจากเวลาที่เคยบันทึกไว้จริงก่อนเสมอ (ไม่ทับ) แล้วเติมจาก QR สแกนจริงให้เฉพาะคนที่ยังไม่มี
+  // เวลาเลยสักตัว ไม่ว่าแถวนี้จะ "เคยบันทึกแล้ว" (แต่ไม่เคยมี WorkerTimes) หรือ "แถวใหม่" ก็ตาม
+  const savedTimes = fromSaved ? (d.WorkerTimes || {}) : {};
+  const laborTimes = _prodrecordWorkerTimesFromLabor(laborRows);
+  const workerTimes = {};
+  let usedLaborFallback = false;
+  selectedCodes.forEach(code => {
+    const saved = savedTimes[code];
+    if (saved && (saved.start || saved.end)) { workerTimes[code] = saved; return; }
+    if (laborTimes[code]) { workerTimes[code] = laborTimes[code]; usedLaborFallback = true; return; }
+    workerTimes[code] = saved || {};
+  });
+  // เพิ่มเอง (Part Time) — จำนวน/เวลาเข้า-ออก เติมค่าตอนสร้าง HTML เลยแล้ว (ดู _prodrecordStationWorkersRowHTML
+  // รับ d ตรงๆ) ไม่ต้องตั้งซ้ำที่นี่อีก — FT/Outsource ไม่มีช่อง "เพิ่มเอง" ให้ตั้งแล้ว (redesign 2026-09-15 รอบ 2)
   _prodrecordRenderWorkersList(stepKey, seq, selectedCodes, workerTimes);
   _prodrecordRecalcWorkerCounts(stepKey, seq);
   const note = document.getElementById(`prodrecord-st-${stepKey}-${seq}-workers-plan-note`);
-  if (note) note.textContent = (!fromSaved && laborRows && laborRows.length)
+  if (note) note.textContent = usedLaborFallback
     ? '(เวลาจริงจาก QR ที่ผู้ควบคุมงานผลิตสแกนหน้าไลน์ ต่อคน — แก้ไขได้ตามจริง)'
     : (!fromSaved && planCodes && planCodes.length) ? '(ดึงจากแผนผลิตอัตโนมัติ — แก้ไขได้ตามจริง)' : '';
 }
@@ -21795,9 +21802,21 @@ function _prodrecordSetupStationDayWorkers(stepKey, seq, d) {
 // ตั้งใจเลือกเองแล้ว ไม่ไปทับให้เงียบๆ (ป้องกันเปลี่ยนวันที่พลาดแล้วรายชื่อที่เลือกไว้หายไปเฉยๆ)
 function _prodrecordDateChangedForWorkers(stepKey, seq) {
   const dateEl = document.getElementById(`prodrecord-st-${stepKey}-${seq}-date`);
+  const dateStr = dateEl?.value || '';
+  // เตือนถ้าวันที่นี้ซ้ำกับแถวอื่นในขั้นตอนเดียวกันอยู่แล้ว (added 2026-09-15 ตามคำขอผู้ใช้ "อย่าซ้ำเยอะ" — พบ
+  // จริงว่ามีการสร้างแถวใหม่ทีละคนสำหรับวันเดียวกันแทนที่จะติ๊กเพิ่มคนในแถวเดิม) — แค่เตือน ไม่บล็อก เผื่อ
+  // ตั้งใจแยกแถวจริงๆ (เช่นบันทึกคนละช่วงที่ต้องแยกจริง)
+  if (dateStr) {
+    const block = dateEl?.closest('.prodrecord-station-block');
+    const dupRow = block ? Array.from(block.querySelectorAll('.prodrecord-station-day-row')).find(row =>
+      row.dataset.seq !== String(seq) && document.getElementById(`prodrecord-st-${stepKey}-${row.dataset.seq}-date`)?.value === dateStr
+    ) : null;
+    if (dupRow) {
+      Swal.fire({ icon: 'warning', title: 'วันที่นี้มีแถวอยู่แล้ว', text: `ขั้นตอนนี้มีแถววันที่ ${_fmtDate(dateStr)} อยู่แล้ว — แนะนำให้ลบแถวนี้แล้วติ๊กเพิ่มคนในแถวเดิมแทน จะได้ไม่ซ้ำวันที่กัน`, confirmButtonText: 'รับทราบ' });
+    }
+  }
   const currentSelected = Array.from(document.querySelectorAll(`#prodrecord-st-${stepKey}-${seq}-workers-list .prodrecord-worker-chk:checked`));
   if (currentSelected.length) return;
-  const dateStr = dateEl?.value || '';
   const laborRows = _prodrecordLaborLogFor(stepKey, dateStr);
   const planCodes = _prodrecordPlanWorkersFor(stepKey, dateStr);
   const codes = laborRows ? laborRows.map(r => r.EmployeeCode) : planCodes;
@@ -21965,6 +21984,7 @@ async function prodrecordOpenEntryModal(gi) {
   // ต้องรอ insert เข้า DOM จริงแล้วเท่านั้นถึงจะ setup ผู้ปฏิบัติงานต่อแถวได้ (query/เขียน checklist ต้องมี
   // DOM element จริง) ดู _prodrecordSetupStationDayWorkers
   const pendingWorkerSetups = [];
+  const allMergedNotes = [];
   document.getElementById('prodrecord-entry-stations').innerHTML = _prodrecordSteps.map(step => {
     const ex = existingStations.find(s => s.key === step.key) || {};
     // รูปแบบใหม่เก็บเป็นตารางหลายวัน (ex.days) — ถ้าเป็นบันทึกเก่าก่อน 2026-08-17 (ไม่มี ex.days แต่มีค่า
@@ -21982,13 +22002,71 @@ async function prodrecordOpenEntryModal(gi) {
     } else {
       days = [];
     }
+    // รวมแถวที่วันที่ซ้ำกันในขั้นตอนเดียวกันเป็นแถวเดียว (added 2026-09-15 ตามคำขอผู้ใช้ "อย่าซ้ำเยอะ" — พบจริง
+    // ว่าบันทึกเก่าบางอันมีหลายแถววันเดียวกัน แถวละ 1 คน แทนที่จะติ๊กรวมกันในแถวเดียว) ดู
+    // _prodrecordMergeDuplicateDateDays
+    const merged = _prodrecordMergeDuplicateDateDays(days, step.label);
+    days = merged.days;
+    allMergedNotes.push(...merged.notes);
     const built = _prodrecordStationBlockHTML(step.key, step.label, days);
     built.entries.forEach(({ seq, d }) => pendingWorkerSetups.push({ key: step.key, seq, d }));
     return built.html;
   }).join('');
   pendingWorkerSetups.forEach(({ key, seq, d }) => _prodrecordSetupStationDayWorkers(key, seq, d));
+  // แจ้งเตือนถ้ามีแถวถูกรวมจริง — โดยเฉพาะเคสข้อมูล "เพิ่มเอง" ชนกัน (เก็บได้แค่ชุดเดียว) ให้ผู้ใช้รู้ตัวก่อน
+  // กด "บันทึกผลผลิต" ทับ (การรวมแค่แสดงผลในฟอร์ม ยังไม่เขียนลง DB จนกว่าจะกดบันทึกจริง)
+  if (allMergedNotes.length) {
+    Swal.fire({ icon: 'info', title: 'รวมแถววันที่ซ้ำกันให้แล้ว', html: allMergedNotes.map(n => `• ${n}`).join('<br>'), confirmButtonText: 'รับทราบ' });
+  }
 
   _prodrecordEntryModal.show();
+}
+
+// รวมแถวในวันเดียวกัน (ของขั้นตอนเดียวกัน) ให้เหลือแถวเดียว — union รายชื่อ+เวลาต่อคนจากทุกแถว (WorkerTimes ไม่
+// ชนกันได้เพราะคีย์เป็น EmployeeCode ไม่ซ้ำ) ส่วน "เพิ่มเอง" (ftExtra/ptExtra/osExtra + เวลากลุ่ม) เก็บได้แค่ชุด
+// เดียวต่อแถว — ถ้าหลายแถวมี "เพิ่มเอง" ไม่เป็น 0 พร้อมกัน เก็บชุดแรกที่เจอไว้ ที่เหลือทิ้งแล้วแจ้งเตือนให้ผู้ใช้
+// ตรวจสอบเอง (ไม่มีทางรวม 2 ช่วงเวลาที่ต่างกันเป็นค่าเดียวได้ถูกต้องจริง) — จำนวนคน (ftWorkers ฯลฯ) ไม่ต้องคำนวณ
+// ในนี้ เดี๋ยว _prodrecordRecalcWorkerCounts คำนวณใหม่จากรายชื่อ+เพิ่มเองที่รวมแล้วเองหลัง render
+function _prodrecordMergeDuplicateDateDays(days, stepLabel) {
+  if (!Array.isArray(days) || days.length < 2) return { days: days || [], notes: [] };
+  const byDate = {};
+  const order = [];
+  days.forEach(d => {
+    const date = d.date || '';
+    if (!byDate[date]) { byDate[date] = []; order.push(date); }
+    byDate[date].push(d);
+  });
+  const notes = [];
+  const result = order.map(date => {
+    const group = byDate[date];
+    if (group.length === 1) return group[0];
+    const merged = { date, WorkerCodes: '', WorkerTimes: {},
+      ftStart: '', ftEnd: '', ftNormalHrs: 0, ftOtHrs: 0,
+      ptStart: '', ptEnd: '', ptNormalHrs: 0, ptOtHrs: 0,
+      osStart: '', osEnd: '', osNormalHrs: 0, osOtHrs: 0,
+      ftExtra: 0, ptExtra: 0, osExtra: 0 };
+    const allCodes = new Set();
+    let extraUsed = false, extraConflict = false;
+    group.forEach(g => {
+      (g.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean).forEach(c => allCodes.add(c));
+      Object.assign(merged.WorkerTimes, g.WorkerTimes || {});
+      const hasExtra = (g.ftExtra || 0) > 0 || (g.ptExtra || 0) > 0 || (g.osExtra || 0) > 0;
+      if (!hasExtra) return;
+      if (!extraUsed) {
+        merged.ftExtra = g.ftExtra || 0; merged.ptExtra = g.ptExtra || 0; merged.osExtra = g.osExtra || 0;
+        merged.ftStart = g.ftStart || ''; merged.ftEnd = g.ftEnd || ''; merged.ftNormalHrs = g.ftNormalHrs || 0; merged.ftOtHrs = g.ftOtHrs || 0;
+        merged.ptStart = g.ptStart || ''; merged.ptEnd = g.ptEnd || ''; merged.ptNormalHrs = g.ptNormalHrs || 0; merged.ptOtHrs = g.ptOtHrs || 0;
+        merged.osStart = g.osStart || ''; merged.osEnd = g.osEnd || ''; merged.osNormalHrs = g.osNormalHrs || 0; merged.osOtHrs = g.osOtHrs || 0;
+        extraUsed = true;
+      } else {
+        extraConflict = true;
+      }
+    });
+    merged.WorkerCodes = Array.from(allCodes).join(',');
+    if (extraConflict) notes.push(`${stepLabel} — ${_fmtDate(date)}: มีข้อมูล "เพิ่มเอง (Part Time)" จากหลายแถวที่ซ้ำวันที่กัน เก็บไว้แค่ชุดแรก ที่เหลือถูกรวมทิ้ง กรุณาตรวจสอบ/กรอกใหม่`);
+    return merged;
+  });
+  return { days: result, notes };
 }
 
 // สะสมยอด "ของคืน"/"ของเสีย" สะสมต่อ (MaterialCode, Lot) ลงคอลัมน์ ReturnQty/ScrapQty ที่มีอยู่แล้วใน
