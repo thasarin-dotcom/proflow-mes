@@ -7975,12 +7975,17 @@ async function loadFloorPulseData() {
     const r = _whLineStatus(line);
     r.roster = _fpBuildRoster(line, r.item, laborRowsByLine);
 
-    // ยังไม่มีผลจริงอย่างเป็นทางการ (production_records) แต่พนักงานอาจสแกนความคืบหน้าเข้ามาแล้วผ่านหน้า
-    // "สแกนอัปเดตการผลิต" (production_progress) — ใช้ยอดนั้นแสดงแทนไปก่อน ไม่งั้นห้องจะค้าง 0%/ไม่ขึ้น
-    // สถานะทั้งที่หน้า "ภาพรวมการผลิต" (prodStatusRenderTodayCards) โชว์ความคืบหน้านี้อยู่แล้ว — เทียบกับ
-    // mo.OrderQty ไม่ใช่ planQty ของวันนี้ (เหตุผลเดียวกับคอมเมนต์ที่ prodStatusRenderTodayCards เรื่องบั๊ก
-    // %>100 เดิม เพราะ production_progress เก็บยอดสะสมทั้งงาน ไม่ใช่แค่ของวันนี้)
-    if (r.item && r.actual == null) {
+    // MO ของแผนวันนี้ปิดงานไปแล้ว (ปกติหรือ force-close) — _whLineStatus ใช้ _prodStatusMOData (active
+    // เท่านั้น) หา mo ไม่เจอเลยยังคงสถานะ running/behind ค้างไว้ทั้งที่งานจบแล้ว เหมือนบั๊กเดียวกับที่พบใน
+    // prodStatusRenderTodayCards (2026-09-15) — เช็คจาก _prodStatusMOAllData (ทุกสถานะ) แทน ต้องเช็คก่อน
+    // ส่วนสแกนสดด้านล่างเสมอ เพราะงานที่ปิดแล้วไม่ต้องพึ่งยอดสแกนประมาณการอีกต่อไป
+    const closedMo = r.item && r.item.MO_Ref
+      ? _prodStatusMOAllData.find(m => m.MO_ID === r.item.MO_Ref) : null;
+    if (closedMo && _moDoneStatuses.includes(closedMo.Status)) {
+      r.mo = closedMo;
+      r.status = 'done';
+      r.isClosedMO = true;
+    } else if (r.item && r.actual == null) {
       const liveProg = r.item.MO_Ref ? _prodStatusProgressData[`${r.item.MO_Ref}|${line}`] : null;
       if (liveProg) {
         const liveQty = parseFloat(liveProg.Qty) || 0;
@@ -18428,6 +18433,10 @@ function _weeklyreportBuildPrintHTML(s, monthWeekData) {
 //   - ตาราง "สถานะ MO ทั้งหมด" (ยึด MO เป็นหลัก) โชว์คอลัมน์ "แผนผลิต" ว่ามีตารางเวลาแล้วหรือยัง
 // ══════════════════════════════════════════════
 let _prodStatusMOData      = [];   // manufacturing_orders ที่สถานะ "กำลังดำเนินการอยู่" (แพลนแล้ว/เบิกแล้ว/กำลังผลิต)
+let _prodStatusMOAllData   = [];   // manufacturing_orders "ทุกสถานะ" (รวมที่ปิดงานแล้ว) — ใช้เฉพาะเช็คว่า MO
+                                    // ของแถวแผนวันนี้ปิดไปแล้วหรือยังใน prodStatusRenderTodayCards (แก้บั๊ก
+                                    // 2026-09-15: MO ถูกปิด/force-close แล้วแต่ production_plan/records ไม่เคย
+                                    // ถูกอัปเดตตาม ทำให้การ์ดค้างโชว์ "รอกรอกผลจริง" ตลอดไป — ดูคอมเมนต์ที่นั่น)
 let _prodStatusPlanWeekData = [];  // production_plan rows ในช่วง 7 วัน (ย้อนหลัง 1 + วันนี้ + ล่วงหน้า 5)
 let _prodStatusPlanAllData  = [];  // production_plan rows ของ MO ที่กำลังดำเนินการ "ทุกวันที่" (เช็คว่ามีแผนหรือยัง)
 let _prodStatusRecords     = {};   // ProdRecord_ID → production_records row (เทียบแผน vs ผลจริงของวันนี้)
@@ -18467,7 +18476,8 @@ async function loadProdStatusData() {
 
   const moRes = await _sb.from('manufacturing_orders').select('*').order('DeliveryDate', { ascending: true });
   if (moRes.error) { _hideLoader(); _err('โหลดข้อมูล MO ไม่ได้', moRes.error.message); return; }
-  _prodStatusMOData = (moRes.data || []).filter(r => _prodStatusActiveMOStatuses.includes(r.Status));
+  _prodStatusMOAllData = moRes.data || [];
+  _prodStatusMOData = _prodStatusMOAllData.filter(r => _prodStatusActiveMOStatuses.includes(r.Status));
   const moIds = _prodStatusMOData.map(r => r.MO_ID).filter(Boolean);
 
   const [planWeekRes, planAllRes] = await Promise.all([
@@ -18593,8 +18603,10 @@ function prodStatusRenderTodayCards() {
   const container = document.getElementById('prodstatus-today-cards');
   if (!todayItems.length) { container.innerHTML = '<div class="glass-card text-center py-4 text-muted">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
 
+  // ใช้ _prodStatusMOAllData (ทุกสถานะ รวมปิดงานแล้ว) ไม่ใช่ _prodStatusMOData (active เท่านั้น) — กัน MO ที่
+  // ปิด/force-close ไปแล้วหายไปจาก moByID จนการ์ดเข้าใจผิดว่ายังไม่มีข้อมูล MO เลย (ดูคอมเมนต์ด้านล่าง)
   const moByID = {};
-  _prodStatusMOData.forEach(mo => { moByID[mo.MO_ID] = mo; });
+  _prodStatusMOAllData.forEach(mo => { moByID[mo.MO_ID] = mo; });
 
   const statusColor = { 'วางแผน': 'secondary', 'ยืนยันแล้ว': 'success' };
   container.innerHTML = todayItems.map(r => {
@@ -18625,7 +18637,14 @@ function prodStatusRenderTodayCards() {
     };
 
     let progressHtml;
-    if (r.Status !== 'ยืนยันแล้ว') {
+    if (mo && _moDoneStatuses.includes(mo.Status)) {
+      // MO ปิดงานแล้ว (ปกติหรือ force-close) — moForceClose/fgUpdateMOProgress อัปเดตแค่ Status ของ MO เอง
+      // ไม่เคยแตะ production_plan/production_records เลย ถ้าไม่เช็คจุดนี้ก่อน การ์ดจะตกไปโชว์
+      // "รอกรอกผลจริง" ค้างตลอดไปทั้งที่งานจบแล้ว (พบจากรายงานผู้ใช้ 2026-09-15)
+      progressHtml = (rec && rec.FG_Actual != null)
+        ? `<div class="d-flex justify-content-between small text-success"><span><i class="fas fa-check-circle me-1"></i>ปิดงานแล้ว</span><span>ผลจริง ${parseFloat(rec.FG_Actual).toLocaleString()} ${rec.UOM||r.UOM||''}</span></div>`
+        : `<div class="small text-success"><i class="fas fa-check-circle me-1"></i>ปิดงานแล้ว (ไม่มีบันทึกผลจริงในระบบ)</div>`;
+    } else if (r.Status !== 'ยืนยันแล้ว') {
       progressHtml = liveQty != null
         ? _liveScanBarHTML(liveQty, scanTarget, r.UOM)
         : `<div class="text-muted small"><i class="fas fa-clock me-1"></i>ยังไม่ยืนยัน — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
