@@ -781,6 +781,9 @@ body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
 .plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plan-chip.st-planned{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .plan-chip.st-confirmed{background:#dcfce7;color:#15803d;border:1px solid #86efac}
+/* เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) ปลดล็อกห้อง/เวลา/คนแล้ว —
+   ใช้สีฟ้าอมเขียว (teal) จงใจแยกจาก st-confirmed (เขียว, ยังทำอยู่) และ st-planned (เทา, ยังไม่ยืนยัน) */
+.plan-chip.st-finished{background:#ccfbf1;color:#0f766e;border:1px solid #5eead4;opacity:.85}
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
@@ -1618,12 +1621,15 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 /* aspect-ratio ตรงกับ viewBox "0 0 800 580" ของ SVG — ทำให้ขนาดกรอบไม่ขึ้นกับความสูงของ .fp-drawer
    ข้างๆ (เดิม align-items:stretch ของ .fp-main ทำให้กรอบนี้ถูกยืดสูงตามแผงรายละเอียด แต่ตัว SVG ข้างในไม่
    ได้โตตาม เลยเหลือพื้นที่ว่างเยอะด้านล่าง — ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าอยากให้แต่ละห้องขยายเต็มพื้นที่) */
+/* จำกัดความสูงตาม viewport แทนการปล่อยให้สูงตามสัดส่วน 800:580 ของความกว้างล้วนๆ (เดิมทำให้กรอบสูงเกิน
+   จอตอนหน้าจอกว้าง ต้องซูมออกถึงจะเห็นครบ — คำขอผู้ใช้ 2026-09-15) SVG ใช้ preserveAspectRatio ค่าเริ่มต้น
+   (xMidYMid meet) จะย่อพอดีกรอบเสมอโดยไม่บิดสัดส่วน อาจมีขอบว่างซ้าย-ขวานิดหน่อยบนจอกว้างมากๆ แทน */
 #page-floorpulse .fp-floor-wrap {
   position: relative; background: var(--fp-surface); border: 1px solid var(--fp-wall-soft);
-  border-radius: 14px; padding: 16px; aspect-ratio: 800 / 580;
+  border-radius: 14px; padding: 16px; height: clamp(320px, calc(100vh - 320px), 640px);
 }
 #page-floorpulse .fp-floor-tilt { position: relative; width: 100%; height: 100%; }
-#page-floorpulse svg.fp-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#page-floorpulse svg.fp-svg { width: 100%; height: 100%; display: block; }
 #page-floorpulse .fp-zone rect.fp-room {
   stroke-width: 1.4; cursor: pointer; transition: filter .15s ease;
 }
@@ -1647,7 +1653,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 }
 #page-floorpulse .fp-drawer {
   background: var(--fp-surface); border: 1px solid var(--fp-wall-soft); border-radius: 14px;
-  padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 620px;
+  padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+  max-height: clamp(320px, calc(100vh - 320px), 640px);
 }
 #page-floorpulse .fp-drawer h2 { font-family: 'Chakra Petch', sans-serif; font-size: 15px; margin: 0 0 2px; color: var(--fp-text); }
 #page-floorpulse .fp-eyebrow {
@@ -8116,8 +8123,9 @@ function _fpBuildSvg() {
 
     const hasDot = isMonitored && status !== 'idle';
     const labelFs = 11.5;
+    const labelLines = _fpWrapLabel(FP_ROOM_LABEL[roomId], g.w - 24 - (hasDot ? 16 : 0), labelFs, 2);
     const label = mk('text', { class: 'fp-room-label', x: g.x + 12, y: g.y + 22, 'font-size': labelFs });
-    _fpWrapLabel(FP_ROOM_LABEL[roomId], g.w - 24 - (hasDot ? 16 : 0), labelFs, 2).forEach((line, i) => {
+    labelLines.forEach((line, i) => {
       const tspan = mk('tspan', { x: g.x + 12, dy: i === 0 ? 0 : labelFs + 2 });
       tspan.textContent = line;
       label.appendChild(tspan);
@@ -8140,10 +8148,13 @@ function _fpBuildSvg() {
       grp.appendChild(mk('rect', { class: 'fp-metric-track', x: barX, y: barY, width: barW, height: 6, rx: 3 }));
       grp.appendChild(mk('rect', { x: barX, y: barY, width: Math.max(0, barW * pct / 100), height: 6, rx: 3, fill: color }));
     } else {
-      const sub = mk('text', { class: 'fp-room-sub', x: g.x + 12, y: g.y + 40, 'font-size': 9.5 });
-      sub.textContent = isMonitored ? 'ว่าง/ไม่มีแผนวันนี้'
+      // วางต่อจากบรรทัดสุดท้ายของชื่อห้องจริง (ไม่ใช่ y คงที่) กันทับกันตอนชื่อห้องขึ้น 2 บรรทัด
+      const subY = g.y + 22 + labelLines.length * (labelFs + 2) + 4;
+      const subText = isMonitored ? 'ว่าง/ไม่มีแผนวันนี้'
         : roomId === 'samples' ? `${_fpHoldStock.length.toLocaleString()} รายการ (Defect/Retain)`
         : 'ไม่ติดตามเรียลไทม์';
+      const sub = mk('text', { class: 'fp-room-sub', x: g.x + 12, y: subY, 'font-size': 9.5 });
+      sub.textContent = _fpFitLabel(subText, g.w - 24, 9.5);
       grp.appendChild(sub);
     }
     svg.appendChild(grp);
@@ -14216,6 +14227,12 @@ let _planCurrentMonth  = null; // Date ของวันที่ 1 ของ�
 // production_plan._row_id ที่เช็ค+จองวัตถุดิบไว้แล้ว (ผ่าน mo_material_reservations ที่ MO_Ref='PLAN-<row_id>')
 // แต่ยังไม่มี MO จริง — ใช้สลับปุ่ม "เช็ควัตถุดิบ" ↔ "สั่งผลิต" ใน _planRowActions (ดู planCheckMaterial/planOrderProduction)
 let _planReservedRowIds = new Set();
+// ยอดสแกนเรียลไทม์จากหน้า "สแกนอัปเดตการผลิต" (production_progress) + ยอดสั่งผลิตของ MO ที่แผนเดือนนี้อ้างอิง
+// (ทุกสถานะ ไม่กรอง Finished ออกเหมือน _planMOList เพราะแผนที่ยืนยันแล้วมักผูกกับ MO ที่เสร็จไปแล้ว) — ใช้เช็ค
+// ว่าไลน์ไหน "เสร็จงานจริง" หรือยัง (ดู _planLineFinished/planLoadData) เพื่อ (1) เปลี่ยนสีการ์ดปฏิทิน
+// (2) ปลดล็อกห้อง/เวลา/คนให้แผนใหม่จองซ้อนทับได้ทันที (_planFindConflict/_planFindWorkerConflicts)
+let _planProgressData  = {}; // "MO_Ref|Line" → แถวล่าสุดจาก production_progress {Qty,CreatedAt}
+let _planMOOrderQtyMap = {}; // MO_ID → OrderQty (ทุกสถานะ)
 
 const PLAN_LINES = [
   'ห้องผสมใหญ่',
@@ -14887,6 +14904,25 @@ async function planLoadData() {
   _planData   = planRes.data || [];
   _planMOList = moRes.data   || [];
 
+  // ยอดสแกนเรียลไทม์ (production_progress) + OrderQty ของ MO ทุกสถานะที่แผนเดือนนี้อ้างอิง (แยกดึงเอง
+  // เพราะ _planMOList ข้างบนกรอง MO ที่เสร็จสิ้นออกไปแล้ว แต่แผนที่ยืนยันแล้วมักผูกกับ MO ที่เสร็จไปแล้วพอดี
+  // — ดู _planLineFinished) เทียบกับ mo.OrderQty ไม่ใช่ PlanQty ของวันเดียว (เหตุผลเดียวกับ nav-prodstatus:
+  // ยอดสแกนสะสมทั้งงาน ไม่ใช่แค่ของวันนั้นวันเดียว — เทียบกับ PlanQty จะเกิน 100% ก่อนงานเสร็จจริงได้)
+  const planMoRefs = [...new Set(_planData.map(r => r.MO_Ref).filter(Boolean))];
+  _planProgressData  = {};
+  _planMOOrderQtyMap = {};
+  if (planMoRefs.length) {
+    const [moQtyRes, progRes] = await Promise.all([
+      _sb.from('manufacturing_orders').select('MO_ID,OrderQty').in('MO_ID', planMoRefs),
+      _sb.from('production_progress').select('MO_Ref,Line,Qty,CreatedAt').in('MO_Ref', planMoRefs).order('CreatedAt', { ascending: false }),
+    ]);
+    (moQtyRes.data || []).forEach(m => { _planMOOrderQtyMap[m.MO_ID] = m.OrderQty; });
+    (progRes.data || []).forEach(p => {
+      const key = `${p.MO_Ref}|${p.Line}`;
+      if (!_planProgressData[key]) _planProgressData[key] = p; // เก็บแถวแรก (ใหม่สุด หลัง order by CreatedAt desc)
+    });
+  }
+
   // แถวแผนที่มีการจองวัตถุดิบไว้แล้วภายใต้ MO_Ref ชั่วคราว 'PLAN-<row_id>' (ยังไม่มี MO จริง) — ดู planCheckMaterial
   _planReservedRowIds = new Set(
     Object.keys(_moReservedByMO)
@@ -15003,9 +15039,13 @@ function planRenderCalendar() {
     const isSunday = new Date(y, m, d).getDay() === 0;
     const chips = items.slice(0, 3).map(r => {
       const lot = _planMOLot(r.MO_Ref);
-      return `<div class="plan-chip ${r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned'}" style="border-left:3px solid ${_planLineColor(r.Line)}"
-        title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}">
-        ${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
+      // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — เปลี่ยนสี+ขึ้นเครื่องหมาย
+      // ถูกให้เห็นชัดว่าห้อง/เวลา/คนของงานนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว ไม่ต้องรอครบเวลาที่จองไว้เดิม
+      const finished = _planLineFinished(r);
+      const stCls = finished ? 'st-finished' : (r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned');
+      return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}"
+        title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''}">
+        ${finished ? '<i class="fas fa-check-circle me-1"></i>' : ''}${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
       </div>`;
     }).join('');
     const more = items.length > 3 ? `<div class="plan-chip-more">+${items.length - 3} เพิ่มเติม</div>` : '';
@@ -15061,8 +15101,15 @@ function _planRowActions(r, isSibling = false) {
   if (r.Status === 'วางแผน' && (r.MO_Ref || !r.CO_Ref)) {
     actions += `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="planOpenConfirmModal(${r._row_id})" title="ยืนยัน → ออกใบบันทึกผลิต"><i class="fas fa-clipboard-check"></i></button>`;
   }
-  if (r.Status === 'วางแผน') {
-    actions += `<button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="planOpenAddModal(null,${r._row_id})" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
+  // แก้ไขได้ทั้งตอน "วางแผน" (เดิม) และ "ยืนยันแล้ว" (เพิ่ม — ผู้ใช้ขอเลื่อนวัน/เวลาของแผนที่ออกใบบันทึกผลิต
+  // ไปแล้ว) planSubmit เองไม่เคยเช็ค Status ตอนอัปเดตอยู่แล้ว (เช็ค conflict/ผู้ปฏิบัติงานเหมือนกันทุก
+  // สถานะ) จึงเปิดปุ่มนี้เพิ่มได้โดยไม่ต้องแก้ตรรกะบันทึก — แค่ต้อง sync Date_Start/Date_End กลับไปที่ใบ
+  // บันทึกผลิตด้วยถ้าย้ายวันที่ ไม่งั้นเอกสารที่พิมพ์ไปแล้วจะเพี้ยนจากปฏิทิน (ดู _planSyncProdRecordDateAfterEdit)
+  if (r.Status === 'วางแผน' || r.Status === 'ยืนยันแล้ว') {
+    const title = r.Status === 'ยืนยันแล้ว'
+      ? 'แก้ไข (ยืนยันแล้ว — ย้ายวัน/เวลา/ไลน์ได้ ระบบจะปรับวันที่ในใบบันทึกผลิตให้ถ้ายังไม่อนุมัติต้นทุน)'
+      : 'แก้ไข';
+    actions += `<button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="planOpenAddModal(null,${r._row_id})" title="${title}"><i class="fas fa-edit"></i></button>`;
   }
   // ยืนยันแผนแล้ว (ออกใบบันทึกผลิตแล้ว) และมี MO ผูกอยู่ — เพิ่มปุ่มลัดไปเบิกผลิตได้เลย ไม่ต้องย้อนไปกดที่หน้า MO
   // แต่ถ้า MO นี้เบิกวัตถุดิบไปแล้ว (สถานะเลยพ้น _moWaitStatuses ไปเป็น 'กำลังผลิต' ตอน issueSubmit) ไม่ต้องโชว์ปุ่มซ้ำ
@@ -15247,33 +15294,56 @@ function planToggleDaySiblings(rowId) {
 
 // แก้ไข "วันที่" ของแถวพี่น้องที่ถูกซ่อน — เริ่มจากเจาะจงเฉพาะไลน์ยิง Lot (added 2026-09-08 ตามคำขอผู้ใช้
 // "ยิงLot ให้แก้วันที่ได้") แล้วขยายเป็นทุกไลน์พี่น้อง (2026-09-14 ตามคำขอ "ทุกไลน์ให้แก้ได้ทั้ง คน และวัน")
-// — ปุ่มนี้เข้าถึงได้เฉพาะ Admin เท่านั้น (ดูเงื่อนไข `_hasRole('admin')` ที่ sIsDateEditable ใน
-// _planRenderDayTable) ส่วนหัวหน้างานแก้ได้แค่ผู้ปฏิบัติงานผ่าน planEditSiblingWorkers เท่านั้น — เช็ค
-// conflict ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/_planFindWorkerConflicts) ก่อนบันทึกเสมอ ไม่ข้าม
+// แล้วเพิ่มให้เลือก "กะ" ได้ด้วยในวันเดียวกัน (2026-09-14 ตามคำขอ "เลือกวัน และเลือกกะได้ด้วย เหมือนตอนแรก") —
+// ใช้ checkbox กะแบบเดียวกับตอนสร้างแผน (เช้า/บ่าย/โอที, เลือกได้มากกว่า 1 = ต่อเนื่องกัน, PLAN_SHIFTS/
+// _planComputeShift ตัวเดียวกันเป๊ะ ไม่คำนวณ time ซ้ำเอง) — ปุ่มนี้เข้าถึงได้เฉพาะ Admin เท่านั้น (ดูเงื่อนไข
+// `_hasRole('admin')` ที่ sIsDateEditable ใน _planRenderDayTable) ส่วนหัวหน้างานแก้ได้แค่ผู้ปฏิบัติงานผ่าน
+// planEditSiblingWorkers เท่านั้น — เช็ค conflict ไลน์/คนซ้ำแบบเดียวกับตอนสร้างแผน (_planFindConflict/
+// _planFindWorkerConflicts) ด้วยเวลาของกะที่เลือก "ใหม่" เสมอ (ไม่ใช่เวลาเดิม) ก่อนบันทึกทุกครั้ง ไม่ข้าม
 async function planEditLotDate(rowId) {
-  if (!_hasRole('admin')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขวันที่ของไลน์ผลิตได้เฉพาะ Admin เท่านั้น', 'info'); return; }
+  if (!_hasRole('admin')) { Swal.fire('ไม่มีสิทธิ์', 'แก้ไขวันที่/กะของไลน์ผลิตได้เฉพาะ Admin เท่านั้น', 'info'); return; }
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
-  const { value: newDate } = await Swal.fire({
-    title: `แก้ไขวันที่ — ${r.Line || ''}`,
-    html: `<div class="text-start small mb-2">${r.ProductName||''} (${r.ProductCode||''})<br>ไลน์ "${r.Line||''}" · ${r.Shift||'—'} (${_planShiftTimeLabel(r)})</div>`,
-    input: 'date',
-    inputValue: r.PlanDate || '',
+  const currentKeys = _planShiftKeysFromLabel(r.Shift || '');
+  const shiftChk = (key, label) => `<div class="form-check text-start">
+      <input class="form-check-input" type="checkbox" value="${key}" id="planeditdate-shift-${key}" ${currentKeys.includes(key) ? 'checked' : ''}>
+      <label class="form-check-label" for="planeditdate-shift-${key}">${label}</label>
+    </div>`;
+
+  const { value } = await Swal.fire({
+    title: `แก้ไขวันที่/กะ — ${r.Line || ''}`,
+    html: `<div class="text-start small mb-2">${r.ProductName||''} (${r.ProductCode||''})<br>ไลน์ "${r.Line||''}"</div>
+      <input type="date" id="planeditdate-date" class="swal2-input text-center" value="${r.PlanDate || ''}" style="width:70%">
+      <div class="mt-2">
+        ${shiftChk('เช้า', 'เช้า (08:30–12:00)')}
+        ${shiftChk('บ่าย', 'บ่าย (13:00–17:30)')}
+        ${shiftChk('โอที', 'โอที (18:00–20:30)')}
+      </div>`,
     showCancelButton: true,
     confirmButtonText: 'บันทึก',
     cancelButtonText: 'ยกเลิก',
-    inputValidator: (v) => !v ? 'กรุณาระบุวันที่' : undefined,
+    focusConfirm: false,
+    preConfirm: () => {
+      const date = document.getElementById('planeditdate-date').value;
+      const keys = ['เช้า', 'บ่าย', 'โอที'].filter(k => document.getElementById(`planeditdate-shift-${k}`).checked);
+      if (!date) { Swal.showValidationMessage('กรุณาระบุวันที่'); return false; }
+      if (!keys.length) { Swal.showValidationMessage('กรุณาเลือกกะอย่างน้อย 1 ช่วง'); return false; }
+      return { date, keys };
+    },
   });
-  if (!newDate || newDate === r.PlanDate) return;
+  if (!value) return;
+  const { date: newDate, keys } = value;
+  const shift = _planComputeShift(keys);
+  if (newDate === r.PlanDate && shift.shiftLabel === (r.Shift || '')) return;
 
-  const conflict = _planFindConflict(newDate, r.Line, (r.TimeStart||'').slice(0,5), (r.TimeEnd||'').slice(0,5), r._row_id);
+  const conflict = _planFindConflict(newDate, r.Line, shift.timeStart, shift.timeEnd, r._row_id);
   if (conflict) {
     _err('ไลน์นี้ถูกจองเวลาซ้อนกันแล้ว',
-      `"${conflict.ProductName}" จองไลน์ "${r.Line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้วที่วันที่นี้ กรุณาเลือกวันอื่น`);
+      `"${conflict.ProductName}" จองไลน์ "${r.Line}" ช่วง ${conflict.Shift||''} (${_planShiftTimeLabel(conflict)}) ไว้แล้วที่วันที่นี้ กรุณาเลือกวัน/กะอื่น`);
     return;
   }
   const workerCodes = (r.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
-  const workerConflicts = _planFindWorkerConflicts(newDate, (r.TimeStart||'').slice(0,5), (r.TimeEnd||'').slice(0,5), workerCodes, r._row_id);
+  const workerConflicts = _planFindWorkerConflicts(newDate, shift.timeStart, shift.timeEnd, workerCodes, r._row_id);
   if (workerConflicts.length) {
     const lines = workerConflicts.map(c => {
       const emp = _planEmployees.find(x => x.EmployeeCode === c.code);
@@ -15285,11 +15355,14 @@ async function planEditLotDate(rowId) {
   }
 
   _showLoader();
-  const { error } = await _sb.from('production_plan').update({ PlanDate: newDate }).eq('_row_id', r._row_id);
+  const { error } = await _sb.from('production_plan').update({
+    PlanDate: newDate, Shift: shift.shiftLabel, TimeStart: shift.timeStart, TimeEnd: shift.timeEnd,
+  }).eq('_row_id', r._row_id);
   _hideLoader();
-  if (error) { _err('แก้ไขวันที่ไม่สำเร็จ', error.message); return; }
-  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode, `แก้ไขวันที่ไลน์ ${r.Line||''} จาก ${_planFmtDateLabel(r.PlanDate)} เป็น ${_planFmtDateLabel(newDate)}`);
-  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขวันที่สำเร็จ', showConfirmButton:false, timer:1500 });
+  if (error) { _err('แก้ไขไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'production_plan', r.MO_Ref || r.ProductCode,
+    `แก้ไขวันที่/กะไลน์ ${r.Line||''} จาก ${_planFmtDateLabel(r.PlanDate)} ${r.Shift||''} เป็น ${_planFmtDateLabel(newDate)} ${shift.shiftLabel}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขสำเร็จ', showConfirmButton:false, timer:1500 });
   await planLoadData();
   const openDate = document.getElementById('plan-day-date-value')?.value;
   if (openDate) _planRenderDayTable(openDate);
@@ -15396,9 +15469,14 @@ function _planRenderDayTable(dateStr) {
   tbody.innerHTML = groups.map(g => {
     const header = `<tr><td colspan="7" class="py-1" style="background:#f8fafc;font-weight:700;font-size:.8rem;border-left:4px solid ${_planLineColor(g.line)}">${g.line}</td></tr>`;
     const body = g.items.map(r => {
-      const badge = r.Status === 'ยืนยันแล้ว'
-        ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
-        : '<span class="badge bg-secondary">วางแผน</span>';
+      // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — badge แยกจาก "ยืนยันแล้ว"
+      // เฉยๆ ให้เห็นชัดว่าห้อง/เวลา/คนของแถวนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว
+      const finished = _planLineFinished(r);
+      const badge = finished
+        ? '<span class="badge" style="background:#0f766e" title="ยอดสแกนเรียลไทม์ถึงยอดสั่งผลิตแล้ว — ปลดล็อกห้อง/เวลา/คนให้งานอื่นจองซ้อนได้แล้ว"><i class="fas fa-check-circle me-1"></i>เสร็จแล้ว</span>'
+        : r.Status === 'ยืนยันแล้ว'
+          ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
+          : '<span class="badge bg-secondary">วางแผน</span>';
       const lot = _planMOLot(r.MO_Ref);
       const siblings = siblingsFor(r);
       const expandToggle = siblings.length
@@ -15420,9 +15498,13 @@ function _planRenderDayTable(dateStr) {
         <td colspan="6" class="p-0 ps-3">
           <table class="table table-sm mb-0" style="font-size:.8rem">
             <tbody>${siblings.map(s => {
-              const sBadge = s.Status === 'ยืนยันแล้ว'
-                ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
-                : '<span class="badge bg-secondary">วางแผน</span>';
+              // เสร็จงานจริงแล้ว (ดู _planLineFinished) — แถวพี่น้อง (แพ็ค/ยิง Lot) ก็เป็นแถว production_plan
+              // ของตัวเอง เช็คแยกอิสระจากแถวหลักได้ (บรรจุอาจเสร็จก่อนแพ็คก็ได้)
+              const sBadge = _planLineFinished(s)
+                ? '<span class="badge" style="background:#0f766e" title="ยอดสแกนเรียลไทม์ถึงยอดสั่งผลิตแล้ว"><i class="fas fa-check-circle me-1"></i>เสร็จแล้ว</span>'
+                : s.Status === 'ยืนยันแล้ว'
+                  ? '<span class="badge bg-success">ยืนยันแล้ว</span>'
+                  : '<span class="badge bg-secondary">วางแผน</span>';
               // เดิม (2026-09-08) แก้วันที่ได้เฉพาะไลน์ "ยิง Lot" เท่านั้น — ขยายเป็นทุกไลน์พี่น้อง
               // (2026-09-14 ตามคำขอผู้ใช้ "ทุกไลน์ให้แก้ได้ทั้ง คน และวัน") เพราะ planEditLotDate ไม่มี
               // ตรรกะเจาะจง Lot อยู่ในตัวฟังก์ชันเลย (อัปเดต PlanDate + เช็ค conflict เดียวกันทุกไลน์) —
@@ -15698,7 +15780,23 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
   _planModal.show();
 }
 
-// คืนแผนที่ชนเวลากันในไลน์เดียวกัน วันเดียวกัน (excludeRowId ใช้ตอนแก้ไขเพื่อไม่ชนกับตัวเอง)
+// แถวแผนนี้ "เสร็จงานจริงแล้ว" หรือยัง — เทียบยอดสแกนสะสมจากหน้า "สแกนอัปเดตการผลิต" (production_progress)
+// ต่อ (MO_Ref, Line) กับยอดสั่งผลิตของ MO (mo.OrderQty) ตามที่ผู้ใช้ยืนยัน (ใช้ยอดเรียลไทม์ แยกตามไลน์
+// ชัดเจน ไม่ใช่ปุ่มมาร์คมือ/สถานะ MO) — แถวที่ยังไม่มี MO_Ref (แผนแบบกำหนดเอง) ไม่มีทางรู้ยอดสแกนจริง เลย
+// ถือว่ายังไม่เสร็จเสมอ ปลอดภัยไว้ก่อน (ห้อง/เวลา/คนยังถือว่าถูกจองอยู่) ดู planLoadData สำหรับที่มาของ
+// _planProgressData/_planMOOrderQtyMap
+function _planLineFinished(r) {
+  if (!r || !r.MO_Ref) return false;
+  const orderQty = parseFloat(_planMOOrderQtyMap[r.MO_Ref]) || 0;
+  if (orderQty <= 0) return false;
+  const prog = _planProgressData[`${r.MO_Ref}|${r.Line}`];
+  const scannedQty = prog ? (parseFloat(prog.Qty) || 0) : 0;
+  return scannedQty >= orderQty;
+}
+
+// คืนแผนที่ชนเวลากันในไลน์เดียวกัน วันเดียวกัน (excludeRowId ใช้ตอนแก้ไขเพื่อไม่ชนกับตัวเอง) — ข้ามแถวที่
+// "เสร็จงานจริงแล้ว" ไปเลย (ดู _planLineFinished) ตามที่ผู้ใช้ขอ: งานที่เสร็จก่อนกำหนดในแผน ปลดล็อกห้อง/
+// เวลาให้งานใหม่จองซ้อนทับได้ทันที ไม่ต้องรอให้ครบเวลาที่จองไว้เดิม
 function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
   if (!date || !line || !timeStart || !timeEnd) return null;
   return _planData.find(r =>
@@ -15706,7 +15804,8 @@ function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
     r.PlanDate === date &&
     r.Line === line &&
     (r.TimeStart||'').slice(0,5) < timeEnd &&
-    timeStart < (r.TimeEnd||'').slice(0,5)
+    timeStart < (r.TimeEnd||'').slice(0,5) &&
+    !_planLineFinished(r)
   ) || null;
 }
 
@@ -15724,6 +15823,7 @@ function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, exclude
   _planData.forEach(r => {
     if (r._row_id === excludeRowId) return;
     if (r.PlanDate !== date) return;
+    if (_planLineFinished(r)) return; // เสร็จงานจริงแล้ว — คนของแถวนี้ว่างแล้ว ไม่นับชนอีกต่อไป
     const rStart = (r.TimeStart || '').slice(0, 5);
     const rEnd   = (r.TimeEnd || '').slice(0, 5);
     if (!(rStart < timeEnd && timeStart < rEnd)) return;
@@ -15871,6 +15971,41 @@ async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
     _err('อัปเดตไลน์อื่นของงานเดียวกันไม่สำเร็จ',
       errors.map(e => `ไลน์ ${e.lines.join(', ')}: ${e.message}`).join('<br>') + ' — กรุณาแก้ไขไลน์เหล่านั้นเองด้วยตนเอง');
   }
+}
+
+// ── แผนที่ "ยืนยันแล้ว" (มีใบบันทึกผลิต/production_records ผูกอยู่แล้วผ่าน ProdRecord_Ref) ถูกแก้ไขวันที่
+// ที่หน้าแผนผลิตเอง (เพิ่มปุ่ม "แก้ไข" ให้แถวที่ยืนยันแล้วด้วย — ดู _planRowActions) — sync Date_Start/
+// Date_End ของใบบันทึกผลิตกลับให้ตรงปฏิทินเสมอ ไม่งั้นเอกสารที่ออกไปแล้วจะเพี้ยนจากวันที่จริง โครงเดียวกับ
+// _moSyncProdRecordAfterEdit (แก้ LOT/OrderQty ที่หน้า MO แล้ว sync ไปบันทึกผลิต + ตั้งธง NeedsReprint) แค่
+// คนละจุดกำเนิดการแก้ (ที่นี่คือแก้ที่หน้าแผนผลิตเอง) — ถ้าบันทึกผลิตอนุมัติต้นทุนไปแล้วจะไม่แตะ (ต้อง
+// "เปิดกลับ" ที่หน้าบันทึกผลิตก่อน) ตามหลัก "ไม่แก้ข้อมูลที่อนุมัติแล้วเงียบๆ" เดิมของแอปนี้
+async function _planSyncProdRecordDateAfterEdit(oldRow, payload) {
+  if (oldRow.Status !== 'ยืนยันแล้ว' || !oldRow.ProdRecord_Ref) return;
+  if ((oldRow.PlanDate || null) === (payload.PlanDate || null)) return; // วันที่ไม่เปลี่ยน ไม่ต้อง sync
+
+  const { data: rec, error: fetchErr } = await _sb.from('production_records')
+    .select('_row_id,ProdRecord_ID,Status').eq('ProdRecord_ID', oldRow.ProdRecord_Ref).maybeSingle();
+  if (fetchErr || !rec) return;
+  if (rec.Status === 'อนุมัติแล้ว') {
+    Swal.fire({ icon: 'info', title: 'บันทึกผลิตนี้อนุมัติต้นทุนไปแล้ว',
+      html: `ใบบันทึกผลิต <b>${rec.ProdRecord_ID}</b> อนุมัติต้นทุนแล้ว จึงไม่ปรับวันที่ในใบให้อัตโนมัติ — ถ้าต้องแก้จริง ให้ "เปิดกลับ" ที่หน้าบันทึกผลิตก่อน` });
+    return;
+  }
+
+  // คำนวณ Date_Start/Date_End ใหม่จากทุกไลน์พี่น้องที่ผูก ProdRecord_Ref เดียวกัน (แถวที่เพิ่งแก้อัปเดต
+  // PlanDate ลง DB ไปแล้วก่อนเรียกฟังก์ชันนี้ — query ตรงนี้จึงเห็นค่าใหม่แล้ว ไม่ต้องคำนวณเองซ้ำ)
+  const { data: siblingRows } = await _sb.from('production_plan')
+    .select('PlanDate').eq('ProdRecord_Ref', oldRow.ProdRecord_Ref);
+  const dates = (siblingRows || []).map(r => r.PlanDate).filter(Boolean).sort();
+  if (!dates.length) return;
+
+  const { error } = await _sb.from('production_records')
+    .update({ Date_Start: dates[0], Date_End: dates[dates.length - 1], NeedsReprint: true }).eq('_row_id', rec._row_id);
+  if (error) { _err('ปรับวันที่ในใบบันทึกผลิตไม่สำเร็จ', error.message); return; }
+
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success',
+    title: `ปรับวันที่ในใบบันทึกผลิต ${rec.ProdRecord_ID} ตามแล้ว — ต้องพิมพ์ใบใหม่ (ดูป้ายเตือนที่หน้า BPR)`,
+    showConfirmButton: false, timer: 3500 });
 }
 
 // ตัวตนของ "งาน" ที่ทนต่อไลน์ยิง Lot ที่มีวันที่ของตัวเอง (added 2026-09-08) — ใช้ BatchRef ถ้ามี (แผนใหม่
@@ -16032,7 +16167,10 @@ async function planSubmit(e) {
     ({ error } = await _sb.from('production_plan').update(payload).eq('_row_id', parseInt(editId)));
     if (!error) {
       _logAudit('EDIT', 'production_plan', payload.MO_Ref || payload.ProductCode, _diffFields(oldRow, payload));
-      if (oldRow) await _planCascadeSharedFieldsToSiblings(oldRow, payload);
+      if (oldRow) {
+        await _planCascadeSharedFieldsToSiblings(oldRow, payload);
+        await _planSyncProdRecordDateAfterEdit(oldRow, payload);
+      }
     }
   } else {
     // BatchRef เดียวกันทุกบล็อกของงานนี้ (ผูกไลน์บรรจุ/แพ็ค/ยิง Lot เข้าด้วยกันแบบทนวันที่ต่างกัน — ดู
