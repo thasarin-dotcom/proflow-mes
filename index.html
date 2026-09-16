@@ -25979,8 +25979,14 @@ async function admindashRenderDrilldown() {
             : {};
           const apportioned = _admindashApportionInt(combinedRounded, shares);
           const byType = ['ft', 'pt', 'os'].filter(k => apportioned[k] > 0).map(k => ({ key: k, count: apportioned[k] }));
-          const avgHoursPerLot = rows.length > 0 ? hours / rows.length : null;
-          const actualPerHour = hours > 0 ? totalQty / hours : null;
+          // แก้สูตร 2026-09-16: `hours` (จาก stepTotals) คือ man-ชม. (จำนวนคน × ชม. รวมกัน) ไม่ใช่ชม.เดินไลน์จริง
+          // ส่วน "ออกแบบ" (capPerDay/8) หมายถึงกำลังผลิตของ "ทั้งไลน์/ทั้งทีม" ต่อชม. — เอามาหารกันตรงๆ (เดิม
+          // actualPerHour=totalQty/hours) จึงเทียบกันคนละหน่วย (per-man-ชม. vs per-line-ชม.) ทำให้ "จริง" ดูต่ำ
+          // กว่าความเป็นจริงเสมอเมื่อใช้คนมากกว่า 1 คน ต้องหาร hours ด้วย avgHeadcount ก่อน แปลงกลับเป็น "ชม.เดิน
+          // ไลน์จริง" (elapsedHours) ก่อนค่อยหารด้วยผลผลิต ให้เทียบกับฝั่งออกแบบได้ตรงหน่วยกัน
+          const elapsedHours = (avgHeadcount && hours > 0) ? hours / avgHeadcount : null;
+          const avgHoursPerLot = (elapsedHours != null && rows.length > 0) ? elapsedHours / rows.length : null;
+          const actualPerHour = (elapsedHours != null && elapsedHours > 0) ? totalQty / elapsedHours : null;
           const capPerDay = stepCapacity[s.key];
           const designPerHour = capPerDay != null ? capPerDay / STANDARD_HOURS_PER_DAY : null;
           const diffPct = (actualPerHour != null && designPerHour) ? Math.round((actualPerHour - designPerHour) / designPerHour * 1000) / 10 : null;
@@ -26010,7 +26016,7 @@ async function admindashRenderDrilldown() {
             </tr>`;
           }).join('');
           stepProdEl.innerHTML = `<div class="p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0">
-            <div class="text-muted mb-1" style="font-size:.7rem;font-weight:600">เวลาทำงานต่อขั้นตอน (6 เดือน, สินค้านี้) — จำนวนคน/ชม. เป็นค่าประมาณ (proxy) จาก StationsData ไม่ใช่ headcount จริง, ไม่ใช่แยกตามห้องผลิต (ดูหมายเหตุด้านบน)</div>
+            <div class="text-muted mb-1" style="font-size:.7rem;font-weight:600">เวลาทำงานต่อขั้นตอน (6 เดือน, สินค้านี้) — จำนวนคน/ชม. เป็นค่าประมาณ (proxy) จาก StationsData ไม่ใช่ headcount จริง, ไม่ใช่แยกตามห้องผลิต (ดูหมายเหตุด้านบน) — "ชิ้น/ชม.(จริง)" ปรับให้เป็นชม.เดินไลน์จริง (หารด้วยจำนวนคนเฉลี่ยแล้ว) เพื่อเทียบกับ "ออกแบบ" ให้ตรงหน่วยกัน</div>
             <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:.75rem">
               <thead><tr class="text-muted">
                 <th>ขั้นตอน</th><th class="text-end">จำนวน Lot</th><th class="text-end">คนเฉลี่ย</th>
