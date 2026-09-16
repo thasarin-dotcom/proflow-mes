@@ -26029,11 +26029,41 @@ async function admindashRenderDrilldown() {
     if (!computedRows.length) {
       tableEl.innerHTML = '<div class="text-center text-muted py-4">ไม่มีบันทึกผลิตที่อนุมัติต้นทุนแล้วของสินค้านี้ใน 6 เดือนล่าสุด</div>';
     } else {
+      const fmtB0 = v => v == null ? '—' : '฿' + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      const _avgOf = arr => { const vals = arr.filter(v => v != null); return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null; };
+      const sumQty = computedRows.reduce((s, c) => s + (c.qty || 0), 0);
+      const uomSet = [...new Set(computedRows.map(c => c.uom).filter(Boolean))];
+      const sumUom = uomSet.length === 1 ? uomSet[0] : '';
+      const avgLoss = _avgOf(computedRows.map(c => c.lossPct));
+      const avgScrap = _avgOf(computedRows.map(c => c.scrapPct));
+      const avgMaterial = _avgOf(computedRows.map(c => c.materialPerUnit));
+      const avgPackaging = _avgOf(computedRows.map(c => c.packagingPerUnit));
+      const avgLabor = _avgOf(computedRows.map(c => c.laborPerUnit));
+      const avgUtility = _avgOf(computedRows.map(c => c.utilityPerUnit));
+      const avgCost = _avgOf(computedRows.map(c => c.costPerUnit));
+      const avgPrice = _avgOf(computedRows.map(c => c.sellingPrice));
+      const avgProfit = _avgOf(computedRows.map(c => c.profitPerUnit));
+      const avgMargin = _avgOf(computedRows.map(c => c.marginPct));
+      const avgPClass = avgProfit == null ? '' : (avgProfit >= 0 ? 'text-success' : 'text-danger');
+      const summaryRowHTML = `<tr class="table-light fw-bold" style="border-bottom:2px solid #cbd5e1">
+        <td colspan="2">รวม / เฉลี่ย (${computedRows.length} Lot)</td>
+        <td class="text-end">${sumQty.toLocaleString()} ${sumUom}</td>
+        <td class="text-end">${avgLoss != null ? avgLoss.toFixed(2) + '%' : '—'}</td>
+        <td class="text-end">${avgScrap != null ? avgScrap.toFixed(2) + '%' : '—'}</td>
+        <td class="text-end">${fmtB0(avgMaterial)}</td>
+        <td class="text-end">${fmtB0(avgPackaging)}</td>
+        <td class="text-end">${fmtB0(avgLabor)}</td>
+        <td class="text-end">${fmtB0(avgUtility)}</td>
+        <td class="text-end">${fmtB0(avgCost)}</td>
+        <td class="text-end">${fmtB0(avgPrice)}</td>
+        <td class="text-end ${avgPClass}">${avgProfit != null ? (avgProfit >= 0 ? '+' : '') + fmtB0(avgProfit) : '—'}</td>
+        <td class="text-end ${avgPClass}">${avgMargin != null ? avgMargin.toFixed(2) + '%' : '—'}</td>
+      </tr>`;
       tableEl.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
         <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th><th class="text-end">Scrap%</th>
           <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ/หน่วย</th>
           <th class="text-end">ต้นทุนรวม/หน่วย (รวม Scrap)</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
-        <tbody>${computedRows.map(c => {
+        <tbody>${summaryRowHTML}${computedRows.map(c => {
           const pClass = c.profitPerUnit == null ? '' : (c.profitPerUnit >= 0 ? 'text-success' : 'text-danger');
           const fmtB = v => v == null ? '—' : '฿' + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
           return `<tr>
