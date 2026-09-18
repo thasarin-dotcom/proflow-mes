@@ -7762,38 +7762,57 @@ async function loadWhTabletData() {
   _whComputeLotQueue().then(_whRenderLotQueueGrid);
 }
 
-// สถานะไลน์ "วันนี้" ต่อ 1 ใน PLAN_LINES — running (กำลังผลิตตามแผน) / behind (ล่าช้ากว่าที่ควร) /
-// done (ผลิตครบตามแผนแล้ว) / idle (ไม่มีแผนวันนี้เลย)
+// เช็คว่าแถวแผนผลิต (production_plan) 1 แถวนี้ "เสร็จแล้วหรือยัง" — ใช้ร่วมกันทั้ง _whLineStatus (โหมด
+// แท็บเล็ตคลัง + ผังโรงงานเรียลไทม์) และ prodStatusRenderTodayCards (การ์ด "รายละเอียดวันนี้") เพื่อไม่ให้
+// งานที่ยังไม่เสร็จหายไปจากทั้ง 2 หน้าเพียงเพราะ PlanDate ผ่านไปแล้ว (คำขอผู้ใช้ 2026-09-18) — เช็ค MO
+// ปิดงานก่อนเสมอ (ปิดปกติ/force-close แล้วไม่ต้องพึ่งผลจริงในบันทึกผลิตอีกต่อไป) แล้วค่อยเช็คผลจริงจาก
+// บันทึกผลิตที่ผูกกับแถวนี้ (ProdRecord_Ref)
+function _prodStatusIsPlanItemDone(r) {
+  const mo = r.MO_Ref ? _prodStatusMOAllData.find(m => m.MO_ID === r.MO_Ref) : null;
+  if (mo && _moDoneStatuses.includes(mo.Status)) return true;
+  const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
+  if (!rec || rec.FG_Actual == null) return false;
+  const planned = parseFloat(rec.FG_Planned) || parseFloat(r.PlanQty) || 0;
+  return (parseFloat(rec.FG_Actual) || 0) >= planned;
+}
+
+// สถานะไลน์ "ปัจจุบัน" ต่อ 1 ใน PLAN_LINES — running (กำลังผลิตตามแผน) / behind (ล่าช้ากว่าที่ควร) /
+// done (ผลิตครบตามแผนแล้ว/ปิดงานแล้ว) / idle (ไม่มีแผนค้างเลย). รวมแผนของไลน์นี้จากทั้ง _prodStatusPlanWeekData
+// (สัปดาห์ที่โหลดไว้ ย้อนหลัง 1 วัน) และ _prodStatusPlanAllData (ทุกวันที่ของ MO ที่กำลังดำเนินการอยู่) แล้ว
+// กรองเอาแค่ PlanDate ไม่เกินวันนี้ (งานอนาคตยังไม่ต้องมีสถานะ) — กันงานที่ยังไม่เสร็จของวันก่อนหน้าหายไป
+// จากโหมดแท็บเล็ตคลัง/ผังโรงงานเรียลไทม์เพียงเพราะวันเปลี่ยน (คำขอผู้ใช้ 2026-09-18)
 // เกณฑ์ "behind": มีผลจริงแล้วแต่ได้ < 70% ของแผน (สอดคล้อง threshold สีแดง/เหลืองที่ prodStatusRenderTodayCards
-// ใช้อยู่แล้ว) หรือยังไม่มีผลจริงแต่เลยเวลาสิ้นสุดกะที่วางแผนไว้แล้ว (PLAN_SHIFTS[shift].end)
+// ใช้อยู่แล้ว) หรือยังไม่มีผลจริงแต่เลยเวลาสิ้นสุดกะที่วางแผนไว้แล้ว (PLAN_SHIFTS[shift].end) หรืองาน
+// PlanDate เป็นอดีตไปแล้วแต่ยังไม่มีผลจริงเลย (ถือว่าล่าช้าแน่ๆ ไม่ต้องรอเช็คเวลากะ)
 function _whLineStatus(line) {
   const days = _planWeekRange();
   const todayStr = days[_planWeekTodayIdx];
-  const items = _prodStatusPlanWeekData.filter(r => r.PlanDate === todayStr && r.Line === line);
+  const seen = new Set();
+  const items = [..._prodStatusPlanWeekData, ..._prodStatusPlanAllData]
+    .filter(r => r.Line === line && r.PlanDate <= todayStr && !seen.has(r._row_id) && seen.add(r._row_id))
+    .sort((a, b) => (a.PlanDate || '').localeCompare(b.PlanDate || ''));
   if (!items.length) return { status: 'idle' };
 
-  const isDoneItem = r => {
-    const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
-    if (!rec || rec.FG_Actual == null) return false;
-    const planned = parseFloat(rec.FG_Planned) || parseFloat(r.PlanQty) || 0;
-    return (parseFloat(rec.FG_Actual) || 0) >= planned;
-  };
-  const item = items.find(r => !isDoneItem(r)) || items[items.length - 1];
+  const item = items.find(r => !_prodStatusIsPlanItemDone(r)) || items[items.length - 1];
 
   const rec = item.ProdRecord_Ref ? _prodStatusRecords[item.ProdRecord_Ref] : null;
   const planQty = parseFloat(item.PlanQty) || 0;
   const planned = rec ? (parseFloat(rec.FG_Planned) || planQty) : planQty;
   const actual  = rec && rec.FG_Actual != null ? (parseFloat(rec.FG_Actual) || 0) : null;
   const pct = actual != null && planned > 0 ? Math.round(actual / planned * 100) : null;
-  const mo = item.MO_Ref ? _prodStatusMOData.find(m => m.MO_ID === item.MO_Ref) : null;
+  const mo = item.MO_Ref ? _prodStatusMOAllData.find(m => m.MO_ID === item.MO_Ref) : null;
 
-  let status = 'running';
-  if (actual != null) {
+  let status;
+  if (mo && _moDoneStatuses.includes(mo.Status)) {
+    status = 'done';
+  } else if (actual != null) {
     status = actual >= planned ? 'done' : (pct < 70 ? 'behind' : 'running');
   } else {
+    status = 'running';
     const shiftInfo = PLAN_SHIFTS[item.Shift];
     const nowHM = new Date().toTimeString().slice(0, 5);
     if (shiftInfo && nowHM > shiftInfo.end) status = 'behind';
+    if (item.PlanDate < todayStr) status = 'behind';
   }
   return { status, item, mo, planned, actual, pct };
 }
@@ -7831,7 +7850,7 @@ function _whRenderLineCards() {
           <div style="font-size:.78rem;font-weight:700;color:#1e293b">${line}</div>
           <span class="wh-badge ${cls}">${label}</span>
         </div>
-        <div class="text-muted" style="font-size:.74rem">ไม่มีแผนผลิตวันนี้</div>
+        <div class="text-muted" style="font-size:.74rem">ไม่มีแผนผลิตค้างอยู่</div>
       </div>`;
     }
     const pct = r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
@@ -7975,17 +7994,10 @@ async function loadFloorPulseData() {
     const r = _whLineStatus(line);
     r.roster = _fpBuildRoster(line, r.item, laborRowsByLine);
 
-    // MO ของแผนวันนี้ปิดงานไปแล้ว (ปกติหรือ force-close) — _whLineStatus ใช้ _prodStatusMOData (active
-    // เท่านั้น) หา mo ไม่เจอเลยยังคงสถานะ running/behind ค้างไว้ทั้งที่งานจบแล้ว เหมือนบั๊กเดียวกับที่พบใน
-    // prodStatusRenderTodayCards (2026-09-15) — เช็คจาก _prodStatusMOAllData (ทุกสถานะ) แทน ต้องเช็คก่อน
-    // ส่วนสแกนสดด้านล่างเสมอ เพราะงานที่ปิดแล้วไม่ต้องพึ่งยอดสแกนประมาณการอีกต่อไป
-    const closedMo = r.item && r.item.MO_Ref
-      ? _prodStatusMOAllData.find(m => m.MO_ID === r.item.MO_Ref) : null;
-    if (closedMo && _moDoneStatuses.includes(closedMo.Status)) {
-      r.mo = closedMo;
-      r.status = 'done';
-      r.isClosedMO = true;
-    } else if (r.item && r.actual == null) {
+    // เติมยอดสแกนสด (production_progress) ทับเข้าไปเฉพาะงานที่ "ยังไม่เสร็จ" และยังไม่มีผลจริงอย่างเป็น
+    // ทางการ — _whLineStatus เช็ค MO ปิดงาน (ปกติ/force-close) ไว้แล้วในตัว (r.status==='done') ไม่ต้อง
+    // เช็คซ้ำที่นี่อีก กันงานที่ปิดไปแล้วโดนยอดสแกนเก่าทับสถานะกลับไปเป็น running/behind ผิดๆ
+    if (r.status !== 'done' && r.item && r.actual == null) {
       const liveProg = r.item.MO_Ref ? _prodStatusProgressData[`${r.item.MO_Ref}|${line}`] : null;
       if (liveProg) {
         const liveQty = parseFloat(liveProg.Qty) || 0;
@@ -8059,7 +8071,7 @@ function _fpRenderKpis() {
   const el = document.getElementById('fp-kpi-strip');
   if (!el) return;
   el.innerHTML = `
-    <div class="fp-kpi"><b>${running + behind}/${PLAN_LINES.length}</b><span>ไลน์มีแผนวันนี้</span></div>
+    <div class="fp-kpi"><b>${running + behind}/${PLAN_LINES.length}</b><span>ไลน์มีงานค้าง</span></div>
     <div class="fp-kpi"><b>${behind}</b><span>ล่าช้ากว่าแผน</span></div>
     <div class="fp-kpi"><b>${confirmedStaff.size}</b><span>พนักงานสแกนเข้าแล้ว</span></div>
     <div class="fp-clock"><b id="fp-clock-time">--:--:--</b></div>
@@ -15516,7 +15528,11 @@ function _planRenderDayTable(dateStr) {
               // ชื่อฟังก์ชัน/คอมเมนต์เดิมยังคงไว้ ไม่ได้ rename ทั้งระบบ กันงานเปลี่ยนชื่อที่ไม่จำเป็น
               // แก้วันที่ = Admin เท่านั้น (ตามคำขอผู้ใช้ 2026-09-14 "แอดมินแก้วันที่ได้ หัวหน้าแก้ได้แค่
               // รายชื่อพนักงาน") — ปุ่มไม่โผล่เลยถ้าไม่ใช่ admin ไม่ใช่แค่ซ่อนแล้วบล็อกที่ฟังก์ชันอย่างเดียว
-              const sIsDateEditable = s.Status === 'วางแผน' && _hasRole('admin');
+              // เดิมแก้ได้แค่ตอน s.Status==='วางแผน' — ขยายให้แก้ได้ตอน 'ยืนยันแล้ว' ด้วย (2026-09-18 ตามคำขอ
+              // "งานที่ยืนยันแล้ว ให้แก้ไลน์อื่นๆที่ไม่ใช่ไลน์บรรจุได้ ทั้งคน และเวลา") — เฉพาะแถวพี่น้อง (ไม่ใช่
+              // ไลน์บรรจุ/แถวหลัก อยู่แล้วโดยธรรมชาติ เพราะบล็อกนี้ render เฉพาะ siblings) — planEditLotDate เอง
+              // ก็ไม่มี guard เจาะจง Status อยู่ในตัวฟังก์ชันอยู่แล้ว (เช็คแค่ conflict) แก้ได้ทั้ง 2 สถานะเลย
+              const sIsDateEditable = (s.Status === 'วางแผน' || s.Status === 'ยืนยันแล้ว') && _hasRole('admin');
               const editDateBtn = sIsDateEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditLotDate(${s._row_id})" title="แก้ไขวันที่"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
@@ -15533,7 +15549,10 @@ function _planRenderDayTable(dateStr) {
               // ไม่มีตรรกะเจาะจงหมวดแพ็คอยู่ในตัวฟังก์ชันเลย (กรองสกิลตาม `r.Line` แบบไดนามิกอยู่แล้ว)
               // แก้ผู้ปฏิบัติงาน = หัวหน้างานขึ้นไป (ตามคำขอผู้ใช้ 2026-09-14 — Admin แก้ได้ทั้งวันที่+
               // ผู้ปฏิบัติงาน, หัวหน้าแก้ได้แค่ผู้ปฏิบัติงาน) ปุ่มไม่โผล่เลยถ้าเป็น operator
-              const sIsWorkersEditable = s.Status === 'วางแผน' && _hasRole('supervisor');
+              // เดิมแก้ได้แค่ตอน s.Status==='วางแผน' — ขยายให้แก้ได้ตอน 'ยืนยันแล้ว' ด้วย (2026-09-18 ตามคำขอ
+              // "งานที่ยืนยันแล้ว ให้แก้ไลน์อื่นๆที่ไม่ใช่ไลน์บรรจุได้ ทั้งคน และเวลา") — planEditSiblingWorkers
+              // เองก็ไม่มี guard เจาะจง Status เลย (เช็คแค่ worker-conflict) แก้ได้ทั้ง 2 สถานะเช่นกัน
+              const sIsWorkersEditable = (s.Status === 'วางแผน' || s.Status === 'ยืนยันแล้ว') && _hasRole('supervisor');
               const editWorkersBtn = sIsWorkersEditable
                 ? ` <a href="#" class="ms-1" onclick="event.preventDefault();planEditSiblingWorkers(${s._row_id})" title="แก้ไขผู้ปฏิบัติงาน"><i class="fas fa-pen text-primary"></i></a>`
                 : '';
@@ -18482,19 +18501,25 @@ async function loadProdStatusData() {
 
   const [planWeekRes, planAllRes] = await Promise.all([
     _sb.from('production_plan').select('*').gte('PlanDate', days[0]).lte('PlanDate', days[6]).order('PlanDate'),
-    moIds.length ? _sb.from('production_plan').select('MO_Ref,PlanDate,Line').in('MO_Ref', moIds) : Promise.resolve({ data: [], error: null }),
+    // เดิม select แค่ MO_Ref,PlanDate,Line (พอสำหรับเช็คว่ามีแผนหรือยัง) — ขยายเป็น '*' เพราะ
+    // prodStatusRenderTodayCards/_whLineStatus ต้องใช้ทุกฟิลด์ของแถวนี้แสดงงานค้างที่ยังไม่เสร็จจากวันก่อน
+    // หน้านี้ด้วย (คำขอผู้ใช้ 2026-09-18) ไม่ใช่แค่เช็คสมาชิกภาพ MO_Ref อย่างเดียวแล้ว
+    moIds.length ? _sb.from('production_plan').select('*').in('MO_Ref', moIds) : Promise.resolve({ data: [], error: null }),
   ]);
   if (planWeekRes.error) { _hideLoader(); _err('โหลดแผนผลิตไม่ได้', planWeekRes.error.message); return; }
   _prodStatusPlanWeekData = planWeekRes.data || [];
   _prodStatusPlanAllData  = planAllRes.data  || [];
 
-  // ดึง production_records เฉพาะที่แผนของ "วันนี้" อ้างอิงถึง (ProdRecord_Ref เก็บเป็น ProdRecord_ID ตัวหนังสือ
-  // ไม่ใช่ _row_id — ดูฟังก์ชัน planConfirmSubmit) เพื่อเทียบแผน vs ผลจริง
-  const todayRefs = [...new Set(_prodStatusPlanWeekData.filter(r => r.PlanDate === todayStr && r.ProdRecord_Ref).map(r => r.ProdRecord_Ref))];
+  // ดึง production_records ของทุกแผนที่โหลดมา (ทั้งสัปดาห์ที่โหลดไว้ + ทุกวันที่ของ MO ที่กำลังดำเนินการ)
+  // ไม่ใช่แค่แผน "วันนี้" — ต้องใช้เช็คว่าแผนวันก่อนหน้ามีผลจริงแล้วหรือยัง (ดู _prodStatusIsPlanItemDone)
+  // เพื่อโชว์งานที่ยังไม่เสร็จค้างต่อในภาพรวมการผลิต/ผังโรงงานเรียลไทม์ ไม่ใช่หายไปเพียงเพราะวันเปลี่ยน
+  // (ProdRecord_Ref เก็บเป็น ProdRecord_ID ตัวหนังสือ ไม่ใช่ _row_id — ดูฟังก์ชัน planConfirmSubmit)
+  const allRefs = [...new Set([..._prodStatusPlanWeekData, ..._prodStatusPlanAllData]
+    .filter(r => r.ProdRecord_Ref).map(r => r.ProdRecord_Ref))];
   _prodStatusRecords = {};
-  if (todayRefs.length) {
+  if (allRefs.length) {
     const { data: recData, error: recErr } = await _sb.from('production_records')
-      .select('ProdRecord_ID,FG_Planned,FG_Actual,UOM').in('ProdRecord_ID', todayRefs);
+      .select('ProdRecord_ID,FG_Planned,FG_Actual,UOM').in('ProdRecord_ID', allRefs);
     if (!recErr) (recData || []).forEach(rec => { _prodStatusRecords[rec.ProdRecord_ID] = rec; });
   }
 
@@ -18600,8 +18625,20 @@ function prodStatusRenderTodayCards() {
 
   const todayItems = (byDate[todayStr] || []).slice()
     .sort((a, b) => (a.Line||'').localeCompare(b.Line||'') || (a.TimeStart||'').localeCompare(b.TimeStart||''));
+  const todaySet = new Set(todayItems.map(r => r._row_id));
+
+  // งานค้างจากวันก่อนหน้าที่ยังไม่เสร็จ (ดู _prodStatusIsPlanItemDone) ให้โชว์ต่อในนี้ด้วย ไม่ใช่หายไปเพียง
+  // เพราะ PlanDate ผ่านไปแล้ว (คำขอผู้ใช้ 2026-09-18) — รวมจากทั้ง _prodStatusPlanWeekData (ย้อนหลัง 1 วันที่
+  // โหลดไว้) และ _prodStatusPlanAllData (ทุกวันที่ของ MO ที่กำลังดำเนินการ กันงานค้างเก่ากว่านั้นด้วย)
+  const seenOverdue = new Set();
+  const overdueItems = [..._prodStatusPlanWeekData, ..._prodStatusPlanAllData]
+    .filter(r => r.PlanDate < todayStr && !todaySet.has(r._row_id) && !seenOverdue.has(r._row_id)
+      && !_prodStatusIsPlanItemDone(r) && seenOverdue.add(r._row_id))
+    .sort((a, b) => (a.PlanDate||'').localeCompare(b.PlanDate||'') || (a.Line||'').localeCompare(b.Line||''));
+
+  const allItems = [...overdueItems, ...todayItems];
   const container = document.getElementById('prodstatus-today-cards');
-  if (!todayItems.length) { container.innerHTML = '<div class="glass-card text-center py-4 text-muted">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
+  if (!allItems.length) { container.innerHTML = '<div class="glass-card text-center py-4 text-muted">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
 
   // ใช้ _prodStatusMOAllData (ทุกสถานะ รวมปิดงานแล้ว) ไม่ใช่ _prodStatusMOData (active เท่านั้น) — กัน MO ที่
   // ปิด/force-close ไปแล้วหายไปจาก moByID จนการ์ดเข้าใจผิดว่ายังไม่มีข้อมูล MO เลย (ดูคอมเมนต์ด้านล่าง)
@@ -18609,7 +18646,8 @@ function prodStatusRenderTodayCards() {
   _prodStatusMOAllData.forEach(mo => { moByID[mo.MO_ID] = mo; });
 
   const statusColor = { 'วางแผน': 'secondary', 'ยืนยันแล้ว': 'success' };
-  container.innerHTML = todayItems.map(r => {
+  container.innerHTML = allItems.map(r => {
+    const isOverdue = r.PlanDate < todayStr;
     const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
     const planQty = parseFloat(r.PlanQty) || 0;
     const mo = r.MO_Ref ? moByID[r.MO_Ref] : null;
@@ -18697,6 +18735,7 @@ function prodStatusRenderTodayCards() {
         <div>
           <span class="badge" style="background:${_planLineColor(r.Line)}">${r.Line||'—'}</span>
           <b class="ms-2">${r.ProductName||'—'}</b>
+          ${isOverdue ? `<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle ms-2"><i class="fas fa-clock-rotate-left me-1"></i>ค้างจาก ${_fmtDate(r.PlanDate)}</span>` : ''}
         </div>
         <span class="badge bg-${statusColor[r.Status]||'secondary'}">${r.Status||'—'}</span>
       </div>
