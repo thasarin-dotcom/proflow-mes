@@ -1789,6 +1789,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </a>
     <a href="#" class="nav-link mb-1" id="nav-co" onclick="showPage('co',this)" title="คำสั่งลูกค้า (CO)">
       <i class="fas fa-file-invoice me-2"></i><span>คำสั่งลูกค้า (CO)</span>
+      <span id="nav-co-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไข CO รออนุมัติ"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-mo" onclick="showPage('mo',this)" title="ไลน์ผลิต (MO)">
       <i class="fas fa-industry me-2"></i><span>ไลน์ผลิต (MO)</span>
@@ -24613,6 +24614,9 @@ function coRenderTable() {
           <div class="col-md-3"><small class="text-muted">วันที่สั่ง</small><div>${_fmtDate(r.Date)}</div></div>
           <div class="col-md-3"><small class="text-muted">กำหนดส่ง</small><div>${_fmtDate(r.DueDate)||'—'}</div></div>
         </div>
+        ${req ? `<div class="alert alert-warning py-2 px-3 mb-3" style="font-size:.88rem">
+          <i class="fas fa-triangle-exclamation me-1"></i><b>มีคำขอแก้ไขรออนุมัติ</b> — ${_coRequestSummaryHTML(req)}
+        </div>` : ''}
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <div class="form-check mb-0 me-1" title="เลือกเพื่อลบหลายรายการพร้อมกัน">
             <input type="checkbox" class="form-check-input co-row-check" id="co-check-${r._row_id}" value="${r._row_id}" onchange="coCheckState()">
@@ -27160,6 +27164,36 @@ async function _issueUpdateNavBadge(notifyIfPending = false) {
       showCancelButton: true, confirmButtonText: 'ไปที่หน้าเบิกผลิต', cancelButtonText: 'ปิด',
     });
     if (res.isConfirmed) showPage('issue', document.getElementById('nav-issue'));
+  }
+}
+
+// badge สีเหลืองที่ sidebar "คำสั่งลูกค้า (CO)" — คำขอแก้ไขจำนวนสั่ง/กำหนดส่งของ CO ที่รอ Admin อนุมัติ (ดู
+// co_edit_requests/_coReqForTarget) ตามคำขอผู้ใช้ 2026-09-19 "ให้มีสัญลักแจ้งเตือนว่ามีงานรออนุมัติ เป็นสีเหลือง
+// ที่ไซด์บาร์" — โครงเดียวกับ _issueUpdateNavBadge เป๊ะ (mySeq กัน race condition แบบเดียวกัน) แค่เปลี่ยนตาราง/
+// role (อนุมัติ CO ได้แค่ admin เท่านั้น ตามที่ _coRequestActionsHTML ใช้ _hasRole('admin') อยู่แล้ว)
+let _coBadgeSeq = 0;
+
+async function _coUpdateNavBadge(notifyIfPending = false) {
+  const badge = document.getElementById('nav-co-badge');
+  if (!_hasRole('admin')) { if (badge) badge.style.display = 'none'; return; }
+  const mySeq = ++_coBadgeSeq;
+  const { count, error } = await _sb.from('co_edit_requests')
+    .select('_row_id', { count: 'exact', head: true })
+    .eq('Status', 'รออนุมัติ');
+  if (mySeq !== _coBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
+  if (error) return; // ตารางอาจยังไม่ถูกสร้าง หรือ error อื่น — เงียบไว้ เป็นแค่ตัวเลขแจ้งเตือนเสริม
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `มี ${count} คำขอรออนุมัติ`,
+      html: `มีคำขอแก้ไขจำนวนสั่ง/กำหนดส่งที่หน้า <b>คำสั่งลูกค้า (CO)</b> รอคุณอนุมัติอยู่ <b>${count}</b> รายการ`,
+      showCancelButton: true, confirmButtonText: 'ไปที่หน้า CO', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) showPage('co', document.getElementById('nav-co'));
   }
 }
 
@@ -33810,6 +33844,7 @@ async function _realtimeRunRefresh() {
   _prodrecordUpdateApproveBadge();
   _fgoutUpdateWaitingBadge();
   purchasereqUpdateNavBadge();
+  _coUpdateNavBadge();
 
   const activeEl = document.querySelector('.page-view.active');
   if (!activeEl) return;
@@ -33886,6 +33921,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
           _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
           purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin เพราะมีแค่ admin ที่อนุมัติได้)
+          _coUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
         }
       }
     } else {
