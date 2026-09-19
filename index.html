@@ -14250,6 +14250,7 @@ let _planReservedRowIds = new Set();
 // (2) ปลดล็อกห้อง/เวลา/คนให้แผนใหม่จองซ้อนทับได้ทันที (_planFindConflict/_planFindWorkerConflicts)
 let _planProgressData  = {}; // "MO_Ref|Line" → แถวล่าสุดจาก production_progress {Qty,CreatedAt}
 let _planMOOrderQtyMap = {}; // MO_ID → OrderQty (ทุกสถานะ)
+let _planMOStatusMap   = {}; // MO_ID → Status (ทุกสถานะ) — ใช้เช็คว่า MO ปิดแล้วหรือยัง แม้ยอดสแกนสดยังไม่ถึงยอดสั่ง (ดู _planLineFinished)
 
 const PLAN_LINES = [
   'ห้องผสมใหญ่',
@@ -14582,21 +14583,44 @@ function _planDateForBlock(b) {
   return document.getElementById('plan-f-date')?.value || '';
 }
 
+// หาว่าใครในรายชื่อพนักงาน "ไม่ว่าง" ในวันที่/ช่วงเวลาของบล็อกนี้ — ชนกับแผนอื่นที่ MO ยังไม่ปิด (ดู
+// _planMOClosed) คืน Map ของ EmployeeCode → แถวแผนที่ชนอยู่ (ใช้โชว์ tooltip ว่าชนกับงานไหน) — ใช้ตรรกะ
+// เดียวกับ _planFindWorkerConflicts เป๊ะ (ผ่านฟังก์ชันนั้นตรงๆ) เพื่อไม่ให้ตรรกะสองจุดเพี้ยนแยกทางกันทีหลัง
+function _planConflictedWorkerMap(b) {
+  const map = new Map();
+  const date = _planDateForBlock(b);
+  const shift = _planEffectiveShift(b);
+  if (!date || !shift) return map;
+  const editId = parseInt(document.getElementById('plan-edit-id')?.value) || null;
+  const allCodes = _planEmployees.map(e => e.EmployeeCode);
+  _planFindWorkerConflicts(date, shift.timeStart, shift.timeEnd, allCodes, editId)
+    .forEach(c => { if (!map.has(c.code)) map.set(c.code, c.row); });
+  return map;
+}
+
 // วาดรายชื่อพนักงานเป็น checkbox จาก `pool` ที่ส่งมา (ไม่ใช่ _planEmployees ทั้งหมดเสมอไป — ดู
 // planHighlightQualifiedWorkers ที่กรองเหลือเฉพาะคนมีสกิลตรงไลน์นี้ก่อนส่งมาวาด) เก็บ selectedCodes ไว้ให้
 // ติ๊กถูกต้องแม้กรองใหม่ (เปลี่ยนจาก <select multiple> เป็นรายการติ๊ก checkbox — 2026-09-05, ผู้ใช้แจ้งว่า
 // multi-select กด Ctrl/Cmd ค้างเลือกยาก)
+// คนที่ "ไม่ว่าง" (ชนกับแผนอื่นที่ MO ยังไม่ปิด — ดู _planConflictedWorkerMap) แสดงเป็นสีเทา + ปิดไม่ให้ติ๊ก
+// เลย ตามคำขอผู้ใช้ 2026-09-19 "คนที่เลือกไม่ได้ให้เป็นสีเทา ไม่ให้เลือก" — ยกเว้นคนที่ติ๊กเลือกไว้อยู่แล้ว
+// (ก่อนจะชนขึ้นมาทีหลัง เช่นแก้ไขแผนเดิม) ยังต้องกดยกเลิกได้ตามปกติ ไม่ล็อกตัวเองออกจากแผนของตัวเอง
 function _planRenderWorkersPool(b, selectedCodes, pool) {
   const wrap = document.getElementById(`plan-f-workers-select-${b}`);
   if (!wrap) return;
   const typeLabel = { FT: 'ประจำ', PT: 'พาร์ทไทม์', OS: 'เอาท์ซอร์ส' };
+  const conflictMap = _planConflictedWorkerMap(b);
   wrap.innerHTML = pool.length ? pool.map(e => {
     const name = `${e.FirstName || ''} ${e.LastName || ''}${e.NickName ? ` (${e.NickName})` : ''}`.trim();
     const id = `plan-worker-chk-${b}-${e.EmployeeCode}`;
-    return `<div class="form-check mb-1">
-      <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" data-block="${b}" id="${id}"
-        ${selectedCodes.includes(e.EmployeeCode) ? 'checked' : ''} onchange="planCheckSkillCoverage('${b}')">
-      <label class="form-check-label small" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span></label>
+    const isSelected = selectedCodes.includes(e.EmployeeCode);
+    const conflictRow = conflictMap.get(e.EmployeeCode);
+    const isBlocked = !!conflictRow && !isSelected;
+    const conflictTitle = conflictRow ? `ไม่ว่าง — ชนกับ "${conflictRow.ProductName || ''}" ไลน์ "${conflictRow.Line || ''}" (MO ยังไม่ปิด)` : '';
+    return `<div class="form-check mb-1"${isBlocked ? ` title="${conflictTitle}"` : ''}>
+      <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" data-block="${b}" data-blocked="${isBlocked ? '1' : '0'}" id="${id}"
+        ${isSelected ? 'checked' : ''}${isBlocked ? ' disabled' : ''} onchange="planCheckSkillCoverage('${b}')">
+      <label class="form-check-label small${isBlocked ? ' text-muted' : ''}" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span>${isBlocked ? ' <span class="text-danger">(ไม่ว่าง)</span>' : ''}</label>
     </div>`;
   }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานที่ตรงเงื่อนไข</div>';
   _planUpdateWorkersSelectedCount(b);
@@ -14825,7 +14849,9 @@ function _planEnforceWorkerCap(b) {
   const step = _planRequiredWorkersForBlock(b);
   const boxes = document.querySelectorAll(`#plan-f-workers-select-${b} .plan-worker-chk`);
   const atCap = step && Array.from(boxes).filter(c => c.checked).length >= step.need;
-  boxes.forEach(c => { if (!c.checked) c.disabled = !!atCap; });
+  // ช่องที่ปิดไว้เพราะ "ไม่ว่าง" (data-blocked, ดู _planRenderWorkersPool) ต้องปิดต่อไปเสมอ ไม่ให้ atCap=false
+  // มาเปิดกลับให้เลือกได้อีก
+  boxes.forEach(c => { if (!c.checked) c.disabled = c.dataset.blocked === '1' || !!atCap; });
 }
 
 // แสดงว่าไลน์ที่เลือก(ของบล็อกนี้)ต้องการทักษะอะไรบ้าง (Lines คั่นด้วย comma บน skills) แล้วเทียบกับ Level
@@ -14928,12 +14954,13 @@ async function planLoadData() {
   const planMoRefs = [...new Set(_planData.map(r => r.MO_Ref).filter(Boolean))];
   _planProgressData  = {};
   _planMOOrderQtyMap = {};
+  _planMOStatusMap   = {};
   if (planMoRefs.length) {
     const [moQtyRes, progRes] = await Promise.all([
-      _sb.from('manufacturing_orders').select('MO_ID,OrderQty').in('MO_ID', planMoRefs),
+      _sb.from('manufacturing_orders').select('MO_ID,OrderQty,Status').in('MO_ID', planMoRefs),
       _sb.from('production_progress').select('MO_Ref,Line,Qty,CreatedAt').in('MO_Ref', planMoRefs).order('CreatedAt', { ascending: false }),
     ]);
-    (moQtyRes.data || []).forEach(m => { _planMOOrderQtyMap[m.MO_ID] = m.OrderQty; });
+    (moQtyRes.data || []).forEach(m => { _planMOOrderQtyMap[m.MO_ID] = m.OrderQty; _planMOStatusMap[m.MO_ID] = m.Status; });
     (progRes.data || []).forEach(p => {
       const key = `${p.MO_Ref}|${p.Line}`;
       if (!_planProgressData[key]) _planProgressData[key] = p; // เก็บแถวแรก (ใหม่สุด หลัง order by CreatedAt desc)
@@ -15811,11 +15838,23 @@ async function planOpenAddModal(dateStr = null, rowId = null) {
 // _planProgressData/_planMOOrderQtyMap
 function _planLineFinished(r) {
   if (!r || !r.MO_Ref) return false;
+  // MO ปิดแล้ว (เสร็จสิ้น) ถือว่างานนี้เสร็จจริงเสมอ แม้ยอดสแกนสดยังไม่ถึงยอดสั่ง — เช่นปิดงานด้วยยอดจริงที่บันทึกเอง
+  // ไม่ใช่ยอดสแกน หรือปิดก่อนสแกนครบ (ผู้ใช้แจ้ง 2026-09-18: ปิด MO แล้วแต่การ์ดปฏิทินยังไม่ขึ้นติ๊กถูก)
+  if (_moDoneStatuses.includes(_planMOStatusMap[r.MO_Ref])) return true;
   const orderQty = parseFloat(_planMOOrderQtyMap[r.MO_Ref]) || 0;
   if (orderQty <= 0) return false;
   const prog = _planProgressData[`${r.MO_Ref}|${r.Line}`];
   const scannedQty = prog ? (parseFloat(prog.Qty) || 0) : 0;
   return scannedQty >= orderQty;
+}
+
+// "คนของแถวนี้ว่างแล้วจริง" หรือยัง — เข้มกว่า _planLineFinished เพราะยอดสแกนถึงเป้าอย่างเดียวไม่พอสำหรับคน
+// (คนอาจยังอยู่ระหว่างเก็บงาน/รอ QC ก่อนปิด MO จริง) ต้องรอ MO ปิดทางการ (Status อยู่ใน _moDoneStatuses)
+// เท่านั้นถึงจะถือว่าคนว่าง — ใช้กับ _planFindWorkerConflicts จุดเดียว ห้อง/เวลา (_planFindConflict) ยังใช้
+// _planLineFinished แบบเดิม (ปลดล็อกได้ทันทีที่สแกนครบ) ตามที่ผู้ใช้ระบุ 2026-09-18:
+// "ถ้า MO ยังไม่ปิด เท่ากับว่า คนยังไม่ว่าง เวลาแพลนใหม่ ห้ามเลือกคนซ้ำกับที่ MO ยังไม่ปิด"
+function _planMOClosed(r) {
+  return !!(r && r.MO_Ref && _moDoneStatuses.includes(_planMOStatusMap[r.MO_Ref]));
 }
 
 // คืนแผนที่ชนเวลากันในไลน์เดียวกัน วันเดียวกัน (excludeRowId ใช้ตอนแก้ไขเพื่อไม่ชนกับตัวเอง) — ข้ามแถวที่
@@ -15847,7 +15886,7 @@ function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, exclude
   _planData.forEach(r => {
     if (r._row_id === excludeRowId) return;
     if (r.PlanDate !== date) return;
-    if (_planLineFinished(r)) return; // เสร็จงานจริงแล้ว — คนของแถวนี้ว่างแล้ว ไม่นับชนอีกต่อไป
+    if (_planMOClosed(r)) return; // MO ปิดทางการแล้ว — คนของแถวนี้ว่างแล้วจริง ไม่นับชนอีกต่อไป (ยอดสแกนถึงเป้าอย่างเดียวไม่พอ)
     const rStart = (r.TimeStart || '').slice(0, 5);
     const rEnd   = (r.TimeEnd || '').slice(0, 5);
     if (!(rStart < timeEnd && timeStart < rEnd)) return;
