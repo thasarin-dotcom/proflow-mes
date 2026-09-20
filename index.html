@@ -1358,27 +1358,35 @@ table.mrrpt-summary tr.mrrpt-summary-total td{background:#1e3a8a;color:#fff;font
 .mrrpt-sign .line{border-top:1px solid #94a3b8;margin-top:32px;padding-top:4px}
 .mrrpt-empty{color:#dc2626;font-size:11px;margin-top:20px}
 
-/* ── แผนผลิต: พิมพ์แผน 2 สัปดาห์ (ปฏิทิน, ให้พนักงานสายผลิตดู) — A3 แนวนอน รวมทั้ง 2 สัปดาห์ไว้ในแผ่นเดียว
-   (ตามที่ผู้ใช้ยืนยัน — เดิมเคยแยกแผ่นละสัปดาห์แล้วเปลี่ยนใจมารวมแผ่นเดียวแทน) grid 7 คอลัมน์ใส่ 14 วันรวด ให้
-   ตัดขึ้นแถวใหม่เอง (ดู _planweekBuildHTML) จึงไม่ต้องมี page-break-after ระหว่างสัปดาห์อีกต่อไป (มีแค่ 1 หน้าเสมอ)
+/* ── แผนผลิต: พิมพ์แผน 1 หรือ 2 สัปดาห์ (ปฏิทิน, ให้พนักงานสายผลิตดู) — A3 แนวนอน ขอบแคบ (8mm) เลือกได้จาก
+   ปุ่มในโมดัลตัวอย่าง (planPrintWeeksOpen(1|2) — ดู #planweek-wk-1/#planweek-wk-2) รวมทุกสัปดาห์ไว้ในแผ่น
+   เดียวเสมอ (ตามที่ผู้ใช้ยืนยัน — เดิมเคยแยกแผ่นละสัปดาห์แล้วเปลี่ยนใจมารวมแผ่นเดียวแทน) grid 6 คอลัมน์ (จ-ส,
+   ไม่รวมอาทิตย์) ให้ตัดขึ้นแถวใหม่เอง (ดู _planweekBuildHTML) จึงไม่ต้องมี page-break-after ระหว่างสัปดาห์
    ต้องตั้งทั้ง @page planweek (ด้านบน) และ width/min-height ของ .planweek-page ให้ตรงกัน ไม่งั้นพรีวิวกับพิมพ์จริง
    จะกว้าง/สูงไม่เท่ากัน — ปล่อย min-height (ไม่ใช่ height ตายตัว) เหมือน .mrrpt-page ถ้าวันไหนมีงานเยอะมากจนล้น
-   1 แผ่นจริงๆ จะไหลไปแผ่นถัดไปเองตามปกติของเบราว์เซอร์ ไม่ได้ทำ dynamic pagination แบบเดียวกับใบส่งสินค้า ── */
+   1 แผ่นจริงๆ จะไหลไปแผ่นถัดไปเองตามปกติของเบราว์เซอร์ ไม่ได้ทำ dynamic pagination แบบเดียวกับใบส่งสินค้า
+   .planweek-page เป็น flex column + .planweek-grid เป็น flex:1 (เทคนิค "sticky footer") ให้ grid ยืดเต็ม
+   พื้นที่ที่เหลือของหน้าเสมอ (297mm ลบหัว/legend) ไม่ว่าจะเลือก 1 หรือ 2 สัปดาห์ — วันที่งานน้อย/ไม่มีงานเลย
+   จะไม่ดูแฟบค้างอยู่บนสุดของหน้าเปล่าๆ ด้านล่างอีกต่อไป ส่วนวันที่งานเยอะยังโตเกินสัดส่วนได้ตามปกติ
+   (minmax(0,1fr) ไม่บีบเนื้อหาให้ล้น/ซ้อนทับ) ── */
 .planweek-page{
   font-family:Sarabun,sans-serif;color:#1e293b;
-  width:420mm;min-height:297mm;box-sizing:border-box;padding:12mm;
+  width:420mm;min-height:297mm;box-sizing:border-box;padding:8mm;
   background:#fff;margin:0 auto 16px;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;
 }
 .planweek-page:last-child{margin-bottom:0}
-.planweek-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:10px}
+.planweek-header{flex:0 0 auto;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:10px}
 .planweek-title{font-size:23px;font-weight:800;color:#1e3a8a}
 .planweek-subtitle{font-size:15px;color:#475569;margin-top:2px;font-weight:600}
 .planweek-meta{font-size:12.5px;color:#94a3b8;text-align:right}
-.planweek-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#334155;margin-bottom:8px}
+.planweek-legend{flex:0 0 auto;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#334155;margin-bottom:8px}
 .planweek-legend span{display:inline-flex;align-items:center;gap:4px}
 .planweek-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0}
-.planweek-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3mm}
-.planweek-daycol{border:1px solid #cbd5e1;border-radius:6px;padding:2mm;background:#f8fafc;min-height:60mm}
+.planweek-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3mm;flex:1 1 auto;min-height:0}
+.planweek-page.wk1 .planweek-grid{grid-template-rows:minmax(0,1fr)}
+.planweek-page.wk2 .planweek-grid{grid-template-rows:repeat(2,minmax(0,1fr))}
+.planweek-daycol{border:1px solid #cbd5e1;border-radius:6px;padding:2mm;background:#f8fafc;min-height:45mm}
 .planweek-daycol.today{border-color:#3b82f6;box-shadow:inset 0 0 0 1px #3b82f6}
 .planweek-daycol-head{font-size:12.5px;font-weight:800;color:#1e293b;border-bottom:1px dashed #cbd5e1;padding-bottom:2mm;margin-bottom:2mm;display:flex;justify-content:space-between;align-items:baseline}
 .planweek-daycol-head .dow{font-size:10px;font-weight:700;color:#64748b}
@@ -1616,7 +1624,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   font-size: 12px; color: var(--fp-text-dim);
 }
 #page-floorpulse .fp-clock b { color: var(--fp-text); font-size: 14px; }
-#page-floorpulse .fp-main { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+/* พนักงานทั้งหมดแยกเป็นกรุ๊ปซ้ายมือของตัวเอง (คำขอผู้ใช้ 2026-09-20) — คงที่เสมอ ไม่ขึ้นกับห้องที่เลือกอยู่
+   ในแผงขวา ต่างจาก .fp-drawer ที่เปลี่ยนเนื้อหาตามห้องที่คลิก */
+#page-floorpulse .fp-main { display: grid; grid-template-columns: 260px 1fr 340px; gap: 16px; align-items: start; }
+@media (max-width: 1200px) { #page-floorpulse .fp-main { grid-template-columns: 220px 1fr 300px; } }
 @media (max-width: 980px) { #page-floorpulse .fp-main { grid-template-columns: 1fr; } }
 /* aspect-ratio ตรงกับ viewBox "0 0 800 580" ของ SVG — ทำให้ขนาดกรอบไม่ขึ้นกับความสูงของ .fp-drawer
    ข้างๆ (เดิม align-items:stretch ของ .fp-main ทำให้กรอบนี้ถูกยืดสูงตามแผงรายละเอียด แต่ตัว SVG ข้างในไม่
@@ -1651,12 +1662,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 @media (prefers-reduced-motion: reduce) {
   #page-floorpulse .fp-dot-live { animation: none !important; }
 }
-#page-floorpulse .fp-drawer {
+#page-floorpulse .fp-drawer, #page-floorpulse .fp-staff-panel {
   background: var(--fp-surface); border: 1px solid var(--fp-wall-soft); border-radius: 14px;
   padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
   max-height: clamp(320px, calc(100vh - 320px), 640px);
 }
-#page-floorpulse .fp-drawer h2 { font-family: 'Chakra Petch', sans-serif; font-size: 15px; margin: 0 0 2px; color: var(--fp-text); }
+#page-floorpulse .fp-drawer h2, #page-floorpulse .fp-staff-panel h2 { font-family: 'Chakra Petch', sans-serif; font-size: 15px; margin: 0 0 2px; color: var(--fp-text); }
 #page-floorpulse .fp-eyebrow {
   font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--fp-text-faint);
   text-transform: uppercase; letter-spacing: .08em;
@@ -2423,8 +2434,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <button class="btn btn-light fw-bold text-info shadow-sm" onclick="planOpenReportModal()">
             <i class="fas fa-share-alt me-2"></i>Report
           </button>
-          <button class="btn btn-light fw-bold text-success shadow-sm" onclick="planPrintTwoWeeksOpen()" title="พิมพ์แผนผลิตแบบปฏิทิน 2 สัปดาห์ (จันทร์สัปดาห์นี้เป็นต้นไป) ให้พนักงานสายผลิตดู">
-            <i class="fas fa-print me-2"></i>พิมพ์แผน 2 สัปดาห์
+          <button class="btn btn-light fw-bold text-success shadow-sm" onclick="planPrintWeeksOpen()" title="พิมพ์แผนผลิตแบบปฏิทิน 1 หรือ 2 สัปดาห์ (จันทร์สัปดาห์นี้เป็นต้นไป) ให้พนักงานสายผลิตดู — เลือกจำนวนสัปดาห์ในโมดัลตัวอย่างได้">
+            <i class="fas fa-print me-2"></i>พิมพ์แผนผลิต
           </button>
         </div>
       </div>
@@ -2641,15 +2652,23 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
   </div>
 
-  <!-- ════════════ แผนผลิต: พิมพ์แผนแบบปฏิทิน 2 สัปดาห์ (ให้พนักงานสายผลิตดู — วัน/งาน/เวลา/ผู้ทำ/ยอด) ════════════ -->
+  <!-- ════════════ แผนผลิต: พิมพ์แผนแบบปฏิทิน 1/2 สัปดาห์ (ให้พนักงานสายผลิตดู — วัน/งาน/เวลา/ผู้ทำ/ยอด) ════════════ -->
   <div class="modal fade" id="planWeekPrintModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-xl">
       <div class="modal-content">
         <div class="modal-header" style="background:#1e3a8a;color:white">
-          <h5 class="modal-title"><i class="fas fa-print me-2"></i>ตัวอย่างแผนผลิต 2 สัปดาห์ — ตรวจสอบก่อนพิมพ์</h5>
+          <h5 class="modal-title" id="planWeekPrintModalTitle"><i class="fas fa-print me-2"></i>ตัวอย่างแผนผลิต — ตรวจสอบก่อนพิมพ์</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body" id="planweek-preview-body" style="background:#525659;padding:24px;max-height:82vh;overflow:auto"></div>
+        <div class="modal-body" style="background:#525659;padding:24px;max-height:82vh;overflow:auto">
+          <div class="d-flex justify-content-center mb-3">
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-outline-light" id="planweek-wk-1" onclick="planPrintWeeksOpen(1)">1 สัปดาห์</button>
+              <button type="button" class="btn btn-outline-light" id="planweek-wk-2" onclick="planPrintWeeksOpen(2)">2 สัปดาห์</button>
+            </div>
+          </div>
+          <div id="planweek-preview-body"></div>
+        </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
           <button type="button" class="btn btn-primary" onclick="window.print()">
@@ -7975,6 +7994,27 @@ function _fpBuildRoster(line, planItem, laborRowsByLine) {
   });
 }
 
+// สรุปพนักงานทั้งหมด (ยืนยันกับผู้ใช้แล้ว 2026-09-20 ว่าอยากเห็นว่าใครทำอะไรอยู่/ว่างกี่คน) — ไล่ทุกไลน์ใน
+// PLAN_LINES (รวม 5 สถานีในห้องบรรจุหีบห่อ เพราะเป็นไลน์แยกกันใน PLAN_LINES อยู่แล้ว) หาว่าพนักงานแต่ละคน
+// "สแกนเข้าแล้ว" อยู่ไลน์ไหน (ให้ความสำคัญสูงสุด) รองลงมาคือ "อยู่ในแผนแต่ยังไม่สแกน" ที่เหลือถือว่า "ว่าง"
+function _fpBuildStaffOverview() {
+  const workingLine = {}, plannedLine = {};
+  PLAN_LINES.forEach(line => {
+    const r = _fpData[line];
+    (r && r.roster || []).forEach(p => {
+      if (p.confirmed) { if (!workingLine[p.code]) workingLine[p.code] = line; }
+      else if (!plannedLine[p.code]) plannedLine[p.code] = line;
+    });
+  });
+  return _planEmployees.map(emp => {
+    const code = emp.EmployeeCode;
+    const name = emp.NickName || emp.FirstName || code;
+    if (workingLine[code]) return { code, name, status: 'working', line: workingLine[code] };
+    if (plannedLine[code]) return { code, name, status: 'planned', line: plannedLine[code] };
+    return { code, name, status: 'idle', line: null };
+  });
+}
+
 async function loadFloorPulseData() {
   await Promise.all([ loadProdStatusData(), _planLoadSkillData() ]);
 
@@ -8036,6 +8076,7 @@ function _fpRender() {
     <div class="fp-stage">
       <div class="fp-topbar" id="fp-kpi-strip"></div>
       <div class="fp-main">
+        <aside class="fp-staff-panel" id="fp-staff-panel"></aside>
         <div class="fp-floor-wrap">
           <div class="fp-floor-tilt">
             <svg class="fp-svg" viewBox="0 0 800 580" xmlns="http://www.w3.org/2000/svg" id="fp-svg"></svg>
@@ -8054,6 +8095,7 @@ function _fpRender() {
   `;
   _fpBuildSvg();
   _fpRenderKpis();
+  _fpRenderStaffPanel();
   if (_fpSelectedId) _fpSelectRoom(_fpSelectedId); else _fpRenderOverview();
   const upd = document.getElementById('fp-updated-at');
   if (upd) upd.textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -8061,20 +8103,22 @@ function _fpRender() {
 
 function _fpRenderKpis() {
   let running = 0, behind = 0;
-  const confirmedStaff = new Set();
   PLAN_LINES.forEach(line => {
     const r = _fpData[line];
     if (!r) return;
     if (r.status === 'running') running++;
     else if (r.status === 'behind') behind++;
-    (r.roster || []).forEach(p => { if (p.confirmed) confirmedStaff.add(p.code); });
   });
+  const staff = _fpBuildStaffOverview();
+  const working = staff.filter(s => s.status === 'working').length;
+  const idle = staff.filter(s => s.status === 'idle').length;
   const el = document.getElementById('fp-kpi-strip');
   if (!el) return;
   el.innerHTML = `
     <div class="fp-kpi"><b>${running + behind}/${PLAN_LINES.length}</b><span>ไลน์มีงานค้าง</span></div>
     <div class="fp-kpi"><b>${behind}</b><span>ล่าช้ากว่าแผน</span></div>
-    <div class="fp-kpi"><b>${confirmedStaff.size}</b><span>พนักงานสแกนเข้าแล้ว</span></div>
+    <div class="fp-kpi"><b>${working}</b><span>พนักงานสแกนเข้าแล้ว</span></div>
+    <div class="fp-kpi"><b>${idle}</b><span>พนักงานว่าง</span></div>
     <div class="fp-clock"><b id="fp-clock-time">--:--:--</b></div>
   `;
   const clockEl = document.getElementById('fp-clock-time');
@@ -8249,6 +8293,44 @@ function _fpRenderOverview() {
     <div class="fp-eyebrow">ภาพรวมทั้งโรงงาน</div>
     <h2>${entries.length} จุดตรวจสอบ</h2>
     <div class="fp-hint">คลิกห้องบนผัง หรือรายการด้านล่าง เพื่อดูรายละเอียด</div>
+    <div>${rows}</div>
+  `;
+}
+
+// สรุปพนักงานทั้งหมด — ใครทำอะไรอยู่/ว่างกี่คน (คำขอผู้ใช้ 2026-09-20) แยกเป็นกรุ๊ปของตัวเองด้านซ้ายมือ
+// (คำขอผู้ใช้ 2026-09-20 รอบสอง — เดิมต่อท้ายรายการห้องในแผงขวา) อยู่คงที่เสมอ ไม่ขึ้นกับว่ากำลังเลือก
+// ห้องไหนอยู่ในแผงขวา — คลิกแถวที่ "กำลังทำงาน/ตามแผน" เพื่อกระโดดไปห้อง/สถานีของไลน์นั้นได้เลย
+function _fpRenderStaffPanel() {
+  const panel = document.getElementById('fp-staff-panel');
+  if (!panel) return;
+  const staff = _fpBuildStaffOverview();
+  if (!staff.length) {
+    panel.innerHTML = `<div class="fp-eyebrow">พนักงานทั้งหมด</div><div class="fp-hint">ยังไม่มีข้อมูลพนักงาน</div>`;
+    return;
+  }
+  const order = { working: 0, planned: 1, idle: 2 };
+  const metaOf = s => s === 'working' ? { color: 'var(--fp-accent)', label: l => `กำลังทำงาน · ${l}` }
+    : s === 'planned' ? { color: 'var(--fp-warn)', label: l => `ตามแผน · ${l}` }
+    : { color: 'var(--fp-muted)', label: () => 'ว่าง' };
+  const allEntries = _fpAllEntries();
+  const rows = staff.slice()
+    .sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'th'))
+    .map(s => {
+      const meta = metaOf(s.status);
+      const entry = s.line ? allEntries.find(e => e.line === s.line) : null;
+      const clickAttr = entry ? ` onclick="_fpSelectRoom('${entry.id}')"` : '';
+      return `<div class="fp-overview-row"${clickAttr} style="${entry ? '' : 'cursor:default'}">
+        <span class="fp-dot" style="background:${meta.color}"></span>
+        <span class="fp-oname">${s.name}</span>
+        <span class="fp-oval">${meta.label(entry ? entry.label : (s.line || ''))}</span>
+      </div>`;
+    }).join('');
+  const working = staff.filter(s => s.status === 'working').length;
+  const idle = staff.filter(s => s.status === 'idle').length;
+  panel.innerHTML = `
+    <div class="fp-eyebrow">พนักงานทั้งหมด</div>
+    <h2>${staff.length} คน</h2>
+    <div class="fp-hint">ทำงาน ${working} · ว่าง ${idle}</div>
     <div>${rows}</div>
   `;
 }
@@ -12629,9 +12711,12 @@ function fgoutRenderTable() {
 
 // ── จัดกรุ๊ปรายการที่ออกใบส่งสินค้าแล้ว (มี DeliveryBillNo) มาเป็นการ์ดเดียวต่อเลขใบ (2026-08-11: จัดกรุ๊ปทุกใบที่
 // มีเลขแล้ว ไม่ใช่แค่ใบที่ยังค้าง — เดิมกรองเฉพาะใบที่ยังไม่ส่งถึงครบ ทำให้ใบที่ส่งถึงแล้วครบยังกระจัดกระจายเป็น
-// แถวเดี่ยวๆในตารางเหมือนไม่ได้จัดกรุ๊ปอะไรเลย) ใบที่ยังส่งไม่ครบมีปุ่ม "ส่งสำเร็จ" กดทีเดียวจบทั้งใบ ไม่ต้องไล่กด
-// ปุ่มไล่สถานะทีละแถว ส่วนใบที่ส่งถึงแล้วครบทุกแถวแล้วโชว์เป็น badge เขียวเฉยๆ ไม่มีปุ่มให้กดซ้ำ — แถวที่ถูกจัดกรุ๊ป
-// ไปแบบนี้จะไม่โชว้ซ้ำในตารางเบิก FG ด้านล่างอีก (ดู fgoutRenderTable's hasActiveFilter check) ──
+// แถวเดี่ยวๆในตารางเหมือนไม่ได้จัดกรุ๊ปอะไรเลย) ใบที่ยังส่งไม่ครบมีปุ่ม 2 อัน แยกหน้าที่กันชัดเจน (2026-09-20):
+// "ออกบิล" (fgoutBillIssueNotify) — แจ้งเตือนไลน์กลุ่มจัดส่งว่าบิลนี้ออกแล้ว ไม่แตะสถานะ/ไม่ตัด CO เลย, และ
+// "ส่งเสร็จ" (fgoutBillAdvanceAll) — ใช้ตอนของถึงลูกค้าจริงแล้วเท่านั้น เปลี่ยนสถานะเป็น "ส่งถึงแล้ว" ทั้งใบ +
+// ตัด/ปิด CO เมื่อยอดครบ (ไม่ส่งแจ้งเตือนไลน์อีกต่อไป — ย้ายไปอยู่ที่ปุ่มออกบิลแล้ว) ส่วนใบที่ส่งถึงแล้วครบทุกแถว
+// แล้วโชว์เป็น badge เขียวเฉยๆ ไม่มีปุ่มออกบิล/ส่งเสร็จให้กดซ้ำ — แถวที่ถูกจัดกรุ๊ปไปแบบนี้จะไม่โชว์ซ้ำในตาราง
+// เบิก FG ด้านล่างอีก (ดู fgoutRenderTable's hasActiveFilter check) ──
 let _fgoutBillExpandedSet = new Set();
 
 function _fgoutBuildBillGroups() {
@@ -12673,8 +12758,11 @@ function fgoutRenderBillGroups() {
           (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();fgoutBillUndoAdvanceAll('${g.billNo}')" title="ยกเลิกส่งสำเร็จทั้งใบ (แอดมินเท่านั้น) — ย้อนกลับเป็นจัดส่งแล้ว">
              <i class="fas fa-undo me-1"></i>เลิกสำเร็จ
            </button>` : '')
-        : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();fgoutBillAdvanceAll('${g.billNo}')" title="ทำเครื่องหมายส่งถึงลูกค้าสำเร็จทั้งใบ">
-             <i class="fas fa-check-circle me-1"></i>ส่งสำเร็จ
+        : `<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();fgoutBillIssueNotify('${g.billNo}')" title="ส่งแจ้งเตือนออกบิลนี้เข้ากลุ่มไลน์จัดส่ง (ไม่เปลี่ยนสถานะจัดส่ง/ไม่ตัด CO)">
+             <i class="fab fa-line me-1"></i>ออกบิล
+           </button>
+           <button class="btn btn-sm btn-success" onclick="event.stopPropagation();fgoutBillAdvanceAll('${g.billNo}')" title="ใช้เมื่อของถึงลูกค้าจริงแล้วเท่านั้น — ทำเครื่องหมายส่งถึงลูกค้าสำเร็จทั้งใบ และตัด/ปิด CO เมื่อยอดครบ">
+             <i class="fas fa-check-circle me-1"></i>ส่งเสร็จ
            </button>`;
 
       return `<div class="glass-card mb-2 p-0 overflow-hidden${allArrived ? ' border-success border-2' : ''}">
@@ -12695,9 +12783,9 @@ function fgoutRenderBillGroups() {
             <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();dlvlabelOpenPrint('${g.billNo}')" title="พิมพ์ป้ายกล่อง (QR) แยกตามสินค้า สำหรับแปะกล่องของใบส่งนี้">
               <i class="fas fa-qrcode me-1"></i>ป้ายกล่อง
             </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();fgoutCancelBill('${g.billNo}')" title="ยกเลิกเลขที่ใบส่งนี้ — รายการจะกลับไปออกเลขใหม่ได้อีกครั้ง">
+            ${allArrived ? '' : `<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();fgoutCancelBill('${g.billNo}')" title="ยกเลิกเลขที่ใบส่งนี้ — รายการจะกลับไปออกเลขใหม่ได้อีกครั้ง">
               <i class="fas fa-ban me-1"></i>ยกเลิกใบ
-            </button>
+            </button>`}
             ${actionHtml}
             <i class="fas fa-chevron-${expanded ? 'up' : 'down'} text-muted"></i>
           </div>
@@ -12742,8 +12830,9 @@ async function fgoutBillAdvanceAll(billNo) {
   const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
   for (const coRef of coRefs) await _deliveryCheckCOComplete(coRef);
 
-  // แจ้งไลน์กลุ่มจัดส่ง (คนละกลุ่มกับคลัง) — ไม่ await กันการแจ้งช้า/ล้มเหลวไปหน่วงหน้าจอ
-  _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs);
+  // หมายเหตุ: ปุ่มนี้ตัดจบเรื่อง "ส่งถึงลูกค้าจริง + ตัด/ปิด CO" อย่างเดียว ไม่ส่งแจ้งเตือนไลน์อีกต่อไป —
+  // การแจ้งไลน์กลุ่มจัดส่งย้ายไปอยู่ที่ปุ่ม "ออกบิล" (fgoutBillIssueNotify) ซึ่งกดได้ตั้งแต่ตอนบิลยังไม่ส่งถึง
+  // เพื่อแยก 2 เรื่องออกจากกันชัดเจน: แจ้งเตือนไลน์ (ออกบิล) กับ ยืนยันส่งถึง+ตัด CO (ปุ่มนี้)
 }
 
 // ยกเลิก "ส่งสำเร็จ" ทั้งใบ (เผื่อกดพลาด/ต้องแก้ไข) — ย้อนแถวที่เป็น "ส่งถึงแล้ว" ในใบนี้กลับเป็น "จัดส่งแล้ว"
@@ -12824,10 +12913,38 @@ async function fgoutCancelBill(billNo) {
   await loadDeliveryData();
 }
 
-// ส่งสรุปการจัดส่งแบบย่อเข้าไลน์กลุ่มจัดส่ง (วันที่/ลูกค้า/เลขใบส่ง/รายการชื่อ-ล็อต-จำนวน/PO ที่ตัด)
-// ผ่าน Edge Function notify-fg-delivery-success ซึ่งเป็นตัวรีเลย์ไป LINE เท่านั้น (เก็บ token ไว้ฝั่งเซิร์ฟเวอร์)
-// best-effort ล้วนๆ — ล้มเหลวแค่ log ไว้ ไม่โชว์ error ให้ user เพราะการจัดส่งจริงในระบบเสร็จไปแล้วก่อนหน้านี้
-async function _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs) {
+// กด "ออกบิล" บนการ์ด (เฉพาะใบที่ยังไม่ "ส่งถึงแล้ว" ครบทุกแถว — รอจัดส่ง/จัดส่งแล้ว) → ส่งแจ้งเตือนเข้ากลุ่มไลน์
+// จัดส่งเดียวกับที่ "ส่งเสร็จ" เคยส่ง (ใช้ Edge Function notify-fg-delivery-success ตัวเดิม ไม่ต้องตั้งกลุ่ม/
+// secret ใหม่) — ปุ่มนี้ "ไม่แตะ" สถานะจัดส่ง/fg_withdraw/CO เลย เป็นแค่การแจ้งเตือนล้วนๆ ต่างจาก fgoutBillAdvanceAll
+// ("ส่งเสร็จ") ซึ่งใช้ยืนยันว่าของถึงลูกค้าจริงแล้วเพื่อตัด/ปิด CO เท่านั้น ตั้งแต่ 2026-09-20 เป็นต้นมา —
+// กดซ้ำได้หลายครั้ง (ไม่มี flag กันซ้ำ) เผื่อกลุ่มไลน์พลาดข้อความหรือมีรายการเพิ่มเข้าใบเดิม
+async function fgoutBillIssueNotify(billNo) {
+  const rows = _deliveryData.filter(d => d.DeliveryBillNo === billNo);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ส่งแจ้งเตือนออกบิล ${billNo} เข้ากลุ่มไลน์?`,
+    html: `จะส่งสรุปรายการของใบนี้ (${rows.length} รายการ) เข้ากลุ่มไลน์จัดส่ง — ไม่เปลี่ยนสถานะจัดส่งหรือตัด CO`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'ส่งแจ้งเตือน', cancelButtonText: 'ยกเลิก'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+  const ok = await _fgoutNotifyLineBillIssued(billNo, rows, coRefs);
+  _hideLoader();
+  if (ok) {
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ส่งแจ้งเตือนออกบิล ${billNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  } else {
+    _err('ส่งแจ้งเตือนไลน์ไม่สำเร็จ', 'ลองใหม่อีกครั้ง หรือแจ้งลูกค้า/คลังด้วยช่องทางอื่นไปก่อน');
+  }
+}
+
+// ส่งสรุปบิล (วันที่/ลูกค้า/เลขใบส่ง/รายการชื่อ-ล็อต-จำนวน/PO) เข้าไลน์กลุ่มจัดส่ง ผ่าน Edge Function
+// notify-fg-delivery-success (ตัวรีเลย์ไป LINE เท่านั้น เก็บ token ไว้ฝั่งเซิร์ฟเวอร์) — เรียกจาก fgoutBillIssueNotify
+// ("ออกบิล") เท่านั้นตั้งแต่ 2026-09-20 — เดิมเรียกจาก fgoutBillAdvanceAll ("ส่งเสร็จ") ตอนยืนยันส่งถึงแล้ว
+// คืนค่า true/false ให้ caller โชว์ toast/error เอง (ต่างจากเดิมที่เป็น fire-and-forget เพราะตอนนี้นี่คือ
+// การกระทำหลักของปุ่ม ไม่ใช่ผลข้างเคียงของการยืนยันส่งถึงแล้ว)
+async function _fgoutNotifyLineBillIssued(billNo, rows, coRefs) {
   try {
     let poNos = [];
     if (coRefs.length) {
@@ -12841,22 +12958,24 @@ async function _fgoutNotifyLineDeliverySuccess(billNo, rows, coRefs) {
       `${i + 1}. ${r.ProductName || '—'}\n    Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
     ).join('\n');
     const text =
-      `📦 แจ้งจัดส่งสำเร็จ\n` +
+      `🧾 แจ้งออกบิลส่งสินค้า\n` +
       `วันที่: ${dateStr}\n` +
       `ลูกค้า: ${customer}\n` +
       `เลขใบส่งสินค้า: ${billNo}\n` +
       `PO: ${poNos.length ? poNos.join(', ') : '—'}\n\n` +
-      `รายการที่ส่ง:\n${itemLines}`;
+      `รายการในบิล:\n${itemLines}`;
     const { data, error } = await _sb.functions.invoke('notify-fg-delivery-success', { body: { text } });
     if (error) {
       let detail = error.message || String(error);
       try { detail = await error.context?.text() || detail; } catch (_) {}
-      console.error('LINE notify (delivery success) failed — edge function returned an error', detail, error);
-    } else {
-      console.log('LINE notify (delivery success) invoked ok', data);
+      console.error('LINE notify (bill issued) failed — edge function returned an error', detail, error);
+      return false;
     }
+    console.log('LINE notify (bill issued) invoked ok', data);
+    return true;
   } catch (e) {
-    console.error('LINE notify (delivery success) failed — invoke() threw', e);
+    console.error('LINE notify (bill issued) failed — invoke() threw', e);
+    return false;
   }
 }
 
@@ -16551,20 +16670,25 @@ async function planGenerateReportLink() {
   }
 }
 
-// ── พิมพ์แผนผลิตแบบปฏิทิน 2 สัปดาห์ (จันทร์สัปดาห์นี้เป็นต้นไป) — ให้พนักงานสายผลิตดูว่าวันไหนงานอะไร เวลาเท่าไหร่
-// ใครทำ ยอดเท่าไหร่ ต่างจาก planOpenReportModal (สร้างลิงก์สาธารณะให้คนนอกเปิดดูโดยไม่ต้อง login) ตรงที่นี่พิมพ์
-// ตรงจากในแอปทันที — A4 แนวนอน 2 แผ่น (แผ่นละ 1 สัปดาห์) ตามที่ผู้ใช้ยืนยัน (ปฏิทิน 2 สัปดาห์ รวมทุกไลน์ในใบเดียว
-// ไม่แยกใบต่อไลน์) ช่วงวันที่คำนวณจาก "วันนี้จริง" เสมอ ไม่ผูกกับเดือนที่ผู้ใช้กำลังดูอยู่บนปฏิทินหน้าจอ (ผู้ใช้อาจ
-// เปลี่ยนเดือนดูย้อนหลัง/ล่วงหน้าอยู่ก็ได้ ไม่เกี่ยวกับสิ่งที่จะพิมพ์) — ดึงข้อมูลสดใหม่เฉพาะช่วงนี้ ไม่พึ่ง _planData
+// ── พิมพ์แผนผลิตแบบปฏิทิน 1 หรือ 2 สัปดาห์ (จันทร์สัปดาห์นี้เป็นต้นไป) — ให้พนักงานสายผลิตดูว่าวันไหนงานอะไร
+// เวลาเท่าไหร่ ใครทำ ยอดเท่าไหร่ ต่างจาก planOpenReportModal (สร้างลิงก์สาธารณะให้คนนอกเปิดดูโดยไม่ต้อง login)
+// ตรงที่นี่พิมพ์ตรงจากในแอปทันที — A3 แนวนอน แผ่นเดียวเสมอไม่ว่าจะเลือกกี่สัปดาห์ (ปฏิทินรวมทุกไลน์ในใบเดียว
+// ไม่แยกใบต่อไลน์) จำนวนสัปดาห์เลือกได้จากปุ่มในโมดัลตัวอย่าง (added 2026-09-20 ตามคำขอผู้ใช้ — เดิมมีแค่ 2
+// สัปดาห์ตายตัว) ช่วงวันที่เริ่มที่จันทร์สัปดาห์นี้เสมอ คำนวณจาก "วันนี้จริง" ไม่ผูกกับเดือนที่ผู้ใช้กำลังดูอยู่
+// บนปฏิทินหน้าจอ (ผู้ใช้อาจเปลี่ยนเดือนดูย้อนหลัง/ล่วงหน้าอยู่ก็ได้ ไม่เกี่ยวกับสิ่งที่จะพิมพ์) — ดึงข้อมูลสดใหม่
+// เฉพาะช่วงนี้ ไม่พึ่ง _planData
 let _planWeekPrintModal = null;
+let _planPrintWeeks     = 2; // จำค่าที่เลือกล่าสุดไว้ในเซสชันนี้ (ปุ่มลัดจากแถบเครื่องมือเปิดด้วยค่าเดิมที่เคยเลือก)
 
-async function planPrintTwoWeeksOpen() {
+async function planPrintWeeksOpen(weeks = _planPrintWeeks) {
+  _planPrintWeeks = weeks;
+
   const today = new Date();
   const dow = today.getDay();
   const diffToMon = dow === 0 ? -6 : 1 - dow;
   const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMon);
   const start = _planWeekLocalDateStr(mon);
-  const end   = _ganttAddDays(start, 13);
+  const end   = _ganttAddDays(start, weeks * 7 - 1);
 
   _showLoader();
   const { data: planRows, error } = await _sb.from('production_plan').select('*')
@@ -16572,8 +16696,8 @@ async function planPrintTwoWeeksOpen() {
   if (error) { _hideLoader(); _err('โหลดแผนผลิตไม่ได้', error.message); return; }
 
   // หา Lot ของ MO ที่ผูกกับแผนแต่ละแถว — production_plan ไม่มีคอลัมน์ Lot เอง (เหตุผลเดียวกับ _planMOLot) แต่ query
-  // แยกสดใหม่ตรงนี้แทนพึ่ง _planMOList เพราะ _planMOList กรอง MO ที่ "เสร็จสิ้น" ออกไปแล้ว ขณะที่แผน 2 สัปดาห์ข้างหน้า
-  // อาจอ้างอิง MO ที่เสร็จไปแล้วก็ได้ (เช่น แผนที่แก้ไข/ผูกไว้ล่วงหน้า)
+  // แยกสดใหม่ตรงนี้แทนพึ่ง _planMOList เพราะ _planMOList กรอง MO ที่ "เสร็จสิ้น" ออกไปแล้ว ขณะที่แผนล่วงหน้าอาจ
+  // อ้างอิง MO ที่เสร็จไปแล้วก็ได้ (เช่น แผนที่แก้ไข/ผูกไว้ล่วงหน้า)
   const moRefs = [...new Set((planRows || []).map(r => r.MO_Ref).filter(Boolean))];
   let lotByMO = {};
   if (moRefs.length) {
@@ -16582,9 +16706,16 @@ async function planPrintTwoWeeksOpen() {
   }
   _hideLoader();
 
-  const html = _planweekBuildHTML(planRows || [], start, lotByMO);
+  const html = _planweekBuildHTML(planRows || [], start, weeks, lotByMO);
   document.getElementById('planweek-preview-body').innerHTML = html;
   document.getElementById('planweek-print-root').innerHTML   = html;
+  document.getElementById('planWeekPrintModalTitle').innerHTML =
+    `<i class="fas fa-print me-2"></i>ตัวอย่างแผนผลิต ${weeks} สัปดาห์ — ตรวจสอบก่อนพิมพ์`;
+  const btn1 = document.getElementById('planweek-wk-1'), btn2 = document.getElementById('planweek-wk-2');
+  if (btn1 && btn2) {
+    btn1.className = 'btn ' + (weeks === 1 ? 'btn-light' : 'btn-outline-light');
+    btn2.className = 'btn ' + (weeks === 2 ? 'btn-light' : 'btn-outline-light');
+  }
 
   document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
     'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
@@ -16600,20 +16731,22 @@ async function planPrintTwoWeeksOpen() {
 // ใช้อยู่แล้ว เพราะผู้ใช้ขอให้ใบพิมพ์นี้เขียนเต็มอ่านง่ายกว่า ไม่ใช้ตัวย่อ
 const _planWeekDowThaiFull = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
-// รวม 2 สัปดาห์ไว้ในกระดาษแผ่นเดียว (ตามที่ผู้ใช้ยืนยัน) — ไม่รวมวันอาทิตย์ (วันหยุด ไม่ต้องมีช่องให้ตามที่ผู้ใช้
-// ขอ) เหลือ 6 วัน/สัปดาห์ grid 6 คอลัมน์เดียว ใส่ครบ 12 วันรวด ปล่อยให้ CSS Grid ตัดขึ้นแถวใหม่เองพอดีที่วันที่ 7
-// (6 คอลัมน์ × 2 แถว = สัปดาห์ที่ 1 แถวบน, สัปดาห์ที่ 2 แถวล่าง) ไม่ต้องคำนวณแถวเอง — ถ้าวันไหนมีงานเยอะจนสูงเกิน
-// แถวเพื่อนบ้าน แถวนั้นจะสูงขึ้นเองตามเนื้อหา (grid auto row สูงเท่ากับ item ที่สูงสุดในแถวเดียวกันเสมอ) ถ้าล้น
-// ทั้งหน้าไปจริงๆ ก็ไหลไปหน้าถัดไปตามปกติของเบราว์เซอร์ (ดูหมายเหตุบน .planweek-page)
-function _planweekBuildHTML(rows, start, lotByMO) {
+// รวม 1 หรือ 2 สัปดาห์ (weeks) ไว้ในกระดาษแผ่นเดียวเสมอ (ตามที่ผู้ใช้ยืนยัน) — ไม่รวมวันอาทิตย์ (วันหยุด
+// ไม่ต้องมีช่องให้ตามที่ผู้ใช้ขอ) เหลือ 6 วัน/สัปดาห์ grid 6 คอลัมน์เดียว ใส่ครบ weeks×7 วันรวด ปล่อยให้ CSS
+// Grid ตัดขึ้นแถวใหม่เองพอดีที่วันที่ 7 (6 คอลัมน์ × weeks แถว) ไม่ต้องคำนวณแถวเอง — .planweek-page ใส่คลาส
+// wk1/wk2 (ดู CSS) ให้ grid-template-rows ตรงกับจำนวนสัปดาห์จริง ถ้าวันไหนมีงานเยอะจนสูงเกินแถวเพื่อนบ้าน
+// แถวนั้นจะสูงขึ้นเองตามเนื้อหา (minmax(0,1fr)) ถ้าล้นทั้งหน้าไปจริงๆ ก็ไหลไปหน้าถัดไปตามปกติของเบราว์เซอร์
+// (ดูหมายเหตุบน .planweek-page)
+function _planweekBuildHTML(rows, start, weeks, lotByMO) {
   const byDate = {};
   rows.forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
   const todayStr = _planWeekLocalDateStr(new Date());
   const printedAt = _planFmtDateLabel(todayStr);
   const legend = PLAN_LINES.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('');
 
-  const allDays = Array.from({ length: 14 }, (_, i) => _ganttAddDays(start, i));
-  const end = allDays[13];
+  const totalDays = weeks * 7;
+  const allDays = Array.from({ length: totalDays }, (_, i) => _ganttAddDays(start, i));
+  const end = allDays[totalDays - 1];
   const days = allDays.filter(d => _ganttDow(d) !== 0);
 
   // เรียงงานในแต่ละวัน: จัดกลุ่มตาม "1 งาน" ก่อน (ไลน์บรรจุ/แพ็ค/ยิง Lot ของงานเดียวกันเป็นคนละแถว
@@ -16660,10 +16793,10 @@ function _planweekBuildHTML(rows, start, lotByMO) {
     </div>`;
   }).join('');
 
-  return `<div class="planweek-page">
+  return `<div class="planweek-page wk${weeks}">
     <div class="planweek-header">
       <div>
-        <div class="planweek-title">แผนผลิต 2 สัปดาห์</div>
+        <div class="planweek-title">แผนผลิต ${weeks} สัปดาห์</div>
         <div class="planweek-subtitle">${_planFmtDateLabel(start)} – ${_planFmtDateLabel(end)}</div>
       </div>
       <div class="planweek-meta">พิมพ์เมื่อ ${printedAt}</div>
@@ -18500,6 +18633,8 @@ let _prodStatusPlanWeekData = [];  // production_plan rows ในช่วง 7 
 let _prodStatusPlanAllData  = [];  // production_plan rows ของ MO ที่กำลังดำเนินการ "ทุกวันที่" (เช็คว่ามีแผนหรือยัง)
 let _prodStatusRecords     = {};   // ProdRecord_ID → production_records row (เทียบแผน vs ผลจริงของวันนี้)
 let _prodStatusProgressData = {};  // "{MO_Ref}|{Line}" → แถวล่าสุดจาก production_progress (สแกน QR หน้างาน, เรียลไทม์)
+let _prodStatusTodayItems  = [];   // production_plan rows ล่าสุดที่ render เป็นการ์ด (ดู prodStatusRenderTodayCards)
+                                    // เก็บไว้ให้ปุ่ม "ยืนยันว่าเสร็จแล้ว" (prodStatusConfirmDone) อ้าง index กลับมาหาแถวได้
 // รวม 'แพลนแล้ว' (จองวัตถุดิบ + มักมีแผนบนปฏิทินแล้วจากปุ่ม "แพลนการผลิต" ที่หน้า MO) ไว้ด้วย ไม่งั้น MO ที่แพลนไว้
 // จะหายไปจากแดชบอร์ดนี้ทั้งหมด (ตาราง MO, Gantt, และ moByID lookup ของการ์ด "รายละเอียดวันนี้") ทั้งที่กำลังจะผลิตจริง
 const _prodStatusActiveMOStatuses = ['แพลนแล้ว', 'ยืนยันการผลิต', 'เบิกแล้ว', 'กำลังผลิต'];
@@ -18677,6 +18812,7 @@ function prodStatusRenderTodayCards() {
     .sort((a, b) => (a.PlanDate||'').localeCompare(b.PlanDate||'') || (a.Line||'').localeCompare(b.Line||''));
 
   const allItems = [...overdueItems, ...todayItems];
+  _prodStatusTodayItems = allItems; // เก็บไว้ให้ปุ่ม "ยืนยันว่าเสร็จแล้ว" อ้าง index กลับมาหาแถวนี้ได้ (ดู prodStatusConfirmDone)
   const container = document.getElementById('prodstatus-today-cards');
   if (!allItems.length) { container.innerHTML = '<div class="glass-card text-center py-4 text-muted">วันนี้ยังไม่มีแผนผลิต</div>'; return; }
 
@@ -18686,7 +18822,7 @@ function prodStatusRenderTodayCards() {
   _prodStatusMOAllData.forEach(mo => { moByID[mo.MO_ID] = mo; });
 
   const statusColor = { 'วางแผน': 'secondary', 'ยืนยันแล้ว': 'success' };
-  container.innerHTML = allItems.map(r => {
+  container.innerHTML = allItems.map((r, itemIdx) => {
     const isOverdue = r.PlanDate < todayStr;
     const rec = r.ProdRecord_Ref ? _prodStatusRecords[r.ProdRecord_Ref] : null;
     const planQty = parseFloat(r.PlanQty) || 0;
@@ -18714,6 +18850,10 @@ function prodStatusRenderTodayCards() {
       </div>`;
     };
 
+    // % ความคืบหน้าล่าสุด (ไม่ว่าจะยังใช้ยอดสแกนหรือมีผลจริงอย่างเป็นทางการแล้ว) — เก็บไว้เป็นเลขเดียวกับที่ใช้
+    // วาดบาร์ด้านล่างเป๊ะ เพื่อใช้เป็นเงื่อนไขปุ่ม "ยืนยันว่าเสร็จแล้ว" ด้านล่างสุด (≥90% แต่ไม่ครบ 100% — ของที่
+    // ขาดอาจเป็นของเสีย/ของมีปัญหาที่ไม่ถูกสแกนเข้าระบบ ตามคำขอผู้ใช้ 2026-09-20) ไม่คำนวณซ้ำเป็นคนละสูตร
+    let completionPct = null;
     let progressHtml;
     if (mo && _moDoneStatuses.includes(mo.Status)) {
       // MO ปิดงานแล้ว (ปกติหรือ force-close) — moForceClose/fgUpdateMOProgress อัปเดตแค่ Status ของ MO เอง
@@ -18723,10 +18863,12 @@ function prodStatusRenderTodayCards() {
         ? `<div class="d-flex justify-content-between small text-success"><span><i class="fas fa-check-circle me-1"></i>ปิดงานแล้ว</span><span>ผลจริง ${parseFloat(rec.FG_Actual).toLocaleString()} ${rec.UOM||r.UOM||''}</span></div>`
         : `<div class="small text-success"><i class="fas fa-check-circle me-1"></i>ปิดงานแล้ว (ไม่มีบันทึกผลจริงในระบบ)</div>`;
     } else if (r.Status !== 'ยืนยันแล้ว') {
+      completionPct = (liveQty != null && scanTarget > 0) ? Math.round(liveQty / scanTarget * 1000) / 10 : null;
       progressHtml = liveQty != null
         ? _liveScanBarHTML(liveQty, scanTarget, r.UOM)
         : `<div class="text-muted small"><i class="fas fa-clock me-1"></i>ยังไม่ยืนยัน — เป้าหมาย ${planQty.toLocaleString()} ${r.UOM||''}</div>`;
     } else if (!rec || rec.FG_Actual == null) {
+      completionPct = (liveQty != null && scanTarget > 0) ? Math.round(liveQty / scanTarget * 1000) / 10 : null;
       progressHtml = liveQty != null
         ? _liveScanBarHTML(liveQty, scanTarget, r.UOM)
         : `<div class="planweek-progress-wrap">
@@ -18738,6 +18880,7 @@ function prodStatusRenderTodayCards() {
       const planned = parseFloat(rec.FG_Planned) || planQty;
       const actual  = parseFloat(rec.FG_Actual) || 0;
       const pct = planned > 0 ? Math.round(actual/planned*1000)/10 : 0;
+      completionPct = pct;
       const ok = actual >= planned;
       const barColor = ok ? '#22c55e' : (pct >= 70 ? '#f59e0b' : '#ef4444');
       progressHtml = `<div class="planweek-progress-wrap">
@@ -18748,6 +18891,24 @@ function prodStatusRenderTodayCards() {
         <div class="planweek-progress-bar-bg"><div class="planweek-progress-bar-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div></div>
       </div>`;
     }
+
+    // ปุ่ม "ยืนยันว่าเสร็จแล้ว" — การ์ดนี้คือความคืบหน้า "รายไลน์" เท่านั้น ไม่เกี่ยวกับสถานะ MO เลย (ผู้ใช้แก้ไข
+    // ความเข้าใจ 2026-09-20: "หน้านี้ไม่มีอะไรเกี่ยวกับ MO ไหม เพราะเป็นแค่ความคืบหน้า mo จะปิดตอนที่เป็น FG
+    // แล้วเท่านั้น ไม่สนใจแต่ละไลน์ผลิต" — MO ปิดจริงที่หน้ารับ FG เท่านั้น ไม่ใช่ที่นี่) ปุ่มนี้แค่ "เติม" แถว
+    // production_progress ล่าสุดของ (MO_Ref, Line) นี้ให้เท่ากับเป้าหมาย (scanTarget เดียวกับที่บาร์ใช้) เหมือน
+    // มีคนสแกนได้ครบแล้วจริง — ให้แอดมิน/หัวหน้างานยืนยันได้ว่าไลน์นี้เสร็จแล้ว (ของที่ขาดมักเป็นของเสีย/ของมี
+    // ปัญหาที่ไม่ถูกสแกน) โดยไม่แตะ manufacturing_orders เลย ผลที่ตามมาจำกัดอยู่แค่ไลน์นี้ไลน์เดียว (ปลดล็อก
+    // ห้อง/เวลา/คนของไลน์นี้ผ่าน _planLineFinished/_whLineStatus ที่อ่านค่าเดียวกัน — ไลน์อื่นของ MO เดียวกัน
+    // ไม่กระทบ) ตามคำขอผู้ใช้ 2026-09-20 "ให้แอดมิน กับหัวหน้า สามารถจัดการงาน ที่มากกว่า 90% ให้ยืนยันสถานะว่า
+    // เสร็จแล้ว"
+    const canConfirmDone = _hasRole('supervisor') && r.MO_Ref
+      && completionPct != null && completionPct >= 90 && completionPct < 100;
+    const confirmDoneHtml = !canConfirmDone ? '' : `<div class="mt-2">
+      <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();prodStatusConfirmDone(${itemIdx})"
+        title="ยอดไม่ครบ 100% แต่ยืนยันได้ว่าไลน์นี้เสร็จแล้ว (ของที่ขาดมักเป็นของเสีย/ของมีปัญหา) — แค่ปรับยอดของไลน์นี้ ไม่กระทบสถานะ MO">
+        <i class="fas fa-check-double me-1"></i>ยืนยันว่าไลน์นี้เสร็จแล้ว (${completionPct}%)
+      </button>
+    </div>`;
 
     // badge/เวลาแยกต่างหาก ให้เห็นเวลาสแกนล่าสุดชัดๆ เสมอ ไม่ว่าบาร์ด้านบนจะใช้เลขไหนอยู่ก็ตาม
     const liveProgHtml = !liveProg ? '' : `<div class="mt-2 small d-flex align-items-center gap-2">
@@ -18785,9 +18946,60 @@ function prodStatusRenderTodayCards() {
       </div>
       ${progressHtml}
       ${liveProgHtml}
+      ${confirmDoneHtml}
       ${moContextHtml}
     </div>`;
   }).join('');
+}
+
+// ปุ่ม "ยืนยันว่าไลน์นี้เสร็จแล้ว" ในการ์ด "รายละเอียดวันนี้" — การ์ดนี้คือความคืบหน้ารายไลน์ (production_progress
+// ต่อ MO_Ref+Line) ไม่เกี่ยวกับสถานะ manufacturing_orders เลย (ผู้ใช้ยืนยัน 2026-09-20: MO ปิดจริงที่หน้ารับ FG
+// เท่านั้น ไม่สนใจความคืบหน้ารายไลน์) — เดิมเวอร์ชันแรกเข้าใจผิดไปเรียก moForceClose ปิดทั้ง MO ซึ่งผิด เพราะ 1
+// MO อาจมีหลายไลน์/หลายขั้นตอน (ยิง Lot, บรรจุ, แพ็ค ฯลฯ) ไลน์หนึ่งเสร็จไม่ได้แปลว่า MO เสร็จ
+// แก้ใหม่: แค่เติมแถว production_progress ล่าสุดของ (MO_Ref, Line) นี้ให้เท่ากับเป้าหมาย (ค่าเดียวกับ
+// scanTarget ที่บาร์ในการ์ดใช้) เหมือนมีคนสแกนได้ครบเป้าจริง — ทุกจุดที่เช็ค "ไลน์นี้เสร็จหรือยัง" ทั้ง
+// _planLineFinished/_whLineStatus/การ์ดนี้เอง อ่านค่าเดียวกันนี้อยู่แล้ว จึงได้ผลถูกต้องอัตโนมัติ (ปลดล็อก
+// ห้อง/เวลา/คนของไลน์นี้เท่านั้น) โดยไม่ต้องแตะ manufacturing_orders หรือไลน์อื่นของ MO เดียวกันเลย
+async function prodStatusConfirmDone(idx) {
+  const r = _prodStatusTodayItems[idx];
+  if (!r || !r.MO_Ref) return;
+  const mo = _prodStatusMOAllData.find(m => m.MO_ID === r.MO_Ref) || null;
+  const planQty = parseFloat(r.PlanQty) || 0;
+  const scanTarget = (mo && parseFloat(mo.OrderQty)) || planQty;
+
+  const liveProg = _prodStatusProgressData[`${r.MO_Ref}|${r.Line}`];
+  const liveQty  = liveProg ? (parseFloat(liveProg.Qty) || 0) : 0;
+  const pct = scanTarget > 0 ? Math.round(liveQty / scanTarget * 1000) / 10 : 0;
+
+  const { value: reason } = await Swal.fire({
+    title: 'ยืนยันว่าไลน์นี้เสร็จแล้ว?',
+    html: `<div class="text-start">
+        <b>${r.MO_Ref}</b> — ${r.ProductName||''} <span class="badge" style="background:${_planLineColor(r.Line)}">${r.Line||''}</span><br>
+        สแกนได้ ${liveQty.toLocaleString()} / เป้าหมาย ${scanTarget.toLocaleString()} ${r.UOM||''} (${pct}%)<br>
+        <span class="text-muted">จะบันทึกยอดของไลน์นี้เป็น ${scanTarget.toLocaleString()} ${r.UOM||''} (เท่ากับเป้าหมาย) — ไม่กระทบสถานะ MO และไม่กระทบไลน์อื่นของ MO เดียวกัน</span>
+      </div>`,
+    icon: 'question',
+    input: 'textarea',
+    inputLabel: 'หมายเหตุ — เช่น สาเหตุที่ยอดไม่ครบ 100% (จำเป็นต้องกรอก)',
+    inputPlaceholder: 'เช่น ของเสีย/ตกไลน์ 152 ขวด',
+    showCancelButton: true,
+    confirmButtonText: 'ยืนยันว่าเสร็จแล้ว',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: '#198754',
+    inputValidator: (value) => !value?.trim() ? 'กรุณากรอกหมายเหตุ' : undefined,
+  });
+  if (!reason) return;
+
+  _showLoader();
+  const { error } = await _sb.from('production_progress').insert({
+    MO_Ref: r.MO_Ref, Line: r.Line, Qty: scanTarget, ScannedBy: _currentUser?.email || null,
+  });
+  _hideLoader();
+  if (error) { _err('ยืนยันไม่สำเร็จ', error.message); return; }
+
+  _logAudit('CONFIRM_LINE_DONE_MANUAL', 'production_progress', `${r.MO_Ref}|${r.Line}`, reason.trim());
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ยืนยันว่าไลน์นี้เสร็จแล้ว', showConfirmButton:false, timer:2000 });
+  loadProdStatusData();
 }
 
 // ── ตาราง "สถานะ MO ที่กำลังดำเนินการทั้งหมด" (เดิมคือหน้า In-Process) + คอลัมน์ "แผนผลิต" ใหม่
