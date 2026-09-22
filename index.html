@@ -20175,6 +20175,7 @@ async function skillmatrixSkillDelete() {
 // ══════════════════════════════════════════════
 let _bomData      = [];
 let _bomMaterials = [];   // materials master สำหรับ autocomplete
+let _bomUnitCostMap = {}; // MaterialCode -> ราคาเฉลี่ยถ่วงน้ำหนักจาก stock_balance (StockValue/QtyBalance) สำหรับโชว์คร่าวๆ ที่ตาราง BOM
 let _bomCustomerNames = [];   // ชื่อลูกค้า distinct จาก customer_orders สำหรับ datalist ราคาขายพิเศษ
 let _bomLineModal = null;
 let _bomProductModal = null;
@@ -20188,12 +20189,14 @@ async function bomLoadData() {
   // หมายเหตุ: ตาราง bom จริงมีแถวขยะ (ProductCode/ทุกคอลัมน์เป็น null, เหลือจากไฟล์ export เดิม) อยู่หลายหมื่นแถว
   // กรองด้วย .not('ProductCode','is',null) ตัดแถวขยะทิ้งตั้งแต่ query — แต่ตัวเซิร์ฟเวอร์ PostgREST เองก็ยัง cap
   // ผลลัพธ์ต่อ 1 request ไว้ที่ 1000 แถวเสมอ (ไม่ว่าจะขอ .limit() มากกว่านั้นแค่ไหน) จึงต้องวน .range() ทีละหน้า
-  const [bomRows, matRes, coRes] = await Promise.all([
+  const [bomRows, matRes, coRes, stockRes] = await Promise.all([
     _bomFetchAllRows(),
     _fetchAllPaged('materials', 'MaterialCode,MaterialName,UOM,TYPE'),
     // ชื่อลูกค้า distinct จาก customer_orders — ใช้ป้อน datalist ตอนตั้ง "ราคาขายพิเศษสำหรับลูกค้าเจาะจง"
     // กันพิมพ์ชื่อเพี้ยนไม่ตรงกับที่ MO/CO จริงใช้ (ดู _bomResolveSellingPrice ที่เทียบชื่อแบบ trim+lowercase)
     _fetchAllPaged('customer_orders', 'CustomerName'),
+    // ราคาต่อหน่วยของแต่ละวัตถุดิบ (คร่าวๆ) — ถ่วงน้ำหนักเฉลี่ยจาก stock_balance เหมือนหน้า Stock วัตถุดิบ
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,StockValue'),
   ]);
 
   _cancelPlaceholder();
@@ -20206,6 +20209,24 @@ async function bomLoadData() {
   _bomData      = bomRows.data;
   _bomMaterials = matRes.data || [];
   _bomCustomerNames = [...new Set((coRes.data || []).map(r => (r.CustomerName || '').trim()).filter(Boolean))].sort();
+
+  // ราคาเฉลี่ยถ่วงน้ำหนัก (StockValue รวม / QtyBalance รวม) ต่อ MaterialCode — เฉพาะ Lot ที่ยังมีเหลือ (>0)
+  const _bomStockAgg = {};
+  (stockRes.data || []).forEach(r => {
+    const qty = parseFloat(r.QtyBalance) || 0;
+    if (qty <= 0) return;
+    const code = r.MaterialCode;
+    if (!code) return;
+    if (!_bomStockAgg[code]) _bomStockAgg[code] = { qty: 0, val: 0 };
+    _bomStockAgg[code].qty += qty;
+    _bomStockAgg[code].val += (parseFloat(r.StockValue) || 0);
+  });
+  _bomUnitCostMap = {};
+  Object.keys(_bomStockAgg).forEach(code => {
+    const a = _bomStockAgg[code];
+    if (a.qty > 0) _bomUnitCostMap[code] = a.val / a.qty;
+  });
+
   _bomPopulateCustomerDatalist();
   bomUpdateKPIs();
   bomRenderCards();
@@ -20387,7 +20408,14 @@ function bomRenderCards() {
     const expanded = _bomExpandedSet.has(g.ProductCode);
     const bulk = g.lines.map((l, li) => ({ l, li })).filter(x => (x.l.Remark || '').toLowerCase() !== 'pac');
     const pac  = g.lines.map((l, li) => ({ l, li })).filter(x => (x.l.Remark || '').toLowerCase() === 'pac');
-    const rowHtml = ({ l, li }) => `<tr>
+    // ต้นทุนวัตถุดิบรวม/หน่วยสินค้า (คร่าวๆ) — คิดจาก "ใช้ต่อหน่วย" (QtyPerBase) ล้วนๆ ไม่รวม Scrap ตามที่ผู้ใช้ระบุ
+    let _bomLineCostTotal = 0, _bomLineCostMissing = 0;
+    const rowHtml = ({ l, li }) => {
+      const unitCost = _bomUnitCostMap[l.MaterialCode];
+      const qtyUse = parseFloat(l.QtyPerBase) || 0;
+      const lineCost = unitCost != null ? qtyUse * unitCost : null;
+      if (lineCost != null) _bomLineCostTotal += lineCost; else _bomLineCostMissing++;
+      return `<tr>
         <td>
           <span class="badge bg-secondary">${l.MaterialCode || '—'}</span>
           ${l.rowIds.length > 1 ? `<span class="badge bg-warning text-dark ms-1" title="ข้อมูลนี้ซ้ำกัน ${l.rowIds.length} แถวในฐานข้อมูล — แก้ไข/ลบจะมีผลกับทุกแถวพร้อมกัน">×${l.rowIds.length}</span>` : ''}
@@ -20396,6 +20424,8 @@ function bomRenderCards() {
         <td class="text-end">${(parseFloat(l.QtyPerBase) || 0).toLocaleString(undefined,{maximumFractionDigits:4})}</td>
         <td class="text-end">${(parseFloat(l.QtyWithScrap) || parseFloat(l.QtyPerBase) || 0).toLocaleString(undefined,{maximumFractionDigits:4})}</td>
         <td>${l.UOM || '—'}</td>
+        <td class="text-end" title="ราคาเฉลี่ยถ่วงน้ำหนักจากสต็อกคงเหลือจริง — ตัวเลขคร่าวๆ ไม่ใช่ราคามาตรฐาน">${unitCost != null ? '฿'+unitCost.toLocaleString(undefined,{maximumFractionDigits:2}) : '<span class="text-muted">—</span>'}</td>
+        <td class="text-end">${lineCost != null ? '฿'+lineCost.toLocaleString(undefined,{maximumFractionDigits:2}) : '<span class="text-muted">—</span>'}</td>
         <td><span class="badge-type ${(l.Remark||'').toLowerCase()==='pac'?'pac':'bulk'}">${(l.Remark||'').toLowerCase()==='pac'?'Pac':'Bulk'}</span></td>
         <td class="text-center text-nowrap">
           <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="bomOpenLineModal(${gi},${li})" title="แก้ไข">
@@ -20406,6 +20436,12 @@ function bomRenderCards() {
           </button>
         </td>
       </tr>`;
+    };
+    const bulkRowsHtml = bulk.map(rowHtml).join('');
+    const pacRowsHtml  = pac.map(rowHtml).join('');
+    const _bomCostBadge = _bomLineCostTotal > 0
+      ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" title="รวมต้นทุนวัตถุดิบต่อหน่วยสินค้าจากราคาเฉลี่ยสต็อกคงเหลือ — คร่าวๆ${_bomLineCostMissing ? ` (ยังไม่มีราคาให้ ${_bomLineCostMissing} รายการ)` : ''}"><i class="fas fa-coins me-1"></i>ต้นทุนวัตถุดิบ≈฿${_bomLineCostTotal.toLocaleString(undefined,{maximumFractionDigits:2})}</span>`
+      : '';
 
     return `<div class="glass-card mb-2">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="cursor:pointer" onclick="bomToggleExpand(${gi})">
@@ -20415,7 +20451,8 @@ function bomRenderCards() {
           <span class="badge bg-light text-dark border ms-2">UOF: ${g.UOF || '—'}</span>
           ${g.SellingPrice != null ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">ราคาขาย ฿${parseFloat(g.SellingPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
           ${g.SellingPrice2 != null && g.SellingPrice2_CustomerName ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="ราคาขายพิเศษสำหรับลูกค้านี้เท่านั้น"><i class="fas fa-user-tag me-1"></i>${g.SellingPrice2_CustomerName} ฿${parseFloat(g.SellingPrice2).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` : ''}
-          ${!_bomHasFullCapacity(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
+          ${_bomCostBadge}
+          ${!_bomHasFullCapacity(g) ?`<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกกำลังการผลิต/วันครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — มีผลกับ Gantt หน้าภาพรวมการผลิต"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ครบกำลังการผลิต/วัน</span>` : ''}
           ${!_bomHasAllowedLines(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กำหนด 'ไลน์ที่ผลิตได้' ไว้ — หน้าแผนผลิตจะให้เลือกได้ทุกไลน์ตามปกติ ไม่บล็อกอะไร แค่ยังไม่ได้จำกัด"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ระบุไลน์ผลิต</span>` : ''}
           ${!_bomHasFullRequiredWorkers(g) ? `<span class="badge bg-warning text-dark ms-2" title="ยังไม่ได้กรอกจำนวนคนที่ต้องใช้ครบทั้ง 3 ขั้นตอน (บรรจุ/ยิง Lot/ตรวจสอบ-แพ็ค) — ขั้นตอนที่ยังว่างอยู่ หน้าแผนผลิตจะข้ามไม่เช็คให้ (ขั้นที่กรอกไว้แล้วยังเช็คตามปกติ)"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ระบุจำนวนคน</span>` : ''}
           <span class="text-muted ms-2 small">${g.lines.length} รายการ</span>
@@ -20462,12 +20499,13 @@ function bomRenderCards() {
             <tr>
               <th>รหัสวัตถุดิบ</th><th>ชื่อวัตถุดิบ</th>
               <th class="text-end">ใช้ต่อหน่วย</th><th class="text-end">รวม Scrap</th>
-              <th>UOM</th><th>ประเภท</th><th class="text-center" style="width:90px">จัดการ</th>
+              <th>UOM</th><th class="text-end">ราคา/หน่วย</th><th class="text-end">ต้นทุน/หน่วยสินค้า</th>
+              <th>ประเภท</th><th class="text-center" style="width:90px">จัดการ</th>
             </tr>
           </thead>
           <tbody>
-            ${bulk.map(rowHtml).join('')}
-            ${pac.map(rowHtml).join('')}
+            ${bulkRowsHtml}
+            ${pacRowsHtml}
           </tbody>
         </table>
       </div>`}
