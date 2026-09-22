@@ -2245,6 +2245,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <select id="fgstock-filter-type" class="form-select form-select-sm" style="max-width:170px" onchange="renderFGStockTable()">
             <option value="">ประเภท: ทั้งหมด</option>
           </select>
+          <select id="fgstock-filter-status" class="form-select form-select-sm" style="max-width:150px" onchange="renderFGStockTable()">
+            <option value="">ทั้งหมด</option>
+            <option value="out">หมดแล้ว 🔴</option>
+          </select>
           <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="fgCheckProductNames()" title="เช็คชื่อสินค้าใน fg_receive/stock_fg ให้ตรงกับ BOM (dry-run ก่อนแก้จริง)">
             <i class="fas fa-spell-check me-1"></i>เช็คชื่อสินค้า (BOM)
           </button>
@@ -2265,19 +2269,25 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
            เดียวกันเลย — stock_fg เองไม่มีคอลัมน์ต้นทุน มูลค่ารวมคิดจาก production_records.CostPerUnit ที่
            อนุมัติแล้วก่อน แล้ว fallback ไปราคาขาย BOM (ดูหมายเหตุที่ _fgStockComputeTotalValue()) -->
       <div class="row g-3 mb-3" id="fgstock-kpi-row">
-        <div class="col-6 col-md-4">
+        <div class="col-6 col-md-3">
           <div class="kpi-card" style="cursor:pointer" onclick="fgStockClearFilters()" title="กดเพื่อดูรายการทั้งหมด (ล้างฟิลเตอร์)">
             <div class="kpi-num" id="fgkpi-total-items">—</div>
             <div class="kpi-label">รายการทั้งหมด (SKU)</div>
           </div>
         </div>
-        <div class="col-6 col-md-4">
+        <div class="col-6 col-md-3">
           <div class="kpi-card" style="border-color:#7c3aed">
             <div class="kpi-num" style="color:#7c3aed" id="fgkpi-total-lots">—</div>
             <div class="kpi-label">จำนวน Lot ทั้งหมด</div>
           </div>
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#ef4444;cursor:pointer" onclick="fgStockFilterByStatus('out')" title="กดเพื่อกรองเฉพาะสินค้าที่หมดสต็อก (ดูประวัติได้)">
+            <div class="kpi-num text-danger" id="fgkpi-out-stock">—</div>
+            <div class="kpi-label">หมดสต็อก (SKU)</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
           <div class="kpi-card" style="border-color:#f59e0b" title="คิดจากต้นทุน/หน่วยของบันทึกผลิตที่อนุมัติต้นทุนแล้วก่อน ถ้า Lot ไหนยังไม่มีต้นทุนอนุมัติ จะใช้ราคาขายจาก BOM แทน — Lot ที่ไม่มีทั้งคู่จะไม่ถูกรวมในยอดนี้">
             <div class="kpi-num text-warning" id="fgkpi-total-value">—</div>
             <div class="kpi-label">มูลค่ารวม (฿)</div>
@@ -2880,7 +2890,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       </div>
 
       <div class="glass-card mt-3">
-        <div class="fw-bold small text-muted mb-2"><i class="fas fa-triangle-exclamation text-warning me-1"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด) — ควรพิจารณาปรับราคาขาย</div>
+        <div class="fw-bold small text-muted mb-2"><i class="fas fa-triangle-exclamation text-warning me-1"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด) และกำไรต่ำ/ขาดทุน — ควรพิจารณาปรับราคาขาย</div>
         <div id="admindash-volatility-table"><div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>กำลังตรวจสอบ...</div></div>
       </div>
 
@@ -9277,14 +9287,15 @@ function _fgParseNameParts(name) {
   return { series: 'ไม่ระบุซีรี่', type: 'ไม่ระบุประเภท' };
 }
 
-// จัดกลุ่ม _fgStockData ตาม ProductCode (ซ่อน Lot ที่หมด) พร้อมแนบ series/type ที่แยกได้ —
-// ใช้ร่วมกันทั้ง render/KPI/filter-dropdown กันตรรกะ group ไปเบี้ยวกันคนละที่
-function _fgStockGroupAll() {
+// จัดกลุ่ม _fgStockData ตาม ProductCode พร้อมแนบ series/type ที่แยกได้ — ใช้ร่วมกันทั้ง render/KPI/filter-dropdown
+// กันตรรกะ group ไปเบี้ยวกันคนละที่. ปกติซ่อน Lot ที่หมด (qty<=0) และซ่อนสินค้าที่หมดสต็อกทั้งหมดออกไปเลย —
+// includeZero=true (ใช้ตอนกรอง "หมดแล้ว" กับตอนนับ KPI หมดสต็อก) เก็บทุก Lot/สินค้าไว้ครบ ไม่กรองออก
+function _fgStockGroupAll(includeZero = false) {
   const groupMap = {};
   for (const r of _fgStockData) {
     const lotVal = r.LotFG || r['Lot_FG'] || r.LOT || '';
     const qty    = parseFloat(r.FGBalance ?? r.QtyBalance ?? r.QtyOnHand ?? 0) || 0;
-    if (qty <= 0) continue; // ซ่อน lot ที่หมด
+    if (!includeZero && qty <= 0) continue; // ซ่อน lot ที่หมด
     const key = r.ProductCode || r.ProductName || '—';
     if (!groupMap[key]) groupMap[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] };
     groupMap[key].lots.push({ ...r, _lot: lotVal, _qty: qty });
@@ -9294,10 +9305,10 @@ function _fgStockGroupAll() {
     .map(g => ({ ...g, parts: _fgParseNameParts(g.name) }));
 }
 
-// เติม option ของฟิลเตอร์ซีรี่/ประเภท จากข้อมูลทั้งหมดที่โหลดมา (ไม่ใช่หลัง filter) — คงค่าที่เลือกไว้
-// เดิมถ้ายังมีอยู่ในลิสต์ใหม่ ไม่งั้นรีเซ็ตเป็น "ทั้งหมด"
+// เติม option ของฟิลเตอร์ซีรี่/ประเภท จากข้อมูลทั้งหมดที่โหลดมา (รวมสินค้าที่หมดสต็อกด้วย ไม่งั้นกรอง
+// "หมดแล้ว" ต่อด้วยซีรี่/ประเภทของสินค้าหมดสต็อกไม่ได้) — คงค่าที่เลือกไว้เดิมถ้ายังมีอยู่ในลิสต์ใหม่ ไม่งั้นรีเซ็ตเป็น "ทั้งหมด"
 function _fgStockPopulateFilters() {
-  const groups = _fgStockGroupAll();
+  const groups = _fgStockGroupAll(true);
   const seriesList = [...new Set(groups.map(g => g.parts.series))].sort((a,b) => a.localeCompare(b));
   const typeList   = [...new Set(groups.map(g => g.parts.type))].sort((a,b) => a.localeCompare(b));
 
@@ -9320,17 +9331,29 @@ function _fgStockPopulateFilters() {
 function updateFGStockKPIs() {
   const groups = _fgStockGroupAll();
   const totalLots = groups.reduce((s, g) => s + g.lots.length, 0);
+  // สินค้าหมดสต็อก = ผลรวมทุก Lot (รวม Lot ที่ 0 ด้วย) ของรหัสนั้น <= 0 — ต้องนับจาก includeZero=true
+  // เพราะ groups() ปกติกรองสินค้าหมดสต็อกออกไปเลย จะไม่เจอเลยถ้านับจากตัวนั้น
+  const outCount = _fgStockGroupAll(true)
+    .filter(g => g.lots.reduce((s, r) => s + r._qty, 0) <= 0).length;
   document.getElementById('fgkpi-total-items').textContent = groups.length.toLocaleString();
   document.getElementById('fgkpi-total-lots').textContent  = totalLots.toLocaleString();
+  document.getElementById('fgkpi-out-stock').textContent   = outCount.toLocaleString();
 }
 
 function fgStockClearFilters() {
   const q = document.getElementById('fgstock-search');
   const s = document.getElementById('fgstock-filter-series');
   const t = document.getElementById('fgstock-filter-type');
+  const st = document.getElementById('fgstock-filter-status');
   if (q) q.value = '';
   if (s) s.value = '';
   if (t) t.value = '';
+  if (st) st.value = '';
+  renderFGStockTable();
+}
+function fgStockFilterByStatus(status) {
+  const el = document.getElementById('fgstock-filter-status');
+  if (el) el.value = status;
   renderFGStockTable();
 }
 
@@ -9434,8 +9457,12 @@ function renderFGStockTable() {
   const q       = (document.getElementById('fgstock-search')?.value || '').toLowerCase();
   const seriesF = document.getElementById('fgstock-filter-series')?.value || '';
   const typeF   = document.getElementById('fgstock-filter-type')?.value || '';
+  const statusF = document.getElementById('fgstock-filter-status')?.value || '';
 
-  let items = _fgStockGroupAll().filter(g => {
+  // status="out" ต้องดึงแบบ includeZero=true ถึงจะเห็นสินค้าที่หมดสต็อก (ปกติ _fgStockGroupAll() กรองออกไปเลย)
+  let items = _fgStockGroupAll(statusF === 'out').filter(g => {
+    const total = g.lots.reduce((s, r) => s + r._qty, 0);
+    if (statusF === 'out' && total > 0) return false; // เอาเฉพาะสินค้าที่หมดสต็อกจริง (ผลรวมทุก Lot <= 0)
     if (seriesF && g.parts.series !== seriesF) return false;
     if (typeF && g.parts.type !== typeF) return false;
     if (q) {
@@ -9495,8 +9522,8 @@ function renderFGStockTable() {
           <b style="color:#1e293b">${total.toLocaleString()}</b> ${g.uom||''}
           ${expStr ? `&nbsp;·&nbsp;<i class="fas fa-calendar-alt opacity-50 me-1"></i>${expStr}` : ''}
         </span>
-        <span class="badge bg-success">มีสต็อก</span>
-        ${g.code ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem" onclick="event.stopPropagation();fgStockOpenCardReport('${g.code}','${(g.name||'').replace(/'/g,"\\'")}')" title="ดูการ์ดสต็อก">
+        ${total <= 0 ? '<span class="badge bg-danger">หมดแล้ว</span>' : '<span class="badge bg-success">มีสต็อก</span>'}
+        ${g.code ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem" onclick="event.stopPropagation();fgStockOpenCardReport('${g.code}','${(g.name||'').replace(/'/g,"\\'")}')" title="ดูประวัติ (การ์ดสต็อก)">
           <i class="fas fa-address-card"></i>
         </button>` : '<span></span>'}
         <i class="fas fa-chevron-down text-muted" style="font-size:.75rem;transition:transform .2s"></i>
@@ -26031,20 +26058,34 @@ function admindashRenderVolatilityAlerts(approvedRecs, priceMap, months6) {
     // ไม่ resolve ราคาพิเศษต่อลูกค้า (priceMap[code] ตอนนี้คือแถว bom ดิบ ไม่ใช่ตัวเลขราคาเดียวแล้ว)
     const price = priceMap[code]?.SellingPrice != null ? parseFloat(priceMap[code].SellingPrice) : null;
 
-    let suggestedPrice = null, originalMarginPct = null, marginNow = null;
+    let suggestedPrice = null, originalMarginPct = null, marginNow = null, holdPrice = false;
     if (price != null && price > 0) {
       originalMarginPct = (price - baselineCost) / price;
       marginNow = Math.round((price - currentCost) / price * 1000) / 10;
-      if (originalMarginPct < 1) suggestedPrice = Math.round(currentCost / (1 - originalMarginPct) * 100) / 100;
+      // แนะนำราคาใหม่เฉพาะตอนที่กำไรตอนนี้ต่ำกว่าเกณฑ์ (รวมขาดทุน, marginNow<0) เท่านั้น — ถ้ากำไรตอนนี้ยัง
+      // ดีอยู่ (>= เกณฑ์) แม้ต้นทุนจะผันผวน ก็ยังไม่ต้องรีบแนะนำให้ขึ้นราคา (2026-09-22 ตามคำขอผู้ใช้)
+      if (marginNow < _ADMINDASH_LOW_MARGIN_PCT) {
+        // สูตรนี้อิง originalMarginPct (มาร์จิ้น ณ เดือนแรกสุดใน 3 เดือนนี้) — ถ้าต้นทุนเดือนแรกสุดสูงกว่าตอนนี้
+        // (ต้นทุนกำลัง "ลด" ลง ไม่ใช่ขึ้น) originalMarginPct จะต่ำ/ติดลบ ได้ราคาแนะนำที่คำนวณย้อนกลับมาต่ำกว่า
+        // ราคาขายปัจจุบันเสียอีก — ห้ามแนะนำให้ "ลดราคา" เด็ดขาด (2026-09-22 ตามคำขอผู้ใช้ที่จับได้จริง Esc White
+        // Tea Conditioner: ต้นทุนกำลังลด แต่สูตรกลับแนะนำราคาต่ำกว่าปัจจุบัน) — ถ้าคำนวณได้ไม่สูงกว่าราคาปัจจุบัน
+        // ให้ถือว่าตรึงราคาเดิมไว้พอ ไม่ต้องขึ้นราคา
+        const raw = Math.round(currentCost / (1 - originalMarginPct) * 100) / 100;
+        if (raw > price) suggestedPrice = raw; else holdPrice = true;
+      }
     }
 
-    alerts.push({ code, name: p.name, minCost, maxCost, volatilityPct, price, suggestedPrice, marginNow });
+    alerts.push({ code, name: p.name, minCost, maxCost, volatilityPct, price, suggestedPrice, holdPrice, marginNow });
   });
 
-  alerts.sort((a, b) => b.volatilityPct - a.volatilityPct);
+  // 2026-09-22 ตามคำขอผู้ใช้ ("ถ้าได้กำไรไม่ต้องแนะนำ ให้แสดงเฉพาะตัวที่ขดทุน ที่กำไรน้อย") — กรองตารางนี้ให้
+  // เหลือเฉพาะสินค้าที่กำไรตอนนี้ต่ำกว่าเกณฑ์ (รวมขาดทุน) หรือยังไม่มีราคาขายตั้งไว้เลย (marginNow==null ก็ยัง
+  // ไม่รู้ว่ากำไร ถือว่าน่าสนใจอยู่ ไม่กรองทิ้ง) — สินค้าที่กำไรตอนนี้ยังดีอยู่แม้ต้นทุนผันผวนจะถูกซ่อนออกไปเลย
+  const visibleAlerts = alerts.filter(a => a.marginNow == null || a.marginNow < _ADMINDASH_LOW_MARGIN_PCT);
+  visibleAlerts.sort((a, b) => b.volatilityPct - a.volatilityPct);
 
-  if (!alerts.length) {
-    container.innerHTML = '<div class="text-center text-muted py-3">ไม่มีสินค้าที่ต้นทุนผันผวนเกินเกณฑ์ในช่วง 3 เดือนล่าสุด</div>';
+  if (!visibleAlerts.length) {
+    container.innerHTML = '<div class="text-center text-muted py-3">ไม่มีสินค้าที่ต้นทุนผันผวนเกินเกณฑ์และกำไรต่ำ/ขาดทุนในช่วง 3 เดือนล่าสุด</div>';
     return;
   }
 
@@ -26052,16 +26093,20 @@ function admindashRenderVolatilityAlerts(approvedRecs, priceMap, months6) {
   container.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
     <thead><tr><th>สินค้า</th><th class="text-end">ต้นทุนต่ำสุด-สูงสุด (3 ด.)</th><th class="text-end">ผันผวน%</th>
       <th class="text-end">ราคาขายปัจจุบัน</th><th class="text-end">มาร์จิ้นตอนนี้</th><th class="text-end">ราคาที่แนะนำ</th></tr></thead>
-    <tbody>${alerts.map(a => `<tr>
+    <tbody>${visibleAlerts.map(a => `<tr>
       <td>${a.name}</td>
       <td class="text-end">${fmtB(a.minCost)} – ${fmtB(a.maxCost)}</td>
       <td class="text-end text-warning fw-bold">${a.volatilityPct}%</td>
       <td class="text-end">${a.price != null ? fmtB(a.price) : '—'}</td>
       <td class="text-end ${a.marginNow != null && a.marginNow < _ADMINDASH_LOW_MARGIN_PCT ? 'text-danger' : ''}">${a.marginNow != null ? a.marginNow + '%' : '—'}</td>
-      <td class="text-end fw-bold text-success">${a.suggestedPrice != null ? fmtB(a.suggestedPrice) : (a.price == null ? 'ยังไม่มีราคาขาย' : '—')}</td>
+      <td class="text-end fw-bold ${a.suggestedPrice != null ? 'text-success' : (a.holdPrice ? 'text-muted' : '')}">${
+        a.suggestedPrice != null ? fmtB(a.suggestedPrice)
+        : (a.holdPrice ? '<i class="fas fa-lock me-1"></i>ตรึงราคาเดิม'
+        : (a.price == null ? 'ยังไม่มีราคาขาย' : '—'))
+      }</td>
     </tr>`).join('')}</tbody>
   </table></div>
-  <div style="font-size:.7rem;color:#94a3b8;margin-top:6px">ราคาที่แนะนำคำนวณให้ได้มาร์จิ้น% เท่ากับก่อนต้นทุนเริ่มขึ้น (เทียบราคาขายปัจจุบันกับต้นทุนของเดือนแรกสุดที่มีข้อมูลใน 3 เดือนนี้) แล้วนำมาร์จิ้นนั้นมาใช้กับต้นทุนล่าสุด</div>`;
+  <div style="font-size:.7rem;color:#94a3b8;margin-top:6px">ราคาที่แนะนำคำนวณให้ได้มาร์จิ้น% เท่ากับก่อนต้นทุนเริ่มขึ้น (เทียบราคาขายปัจจุบันกับต้นทุนของเดือนแรกสุดที่มีข้อมูลใน 3 เดือนนี้) แล้วนำมาร์จิ้นนั้นมาใช้กับต้นทุนล่าสุด — จะไม่แนะนำราคาต่ำกว่าราคาขายปัจจุบันเด็ดขาด ถ้าคำนวณได้ไม่สูงกว่าเดิมจะขึ้น "ตรึงราคาเดิม" แทน</div>`;
 }
 
 // ── เจาะลึกรายสินค้า: กำไร/หน่วยตาม Lot ที่ผลิต (ไม่ใช่ตามยอดส่งออกจริงเหมือนกราฟหลัก — ตั้งใจให้ต่างกัน เพราะ
@@ -27205,7 +27250,7 @@ function _admindashBuildReportHTML() {
     </div>
 
     <div class="wreport-section">
-      <div class="wreport-section-title"><i class="fas fa-triangle-exclamation"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด)</div>
+      <div class="wreport-section-title"><i class="fas fa-triangle-exclamation"></i>สินค้าที่ต้นทุนผันผวนเกินเกณฑ์ (3 เดือนล่าสุด) และกำไรต่ำ/ขาดทุน</div>
       ${document.getElementById('admindash-volatility-table')?.innerHTML || ''}
     </div>
 
