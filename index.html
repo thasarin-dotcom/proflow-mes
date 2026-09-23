@@ -29310,7 +29310,10 @@ function miscRenderBillGroups() {
             (_hasRole('admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation();miscBillUndoComplete('${g.slipNo}')" title="ยกเลิกส่งเสร็จ (แอดมินเท่านั้น) — ย้อนกลับเป็นรอยืนยัน">
                <i class="fas fa-undo me-1"></i>เลิกสำเร็จ
              </button>` : '')
-          : `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();miscBillConfirmComplete('${g.slipNo}')" title="ยืนยันส่งเสร็จ — ตัดยอดใน CO">
+          : `<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();miscBillIssueNotify('${g.slipNo}')" title="ส่งแจ้งเตือนออกบิลใบนี้เข้ากลุ่มไลน์จัดส่ง (ไม่เปลี่ยนสถานะ/ไม่ตัด CO)">
+               <i class="fab fa-line me-1"></i>แจ้งออกบิล
+             </button>
+             <button class="btn btn-sm btn-success" onclick="event.stopPropagation();miscBillConfirmComplete('${g.slipNo}')" title="ยืนยันส่งเสร็จ — ตัดยอดใน CO">
                <i class="fas fa-check-circle me-1"></i>ส่งเสร็จ
              </button>`;
 
@@ -29343,6 +29346,61 @@ function miscRenderBillGroups() {
         </div>`}
       </div>`;
     }).join('');
+}
+
+// กด "แจ้งออกบิล" บนการ์ดใบส่งเบิกเบ็ดเตล็ด (เฉพาะใบที่มีลูกค้า — ผูก CO_Ref หรือแท็ก CustomerName — และยัง
+// ไม่ได้ยืนยันส่งเสร็จ) → ส่งสรุปใบเข้ากลุ่มไลน์จัดส่ง mirror ของ fgoutBillIssueNotify (หน้าเบิก FG) เป๊ะ ใช้ Edge
+// Function notify-fg-delivery-success ตัวเดียวกัน — แจ้งเตือนล้วนๆ ไม่แตะ Delivered/CO, กดซ้ำได้
+async function miscBillIssueNotify(slipNo) {
+  const rows = _miscData.filter(r => r.SlipNo === slipNo);
+  if (!rows.length) return;
+  const res = await Swal.fire({
+    title: `ส่งแจ้งเตือนออกบิล ${slipNo} เข้ากลุ่มไลน์?`,
+    html: `จะส่งสรุปรายการของใบนี้ (${rows.length} รายการ) เข้ากลุ่มไลน์จัดส่ง — ไม่เปลี่ยนสถานะหรือตัด CO`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'ส่งแจ้งเตือน', cancelButtonText: 'ยกเลิก'
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  let ok = false;
+  try {
+    const coRefs = [...new Set(rows.map(r => r.CO_Ref).filter(Boolean))];
+    let poNos = [], customer = rows.find(r => r.CustomerName)?.CustomerName || '';
+    if (coRefs.length) {
+      const { data } = await _sb.from('customer_orders').select('PO_No,CustomerName').in('Order_ID', coRefs);
+      poNos = [...new Set((data || []).map(c => c.PO_No).filter(Boolean))];
+      if (!customer) customer = (data || []).find(c => c.CustomerName)?.CustomerName || '';
+    }
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    const itemLines = rows.map((r, i) =>
+      `${i + 1}. ${r.MaterialName || '—'}\n    Lot ${r.Lot || '—'} | ${(parseFloat(r.IssuedQty) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
+    ).join('\n');
+    const text =
+      `🧾 แจ้งออกบิล (เบิกเบ็ดเตล็ด)\n` +
+      `วันที่: ${dateStr}\n` +
+      `ลูกค้า: ${customer || '—'}\n` +
+      `เลขใบส่ง: ${slipNo}\n` +
+      `PO: ${poNos.length ? poNos.join(', ') : '—'}\n\n` +
+      `รายการในบิล:\n${itemLines}`;
+    const { data, error } = await _sb.functions.invoke('notify-fg-delivery-success', { body: { text } });
+    if (error) {
+      let detail = error.message || String(error);
+      try { detail = await error.context?.text() || detail; } catch (_) {}
+      console.error('LINE notify (misc bill issued) failed', detail, error);
+    } else {
+      console.log('LINE notify (misc bill issued) invoked ok', data);
+      ok = true;
+    }
+  } catch (e) {
+    console.error('LINE notify (misc bill issued) threw', e);
+  }
+  _hideLoader();
+  if (ok) {
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ส่งแจ้งเตือนออกบิล ${slipNo} แล้ว`, showConfirmButton: false, timer: 1800 });
+  } else {
+    _err('ส่งแจ้งเตือนไลน์ไม่สำเร็จ', 'ลองใหม่อีกครั้ง หรือแจ้งฝ่ายบัญชีด้วยช่องทางอื่นไปก่อน');
+  }
 }
 
 // กด "ส่งเสร็จ" บนการ์ด → ทำเครื่องหมาย issue_misc.Delivered=true ทุกแถวในใบนี้ที่ผูก CO_Ref (แถวที่ไม่มี CO_Ref
