@@ -268,6 +268,15 @@ body.wh-desktop-mode .planweek-day-card { min-width: 90px; padding: .55rem .4rem
    ที่เปิดจากเมนูคลังได้ทันที ไม่ต้องสร้างหน้าใหม่แยกทีละหน้า */
 /* ซ่อน sidebar ทั้งแถบ — พนักงานคลังไม่ควรกดหลุดไปหน้าอื่นที่ไม่เกี่ยวกับ tile ที่เลือกมา
    ทางเดียวที่จะออกจากหน้านี้คือปุ่มลอย "กลับหน้าคลัง" (#whBackFab) เท่านั้น */
+/* หน้าคำนวณซองน้ำมัน: PC เรียงการ์ดคู่ซ้าย-ขวา / แท็บเล็ตคลัง (และจอแคบ) เรียงบน-ล่าง */
+.sachetcalc-wrap { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 1rem; padding: 0 30px 30px; }
+.sachetcalc-card { flex: 1 1 0; max-width: 520px; min-width: 0; }
+body.wh-desktop-mode .sachetcalc-wrap { flex-direction: column; align-items: center; padding: 0 12px 90px; }
+body.wh-desktop-mode .sachetcalc-card { flex: none; width: 100%; }
+@media (max-width: 900px) {
+  .sachetcalc-wrap { flex-direction: column; align-items: center; }
+  .sachetcalc-card { flex: none; width: 100%; }
+}
 body.wh-desktop-mode .sidebar { display: none; }
 body.wh-desktop-mode .main-content { margin-left: 0; width: 100%; }
 /* .page-header/.sticky-toolbar/.scroll-content ไม่มีพื้นหลังเป็นของตัวเอง (โปร่งใสทุกหน้าทั้งแอป) —
@@ -5999,7 +6008,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <h4 class="mb-1"><i class="fas fa-calculator me-2"></i>คำนวณซองน้ำมัน</h4>
       <small class="text-muted">ใส่จำนวนซองที่ใช้ ระบบคำนวณความยาวให้ (ไม่บันทึกข้อมูล)</small>
     </div>
-    <div class="glass-card p-4 mx-auto" style="max-width:520px">
+    <div class="sachetcalc-wrap">
+    <div class="glass-card p-4 sachetcalc-card">
       <label class="form-label fw-semibold" for="sachetcalc-qty">จำนวนซองที่ใช้</label>
       <div class="input-group input-group-lg mb-3">
         <input type="number" class="form-control" id="sachetcalc-qty" min="0" step="1" inputmode="numeric"
@@ -6017,7 +6027,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
 
     <!-- คำนวณว่าน้ำมันที่มีบรรจุได้กี่ซอง — ลิตร→กก. ใช้ค่าความถ่วงจำเพาะ (SG), กก. ใช้ตรงๆ ไม่ต้องใช้ SG -->
-    <div class="glass-card p-4 mt-3 mx-auto" style="max-width:520px">
+    <div class="glass-card p-4 sachetcalc-card">
       <h6 class="fw-bold mb-3"><i class="fas fa-oil-can me-2"></i>น้ำมันที่มี บรรจุได้กี่ซอง</h6>
       <label class="form-label fw-semibold" for="sachetcalc-oil-qty">จำนวนน้ำมัน</label>
       <div class="input-group mb-3">
@@ -6048,6 +6058,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <button type="button" class="btn btn-outline-secondary btn-sm mt-3" onclick="sachetcalcOilClear()">
         <i class="fas fa-eraser me-1"></i>ล้างค่า
       </button>
+    </div>
     </div>
   </div>
 
@@ -24947,13 +24958,14 @@ function coRenderTable() {
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="coToggleExpand(${idx})">
         <div>
           <span class="badge bg-secondary me-2">${r.Order_ID||'—'}</span>
-          ${r.PO_No ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-2" title="เลข PO ลูกค้า"><i class="fas fa-file-invoice me-1"></i>PO ${r.PO_No}</span>` : ''}
+          ${(r.PO_No && String(r.PO_No).trim() !== '-') ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-2" title="เลข PO ลูกค้า"><i class="fas fa-file-invoice me-1"></i>PO ${r.PO_No}</span>` : ''}
           <b>${r.CustomerName||'—'}</b>
           <span class="text-muted mx-1">·</span>
           <span>${r.ProductName||'—'}</span>
           <span class="badge bg-light text-dark border ms-2">${r.ProductCode||'—'}</span>
           ${isBulk ? `<span class="badge bg-warning text-dark ms-2" title="สินค้า Bulk (ยังไม่บรรจุ)"><i class="fas fa-flask me-1"></i>Bulk</span>` : ''}
           ${(!isBulk && needProduce > 0) ? `<span class="badge bg-danger ms-2" title="ต้องผลิตเพิ่ม"><i class="fas fa-industry me-1"></i>ต้องผลิต ${needProduce.toLocaleString()}</span>` : ''}
+          ${pendingDispatch > 0 ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-2" title="เบิกออกจากคลังแล้ว (หน้าเบิกสินค้าสำเร็จรูป) — จัดเตรียมไว้ รอจัดส่ง"><i class="fas fa-truck-loading me-1"></i>จัดเตรียมรอส่ง ${pendingDispatch.toLocaleString()}</span>` : ''}
           ${fgStock > 0 ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-2" title="${isBulk ? 'วัตถุดิบ Bulk พร้อมส่ง (หักยอดจองแล้ว) คงเหลือในคลัง' : 'FG คงเหลือในคลัง'}"><i class="fas fa-box me-1"></i>มีในสต็อก ${fgStock.toLocaleString()}</span>` : ''}
         </div>
         <div class="d-flex align-items-center gap-2">
