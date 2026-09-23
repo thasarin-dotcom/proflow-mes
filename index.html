@@ -24842,6 +24842,7 @@ function coRenderTable() {
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="coToggleExpand(${idx})">
         <div>
           <span class="badge bg-secondary me-2">${r.Order_ID||'—'}</span>
+          ${r.PO_No ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-2" title="เลข PO ลูกค้า"><i class="fas fa-file-invoice me-1"></i>PO ${r.PO_No}</span>` : ''}
           <b>${r.CustomerName||'—'}</b>
           <span class="text-muted mx-1">·</span>
           <span>${r.ProductName||'—'}</span>
