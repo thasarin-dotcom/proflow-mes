@@ -1861,6 +1861,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-sachetcalc" onclick="showPage('sachetcalc',this)" title="คำนวณซองน้ำมัน">
+      <i class="fas fa-calculator me-2"></i><span>คำนวณซองน้ำมัน</span>
+    </a>
     <!-- ซ่อนจากเมนูถาวรตามคำขอผู้ใช้ 2026-09-13 ("ไม่ต้องขึ้นที่เมนูก็ได้ให้ทำงานเบื้องหลัง") — ฟีเจอร์นี้ใช้
          งานจริงผ่าน QR/ลิงก์สาธารณะ (?scanprog=1&mo=...&line=...) เท่านั้น ไม่ผ่านเมนูฝั่งในแอปแล้ว การซ่อนนี้
          เป็นแค่ระดับ UI (ไม่ได้ลบหน้า/ฟังก์ชัน/เส้นทางลิงก์สาธารณะออกเลย) เรียลไทม์ (production_progress ผ่าน
@@ -5988,6 +5991,67 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   </div>
 
   <!-- ══════════════════════════════════════════════
+       PAGE: คำนวณซองน้ำมัน — เครื่องคิดเลขล้วน ไม่บันทึกข้อมูลลงฐานข้อมูล
+       สูตร: ความยาว (เมตร) = จำนวนซอง × 0.012
+       ══════════════════════════════════════════════ -->
+  <div class="page-view" id="page-sachetcalc">
+    <div class="page-header">
+      <h4 class="mb-1"><i class="fas fa-calculator me-2"></i>คำนวณซองน้ำมัน</h4>
+      <small class="text-muted">ใส่จำนวนซองที่ใช้ ระบบคำนวณความยาวให้ (ไม่บันทึกข้อมูล)</small>
+    </div>
+    <div class="glass-card p-4 mx-auto" style="max-width:520px">
+      <label class="form-label fw-semibold" for="sachetcalc-qty">จำนวนซองที่ใช้</label>
+      <div class="input-group input-group-lg mb-3">
+        <input type="number" class="form-control" id="sachetcalc-qty" min="0" step="1" inputmode="numeric"
+               placeholder="เช่น 1000" oninput="sachetcalcRecalc()">
+        <span class="input-group-text">ซอง</span>
+      </div>
+      <div class="text-muted small mb-2">สูตร: จำนวนซอง × 0.012</div>
+      <div class="p-3 rounded text-center" style="background:#eff6ff;border:1px solid #bfdbfe">
+        <div class="text-muted small">ผลลัพธ์</div>
+        <div class="fw-bold" style="font-size:2.2rem;color:#1e3a8a"><span id="sachetcalc-result">0</span> <span style="font-size:1.2rem">เมตร</span></div>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm mt-3" onclick="sachetcalcClear()">
+        <i class="fas fa-eraser me-1"></i>ล้างค่า
+      </button>
+    </div>
+
+    <!-- คำนวณว่าน้ำมันที่มีบรรจุได้กี่ซอง — ลิตร→กก. ใช้ค่าความถ่วงจำเพาะ (SG), กก. ใช้ตรงๆ ไม่ต้องใช้ SG -->
+    <div class="glass-card p-4 mt-3 mx-auto" style="max-width:520px">
+      <h6 class="fw-bold mb-3"><i class="fas fa-oil-can me-2"></i>น้ำมันที่มี บรรจุได้กี่ซอง</h6>
+      <label class="form-label fw-semibold" for="sachetcalc-oil-qty">จำนวนน้ำมัน</label>
+      <div class="input-group mb-3">
+        <input type="number" class="form-control" id="sachetcalc-oil-qty" min="0" step="any" inputmode="decimal"
+               placeholder="เช่น 20" oninput="sachetcalcOilRecalc()">
+        <select class="form-select" id="sachetcalc-oil-unit" style="max-width:130px" onchange="sachetcalcOilRecalc()">
+          <option value="L">ลิตร</option>
+          <option value="KG">กิโลกรัม</option>
+        </select>
+      </div>
+      <div class="mb-3" id="sachetcalc-sg-wrap">
+        <label class="form-label fw-semibold" for="sachetcalc-sg">ค่าความถ่วงจำเพาะ (SG)</label>
+        <input type="number" class="form-control" id="sachetcalc-sg" min="0" step="any" inputmode="decimal"
+               placeholder="เช่น 0.92" oninput="sachetcalcOilRecalc()">
+        <div class="form-text">ใช้แปลงลิตรเป็นกิโลกรัม (กก. = ลิตร × SG)</div>
+      </div>
+      <label class="form-label fw-semibold" for="sachetcalc-fill">น้ำหนักบรรจุต่อซอง</label>
+      <div class="input-group mb-3">
+        <input type="number" class="form-control" id="sachetcalc-fill" min="0" step="any" inputmode="decimal"
+               placeholder="เช่น 5" oninput="sachetcalcOilRecalc()">
+        <span class="input-group-text">กรัม</span>
+      </div>
+      <div class="p-3 rounded text-center" style="background:#f0fdf4;border:1px solid #bbf7d0">
+        <div class="text-muted small">บรรจุได้</div>
+        <div class="fw-bold" style="font-size:2.2rem;color:#166534"><span id="sachetcalc-oil-result">0</span> <span style="font-size:1.2rem">ซอง</span></div>
+        <div class="small text-muted" id="sachetcalc-oil-detail">&nbsp;</div>
+      </div>
+      <button type="button" class="btn btn-outline-secondary btn-sm mt-3" onclick="sachetcalcOilClear()">
+        <i class="fas fa-eraser me-1"></i>ล้างค่า
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
        PAGE: Lot Scan — สแกน/พิมพ์รหัส Lot แล้วดูตรวจสอบย้อนกลับ (Traceability)
        ══════════════════════════════════════════════ -->
   <div class="page-view lotscan-flat" id="page-lotscan">
@@ -6470,6 +6534,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <button class="wh-tile" onclick="_whOpenDesktopPage('plan')"><i class="fas fa-calendar-alt"></i><span>แผนผลิต</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotqueue')"><i class="fas fa-barcode"></i><span>คิวห้องยิง Lot</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotscan')"><i class="fas fa-qrcode"></i><span>Lot Scan</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('sachetcalc')"><i class="fas fa-calculator"></i><span>คำนวณซองน้ำมัน</span></button>
           </div>
           <div class="wh-section-label">บันทึกข้อมูล</div>
           <div class="wh-tile-grid">
@@ -8843,6 +8908,46 @@ function showPage(page, navEl) {
 
   // Load data เมื่อเปิดหน้า
   if (_PAGE_LOADERS[page]) _PAGE_LOADERS[page]();
+}
+
+// ══════════════════════════════════════════════
+// PAGE: คำนวณซองน้ำมัน — คำนวณสดในหน้าจอ ไม่มีการอ่าน/เขียน Supabase
+// ══════════════════════════════════════════════
+const SACHETCALC_METER_PER_SACHET = 0.012;
+function sachetcalcRecalc() {
+  const qty = parseFloat(document.getElementById('sachetcalc-qty').value);
+  const meters = (isFinite(qty) && qty > 0) ? qty * SACHETCALC_METER_PER_SACHET : 0;
+  document.getElementById('sachetcalc-result').textContent =
+    meters.toLocaleString('th-TH', { maximumFractionDigits: 3 });
+}
+function sachetcalcClear() {
+  document.getElementById('sachetcalc-qty').value = '';
+  sachetcalcRecalc();
+}
+// น้ำมันที่มี → บรรจุได้กี่ซอง: ลิตร×SG = กก. (หน่วยกก. ใช้ตรงๆ) แล้ว ÷ น้ำหนักบรรจุ (กรัม) ปัดลงเป็นซองเต็ม
+function sachetcalcOilRecalc() {
+  const num = id => parseFloat(document.getElementById(id).value);
+  const unit = document.getElementById('sachetcalc-oil-unit').value;
+  document.getElementById('sachetcalc-sg-wrap').style.display = unit === 'L' ? '' : 'none';
+  const qty = num('sachetcalc-oil-qty'), sg = num('sachetcalc-sg'), fill = num('sachetcalc-fill');
+  const resEl = document.getElementById('sachetcalc-oil-result');
+  const detEl = document.getElementById('sachetcalc-oil-detail');
+  const kg = unit === 'L' ? qty * sg : qty;
+  if (!(qty > 0) || !(fill > 0) || (unit === 'L' && !(sg > 0))) {
+    resEl.textContent = '0';
+    detEl.innerHTML = '&nbsp;';
+    return;
+  }
+  const grams = kg * 1000;
+  const sachets = Math.floor(grams / fill);
+  const leftover = grams - sachets * fill;
+  const fmt = (v, d) => v.toLocaleString('th-TH', { maximumFractionDigits: d });
+  resEl.textContent = fmt(sachets, 0);
+  detEl.textContent = `น้ำมัน ${fmt(kg, 3)} กก. · เหลือเศษ ${fmt(leftover, 2)} กรัม · ใช้ซองยาว ${fmt(sachets * SACHETCALC_METER_PER_SACHET, 3)} เมตร`;
+}
+function sachetcalcOilClear() {
+  ['sachetcalc-oil-qty', 'sachetcalc-sg', 'sachetcalc-fill'].forEach(id => document.getElementById(id).value = '');
+  sachetcalcOilRecalc();
 }
 
 // ══════════════════════════════════════════════
