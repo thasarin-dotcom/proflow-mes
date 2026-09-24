@@ -24656,6 +24656,7 @@ let _coBulkWithdrawnMap = {};   // { Order_ID → ยอดเบิกวัต
 let _coBulkAvailStockMap = {};
 let _coOpenMOSet    = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) และ MO นั้นยังไม่ปิดงาน — กันปุ่ม "สั่งผลิต" กดซ้ำ
 let _coAnyMOSet      = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) อย่างน้อย 1 ใบ ไม่ว่าจะปิดงานแล้วหรือยัง — ใช้แยก "ยังไม่มี MO เลย" ออกจาก "มี MO ครบทุกใบแล้ว" ใน _coComputeDisplayStatus
+let _coInPlanSet    = new Set();   // Order_ID ของ CO ที่มีแถวใน production_plan ผูกอยู่แล้ว (CO_Ref) — ใช้เปลี่ยนป้ายเลข CO เป็นสีส้มในหน้า CO
 let _coExpandedSet  = new Set();   // Order_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _coModal        = null;
 let _coBomProducts  = [];
@@ -24730,11 +24731,12 @@ function _coComputeDisplayStatus(r) {
 // เพื่อให้หน้าอื่น (เช่น loadFGOutData ตอนกรองดรอปดาวน์ CO Reference) เรียกใช้ _coComputeDisplayStatus ได้ถูกต้อง
 // แม้ผู้ใช้ยังไม่เคยเปิดหน้า CO มาก่อนในเซสชันนี้เลย (ตัวแปรเหล่านี้จะยังว่างเปล่าถ้าไม่เรียกก่อนใช้)
 async function _coRefreshMOAndShippedMaps() {
-  const [wdRes, moRes, dlvRes, miscRes] = await Promise.all([
+  const [wdRes, moRes, dlvRes, miscRes, planRes] = await Promise.all([
     _fetchAllPagedNotNull('fg_withdraw', '_row_id,CO_Ref,QtyFG', 'CO_Ref'),
     _fetchAllPagedNotNull('manufacturing_orders', 'CO_Ref,Status', 'CO_Ref'),
     _fetchAllPagedNotNull('delivery', 'WD_Ref,Status', 'WD_Ref'),
     _fetchAllPagedNotNull('issue_misc', 'CO_Ref,IssuedQty', 'CO_Ref'),
+    _fetchAllPagedNotNull('production_plan', 'CO_Ref', 'CO_Ref'),
   ]);
 
   _coBulkWithdrawnMap = {};
@@ -24766,6 +24768,7 @@ async function _coRefreshMOAndShippedMaps() {
 
   _coOpenMOSet = new Set((moRes.data || []).filter(m => m.CO_Ref && !_moDoneStatuses.includes(m.Status)).map(m => m.CO_Ref));
   _coAnyMOSet  = new Set((moRes.data || []).filter(m => m.CO_Ref).map(m => m.CO_Ref));
+  _coInPlanSet = new Set((planRes.data || []).filter(p => p.CO_Ref).map(p => p.CO_Ref));
 }
 
 async function coLoadBomProducts() {
@@ -25012,7 +25015,9 @@ function coRenderTable() {
       </div>`}
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="coToggleExpand(${idx})">
         <div>
-          <span class="badge bg-secondary me-2">${r.Order_ID||'—'}</span>
+          ${_coInPlanSet.has(r.Order_ID)
+            ? `<span class="badge me-2" style="background:#f97316" title="มีในแผนผลิตแล้ว"><i class="fas fa-calendar-check me-1"></i>${r.Order_ID||'—'}</span>`
+            : `<span class="badge bg-secondary me-2">${r.Order_ID||'—'}</span>`}
           ${(r.PO_No && String(r.PO_No).trim() !== '-') ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-2" title="เลข PO ลูกค้า"><i class="fas fa-file-invoice me-1"></i>PO ${r.PO_No}</span>` : ''}
           <b>${r.CustomerName||'—'}</b>
           <span class="text-muted mx-1">·</span>
