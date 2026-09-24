@@ -21257,7 +21257,7 @@ async function prodrecordLoadData() {
   _prodrecordUpdateNavBadge(false, _prodrecordPendingMOs.length); // เลี่ยง query ซ้ำ ใช้ตัวเลขที่เพิ่งคำนวณเลย
   // นับเฉพาะที่ _prodrecordMOIsDone ผ่านด้วย (เหมือน prodrecordRenderTable กรองการ์ด) ไม่งั้น badge จะนับ
   // รวมบันทึกของ MO ที่ยังผลิตไม่เสร็จ (การ์ดถูกซ่อนไว้ตาม 2026-08-13) ทำให้เลข badge ไม่ตรงกับที่เห็นจริงบนจอ
-  _prodrecordUpdateApproveBadge(false, _prodrecordData.filter(r => r.Status === 'รอเช็คต้นทุน' && _prodrecordMOIsDone(r)).length);
+  _prodrecordUpdateApproveBadge(false, _prodrecordData.filter(r => r.Status === 'รอเช็คต้นทุน' && r.CostApprovalRequested && _prodrecordMOIsDone(r)).length);
 
   prodrecordRenderTable();
 }
@@ -21324,7 +21324,7 @@ async function _prodrecordUpdateNavBadge(notifyIfPending = false, knownCount = n
 // เลยในเซสชันนี้ — เหตุผลเดียวกับที่ _prodrecordFetchPendingMOs ไม่พึ่ง cache ของหน้า)
 async function _prodrecordCountPendingApprovals() {
   const [{ data: pendingRows }, { data: allMOs }] = await Promise.all([
-    _sb.from('production_records').select('MO_Ref').eq('Status', 'รอเช็คต้นทุน'),
+    _sb.from('production_records').select('MO_Ref').eq('Status', 'รอเช็คต้นทุน').eq('CostApprovalRequested', true),
     _sb.from('manufacturing_orders').select('MO_ID,Status'),
   ]);
   const moStatusMap = Object.fromEntries((allMOs || []).map(m => [m.MO_ID, m.Status]));
@@ -21563,6 +21563,54 @@ async function prodrecordRejectDeleteRequest(gi) {
   prodrecordLoadData();
 }
 
+// หัวหน้า (supervisor+) กรอกผลผลิตครบแล้วกด "ส่งข้อมูลขออนุมัติต้นทุน" — แอดมินจะเห็นปุ่ม "อนุมัติต้นทุน"
+// เฉพาะรายการที่ส่งแล้วเท่านั้น (2026-09-24 ตามคำขอผู้ใช้) ต้องรัน alter_production_records_add_cost_approval_request.sql ก่อน
+async function prodrecordRequestCostApproval(gi) {
+  if (!_hasRole('supervisor')) return;
+  const r = _prodrecordLastRows[gi];
+  if (!r || r.FG_Actual == null || r.Status === 'อนุมัติแล้ว') return;
+  const res = await Swal.fire({
+    icon: 'question', title: 'ส่งข้อมูลขออนุมัติต้นทุน?',
+    html: `<b>${r.ProdRecord_ID}</b> — ${r.ProductName||''}<br><small class="text-muted">หลังส่งแล้วจะแก้ไขผลผลิตไม่ได้ จนกว่าจะดึงกลับ/แอดมินตีกลับ</small>`,
+    showCancelButton: true, confirmButtonText: 'ส่งขออนุมัติ', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  const by = _currentUser?.name || _currentUser?.email || '—';
+  const { error, data } = await _sb.from('production_records').update({
+    CostApprovalRequested: true, CostApprovalRequestedBy: by, CostApprovalRequestedAt: new Date().toISOString(),
+  }).eq('_row_id', r._row_id).select();
+  _hideLoader();
+  if (error) { _err('ส่งขออนุมัติไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ส่งขออนุมัติไม่สำเร็จ', 'ไม่มีสิทธิ์แก้ไขข้อมูลนี้'); return; }
+  _logAudit('REQUEST_COST_APPROVAL', 'production_records', r.ProdRecord_ID, `ส่งขออนุมัติต้นทุนโดย ${by}`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ส่งขออนุมัติต้นทุนแล้ว', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
+// ดึงกลับ (หัวหน้า) / ตีกลับ (แอดมิน) — ล้าง flag คำขอ ให้กลับไปแก้ไขผลผลิตได้อีก
+async function prodrecordCancelCostApprovalRequest(gi) {
+  if (!_hasRole('supervisor')) return;
+  const r = _prodrecordLastRows[gi];
+  if (!r || !r.CostApprovalRequested || r.Status === 'อนุมัติแล้ว') return;
+  const isAdmin = _hasRole('admin');
+  const res = await Swal.fire({
+    icon: 'warning', title: isAdmin ? 'ตีกลับให้แก้ไข?' : 'ดึงกลับมาแก้ไข?',
+    input: 'textarea', inputPlaceholder: isAdmin ? 'เหตุผลที่ตีกลับ (ไม่บังคับ)' : 'หมายเหตุ (ไม่บังคับ)',
+    showCancelButton: true, confirmButtonText: isAdmin ? 'ตีกลับ' : 'ดึงกลับ', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  const { error } = await _sb.from('production_records').update({
+    CostApprovalRequested: false, CostApprovalRequestedBy: null, CostApprovalRequestedAt: null,
+  }).eq('_row_id', r._row_id);
+  _hideLoader();
+  if (error) { _err('ดำเนินการไม่สำเร็จ', error.message); return; }
+  _logAudit(isAdmin ? 'REJECT_COST_APPROVAL' : 'CANCEL_COST_APPROVAL', 'production_records', r.ProdRecord_ID, (res.value||'').trim() || '—');
+  Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: isAdmin ? 'ตีกลับแล้ว' : 'ดึงกลับแล้ว', showConfirmButton: false, timer: 2000, timerProgressBar: true });
+  prodrecordLoadData();
+}
+
 function prodrecordRenderTable() {
   _prodrecordRenderPending();
   const q = (document.getElementById('prodrecord-search')?.value||'').toLowerCase();
@@ -21611,8 +21659,11 @@ function prodrecordRenderTable() {
         <div class="d-flex gap-1 align-items-center flex-wrap" onclick="event.stopPropagation()">
           <span class="text-muted small me-2">แผน ${(parseFloat(r.FG_Planned)||0).toLocaleString()} ${r.UOM||''}${hasActual ? ` · จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()}` : ''}</span>
           ${!hasActual ? `<button class="btn btn-sm btn-primary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-pen me-1"></i>กรอกผลผลิต</button>` : ''}
-          ${hasActual && !approved ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
-            ${_hasRole('admin') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}` : ''}
+          ${hasActual && !approved && !r.CostApprovalRequested ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
+            ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-warning" onclick="prodrecordRequestCostApproval(${gi})"><i class="fas fa-paper-plane me-1"></i>ส่งข้อมูลขออนุมัติต้นทุน</button>` : ''}` : ''}
+          ${hasActual && !approved && r.CostApprovalRequested ? `<span class="badge bg-info text-dark" title="ส่งโดย ${r.CostApprovalRequestedBy||'—'} เมื่อ ${_fmtDateTime(r.CostApprovalRequestedAt)}"><i class="fas fa-paper-plane me-1"></i>ส่งขออนุมัติแล้ว</span>
+            ${_hasRole('admin') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}
+            ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordCancelCostApprovalRequest(${gi})" title="${_hasRole('admin') ? 'ตีกลับให้หัวหน้าแก้ไข' : 'ดึงกลับมาแก้ไข'}"><i class="fas fa-rotate-left me-1"></i>${_hasRole('admin') ? 'ตีกลับแก้ไข' : 'ดึงกลับแก้ไข'}</button>` : ''}` : ''}
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})" title="พิมพ์รายงานต้นทุน"><i class="fas fa-print me-1"></i>พิมพ์ต้นทุน</button>
             ${_hasRole('admin') ? `<button class="btn btn-sm btn-outline-info" onclick="prodrecordOpenApproveModal(${gi}, true)" title="ดูต้นทุนที่อนุมัติ"><i class="fas fa-eye me-1"></i>ดูต้นทุน</button>` : ''}
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-warning" onclick="prodrecordReopen(${gi})"><i class="fas fa-undo me-1"></i>เปิดกลับ</button>` : ''}` : ''}
@@ -23470,7 +23521,7 @@ async function prodrecordReopen(gi) {
   _showLoader();
   const note = `[เปิดกลับ ${new Date().toISOString().split('T')[0]}] ${reason.trim()}`;
   const newNote = r.ProductionNote ? `${r.ProductionNote} | ${note}` : note;
-  const { error } = await _sb.from('production_records').update({ Status: 'รอเช็คต้นทุน', ProductionNote: newNote }).eq('_row_id', r._row_id);
+  const { error } = await _sb.from('production_records').update({ Status: 'รอเช็คต้นทุน', ProductionNote: newNote, CostApprovalRequested: false, CostApprovalRequestedBy: null, CostApprovalRequestedAt: null }).eq('_row_id', r._row_id);
   _hideLoader();
   if (error) { _err('เปิดกลับไม่สำเร็จ', error.message); return; }
 
