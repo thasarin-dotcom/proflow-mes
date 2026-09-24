@@ -14500,7 +14500,11 @@ async function dlvbillRenderPreview() {
 let _planModal        = null;
 let _planDayModal      = null;
 let _planConfirmModal  = null;
-let _planData          = [];   // production_plan rows ของเดือนที่แสดงอยู่
+let _planData          = [];   // production_plan rows ของเดือนที่แสดงอยู่ (เฉพาะเดือนนี้ล้วนๆ — ดู _planMonthRange)
+// production_plan rows ของวันเดือนก่อน/หลังที่ล้นเข้ามาในตารางปฏิทิน (เซลล์จางๆ หัว-ท้าย — ดู
+// _planCalendarGridRange/planRenderCalendar) แยกจาก _planData เพราะหลายจุด (KPI, เช็คชนไลน์/คน) ยึด
+// สมมติฐานว่า _planData มีแค่เดือนที่กำลังดูเท่านั้น ไม่ควรปนวันนอกเดือนเข้าไป
+let _planCalendarOverflowData = [];
 let _planMOList        = [];   // manufacturing_orders ที่ยังไม่เสร็จสิ้น (สำหรับผูกแผน)
 let _planBOMList       = [];   // distinct product จาก bom (สำหรับโหมดกำหนดเอง)
 let _planCurrentMonth  = null; // Date ของวันที่ 1 ของเดือนที่กำลังดู
@@ -15189,13 +15193,28 @@ function _planMonthRange(d) {
   return { start, end };
 }
 
+// ช่วงวันที่ที่ตารางปฏิทินจริงๆ แสดงบนจอ — กว้างกว่า _planMonthRange (ขอบเขตเดือนล้วนๆ) เสมอ เพราะรวมเซลล์
+// จางๆ ของเดือนก่อน/หลังที่โผล่มาเติมแถวให้ครบ 7 คอลัมน์ด้วย (ดู planRenderCalendar) — ใช้ตอน query เพื่อให้
+// เซลล์จางๆ เหล่านั้นมีงานจริงมาโชว์แทนที่จะว่างเปล่า/มีแค่เลขวันที่ (ผู้ใช้รายงานว่ามีงานจริงในเดือนถัดไปแต่
+// ไม่เห็นขึ้นให้ดูเลย) ตรรกะคำนวณ firstDow/daysInMonth/trailing ต้องตรงกับ planRenderCalendar เป๊ะ
+function _planCalendarGridRange(d) {
+  const y = d.getFullYear(), m = d.getMonth();
+  const firstDow    = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const trailing    = (7 - ((firstDow + daysInMonth) % 7)) % 7;
+  const start = _planWeekLocalDateStr(new Date(y, m, 1 - firstDow));
+  const end   = _planWeekLocalDateStr(new Date(y, m, daysInMonth + trailing));
+  return { start, end };
+}
+
 async function planLoadData() {
   if (!_planCurrentMonth) _planCurrentMonth = new Date();
   _showLoader();
   const { start, end } = _planMonthRange(_planCurrentMonth);
+  const gridRange = _planCalendarGridRange(_planCurrentMonth);
 
   const [planRes, moRes, bomRes] = await Promise.all([
-    _sb.from('production_plan').select('*').gte('PlanDate', start).lte('PlanDate', end).order('PlanDate'),
+    _sb.from('production_plan').select('*').gte('PlanDate', gridRange.start).lte('PlanDate', gridRange.end).order('PlanDate'),
     // สถานะ "เสร็จสิ้น" จริงมีทั้ง 'Finished' (ข้อมูลเก่า) และ 'เสร็จสิ้น' (ค่าใหม่) — ต้องกันทั้งคู่ไม่งั้น MO เก่าที่เสร็จแล้วจะโผล่ในตัวเลือกแผนผลิต
     _sb.from('manufacturing_orders').select('MO_ID,ProductCode,ProductName,UOM,LOT,Pending,Status').not('Status', 'in', '("Finished","เสร็จสิ้น")').order('_row_id', { ascending: false }),
     _bomFetchPaged('ProductCode,ProductName,UOF,CapacityFillPerDay,CapacityLotPerDay,CapacityInspectPackPerDay,AllowedLines,RequiredWorkersFill,RequiredWorkersLot,RequiredWorkersInspectPack'),
@@ -15207,14 +15226,21 @@ async function planLoadData() {
   _hideLoader();
   if (planRes.error) { _err('โหลดแผนผลิตไม่ได้', planRes.error.message); return; }
 
-  _planData   = planRes.data || [];
-  _planMOList = moRes.data   || [];
+  // แยกแถวที่ query มา (กว้างเท่า gridRange) ออกเป็น 2 ชุด — _planData คงความหมายเดิมเป๊ะ (เฉพาะแถวในเดือนนี้
+  // ล้วนๆ ตาม _planMonthRange) เพราะหลายจุด (KPI, เช็คชนไลน์/คนตอนเพิ่มแผนใหม่, ตารางรายวัน) ยึดสมมติฐานนี้
+  // อยู่แล้วว่า _planData มีแค่เดือนที่กำลังดู — ส่วนแถวของวันเดือนก่อน/หลังที่ล้นมาเก็บแยกไว้ต่างหากที่
+  // _planCalendarOverflowData ให้ planRenderCalendar เอาไปโชว์จางๆ ในเซลล์นอกเดือนแทน (ดู _planCalendarGridRange)
+  const gridRows = planRes.data || [];
+  _planData = gridRows.filter(r => r.PlanDate >= start && r.PlanDate <= end);
+  _planCalendarOverflowData = gridRows.filter(r => r.PlanDate < start || r.PlanDate > end);
+  _planMOList = moRes.data || [];
 
-  // ยอดสแกนเรียลไทม์ (production_progress) + OrderQty ของ MO ทุกสถานะที่แผนเดือนนี้อ้างอิง (แยกดึงเอง
-  // เพราะ _planMOList ข้างบนกรอง MO ที่เสร็จสิ้นออกไปแล้ว แต่แผนที่ยืนยันแล้วมักผูกกับ MO ที่เสร็จไปแล้วพอดี
-  // — ดู _planLineFinished) เทียบกับ mo.OrderQty ไม่ใช่ PlanQty ของวันเดียว (เหตุผลเดียวกับ nav-prodstatus:
+  // ยอดสแกนเรียลไทม์ (production_progress) + OrderQty ของ MO ทุกสถานะที่แผน "ทั้งกริดที่แสดงบนจอ" อ้างอิง
+  // (รวมเซลล์จางๆ นอกเดือนด้วย ไม่ใช่แค่ _planData — ไม่งั้นชิปจางๆ จะไม่มีสีเขียว "เสร็จแล้ว" ให้เห็นเลย) แยก
+  // ดึงเอง เพราะ _planMOList ข้างบนกรอง MO ที่เสร็จสิ้นออกไปแล้ว แต่แผนที่ยืนยันแล้วมักผูกกับ MO ที่เสร็จไปแล้ว
+  // พอดี — ดู _planLineFinished) เทียบกับ mo.OrderQty ไม่ใช่ PlanQty ของวันเดียว (เหตุผลเดียวกับ nav-prodstatus:
   // ยอดสแกนสะสมทั้งงาน ไม่ใช่แค่ของวันนั้นวันเดียว — เทียบกับ PlanQty จะเกิน 100% ก่อนงานเสร็จจริงได้)
-  const planMoRefs = [...new Set(_planData.map(r => r.MO_Ref).filter(Boolean))];
+  const planMoRefs = [...new Set(gridRows.map(r => r.MO_Ref).filter(Boolean))];
   _planProgressData  = {};
   _planMOOrderQtyMap = {};
   _planMOStatusMap   = {};
@@ -15323,6 +15349,27 @@ function _planMOLot(moRef) {
   return _planMOList.find(m => m.MO_ID === moRef)?.LOT || '';
 }
 
+// การ์ด "1 งาน" ในเซลล์ปฏิทิน — แยกออกมาจาก planRenderCalendar เพราะตอนนี้ใช้ 2 ที่ (เซลล์ในเดือนปกติ +
+// เซลล์จางๆ นอกเดือน ดูหมายเหตุที่ planRenderCalendar) ต้องเรนเดอร์เหมือนกันเป๊ะ ไม่ใช่คนละสูตร
+function _planChipHTML(r) {
+  const lot = _planMOLot(r.MO_Ref);
+  // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — เปลี่ยนสี+ขึ้นเครื่องหมาย
+  // ถูกให้เห็นชัดว่าห้อง/เวลา/คนของงานนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว ไม่ต้องรอครบเวลาที่จองไว้เดิม
+  const finished = _planLineFinished(r);
+  const stCls = finished ? 'st-finished' : (r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned');
+  return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}"
+    title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''}">
+    ${finished ? '<i class="fas fa-check-circle me-1"></i>' : ''}${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
+  </div>`;
+}
+
+// ตัวเนื้อหา (ชิปงาน + "+N เพิ่มเติม") ของ 1 เซลล์วัน — ใช้ร่วมกันทั้งเซลล์ในเดือนและเซลล์จางๆ นอกเดือน
+function _planCellBodyHTML(items) {
+  const chips = items.slice(0, 3).map(_planChipHTML).join('');
+  const more = items.length > 3 ? `<div class="plan-chip-more">+${items.length - 3} เพิ่มเติม</div>` : '';
+  return chips + more;
+}
+
 function planRenderCalendar() {
   const label = document.getElementById('plan-month-label');
   if (label) label.textContent = `${_planDowThaiMonths[_planCurrentMonth.getMonth()]} ${_planCurrentMonth.getFullYear()+543}`;
@@ -15335,35 +15382,43 @@ function planRenderCalendar() {
   // แสดงแค่ไลน์บรรจุต่องาน (added 2026-09-07) — ดูหมายเหตุที่ _planFilterRowsForDisplay
   const byDate = {};
   _planFilterRowsForDisplay(_planData).forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
+  // งานของวันเดือนก่อน/หลังที่ล้นเข้ามาในตาราง (ดึงมาพร้อมกันแล้วที่ planLoadData — ดู
+  // _planCalendarOverflowData/_planCalendarGridRange) ให้เซลล์จางๆ โชว์งานจริงแทนที่จะมีแค่เลขวันที่เปล่าๆ
+  // (ผู้ใช้รายงานว่ามีงานจริงในเดือนถัดไปแต่ไม่เห็นขึ้นให้ดูเลย)
+  const overflowByDate = {};
+  _planFilterRowsForDisplay(_planCalendarOverflowData).forEach(r => { (overflowByDate[r.PlanDate] ||= []).push(r); });
+
+  // เซลล์ก่อนวันที่ 1 / หลังวันสุดท้ายของเดือน (ให้ตารางเต็มแถวพอดี 7 คอลัมน์) — จางลงด้วย
+  // .plan-day-outside{opacity:.5} เดิม (ไม่ต้องเพิ่ม CSS ใหม่) ไม่มี onclick — คลิกไปเปลี่ยนเดือนจริงด้วย
+  // ลูกศร <> ด้านบนแทน ไม่ใช่ scope ของฟีเจอร์นี้
+  const prevMonthLastDay = new Date(y, m, 0).getDate();
 
   let cells = '';
-  for (let i = 0; i < firstDow; i++) cells += `<div class="plan-day-cell plan-day-outside"></div>`;
+  for (let i = 0; i < firstDow; i++) {
+    const d = prevMonthLastDay - firstDow + 1 + i;
+    const dateStr = _planWeekLocalDateStr(new Date(y, m, 1 - firstDow + i));
+    const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
+    cells += `<div class="plan-day-cell plan-day-outside"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+  }
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const items = (byDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
     const isToday = dateStr === todayStr;
     const isSunday = new Date(y, m, d).getDay() === 0;
-    const chips = items.slice(0, 3).map(r => {
-      const lot = _planMOLot(r.MO_Ref);
-      // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — เปลี่ยนสี+ขึ้นเครื่องหมาย
-      // ถูกให้เห็นชัดว่าห้อง/เวลา/คนของงานนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว ไม่ต้องรอครบเวลาที่จองไว้เดิม
-      const finished = _planLineFinished(r);
-      const stCls = finished ? 'st-finished' : (r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned');
-      return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}"
-        title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''}">
-        ${finished ? '<i class="fas fa-check-circle me-1"></i>' : ''}${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
-      </div>`;
-    }).join('');
-    const more = items.length > 3 ? `<div class="plan-chip-more">+${items.length - 3} เพิ่มเติม</div>` : '';
     cells += `<div class="plan-day-cell${isToday ? ' plan-day-today' : ''}${isSunday ? ' plan-day-sunday' : ''}" onclick="planOpenDayModal('${dateStr}')">
-      <div class="plan-day-num">${d}</div>${isSunday ? '<div class="plan-day-off">Day Off</div>' : ''}${chips}${more}
+      <div class="plan-day-num">${d}</div>${isSunday ? '<div class="plan-day-off">Day Off</div>' : ''}${_planCellBodyHTML(items)}
     </div>`;
   }
 
   const totalCells = firstDow + daysInMonth;
   const trailing = (7 - (totalCells % 7)) % 7;
-  for (let i = 0; i < trailing; i++) cells += `<div class="plan-day-cell plan-day-outside"></div>`;
+  for (let i = 0; i < trailing; i++) {
+    const d = i + 1;
+    const dateStr = _planWeekLocalDateStr(new Date(y, m + 1, d));
+    const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
+    cells += `<div class="plan-day-cell plan-day-outside"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+  }
 
   document.getElementById('plan-calendar-body').innerHTML = cells;
 }
