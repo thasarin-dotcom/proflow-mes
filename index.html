@@ -11273,6 +11273,7 @@ function _purchasereqHalfHTML(pr, copyLabel) {
     </div>
     <div class="pr-print-meta-row">
       <span>วันที่ : <b>${_purchasereqFmtDate(pr.PRDate)}</b></span>
+      ${(() => { const s = [...new Set(pr.lines.map(l => (l.Supplier || '').trim()).filter(Boolean))]; return s.length === 1 ? `<span>Supplier : <b>${s[0]}</b></span>` : ''; })()}
       <span>เลขที่ : <b>${pr.PR_No}</b></span>
     </div>
     <div class="pr-print-section-title">รายการที่ขอซื้อ</div>
