@@ -1777,6 +1777,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-codash" onclick="showPage('codash',this)" title="คำสั่งผลิต">
       <i class="fas fa-chart-bar me-2"></i><span>คำสั่งผลิต</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-codemand" onclick="showPage('codemand',this)" title="ต้องผลิต & วัตถุดิบ (จาก CO)">
+      <i class="fas fa-clipboard-list me-2"></i><span>ต้องผลิต & วัตถุดิบ</span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
       <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
     </a>
@@ -2784,6 +2787,95 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </thead>
             <tbody id="codash-overdue-tbody">
               <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
+  <!-- PAGE: ต้องผลิต & วัตถุดิบ (รวมจาก CO ที่ยังไม่ปิดทุกใบ) — อ่านอย่างเดียว ไม่เขียน DB -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-codemand">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-clipboard-list me-2"></i>ต้องผลิต & วัตถุดิบ (รวมจาก CO)</h4>
+        <button class="btn btn-sm btn-light fw-bold text-primary" onclick="codemandLoadData()">
+          <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+        </button>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card"><div class="kpi-num" id="codemand-kpi-co">—</div><div class="kpi-label">CO ที่ยังค้างส่ง</div></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#3b82f6">
+            <div class="kpi-num text-primary" id="codemand-kpi-prod">—</div><div class="kpi-label">สินค้าที่มียอดค้าง</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#f97316">
+            <div class="kpi-num" style="color:#f97316" id="codemand-kpi-need">—</div><div class="kpi-label">สินค้าที่ต้องผลิตเพิ่ม</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#ef4444">
+            <div class="kpi-num text-danger" id="codemand-kpi-short">—</div><div class="kpi-label">วัตถุดิบที่ไม่พอ</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-light border small py-2 mb-3">
+        <i class="fas fa-circle-info text-primary me-1"></i>
+        <b>ต้องผลิตเพิ่ม</b> = ยอดค้างส่งทุก CO − FG พร้อมส่ง − รอจัดส่ง − MO ที่กำลังผลิตอยู่ (ยังรับ FG ไม่ครบ) ·
+        <b>วัตถุดิบที่ต้องใช้</b> = ตาม BOM ของ (ต้องผลิตเพิ่ม + MO ที่ยังไม่เบิกวัตถุดิบ) + CO ขาย Bulk ตรง เทียบกับสต็อกรวมทุก Lot
+      </div>
+
+      <div class="glass-card p-0 overflow-hidden mb-3">
+        <div class="p-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-bold small text-muted"><i class="fas fa-box me-1"></i>สรุปรายสินค้า (รวมทุก CO)</span>
+          <input type="text" class="form-control form-control-sm" style="max-width:260px" id="codemand-prod-search"
+                 placeholder="ค้นหาสินค้า..." oninput="codemandRenderProducts()">
+        </div>
+        <div id="codemand-prod-list" class="p-2">
+          <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
+        </div>
+      </div>
+
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="p-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-bold small text-muted"><i class="fas fa-flask me-1"></i>สรุปวัตถุดิบรวม (ทุกสินค้า)</span>
+          <div class="d-flex align-items-center gap-2">
+            <div class="form-check form-switch mb-0 small">
+              <input class="form-check-input" type="checkbox" id="codemand-mat-shortonly" onchange="codemandRenderMaterials()">
+              <label class="form-check-label" for="codemand-mat-shortonly">เฉพาะที่ไม่พอ</label>
+            </div>
+            <button class="btn btn-sm btn-warning fw-bold" onclick="codemandRequestPurchase()">
+              <i class="fas fa-cart-plus me-1"></i>ขอซื้อที่ขาดทั้งหมด
+            </button>
+            <input type="text" class="form-control form-control-sm" style="max-width:220px" id="codemand-mat-search"
+                   placeholder="ค้นหาวัตถุดิบ..." oninput="codemandRenderMaterials()">
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>รหัส</th><th>วัตถุดิบ</th>
+                <th class="text-end">MO ยังไม่เบิก</th>
+                <th class="text-end">ผลิตเพิ่ม</th>
+                <th class="text-end">ขาย Bulk</th>
+                <th class="text-end">รวมต้องใช้</th>
+                <th class="text-end">สต็อก</th>
+                <th class="text-end">คงเหลือ / ขาด</th>
+                <th>UOM</th>
+              </tr>
+            </thead>
+            <tbody id="codemand-mat-tbody">
+              <tr><td colspan="9" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>
             </tbody>
           </table>
         </div>
@@ -8897,6 +8989,7 @@ const _PAGE_LOADERS = {
   'bpr'       : bprLoadData,
   'stockcard' : stockcardLoadData,
   'codash'    : codashLoadData,
+  'codemand'  : codemandLoadData,
   'prodstatus': loadProdStatusData,
   'floorpulse': loadFloorPulseData,
   'lotqueue'  : loadLotQueueData,
@@ -10019,9 +10112,10 @@ const _moWaitStatuses = ['Wait', 'รอเบิก', 'แพลนแล้ว
 // คำนวณยอดวัตถุดิบที่ต้องใช้ตาม BOM สำหรับสินค้า+จำนวนที่ระบุ (ไม่เกี่ยวกับสต็อก/ยอดจอง) — แยกออกมาจาก
 // _moComputeMaterialCheck เพื่อให้ moSubmit เรียกใช้ตรงๆ ตอนต้อง recompute ยอดจองใหม่หลังแก้ไข OrderQty
 // (ดู _moSyncReservationAndPlan) โดยไม่ต้องพ่วงเรื่องเช็คสต็อกมาด้วย
-function _moBomRequirementForQty(productCode, qty) {
+// bomRows (optional) — ให้หน้า "วางแผนจาก CO" (codemand) ส่ง BOM ที่โหลดเองเข้ามาได้ ใช้สูตรเดียวกันไม่ต้องก๊อปซ้ำ
+function _moBomRequirementForQty(productCode, qty, bomRows = _moBOM) {
   const orderQty = parseFloat(qty) || 0;
-  const rawBom = _moBOM.filter(b => b.ProductCode === productCode);
+  const rawBom = bomRows.filter(b => b.ProductCode === productCode);
   // bom มีแถวซ้ำจากการ import หลายรอบ — dedupe ตาม MaterialCode+ประเภท เหมือน pattern ที่ใช้ในหน้า BOM/เบิกวัตถุดิบ
   const seenKeys = new Set();
   const bomLines = rawBom.filter(b => {
@@ -10484,7 +10578,8 @@ function _purchasereqLineRowHTML(r) {
   const seq = _purchasereqRowSeq++;
   const nameAttr = (r.name || '').replace(/"/g, '&quot;');
   const uomAttr  = (r.uom || '').replace(/"/g, '&quot;');
-  const unitVal  = (r.unit || 0) > 0 ? r.unit : '';
+  const unitVal  = (r.unit || 0) > 0 ? (Math.round(r.unit * 100) / 100).toFixed(2) : '';
+  const qtyEmpty = r.qty === '' || r.qty == null || !(parseFloat(r.qty) > 0);
   return `<div class="purchasereq-line-row border rounded p-2 mb-2" data-seq="${seq}" data-code="${r.code}"
       data-name="${nameAttr}" data-uom="${uomAttr}" data-qtyatrequest="${r.qtyAtRequest || 0}"
       data-min="${r.min || 0}">
@@ -10511,12 +10606,14 @@ function _purchasereqLineRowHTML(r) {
       <div class="col-4">
         <label class="form-label mb-1" style="font-size:.7rem">ราคา/หน่วย (฿)</label>
         <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-unitcost-${seq}"
-          min="0" step="0.01" value="${unitVal}" placeholder="ระบุราคา">
+          min="0" step="0.01" value="${unitVal}" placeholder="ระบุราคา"
+          onchange="if(this.value!=='') this.value=(Math.round(parseFloat(this.value)*100)/100).toFixed(2)">
       </div>
       <div class="col-4">
         <label class="form-label mb-1" style="font-size:.7rem">จำนวนขอซื้อ</label>
         <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-qty-${seq}"
-          min="0" step="0.01" value="${r.qty}" oninput="_purchasereqValidateRow(${seq})">
+          min="0" step="0.01" value="${qtyEmpty ? '' : r.qty}" oninput="_purchasereqValidateRow(${seq})"
+          style="background:#fef08a;font-weight:600" placeholder="กรอกจำนวน">
       </div>
     </div>
   </div>`;
@@ -10524,7 +10621,8 @@ function _purchasereqLineRowHTML(r) {
 function _purchasereqValidateRow(seq) {
   const inp = document.getElementById(`purchasereq-f-qty-${seq}`);
   if (!inp) return;
-  inp.classList.toggle('is-invalid', inp.value === '' || parseFloat(inp.value) <= 0);
+  const empty = inp.value === '' || !(parseFloat(inp.value) > 0);
+  inp.classList.toggle('is-invalid', empty);   // พื้นเหลืองคงไว้ตลอด (ช่องที่ต้องโฟกัส) — ไม่ toggle ตามค่า
 }
 function purchasereqRemoveLineRow(seq) {
   const container = document.getElementById('purchasereq-lines-container');
@@ -10619,11 +10717,13 @@ function purchasereqCloseModal() {
 // เรียกจากปุ่ม "สร้างใบขอซื้อ" บนหน้า purchasereq เอง (2026-09-02, ตามคำขอผู้ใช้ — ไม่ต้องไปติ๊กเลือกที่หน้า
 // Stock ก่อนแล้ว) — เริ่มใบเปล่า แล้วค้นหา/เพิ่มวัตถุดิบจาก Master ทีละตัวผ่านกล่องค้นหาด้านบนตาราง แทนการดึงจาก
 // _stockPicked ที่ purchasereqOpenCreateModal ใช้ (โหมดเดิมนั้นยังอยู่ ไม่ได้แทนที่ — เข้าถึงคนละทาง)
-async function purchasereqOpenManualCreateModal() {
+// prefill (optional) = [{code, qty, name, uom}] — ใช้จากหน้า "ต้องผลิต & วัตถุดิบ" (codemand) เติมวัตถุดิบที่ขาด
+// พร้อมจำนวนให้เลย (ยังแก้/ลบ/เพิ่มได้ปกติก่อนบันทึก) · note = หมายเหตุเริ่มต้น
+async function purchasereqOpenManualCreateModal(prefill = null, note = '') {
   _purchasereqEditingNo = null;
   _purchasereqManualMode = true;
   document.getElementById('purchasereqModalTitle').textContent = 'สร้างใบขอซื้อวัตถุดิบ';
-  document.getElementById('purchasereq-f-note').value = '';
+  document.getElementById('purchasereq-f-note').value = note || '';
   document.getElementById('purchasereq-f-prno').value = '';
   document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
   document.getElementById('purchasereq-lines-container').innerHTML = '';
@@ -10650,6 +10750,7 @@ async function purchasereqOpenManualCreateModal() {
   });
   _purchasereqManualSupplierMap = supplierMap;
   document.getElementById('purchasereq-f-prno').value = suggestedPrNo;
+  (prefill || []).forEach(p => purchasereqManualAddMaterial(p.code, p.qty, p, false));
 
   if (!_purchasereqModal) _purchasereqModal = new bootstrap.Modal(document.getElementById('purchasereqModal'));
   _purchasereqModal.show();
@@ -10676,22 +10777,25 @@ function purchasereqManualSearchMaterial(q) {
     </button>`).join('');
   dd.style.display = 'block';
 }
-function purchasereqManualAddMaterial(code) {
-  const m = _purchasereqManualMaterials.find(x => x.MaterialCode === code);
+// qtyOverride/fallback/focus ใช้ตอนเติมรายการอัตโนมัติ (prefill) — fallback = {name,uom} กรณีรหัสไม่มีใน Master
+function purchasereqManualAddMaterial(code, qtyOverride = null, fallback = null, focus = true) {
+  const m = _purchasereqManualMaterials.find(x => x.MaterialCode === code)
+         || (fallback ? { MaterialCode: code, MaterialName: fallback.name, UOM: fallback.uom, MinStock: 0 } : null);
   if (!m) return;
+  if (document.querySelector(`#purchasereq-lines-container .purchasereq-line-row[data-code="${code}"]`)) return;
   const stock = _purchasereqManualStockMap[code] || { qty: 0, val: 0 };
   const min = parseFloat(m.MinStock) || 0;
   const unitCost = stock.qty > 0 ? stock.val / stock.qty : 0;
   const row = {
     code, name: m.MaterialName || code, uom: m.UOM || '',
-    qtyAtRequest: stock.qty, min, qty: _purchasereqSuggestQty(stock.qty, min),
+    qtyAtRequest: stock.qty, min, qty: qtyOverride != null ? qtyOverride : _purchasereqSuggestQty(stock.qty, min),
     unit: unitCost, supplier: (_purchasereqManualSupplierMap[code]||[])[0] || '',
     suppliersOptions: _purchasereqManualSupplierMap[code] || [],
   };
   document.getElementById('purchasereq-lines-container').insertAdjacentHTML('beforeend', _purchasereqLineRowHTML(row));
   document.getElementById('purchasereq-add-material-search').value = '';
   document.getElementById('purchasereq-add-material-dropdown').style.display = 'none';
-  document.getElementById('purchasereq-add-material-search').focus();
+  if (focus) document.getElementById('purchasereq-add-material-search').focus();
 }
 document.addEventListener('click', function(e) {
   const dd = document.getElementById('purchasereq-add-material-dropdown');
@@ -10729,7 +10833,7 @@ async function purchasereqSubmit() {
       UOM: row.dataset.uom,
       QtyAtRequest: parseFloat(row.dataset.qtyatrequest) || 0,
       MinStock: parseFloat(row.dataset.min) || 0,
-      UnitCost: parseFloat(unitCostInput.value) || 0,
+      UnitCost: Math.round((parseFloat(unitCostInput.value) || 0) * 100) / 100,
       RequestQty: qty,
       Supplier: supplier,
     };
@@ -13097,9 +13201,19 @@ async function _fgoutNotifyLineBillIssued(billNo, rows, coRefs) {
     const customer = rows[0]?.CustomerName || '—';
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-    const itemLines = rows.map((r, i) =>
-      `${i + 1}. ${r.ProductName || '—'}\n    Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`
-    ).join('\n');
+    // จัดกลุ่มตามสินค้า (ProductCode ถ้ามี ไม่งั้น fallback ชื่อสินค้า) — โปรดักเดียวกันคนละ Lot ให้อยู่ใต้
+    // หัวข้อเดียวกัน ไม่แยกเป็นคนละลำดับซ้ำชื่อ ตามที่ผู้ใช้ขอ (เทียบสกรีนช็อตจริงจากกลุ่มไลน์ 2026-09-25)
+    const productGroups = [];
+    const productIdx = new Map();
+    rows.forEach(r => {
+      const key = r.ProductCode || r.ProductName || '';
+      if (!productIdx.has(key)) { productIdx.set(key, productGroups.length); productGroups.push({ name: r.ProductName || '—', lots: [] }); }
+      productGroups[productIdx.get(key)].lots.push(r);
+    });
+    const itemLines = productGroups.map((g, i) => {
+      const lotLines = g.lots.map(r => `-Lot ${r.Lot_FG || '—'} | ${(parseFloat(r.QtyDelivered) || 0).toLocaleString('th-TH')} ${r.UOM || ''}`).join('\n');
+      return `${i + 1}. ${g.name}\n${lotLines}`;
+    }).join('\n');
     const text =
       `🧾 แจ้งออกบิลส่งสินค้า\n` +
       `วันที่: ${dateStr}\n` +
@@ -25728,6 +25842,261 @@ const _codashStatusHex = {
 };
 const _codashOpenStatuses = ['รอสั่งผลิต', 'สั่งผลิตแล้ว', 'รอผลิต', 'กำลังผลิต', 'กำลังเบิก', 'ส่งบางส่วน'];
 const _codashDoneStatuses = ['เสร็จสิ้น', 'ส่งแล้ว', 'ส่งครบ', 'ส่งสำเร็จ'];
+
+// ══════════════════════════════════════════════
+// PAGE: ต้องผลิต & วัตถุดิบ (codemand) — รวม CO ที่ยังไม่ปิดทุกใบตามสินค้า ว่าต้องผลิตเพิ่มอีกเท่าไหร่
+// และวัตถุดิบตาม BOM พอไหมเทียบสต็อกรวมทุก Lot. อ่านอย่างเดียว ไม่เขียน DB
+// - ยอดค้างส่ง/รอจัดส่ง ใช้ _coShippedMap/_coPendingDispatchMap ชุดเดียวกับหน้า CO (_coRefreshMOAndShippedMaps)
+// - ต่างจาก needProduce ในหน้า CO ตรงที่หัก "MO ที่กำลังผลิตอยู่ (OrderQty − MO_Received)" ด้วย เพราะหน้านี้
+//   มองภาพรวมทั้งสินค้า ไม่ใช่ต่อ CO — ไม่หักจะนับยอดที่เปิด MO ไปแล้วซ้ำ
+// - วัตถุดิบ: MO สถานะรอเบิก (_moWaitStatuses) ยังไม่ตัดสต็อก → นับเป็นความต้องการด้วย, MO ที่เบิกแล้ว
+//   ตัดสต็อกไปแล้วจึงไม่นับซ้ำ. ไม่หัก mo_material_reservations อีก เพราะยอดจองคือ MO รอเบิกชุดเดียวกันนี้
+// ══════════════════════════════════════════════
+let _codemandProducts  = [];
+let _codemandMaterials = [];
+let _codemandExpandedSet = new Set();
+
+async function codemandLoadData() {
+  _showLoader();
+  const [coRes, fgRes, moRes, bomRes, stockRes] = await Promise.all([
+    _fetchAllPaged('customer_orders', '*'),
+    _fetchAllPaged('stock_fg', 'ProductCode,FGBalance'),
+    _fetchAllPaged('manufacturing_orders', 'MO_ID,ProductCode,ProductName,OrderQty,MO_Received,Status,UOM'),
+    _bomFetchPaged('ProductCode,ProductName,MaterialCode,MaterialName,QtyPerBase,QtyWithScrap,UOM,Remark', [{ col: '_row_id', ascending: true }]),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
+    _coRefreshMOAndShippedMaps(),
+  ]);
+  _hideLoader();
+  const firstErr = [coRes, fgRes, moRes, bomRes, stockRes].find(r => r.error);
+  if (firstErr) { _err('โหลดข้อมูลไม่ได้', firstErr.error.message); return; }
+
+  const bomRows = bomRes.data || [];
+  const fgStock = {};
+  (fgRes.data || []).forEach(s => { if (s.ProductCode) fgStock[s.ProductCode] = (fgStock[s.ProductCode] || 0) + (parseFloat(s.FGBalance) || 0); });
+  const matStock = {};
+  (stockRes.data || []).forEach(s => { if (s.MaterialCode) matStock[s.MaterialCode] = (matStock[s.MaterialCode] || 0) + (parseFloat(s.QtyBalance) || 0); });
+
+  // MO ที่ยังไม่ปิด — ยอดที่ยังรอรับ FG (กำลังผลิต) + ยอดที่ยังไม่เบิกวัตถุดิบ (ต้องใช้วัตถุดิบ)
+  const moOpenByProd = {}, moWaitByProd = {};
+  (moRes.data || []).forEach(m => {
+    if (!m.ProductCode || _moDoneStatuses.includes(m.Status)) return;
+    const left = Math.max(0, (parseFloat(m.OrderQty) || 0) - (parseFloat(m.MO_Received) || 0));
+    (moOpenByProd[m.ProductCode] ||= []).push({ ...m, left });
+    if (_moWaitStatuses.includes(m.Status)) moWaitByProd[m.ProductCode] = (moWaitByProd[m.ProductCode] || 0) + (parseFloat(m.OrderQty) || 0);
+  });
+
+  // รวม CO ที่ยังไม่ปิดตามสินค้า
+  const prodMap = {};
+  const matMap = {};
+  const addMat = (code, name, uom, field, qty) => {
+    if (!code || !qty) return;
+    const m = (matMap[code] ||= { code, name: name || code, uom: uom || '', moWait: 0, newProd: 0, bulkSale: 0, stock: matStock[code] || 0, usedBy: new Set() });
+    m[field] += qty;
+  };
+  let openCOCount = 0;
+  (coRes.data || []).forEach(r => {
+    if (_coDoneStatuses.includes(r.Status) || !r.ProductCode) return;
+    const isBulk = r.ItemType === 'BULK';
+    const shipped = isBulk ? (_coBulkWithdrawnMap[r.Order_ID] || 0) : (_coShippedMap[r.Order_ID] || 0);
+    const remain = Math.max(0, (parseFloat(r.OrderQty) || 0) - shipped);
+    if (remain <= 0) return;
+    openCOCount++;
+    if (isBulk) {   // ขาย Bulk ตรง — ไม่ผ่าน BOM/MO ตัดจาก stock_balance ของวัตถุดิบตัวนั้นเลย
+      addMat(r.ProductCode, r.ProductName, r.UOM, 'bulkSale', remain);
+      matMap[r.ProductCode].usedBy.add(`CO ${r.Order_ID}`);
+      return;
+    }
+    const p = (prodMap[r.ProductCode] ||= { code: r.ProductCode, name: r.ProductName || r.ProductCode, uom: r.UOM || '', orderQty: 0, remain: 0, pending: 0, cos: [] });
+    p.orderQty += parseFloat(r.OrderQty) || 0;
+    p.remain   += remain;
+    p.pending  += _coPendingDispatchMap[r.Order_ID] || 0;
+    p.cos.push({ id: r.Order_ID, customer: r.CustomerName, po: r.PO_No, due: r.DueDate, orderQty: parseFloat(r.OrderQty) || 0, remain });
+  });
+
+  _codemandProducts = Object.values(prodMap).map(p => {
+    p.fgStock  = fgStock[p.code] || 0;
+    p.mos      = moOpenByProd[p.code] || [];
+    p.moLeft   = p.mos.reduce((s, m) => s + m.left, 0);
+    p.need     = Math.max(0, p.remain - p.pending - p.fgStock - p.moLeft);
+    p.moWait   = moWaitByProd[p.code] || 0;
+    p.hasBom   = bomRows.some(b => b.ProductCode === p.code);
+    p.cos.sort((a, b) => String(a.due || '9999').localeCompare(String(b.due || '9999')));
+    return p;
+  });
+
+  // ความต้องการวัตถุดิบ: ผลิตเพิ่มของสินค้าที่มี CO ค้าง + MO รอเบิกของทุกสินค้า (รวม MO ผลิตเข้าสต็อกที่ไม่ผูก CO)
+  _codemandProducts.forEach(p => {
+    if (p.need > 0) _moBomRequirementForQty(p.code, p.need, bomRows).forEach(l => {
+      addMat(l.matCode, l.matName, l.uom, 'newProd', l.required);
+      matMap[l.matCode] && matMap[l.matCode].usedBy.add(p.name);
+    });
+  });
+  Object.keys(moWaitByProd).forEach(code => {
+    const pname = (moOpenByProd[code] || [])[0]?.ProductName || code;
+    _moBomRequirementForQty(code, moWaitByProd[code], bomRows).forEach(l => {
+      addMat(l.matCode, l.matName, l.uom, 'moWait', l.required);
+      matMap[l.matCode] && matMap[l.matCode].usedBy.add(pname);
+    });
+  });
+  _codemandMaterials = Object.values(matMap).map(m => {
+    m.total   = m.moWait + m.newProd + m.bulkSale;
+    m.balance = m.stock - m.total;
+    return m;
+  }).sort((a, b) => (a.balance >= 0) - (b.balance >= 0) || a.balance - b.balance);
+
+  const matByCode = Object.fromEntries(_codemandMaterials.map(m => [m.code, m]));
+  _codemandProducts.forEach(p => {
+    p.matLines = p.need > 0 ? _moBomRequirementForQty(p.code, p.need, bomRows).map(l => ({ ...l, overall: matByCode[l.matCode] })) : [];
+    p.shortCount = p.matLines.filter(l => l.overall && l.overall.balance < 0).length;
+  });
+  _codemandProducts.sort((a, b) => b.shortCount - a.shortCount || b.need - a.need || a.name.localeCompare(b.name, 'th'));
+
+  const el = id => document.getElementById(id);
+  el('codemand-kpi-co').textContent    = openCOCount.toLocaleString();
+  el('codemand-kpi-prod').textContent  = _codemandProducts.length.toLocaleString();
+  el('codemand-kpi-need').textContent  = _codemandProducts.filter(p => p.need > 0).length.toLocaleString();
+  el('codemand-kpi-short').textContent = _codemandMaterials.filter(m => m.balance < 0).length.toLocaleString();
+  codemandRenderProducts();
+  codemandRenderMaterials();
+}
+
+function _codemandFmt(n) {
+  return (Math.round((parseFloat(n) || 0) * 1000) / 1000).toLocaleString();
+}
+
+function codemandToggle(code) {
+  if (_codemandExpandedSet.has(code)) _codemandExpandedSet.delete(code); else _codemandExpandedSet.add(code);
+  codemandRenderProducts();
+}
+
+function codemandRenderProducts() {
+  const q = (document.getElementById('codemand-prod-search')?.value || '').toLowerCase();
+  const rows = _codemandProducts.filter(p => !q || `${p.code} ${p.name}`.toLowerCase().includes(q));
+  const box = document.getElementById('codemand-prod-list');
+  if (!rows.length) { box.innerHTML = '<div class="text-center py-4 text-muted">ไม่มี CO ที่ค้างส่ง</div>'; return; }
+
+  box.innerHTML = rows.map(p => {
+    const open = _codemandExpandedSet.has(p.code);
+    const codeAttr = p.code.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    let matBadge;
+    if (p.need <= 0)      matBadge = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>ไม่ต้องผลิตเพิ่ม</span>';
+    else if (!p.hasBom)   matBadge = '<span class="badge bg-secondary">ยังไม่มี BOM</span>';
+    else if (p.shortCount) matBadge = `<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>วัตถุดิบไม่พอ ${p.shortCount} รายการ</span>`;
+    else                  matBadge = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>วัตถุดิบพอ</span>';
+
+    const stat = (label, val, cls = '') => `<div class="text-center px-2"><div class="small text-muted">${label}</div><div class="fw-bold ${cls}">${_codemandFmt(val)}</div></div>`;
+
+    return `<div class="border rounded mb-2 overflow-hidden bg-white">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="codemandToggle('${codeAttr}')">
+        <div>
+          <b>${p.name}</b>
+          <span class="badge bg-light text-dark border ms-2">${p.code}</span>
+          <span class="badge bg-light text-dark border ms-1">${p.cos.length} CO</span>
+          <span class="ms-2">${matBadge}</span>
+        </div>
+        <div class="d-flex align-items-center flex-wrap">
+          ${stat('ค้างส่ง', p.remain)}
+          ${stat('FG พร้อมส่ง', p.fgStock, 'text-success')}
+          ${p.pending ? stat('รอจัดส่ง', p.pending, 'text-info') : ''}
+          ${stat('กำลังผลิต (MO)', p.moLeft, 'text-primary')}
+          ${stat('ต้องผลิตเพิ่ม', p.need, p.need > 0 ? 'text-danger' : 'text-success')}
+          <span class="small text-muted ms-1">${p.uom}</span>
+          <i class="fas fa-chevron-${open ? 'up' : 'down'} text-muted ms-2"></i>
+        </div>
+      </div>
+      ${!open ? '' : `<div class="border-top p-3" style="background:#f8fafc">
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <div class="fw-bold small mb-1">CO ที่ค้างส่ง</div>
+            <table class="table table-sm mb-2 bg-white">
+              <thead><tr><th>CO</th><th>ลูกค้า / PO</th><th>กำหนดส่ง</th><th class="text-end">สั่ง</th><th class="text-end">ค้าง</th></tr></thead>
+              <tbody>${p.cos.map(c => `<tr>
+                <td class="small">${c.id}</td>
+                <td class="small">${c.customer || '—'}${c.po ? `<div class="text-muted">PO ${c.po}</div>` : ''}</td>
+                <td class="small ${c.due && c.due < _planWeekLocalDateStr(new Date()) ? 'text-danger fw-bold' : ''}">${_fmtDate(c.due) || '—'}</td>
+                <td class="small text-end">${_codemandFmt(c.orderQty)}</td>
+                <td class="small text-end fw-bold">${_codemandFmt(c.remain)}</td></tr>`).join('')}</tbody>
+            </table>
+            ${p.mos.length ? `<div class="fw-bold small mb-1">MO ที่กำลังดำเนินการ</div>
+            <table class="table table-sm mb-0 bg-white">
+              <thead><tr><th>MO</th><th>สถานะ</th><th class="text-end">สั่งผลิต</th><th class="text-end">รอรับ FG</th></tr></thead>
+              <tbody>${p.mos.map(m => `<tr><td class="small">${m.MO_ID}</td><td class="small">${m.Status || '—'}</td>
+                <td class="small text-end">${_codemandFmt(m.OrderQty)}</td><td class="small text-end fw-bold">${_codemandFmt(m.left)}</td></tr>`).join('')}</tbody>
+            </table>` : ''}
+          </div>
+          <div class="col-lg-7">
+            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
+              <span class="fw-bold small">วัตถุดิบสำหรับผลิตเพิ่ม ${_codemandFmt(p.need)} ${p.uom}</span>
+              ${p.shortCount ? `<button class="btn btn-sm btn-warning fw-bold" onclick="event.stopPropagation(); codemandRequestPurchase('${codeAttr}')">
+                <i class="fas fa-cart-plus me-1"></i>ขอซื้อวัตถุดิบที่ขาด (${p.shortCount})</button>` : ''}
+            </div>
+            ${p.need <= 0 ? '<div class="small text-muted">ไม่ต้องผลิตเพิ่ม — มีของพร้อมส่ง/กำลังผลิตครอบคลุมยอดค้างแล้ว</div>'
+              : !p.matLines.length ? '<div class="small text-muted">ยังไม่มี BOM ของสินค้านี้ — ไปตั้งค่าที่หน้า BOM ก่อน</div>'
+              : `<table class="table table-sm mb-0 bg-white">
+              <thead><tr><th>วัตถุดิบ</th><th class="text-end">ต้องใช้ (สินค้านี้)</th><th class="text-end">สต็อก</th><th class="text-end">ต้องใช้รวมทุกงาน</th><th class="text-end">คงเหลือ / ขาด</th></tr></thead>
+              <tbody>${p.matLines.map(l => {
+                const o = l.overall || { stock: 0, total: l.required, balance: -l.required };
+                const short = o.balance < 0;
+                return `<tr class="${short ? 'table-danger' : ''}">
+                  <td class="small">${l.matName || l.matCode}<div class="text-muted">${l.matCode}</div></td>
+                  <td class="small text-end">${_codemandFmt(l.required)} ${l.uom}</td>
+                  <td class="small text-end">${_codemandFmt(o.stock)}</td>
+                  <td class="small text-end">${_codemandFmt(o.total)}</td>
+                  <td class="small text-end fw-bold ${short ? 'text-danger' : 'text-success'}">${short ? 'ขาด ' + _codemandFmt(-o.balance) : _codemandFmt(o.balance)}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+            <div class="small text-muted mt-1">"ต้องใช้รวมทุกงาน" = รวมความต้องการของวัตถุดิบตัวนี้จากทุกสินค้า/MO ที่ยังไม่เบิก (วัตถุดิบใช้ร่วมกันหลายสินค้าได้)</div>`}
+          </div>
+        </div>
+      </div>`}
+    </div>`;
+  }).join('');
+}
+
+// เปิดฟอร์มใบขอซื้อ (โหมดสร้างเอง) พร้อมเติมวัตถุดิบที่ขาด — จำนวน = ยอดขาดรวมของวัตถุดิบตัวนั้นทั้งโรงงาน
+// (ไม่ใช่แค่ส่วนของสินค้านี้ เพราะวัตถุดิบใช้ร่วมกันหลายสินค้า ซื้อยอดขาดรวมทีเดียวกันขอซื้อซ้ำ) แก้จำนวนในฟอร์มได้
+// productCode = null → ขอซื้อวัตถุดิบที่ขาดทั้งหมดจากตารางสรุปวัตถุดิบรวม
+async function codemandRequestPurchase(productCode = null) {
+  let mats, note;
+  if (productCode) {
+    const p = _codemandProducts.find(x => x.code === productCode);
+    if (!p) return;
+    mats = p.matLines.map(l => l.overall).filter(o => o && o.balance < 0);
+    note = `ขอซื้อวัตถุดิบที่ขาด สำหรับผลิต ${p.name} (${p.cos.map(c => c.id).join(', ')})`;
+  } else {
+    mats = _codemandMaterials.filter(m => m.balance < 0);
+    note = 'ขอซื้อวัตถุดิบที่ขาด ตามยอดค้างผลิตจาก CO ทั้งหมด';
+  }
+  if (!mats.length) { Swal.fire({ icon: 'info', title: 'ไม่มีวัตถุดิบที่ขาด' }); return; }
+  const prefill = mats.map(m => ({ code: m.code, name: m.name, uom: m.uom, qty: Math.ceil(-m.balance * 100) / 100 }));
+  await purchasereqOpenManualCreateModal(prefill, note);
+}
+
+function codemandRenderMaterials() {
+  const q = (document.getElementById('codemand-mat-search')?.value || '').toLowerCase();
+  const shortOnly = document.getElementById('codemand-mat-shortonly')?.checked;
+  const rows = _codemandMaterials.filter(m => {
+    if (shortOnly && m.balance >= 0) return false;
+    return !q || `${m.code} ${m.name}`.toLowerCase().includes(q);
+  });
+  const tb = document.getElementById('codemand-mat-tbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">ไม่มีรายการ</td></tr>'; return; }
+  tb.innerHTML = rows.map(m => {
+    const short = m.balance < 0;
+    return `<tr class="${short ? 'table-danger' : ''}">
+      <td class="small">${m.code}</td>
+      <td class="small">${m.name}<div class="text-muted" style="font-size:.72rem">${[...m.usedBy].slice(0, 4).join(', ')}${m.usedBy.size > 4 ? ` +${m.usedBy.size - 4}` : ''}</div></td>
+      <td class="small text-end">${m.moWait ? _codemandFmt(m.moWait) : '—'}</td>
+      <td class="small text-end">${m.newProd ? _codemandFmt(m.newProd) : '—'}</td>
+      <td class="small text-end">${m.bulkSale ? _codemandFmt(m.bulkSale) : '—'}</td>
+      <td class="small text-end fw-bold">${_codemandFmt(m.total)}</td>
+      <td class="small text-end">${_codemandFmt(m.stock)}</td>
+      <td class="small text-end fw-bold ${short ? 'text-danger' : 'text-success'}">${short ? 'ขาด ' + _codemandFmt(-m.balance) : _codemandFmt(m.balance)}</td>
+      <td class="small">${m.uom}</td>
+    </tr>`;
+  }).join('');
+}
 
 async function codashLoadData() {
   _showLoader();
