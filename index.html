@@ -120,6 +120,16 @@ body {
 }
 .kpi-card .kpi-num { font-size: 1.6rem; font-weight: 700; color: #1e3a8a; }
 .kpi-card .kpi-label { font-size: .74rem; color: #64748b; }
+/* แดชบอร์ดอัตราการทำงานพนักงาน (laborutil) */
+.laborutil-dot { display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:middle; margin-right:3px; }
+.laborutil-linebar { display:flex; height:14px; border-radius:4px; overflow:hidden; background:#f1f5f9; }
+.laborutil-linebar > div { height:100%; }
+.laborutil-name { cursor:pointer; color:#1e3a8a; font-weight:600; }
+.laborutil-name:hover { text-decoration:underline; }
+.laborutil-trend { display:inline-flex; align-items:flex-end; gap:3px; height:28px; }
+.laborutil-trend > div { width:14px; border-radius:2px 2px 0 0; }
+.laborutil-heat td, .laborutil-heat th { font-size:.78rem; text-align:center; white-space:nowrap; padding:4px 6px !important; }
+.laborutil-heat td.hc { color:#fff; font-weight:600; }
 /* การ์ด KPI ที่คลิกได้เพื่อกรองรายการ (เช่น bom-kpi-incompletecap-card) — ไฮไลต์ตอนกำลังกรองอยู่ */
 .kpi-card.bom-kpi-active { background: #fffbeb; box-shadow: 0 0 0 2px #f59e0b, 0 2px 8px rgba(0,0,0,.06); }
 /* หัวข้อหมวด (เช่น "ภาพรวมวันนี้") วางอยู่บนพื้นหลังไล่สีน้ำเงินของ body ตรงๆ ไม่มีการ์ดสีขาวรองอยู่ข้างหลัง
@@ -358,6 +368,10 @@ body.wh-desktop-mode .kpi-card .kpi-num { font-size: 1.45rem; white-space: norma
 body.wh-desktop-mode .kpi-card .kpi-label { font-size: .78rem; }
 body.wh-desktop-mode .modal-header, body.wh-desktop-mode .modal-body, body.wh-desktop-mode .modal-footer { padding: 18px 22px; }
 body.wh-desktop-mode .badge { font-size: .78rem; padding: .4em .7em; }
+/* ฟอร์มรับวัตถุดิบ — ช่องอ้างอิงใบขอซื้อ (PR) + ปุ่มเลือกรายการในใบ ให้กดด้วยนิ้วง่ายบนแท็บเล็ต */
+body.wh-desktop-mode #mr-f-pr-ref { font-size: 1rem; padding: 10px 12px; }
+body.wh-desktop-mode #mr-pr-lines .btn { padding: 10px 14px; font-size: .92rem; text-align: left; flex: 1 1 calc(50% - 4px); }
+body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !important; margin-top: 2px; }
 
 /* Top loader bar */
 #topLoader {
@@ -1897,6 +1911,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
          ไม่ได้ผูก RLS เพิ่ม -->
     <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน ตามไลน์/สินค้า" style="display:none">
       <i class="fas fa-user-clock me-2"></i><span>สแกนบันทึกเวลาแรงงาน</span>
+    </a>
+    <!-- แดชบอร์ดอัตราการทำงานพนักงาน (added 2026-09-25) — หัวหน้างานขึ้นไปเท่านั้น (_hasRole('supervisor'))
+         toggle ใน _renderCurrentUserBadge — ซ่อนแค่ระดับ UI ไม่ได้ผูก RLS เพิ่ม -->
+    <a href="#" class="nav-link mb-1" id="nav-laborutil" onclick="showPage('laborutil',this)" title="อัตราการทำงานพนักงาน (ชม./ไลน์/ตรงสกิล)" style="display:none">
+      <i class="fas fa-chart-bar me-2"></i><span>อัตราการทำงานพนักงาน</span>
+      <span id="nav-laborutil-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="บันทึกเวลาแรงงานที่เวลาไม่ครบ (30 วันล่าสุด ไม่นับวันนี้)"></span>
     </a>
     </div>
 
@@ -5532,6 +5552,143 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
   </div>
 
+  <!-- ════════════ PAGE: อัตราการทำงานพนักงาน (laborutil, added 2026-09-25) ════════════
+       read-only: production_labor_log (ชม.จริงจากสแกน QR) × employee_skills/skills.Lines (ตรงสกิล) ×
+       production_plan.WorkerCodes (ตรงแผน) — สัปดาห์ จ.–อา., ไม่หักพักเที่ยง, ตรงสกิล = Level ≥ 1 -->
+  <div class="page-view" id="page-laborutil">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-chart-bar me-2"></i>อัตราการทำงานพนักงาน
+        </h4>
+        <button class="btn btn-light fw-bold text-success shadow-sm" onclick="laborutilExportXLSX()">
+          <i class="fas fa-file-excel me-2"></i>Export Excel
+        </button>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5 d-flex align-items-center gap-1">
+            <div class="btn-group btn-group-sm flex-shrink-0" role="group">
+              <button type="button" class="btn btn-outline-primary active" id="laborutil-mode-week" onclick="laborutilSetPeriod('week')">รายสัปดาห์</button>
+              <button type="button" class="btn btn-outline-primary" id="laborutil-mode-month" onclick="laborutilSetPeriod('month')">รายเดือน</button>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="laborutilShiftWeek(-1)" title="ก่อนหน้า"><i class="fas fa-chevron-left"></i></button>
+            <input type="date" id="laborutil-week" class="form-control form-control-sm" onchange="laborutilSetWeek(this.value)" title="เลือกวันใดก็ได้ในช่วงที่ต้องการ">
+            <input type="month" id="laborutil-month" class="form-control form-control-sm" style="display:none" onchange="laborutilSetWeek(this.value ? this.value + '-01' : '')" title="เลือกเดือน">
+            <button class="btn btn-sm btn-outline-secondary" onclick="laborutilShiftWeek(1)" title="ถัดไป"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <div class="col-md-2">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="laborutil-search" class="form-control border-start-0" placeholder="ค้นหา รหัส / ชื่อ..." oninput="laborutilRender()">
+            </div>
+          </div>
+          <div class="col-md-2">
+            <select id="laborutil-filter-line" class="form-select form-select-sm" onchange="laborutilRender()">
+              <option value="">ทุกไลน์</option>
+            </select>
+          </div>
+          <div class="col-md-1">
+            <select id="laborutil-filter-type" class="form-select form-select-sm" onchange="laborutilRender()">
+              <option value="">ทุกประเภท</option>
+              <option value="FT">FT</option>
+              <option value="PT">PT</option>
+              <option value="OS">OS</option>
+            </select>
+          </div>
+          <div class="col-md-1 text-end">
+            <button class="btn btn-sm btn-primary" onclick="loadLaborUtilData()" title="รีเฟรช"><i class="fas fa-sync-alt"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-2 mb-3" id="laborutil-kpi-row"></div>
+
+      <!-- ข้อเสนอแนะ & แจ้งเตือน (added 2026-09-25): พัฒนาทักษะ (ย้อน 90 วัน) + คุณภาพข้อมูล/ดูแลคน (ช่วงที่เลือก) -->
+      <div class="glass-card p-0 overflow-hidden mb-3">
+        <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="fw-bold"><i class="fas fa-lightbulb me-2 text-warning"></i>ข้อเสนอแนะ & แจ้งเตือน</div>
+          <div class="small text-muted" id="laborutil-sugg-note"></div>
+        </div>
+        <ul class="nav nav-tabs px-3" id="laborutil-sugg-tabs" style="font-size:.85rem">
+          <li class="nav-item"><button class="nav-link active" data-pane="promote" onclick="laborutilSuggTab('promote')">ควรเลื่อน Level <span class="badge bg-success ms-1" id="laborutil-cnt-promote">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-pane="train" onclick="laborutilSuggTab('train')">ควรส่งฝึก <span class="badge bg-danger ms-1" id="laborutil-cnt-train">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-pane="risk" onclick="laborutilSuggTab('risk')">ไลน์คนเก่งน้อย <span class="badge bg-warning text-dark ms-1" id="laborutil-cnt-risk">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-pane="missing" onclick="laborutilSuggTab('missing')">เวลาไม่ครบ <span class="badge bg-secondary ms-1" id="laborutil-cnt-missing">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-pane="overlap" onclick="laborutilSuggTab('overlap')">เวลาทับกัน <span class="badge bg-danger ms-1" id="laborutil-cnt-overlap">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-pane="fatigue" onclick="laborutilSuggTab('fatigue')">ทำงานยาว / OT ติดกัน <span class="badge bg-danger ms-1" id="laborutil-cnt-fatigue">0</span></button></li>
+        </ul>
+        <div class="p-3" style="max-height:360px;overflow:auto">
+          <div class="laborutil-sugg-pane" data-pane="promote" id="laborutil-pane-promote"></div>
+          <div class="laborutil-sugg-pane" data-pane="train" id="laborutil-pane-train" style="display:none"></div>
+          <div class="laborutil-sugg-pane" data-pane="risk" id="laborutil-pane-risk" style="display:none"></div>
+          <div class="laborutil-sugg-pane" data-pane="missing" id="laborutil-pane-missing" style="display:none"></div>
+          <div class="laborutil-sugg-pane" data-pane="overlap" id="laborutil-pane-overlap" style="display:none"></div>
+          <div class="laborutil-sugg-pane" data-pane="fatigue" id="laborutil-pane-fatigue" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="glass-card p-0 overflow-hidden mb-3">
+        <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="fw-bold"><i class="fas fa-user-check me-2 text-primary"></i>สรุปรายคน <span class="small text-muted fw-normal" id="laborutil-week-label"></span></div>
+          <div class="small text-muted">
+            <span class="laborutil-dot" style="background:#198754"></span>ทำได้เอง (Lv2–3)
+            <span class="laborutil-dot ms-2" style="background:#f59e0b"></span>กำลังฝึก (Lv1)
+            <span class="laborutil-dot ms-2" style="background:#dc3545"></span>ไม่มีสกิล
+            <span class="laborutil-dot ms-2" style="background:#cbd5e1"></span>ไลน์ยังไม่ผูกสกิล
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle" style="font-size:.85rem">
+            <thead class="table-light">
+              <tr>
+                <th>พนักงาน</th>
+                <th class="text-end">ชม.รวม</th>
+                <th class="text-end">วันทำงาน</th>
+                <th style="min-width:220px">สัดส่วนชม.ตามไลน์</th>
+                <th class="text-center">% ตรงสกิล</th>
+                <th class="text-center">% ตรงแผน</th>
+                <th class="text-center" id="laborutil-trend-th">แนวโน้ม 4 สัปดาห์ (% ตรงสกิล)</th>
+              </tr>
+            </thead>
+            <tbody id="laborutil-tbody">
+              <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- สกิล vs คุณภาพ (added 2026-09-25) — ของเสีย FG (hold_stock_moves DEFECT/IN) ต่อ MO เทียบสัดส่วน ชม.
+           ของคนไม่มีสกิล/กำลังฝึก ใน production_labor_log ของ MO นั้น (ผูก Lot→MO ผ่าน fg_receive) -->
+      <div class="glass-card p-0 overflow-hidden mb-3">
+        <div class="px-3 pt-3 pb-2 fw-bold"><i class="fas fa-shield-halved me-2 text-danger"></i>สกิล vs คุณภาพ (ของเสีย FG ต่อ MO)</div>
+        <div class="px-3" id="laborutil-qual-summary"></div>
+        <div class="table-responsive" style="max-height:420px" id="laborutil-qual-body"></div>
+        <div class="px-3 py-2 small text-muted border-top" id="laborutil-qual-note"></div>
+      </div>
+
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="px-3 pt-3 pb-2 fw-bold"><i class="fas fa-th me-2 text-primary"></i>Heatmap ชม. พนักงาน × ไลน์ <span class="small text-muted fw-normal">(สีช่อง = ระดับสกิลของไลน์นั้น)</span></div>
+        <div class="table-responsive" id="laborutil-heatmap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="laborutilDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="laborutilDetailTitle"><i class="fas fa-user me-2"></i>รายละเอียด</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="laborutilDetailBody"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ════════════ Skill Matrix: Add/Edit Skill Modal ════════════ -->
   <div class="modal fade" id="skillmatrixSkillModal" tabindex="-1">
     <div class="modal-dialog">
@@ -9010,6 +9167,7 @@ const _PAGE_LOADERS = {
   'material' : loadMaterialData,
   'employee' : loadEmployeeData,
   'skillmatrix': loadSkillMatrixData,
+  'laborutil' : loadLaborUtilData,
   'prodrecord': prodrecordLoadData,
   'bpr'       : bprLoadData,
   'stockcard' : stockcardLoadData,
@@ -20562,6 +20720,713 @@ let _skillmatrixSkills = [];
 let _skillmatrixLevels = {}; // key `${EmployeeCode}|${SkillCode}` -> employee_skills row
 let _skillmatrixModal = null;
 
+// ══════════════════════════════════════════════
+// PAGE: อัตราการทำงานพนักงาน (laborutil, added 2026-09-25) — read-only
+// ชม. = TimeOut − TimeIn จาก production_labor_log (ไม่หักพักเที่ยง ตามที่ผู้ใช้ยืนยัน), สัปดาห์ จ.–อา.
+// ตรงสกิล = พนักงานมีสกิลที่ skills.Lines ครอบคลุมไลน์นั้น ที่ Level ≥ 1 (ผู้ใช้เลือกเกณฑ์ Lv1)
+// ไลน์ที่ยังไม่มีสกิลไหนผูกไว้เลย (skills.Lines ไม่มีไลน์นี้) ไม่นับในตัวหารของ % ตรงสกิล — แสดงเป็นสีเทาแยก
+// ตรงแผน = พนักงานอยู่ใน production_plan.WorkerCodes ของ MO+ไลน์เดียวกัน (ไม่ผูกวันที่ เพราะวันยิง Lot แยกอิสระ)
+// ══════════════════════════════════════════════
+let _laborutilWeekStart = null;   // Date (จันทร์ 00:00 local)
+let _laborutilLogs = [];          // production_labor_log ย้อน 4 สัปดาห์ (รวมสัปดาห์ที่เลือก)
+let _laborutilEmpMap = {};        // EmployeeCode → employee row
+let _laborutilLineSkills = {};    // Line → [SkillCode,...]
+let _laborutilLevels = {};        // `${emp}|${skill}` → Level
+let _laborutilPlanSet = new Set();// `${MO_Ref}|${Line}|${emp}`
+let _laborutilLastRows = [];      // แถวสรุปรายคนล่าสุด (ใช้ export/modal)
+const _LABORUTIL_TARGET = 80;     // เกณฑ์ % ตรงสกิล สำหรับ KPI "ต่ำกว่าเป้า"
+let _laborutilSkillNames = {};    // SkillCode → SkillName
+// เกณฑ์ข้อเสนอแนะ (ค่าตั้งต้นที่ผู้เขียนเลือกเอง 2026-09-25 — ปรับได้ที่นี่จุดเดียว)
+const _LABORUTIL_SUGG_DAYS   = 90;  // ย้อนหลังกี่วัน (นับจากวันสุดท้ายของช่วงที่เลือก) สำหรับเลื่อน Level/ส่งฝึก
+const _LABORUTIL_PROMOTE_HRS = 40;  // Lv1 ทำสกิลนั้นสะสม ≥ กี่ ชม. → เสนอประเมินขึ้น Lv2
+const _LABORUTIL_TRAIN_HRS   = 8;   // ไม่มีสกิลแต่ถูกส่งไปทำ ≥ กี่ ชม. → เสนอส่งฝึก (ตั้ง Lv1)
+const _LABORUTIL_RISK_MAX    = 2;   // ไลน์ที่มีคน Lv≥2 (ยังทำงานอยู่) ≤ กี่คน → เสี่ยง
+const _LABORUTIL_LONGDAY_HRS = 10;  // ชม.รวมใน 1 วัน (นับรวมพัก) เกินนี้ → ทำงานยาว
+const _LABORUTIL_OTDAY_HRS   = 9;   // เกินนี้/วัน (08:00–17:00 = 9 ชม.รวมพัก) นับเป็นวันที่มี OT
+const _LABORUTIL_OT_STREAK   = 3;   // มี OT ติดกัน ≥ กี่วัน → แจ้งเตือน
+function _laborutilSuggWindow() {
+  const en = _laborutilRange(0).en;
+  const [y, m, d] = en.split('-').map(Number);
+  return { st: _planWeekLocalDateStr(new Date(y, m - 1, d - (_LABORUTIL_SUGG_DAYS - 1))), en };
+}
+
+function _laborutilMonday(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = x.getDay(); // 0=อา.
+  x.setDate(x.getDate() - (dow === 0 ? 6 : dow - 1));
+  return x;
+}
+function _laborutilAddDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function _laborutilHours(tin, tout) {
+  if (!tin || !tout) return null;
+  const [h1, m1] = String(tin).split(':').map(Number);
+  const [h2, m2] = String(tout).split(':').map(Number);
+  if ([h1, m1, h2, m2].some(v => isNaN(v))) return null;
+  const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
+  return mins > 0 ? mins / 60 : null;
+}
+// ระดับสกิลของพนักงานต่อไลน์: null = ไลน์นี้ยังไม่มีสกิลผูก, ไม่งั้นคืน max Level (0 = ไม่มีสกิล)
+function _laborutilLevelFor(emp, line) {
+  const skills = _laborutilLineSkills[line];
+  if (!skills || !skills.length) return null;
+  return Math.max(0, ...skills.map(sc => _laborutilLevels[`${emp}|${sc}`] || 0));
+}
+function _laborutilLevelColor(lv) {
+  if (lv == null) return '#cbd5e1';
+  if (lv >= 2) return '#198754';
+  if (lv === 1) return '#f59e0b';
+  return '#dc3545';
+}
+function _laborutilEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function _laborutilEmpName(code, fallback) {
+  const e = _laborutilEmpMap[code];
+  if (!e) return fallback || code;
+  return e.NickName ? `${e.FirstName || ''} (${e.NickName})` : `${e.FirstName || ''} ${e.LastName && e.LastName !== '-' ? e.LastName : ''}`.trim();
+}
+
+// โหมดช่วงเวลา (2026-09-25): 'week' = จ.–อา. | 'month' = วันที่ 1 – สิ้นเดือน
+// _laborutilWeekStart = วันเริ่มของช่วงที่เลือก (จันทร์ หรือ วันที่ 1 ของเดือน ตามโหมด)
+let _laborutilPeriod = 'week';
+function _laborutilPeriodStart(d) {
+  return _laborutilPeriod === 'month' ? new Date(d.getFullYear(), d.getMonth(), 1) : _laborutilMonday(d);
+}
+// ช่วง {st,en} (string YYYY-MM-DD) ของช่วงที่เลือก เลื่อนไป offset ช่วง (ลบ = ย้อนหลัง)
+function _laborutilRange(offset = 0) {
+  const s = _laborutilWeekStart;
+  if (_laborutilPeriod === 'month') {
+    const st = new Date(s.getFullYear(), s.getMonth() + offset, 1);
+    const en = new Date(s.getFullYear(), s.getMonth() + offset + 1, 0);
+    return { st: _planWeekLocalDateStr(st), en: _planWeekLocalDateStr(en) };
+  }
+  const st = _laborutilAddDays(s, 7 * offset);
+  return { st: _planWeekLocalDateStr(st), en: _planWeekLocalDateStr(_laborutilAddDays(st, 6)) };
+}
+function _laborutilPeriodWord() { return _laborutilPeriod === 'month' ? 'เดือน' : 'สัปดาห์'; }
+
+function laborutilSetPeriod(mode) {
+  if (mode === _laborutilPeriod) return;
+  _laborutilPeriod = mode;
+  document.getElementById('laborutil-mode-week')?.classList.toggle('active', mode === 'week');
+  document.getElementById('laborutil-mode-month')?.classList.toggle('active', mode === 'month');
+  document.getElementById('laborutil-week').style.display  = mode === 'week'  ? '' : 'none';
+  document.getElementById('laborutil-month').style.display = mode === 'month' ? '' : 'none';
+  _laborutilWeekStart = _laborutilPeriodStart(_laborutilWeekStart || new Date());
+  loadLaborUtilData();
+}
+function laborutilSetWeek(dateStr) {
+  if (!dateStr) return;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  _laborutilWeekStart = _laborutilPeriodStart(new Date(y, m - 1, d));
+  loadLaborUtilData();
+}
+function laborutilShiftWeek(n) {
+  if (!_laborutilWeekStart) _laborutilWeekStart = _laborutilPeriodStart(new Date());
+  const [y, m, d] = _laborutilRange(n).st.split('-').map(Number);
+  _laborutilWeekStart = new Date(y, m - 1, d);
+  loadLaborUtilData();
+}
+
+async function loadLaborUtilData() {
+  if (!_hasRole('supervisor')) { _err('ไม่มีสิทธิ์', 'หน้านี้สำหรับหัวหน้างานและแอดมินเท่านั้น'); return; }
+  if (!_laborutilWeekStart) _laborutilWeekStart = _laborutilPeriodStart(new Date());
+  const cur = _laborutilRange(0);
+  // ดึงย้อน 3 ช่วงสำหรับแนวโน้ม และอย่างน้อย _LABORUTIL_SUGG_DAYS วันสำหรับข้อเสนอแนะพัฒนาทักษะ (เอาอันที่ย้อนไกลกว่า)
+  const suggStartStr = _laborutilSuggWindow().st;
+  // + ครอบคลุมช่วงป้ายแจ้งเตือนเวลาไม่ครบ (30 วันล่าสุด) เสมอ เพื่อให้แท็บ "เวลาไม่ครบ" ตรงกับตัวเลขที่เมนู
+  const badgeWin = _laborutilBadgeWindow();
+  const fetchStartStr = [_laborutilRange(-3).st, suggStartStr, badgeWin.st].sort()[0];
+  const fetchEndStr = [cur.en, badgeWin.en].sort()[1];
+  const wkInput = document.getElementById('laborutil-week');
+  if (wkInput) wkInput.value = cur.st;
+  const moInput = document.getElementById('laborutil-month');
+  if (moInput) moInput.value = cur.st.slice(0, 7);
+  const lbl = document.getElementById('laborutil-week-label');
+  if (lbl) lbl.textContent = `(${_laborutilPeriodWord()} ${_fmtDate(cur.st)} – ${_fmtDate(cur.en)})`;
+  const trendTh = document.getElementById('laborutil-trend-th');
+  if (trendTh) trendTh.textContent = `แนวโน้ม 4 ${_laborutilPeriodWord()} (% ตรงสกิล)`;
+
+  _showLoader();
+  const [logRes, empRes, skillRes, levelRes] = await Promise.all([
+    _fetchAllPagedRange('production_labor_log', '_row_id,MO_Ref,Line,WorkDate,EmployeeCode,EmployeeName,TimeIn,TimeOut',
+      'WorkDate', fetchStartStr, fetchEndStr),
+    _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType,Status'),
+    _sb.from('skills').select('SkillCode,SkillName,Lines'),
+    _sb.from('employee_skills').select('EmployeeCode,SkillCode,Level'),
+  ]);
+  if (logRes.error)   { _hideLoader(); _err('โหลดบันทึกเวลาแรงงานไม่ได้', logRes.error.message); return; }
+  if (empRes.error)   { _hideLoader(); _err('โหลดข้อมูลพนักงานไม่ได้', empRes.error.message); return; }
+  if (skillRes.error) { _hideLoader(); _err('โหลดข้อมูลทักษะไม่ได้', skillRes.error.message); return; }
+  if (levelRes.error) { _hideLoader(); _err('โหลดระดับทักษะไม่ได้', levelRes.error.message); return; }
+
+  _laborutilLogs = logRes.data || [];
+  _laborutilEmpMap = {};
+  (empRes.data || []).forEach(e => { _laborutilEmpMap[e.EmployeeCode] = e; });
+  _laborutilLineSkills = {};
+  _laborutilSkillNames = {};
+  (skillRes.data || []).forEach(s => {
+    _laborutilSkillNames[s.SkillCode] = s.SkillName || s.SkillCode;
+    (s.Lines || '').split(',').map(x => x.trim()).filter(Boolean).forEach(line => {
+      (_laborutilLineSkills[line] = _laborutilLineSkills[line] || []).push(s.SkillCode);
+    });
+  });
+  _laborutilLevels = {};
+  (levelRes.data || []).forEach(r => { _laborutilLevels[`${r.EmployeeCode}|${r.SkillCode}`] = r.Level || 0; });
+
+  // แผน (WorkerCodes) ของ MO ที่ปรากฏใน log — แบ่งก้อน .in() ละ 100
+  _laborutilPlanSet = new Set();
+  const moRefs = [...new Set(_laborutilLogs.map(r => r.MO_Ref).filter(Boolean))];
+  for (let i = 0; i < moRefs.length; i += 100) {
+    const { data, error } = await _sb.from('production_plan').select('MO_Ref,Line,WorkerCodes').in('MO_Ref', moRefs.slice(i, i + 100));
+    if (error) { _hideLoader(); _err('โหลดแผนผลิตไม่ได้', error.message); return; }
+    (data || []).forEach(p => {
+      (p.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean)
+        .forEach(c => _laborutilPlanSet.add(`${p.MO_Ref}|${p.Line}|${c}`));
+    });
+  }
+  // ข้อมูล MO (สินค้า/หน่วย) สำหรับการ์ดสกิล vs คุณภาพ
+  const moRes = await _laborutilFetchIn('manufacturing_orders', 'MO_ID,ProductCode,ProductName,UOM,Status', 'MO_ID', moRefs);
+  if (moRes.error) { _hideLoader(); _err('โหลดข้อมูล MO ไม่ได้', moRes.error.message); return; }
+  _laborutilMOs = {}; (moRes.data || []).forEach(m => { _laborutilMOs[m.MO_ID] = m; });
+  const prodCodes = [...new Set((moRes.data || []).map(m => m.ProductCode).filter(Boolean))];
+  // คุณภาพ: FG รับเข้าต่อ MO (Lot/จำนวน) + ของเสีย FG ที่ย้ายเข้าสต็อก Defect ของสินค้าเหล่านั้น
+  const [fgRes, defRes] = await Promise.all([
+    _laborutilFetchIn('fg_receive', 'MO_ID,ProductCode,Lot_FG,QtyFG', 'MO_ID', moRefs),
+    _laborutilFetchIn('hold_stock_moves', 'ItemCode,Lot,Qty,MoveDate,Reason', 'ItemCode', prodCodes, 50,
+      q => q.eq('HoldType', 'DEFECT').eq('ItemType', 'FG').eq('MoveType', 'IN')),
+  ]);
+  if (fgRes.error) { _hideLoader(); _err('โหลดข้อมูลรับ FG ไม่ได้', fgRes.error.message); return; }
+  _laborutilFgRecv = fgRes.data || [];
+  // hold_stock_moves อาจยังไม่ได้สร้าง (ยังไม่ได้ใช้หน้าสต็อก Defect) → ถือว่าไม่มีของเสีย ไม่ต้อง error
+  _laborutilDefects = defRes.error ? [] : (defRes.data || []);
+  _laborutilDefectErr = defRes.error ? defRes.error.message : '';
+  _hideLoader();
+
+  // เติม dropdown ไลน์ (คงค่าที่เลือกไว้)
+  const lineSel = document.getElementById('laborutil-filter-line');
+  if (lineSel) {
+    const cur = lineSel.value;
+    const lines = [...new Set([...PLAN_LINES, ..._laborutilLogs.map(r => r.Line)])].filter(Boolean);
+    lineSel.innerHTML = '<option value="">ทุกไลน์</option>' +
+      lines.map(l => `<option value="${_laborutilEsc(l)}" ${l === cur ? 'selected' : ''}>${_laborutilEsc(l)}</option>`).join('');
+  }
+  laborutilRender();
+  _laborutilUpdateNavBadge();
+}
+
+// สรุปรายคนจาก log ชุดหนึ่ง
+function _laborutilSummarize(logs) {
+  const map = {};
+  logs.forEach(r => {
+    const code = r.EmployeeCode;
+    const s = map[code] = map[code] || { code, fallbackName: r.EmployeeName, hours: 0, byLine: {}, strong: 0, train: 0, none: 0, untagged: 0, planHrs: 0, days: new Set(), missing: 0 };
+    const h = _laborutilHours(r.TimeIn, r.TimeOut);
+    if (h == null) { s.missing++; return; }
+    s.hours += h;
+    s.byLine[r.Line] = (s.byLine[r.Line] || 0) + h;
+    s.days.add(r.WorkDate);
+    const lv = _laborutilLevelFor(code, r.Line);
+    if (lv == null) s.untagged += h; else if (lv >= 2) s.strong += h; else if (lv === 1) s.train += h; else s.none += h;
+    if (_laborutilPlanSet.has(`${r.MO_Ref}|${r.Line}|${code}`)) s.planHrs += h;
+  });
+  Object.values(map).forEach(s => {
+    const eligible = s.strong + s.train + s.none;
+    s.matchPct = eligible > 0 ? (s.strong + s.train) / eligible * 100 : null;
+    s.planPct = s.hours > 0 ? s.planHrs / s.hours * 100 : null;
+  });
+  return map;
+}
+
+function laborutilRender() {
+  const q    = (document.getElementById('laborutil-search')?.value || '').toLowerCase();
+  const line = document.getElementById('laborutil-filter-line')?.value || '';
+  const type = document.getElementById('laborutil-filter-type')?.value || '';
+  const passEmp = code => {
+    const e = _laborutilEmpMap[code];
+    if (type && (e?.EmployeeType || '') !== type) return false;
+    if (q) {
+      const hay = `${code} ${e?.FirstName || ''} ${e?.LastName || ''} ${e?.NickName || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  };
+  const filtered = _laborutilLogs.filter(r => (!line || r.Line === line) && passEmp(r.EmployeeCode));
+
+  // 4 ช่วง (สัปดาห์/เดือน): index 0 = เก่าสุด, 3 = ช่วงที่เลือก
+  const weeks = [-3, -2, -1, 0].map(off => {
+    const { st, en } = _laborutilRange(off);
+    return _laborutilSummarize(filtered.filter(r => r.WorkDate >= st && r.WorkDate <= en));
+  });
+  const cur = weeks[3];
+  const rows = Object.values(cur).sort((a, b) => b.hours - a.hours);
+  rows.forEach(s => { s.trend = weeks.map(w => w[s.code]?.matchPct ?? null); s.name = _laborutilEmpName(s.code, s.fallbackName); s.type = _laborutilEmpMap[s.code]?.EmployeeType || ''; });
+  _laborutilLastRows = rows;
+
+  // KPI
+  const totHrs = rows.reduce((a, s) => a + s.hours, 0);
+  const totElig = rows.reduce((a, s) => a + s.strong + s.train + s.none, 0);
+  const totMatch = rows.reduce((a, s) => a + s.strong + s.train, 0);
+  const totNone = rows.reduce((a, s) => a + s.none, 0);
+  const totPlan = rows.reduce((a, s) => a + s.planHrs, 0);
+  const below = rows.filter(s => s.matchPct != null && s.matchPct < _LABORUTIL_TARGET).length;
+  const missing = rows.reduce((a, s) => a + s.missing, 0);
+  const kpi = (num, label, color) => `<div class="col-6 col-md"><div class="kpi-card" style="border-left-color:${color}"><div class="kpi-num" style="color:${color}">${num}</div><div class="kpi-label">${label}</div></div></div>`;
+  document.getElementById('laborutil-kpi-row').innerHTML =
+    kpi(totHrs.toLocaleString('th-TH', { maximumFractionDigits: 1 }), `ชม.ทำงานรวม (${rows.length} คน)`, '#1e3a8a') +
+    kpi(totElig ? (totMatch / totElig * 100).toFixed(1) + '%' : '—', '% ตรงสกิล (ถ่วงตามชม.)', '#198754') +
+    kpi(totHrs ? (totPlan / totHrs * 100).toFixed(1) + '%' : '—', '% ตรงแผน', '#0d6efd') +
+    kpi(below, `คนที่ตรงสกิล < ${_LABORUTIL_TARGET}%`, '#f59e0b') +
+    kpi(totNone.toLocaleString('th-TH', { maximumFractionDigits: 1 }), 'ชม. ที่ทำโดยคนไม่มีสกิล', '#dc3545') +
+    (missing ? kpi(missing, 'รายการเวลาไม่ครบ (ไม่นับชม.)', '#64748b') : '');
+
+  // ตารางรายคน
+  const pctBadge = (p, good = _LABORUTIL_TARGET) => p == null ? '<span class="text-muted">—</span>'
+    : `<span class="badge ${p >= good ? 'bg-success' : p >= good - 20 ? 'bg-warning text-dark' : 'bg-danger'}">${p.toFixed(0)}%</span>`;
+  const tbody = document.getElementById('laborutil-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">ไม่มีบันทึกเวลาแรงงานใน${_laborutilPeriodWord()}นี้</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map((s, i) => {
+      const bar = Object.entries(s.byLine).sort((a, b) => b[1] - a[1]).map(([ln, h]) => {
+        const lv = _laborutilLevelFor(s.code, ln);
+        return `<div style="width:${h / s.hours * 100}%;background:${_planLineColor(ln)};border-bottom:3px solid ${_laborutilLevelColor(lv)}" title="${_laborutilEsc(ln)}: ${h.toFixed(1)} ชม. (${h / s.hours * 100 > 0 ? (h / s.hours * 100).toFixed(0) : 0}%)"></div>`;
+      }).join('');
+      const legend = Object.entries(s.byLine).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([ln, h]) => `<span class="me-2"><span class="laborutil-dot" style="background:${_planLineColor(ln)}"></span>${_laborutilEsc(ln)} ${h.toFixed(1)}</span>`).join('');
+      const trend = `<div class="laborutil-trend" title="${s.trend.map(p => p == null ? '—' : p.toFixed(0) + '%').join(' → ')}">` +
+        s.trend.map((p, wi) => p == null
+          ? `<div style="height:3px;background:#e2e8f0"></div>`
+          : `<div style="height:${Math.max(3, p * 0.28)}px;background:${p >= _LABORUTIL_TARGET ? '#198754' : p >= _LABORUTIL_TARGET - 20 ? '#f59e0b' : '#dc3545'};opacity:${wi === 3 ? 1 : .55}"></div>`).join('') + '</div>';
+      return `<tr>
+        <td><span class="laborutil-name" onclick="laborutilOpenDetail(${i})">${_laborutilEsc(s.name)}</span>
+          <div class="small text-muted">${_laborutilEsc(s.code)} ${s.type ? '· ' + s.type : ''}${s.missing ? ` · <span class="text-danger">เวลาไม่ครบ ${s.missing}</span>` : ''}</div></td>
+        <td class="text-end fw-bold">${s.hours.toFixed(1)}</td>
+        <td class="text-end">${s.days.size}</td>
+        <td><div class="laborutil-linebar">${bar}</div><div class="small text-muted mt-1">${legend}</div></td>
+        <td class="text-center">${pctBadge(s.matchPct)}${s.none > 0 ? `<div class="small text-danger">ไม่มีสกิล ${s.none.toFixed(1)} ชม.</div>` : ''}${s.train > 0 ? `<div class="small text-warning">กำลังฝึก ${s.train.toFixed(1)} ชม.</div>` : ''}</td>
+        <td class="text-center">${pctBadge(s.planPct)}</td>
+        <td class="text-center">${trend}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Heatmap พนักงาน × ไลน์
+  const heatEl = document.getElementById('laborutil-heatmap');
+  const heatLines = PLAN_LINES.filter(l => rows.some(s => s.byLine[l]))
+    .concat([...new Set(rows.flatMap(s => Object.keys(s.byLine)))].filter(l => !PLAN_LINES.includes(l)));
+  if (!rows.length || !heatLines.length) {
+    heatEl.innerHTML = '<div class="text-center text-muted py-4">ไม่มีข้อมูล</div>';
+  } else {
+    heatEl.innerHTML = `<table class="table table-bordered mb-0 laborutil-heat">
+      <thead class="table-light"><tr><th class="text-start">พนักงาน</th>${heatLines.map(l => `<th><span class="laborutil-dot" style="background:${_planLineColor(l)}"></span>${_laborutilEsc(l)}</th>`).join('')}<th>รวม</th></tr></thead>
+      <tbody>${rows.map(s => `<tr><td class="text-start">${_laborutilEsc(s.name)}</td>${heatLines.map(l => {
+        const h = s.byLine[l];
+        if (!h) return '<td class="text-muted">·</td>';
+        const lv = _laborutilLevelFor(s.code, l);
+        return `<td class="hc" style="background:${_laborutilLevelColor(lv)};${lv == null ? 'color:#334155' : ''}" title="${lv == null ? 'ไลน์นี้ยังไม่ผูกสกิล' : 'Level ' + lv}">${h.toFixed(1)}</td>`;
+      }).join('')}<td class="fw-bold">${s.hours.toFixed(1)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  _laborutilRenderSuggestions(passEmp, line);
+  _laborutilRenderQuality();
+}
+
+// ── สกิล vs คุณภาพ (added 2026-09-25) ─────────────────────────────────
+// ขอบเขต: MO ที่มีบันทึกเวลาในช่วงที่เลือก · สัดส่วนสกิลคิดจากบันทึกเวลาทั้งหมดของ MO (ที่ดึงมา ≥ 90 วัน) ทุกไลน์
+// ของเสีย = hold_stock_moves (DEFECT, FG, IN) ที่ ItemCode = สินค้าของ MO และ Lot ตรงกับ Lot_FG ที่ MO นั้นรับเข้า (fg_receive)
+// อัตราของเสีย = ของเสีย ÷ FG รับเข้า (ของที่ย้ายเข้า Defect มาจากสต็อก FG ที่รับเข้าแล้ว จึงอยู่ในตัวหารอยู่แล้ว)
+let _laborutilFgRecv = [];
+let _laborutilDefects = [];
+let _laborutilDefectErr = '';
+let _laborutilQualRows = [];
+function _laborutilNormLot(s) { return String(s ?? '').trim().toLowerCase(); }
+
+function _laborutilRenderQuality() {
+  const esc = _laborutilEsc;
+  const { st, en } = _laborutilRange(0);
+  const fmt = (v, d = 0) => v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('th-TH', { maximumFractionDigits: d });
+  const pct = v => v == null ? '—' : v.toFixed(1) + '%';
+
+  const moInPeriod = new Set(_laborutilLogs.filter(r => r.WorkDate >= st && r.WorkDate <= en).map(r => r.MO_Ref).filter(Boolean));
+  const mix = {}; // MO → ชม.แยกระดับ (ทุกไลน์ ทุกวันที่ดึงมา)
+  _laborutilLogs.forEach(r => {
+    if (!moInPeriod.has(r.MO_Ref)) return;
+    const h = _laborutilHours(r.TimeIn, r.TimeOut); if (h == null) return;
+    const m = mix[r.MO_Ref] = mix[r.MO_Ref] || { strong: 0, train: 0, none: 0, untagged: 0 };
+    const lv = _laborutilLevelFor(r.EmployeeCode, r.Line);
+    if (lv == null) m.untagged += h; else if (lv >= 2) m.strong += h; else if (lv === 1) m.train += h; else m.none += h;
+  });
+  const fgByMo = {};
+  _laborutilFgRecv.forEach(f => {
+    const g = fgByMo[f.MO_ID] = fgByMo[f.MO_ID] || { qty: 0, lots: new Set(), lotsRaw: new Set() };
+    g.qty += Number(f.QtyFG) || 0; g.lots.add(_laborutilNormLot(f.Lot_FG)); g.lotsRaw.add(f.Lot_FG);
+  });
+
+  let pending = 0;
+  const rows = [];
+  [...moInPeriod].forEach(moId => {
+    const mo = _laborutilMOs[moId] || {};
+    const fg = fgByMo[moId];
+    if (!fg || fg.qty <= 0) { pending++; return; }
+    const defs = _laborutilDefects.filter(d => d.ItemCode === mo.ProductCode && fg.lots.has(_laborutilNormLot(d.Lot)));
+    const defQty = defs.reduce((a, d) => a + (Number(d.Qty) || 0), 0);
+    const m = mix[moId] || { strong: 0, train: 0, none: 0, untagged: 0 };
+    const elig = m.strong + m.train + m.none;
+    rows.push({ mo: moId, product: mo.ProductName || mo.ProductCode || '', uom: mo.UOM || '', lots: [...fg.lotsRaw].join(', '),
+      fgQty: fg.qty, defQty, rate: defQty / fg.qty * 100,
+      nonePct: elig ? m.none / elig * 100 : null, trainPct: elig ? m.train / elig * 100 : null,
+      lowPct: elig ? (m.none + m.train) / elig * 100 : null,
+      reasons: [...new Set(defs.map(d => d.Reason).filter(Boolean))].slice(0, 3).join(' · ') });
+  });
+  rows.sort((a, b) => b.rate - a.rate || b.defQty - a.defQty);
+  _laborutilQualRows = rows;
+
+  // เทียบกลุ่มตามสัดส่วน ชม. ของคนไม่มีสกิล + กำลังฝึก
+  const buckets = [
+    { label: 'ทีมคนทำได้เองล้วน (ไม่มีสกิล/กำลังฝึก 0%)', test: p => p === 0 },
+    { label: 'ไม่มีสกิล/กำลังฝึก 1–20% ของ ชม.', test: p => p > 0 && p <= 20 },
+    { label: 'ไม่มีสกิล/กำลังฝึก > 20% ของ ชม.', test: p => p > 20 },
+  ].map(b => {
+    const rs = rows.filter(r => r.lowPct != null && b.test(Math.round(r.lowPct * 10) / 10));
+    const fg = rs.reduce((a, r) => a + r.fgQty, 0), df = rs.reduce((a, r) => a + r.defQty, 0);
+    return { ...b, n: rs.length, rate: fg ? df / fg * 100 : null };
+  });
+  const maxRate = Math.max(0.0001, ...buckets.map(b => b.rate || 0));
+  const color = r => r == null ? '#64748b' : r >= 2 ? '#dc3545' : r >= 0.5 ? '#f59e0b' : '#198754';
+  const b0 = buckets[0], b2 = buckets[2];
+  let verdict = '<span class="text-muted">ข้อมูลยังไม่พอเทียบ (ต้องมี MO ทั้งทีมคนทำได้เองล้วน และทีมที่มีคนไม่มีสกิล/กำลังฝึก > 20%)</span>';
+  if (b0.rate != null && b2.rate != null && b0.n && b2.n) {
+    verdict = b2.rate > b0.rate
+      ? `<i class="fas fa-triangle-exclamation text-danger me-1"></i>ทีมที่มีคนไม่มีสกิล/กำลังฝึกมาก มีของเสียสูงกว่า <b>${(b2.rate - b0.rate).toFixed(2)} จุด%</b> (${pct(b2.rate)} vs ${pct(b0.rate)}) — สนับสนุนให้ลงทุนฝึกคน/จัดคนตรงสกิล`
+      : `<i class="fas fa-circle-check text-success me-1"></i>ยังไม่พบว่าคนไม่มีสกิลทำให้ของเสียสูงขึ้น (${pct(b2.rate)} vs ${pct(b0.rate)}) — ของเสียอาจมาจากปัจจัยอื่น (วัตถุดิบ/เครื่องจักร)`;
+    if (b0.n + b2.n < 6) verdict += ' <span class="text-muted">· จำนวน MO ยังน้อย ผลอาจเปลี่ยนเมื่อข้อมูลมากขึ้น</span>';
+  }
+  document.getElementById('laborutil-qual-summary').innerHTML = `<table class="table table-sm mb-2 align-middle" style="font-size:.83rem">
+    <thead class="table-light"><tr><th>กลุ่ม MO</th><th class="text-end">จำนวน MO</th><th class="text-end">อัตราของเสีย (รวม)</th><th style="width:35%"></th></tr></thead>
+    <tbody>${buckets.map(b => `<tr><td>${b.label}</td><td class="text-end">${b.n}</td>
+      <td class="text-end fw-bold" style="color:${color(b.rate)}">${pct(b.rate)}</td>
+      <td><div class="laborutil-linebar"><div style="width:${b.rate == null ? 0 : b.rate / maxRate * 100}%;background:${color(b.rate)}"></div></div></td></tr>`).join('')}</tbody></table>
+    <div class="small mb-2">${verdict}</div>`;
+
+  document.getElementById('laborutil-qual-body').innerHTML = rows.length
+    ? `<table class="table table-sm table-hover mb-0 align-middle" style="font-size:.83rem"><thead class="table-light" style="position:sticky;top:0;z-index:1"><tr>
+        <th>MO / สินค้า</th><th>Lot FG</th><th class="text-end">FG รับเข้า</th><th class="text-end">ของเสีย</th><th class="text-end">อัตราของเสีย</th>
+        <th class="text-end">% ชม. ไม่มีสกิล</th><th class="text-end">% ชม. กำลังฝึก</th><th>สาเหตุที่บันทึก</th></tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td><b>${esc(r.mo)}</b><div class="small text-muted">${esc(r.product)}</div></td><td class="small">${esc(r.lots)}</td>
+        <td class="text-end">${fmt(r.fgQty)} <span class="small text-muted">${esc(r.uom)}</span></td>
+        <td class="text-end ${r.defQty ? 'text-danger fw-bold' : 'text-muted'}">${fmt(r.defQty)}</td>
+        <td class="text-end fw-bold" style="color:${color(r.rate)}">${pct(r.rate)}</td>
+        <td class="text-end ${r.nonePct > 0 ? 'text-danger' : ''}">${pct(r.nonePct)}</td>
+        <td class="text-end ${r.trainPct > 0 ? 'text-warning' : ''}">${pct(r.trainPct)}</td>
+        <td class="small text-muted">${esc(r.reasons) || '—'}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="text-center text-muted py-4">ยังไม่มี MO ในช่วงนี้ที่รับ FG เข้าแล้ว</div>';
+
+  const notes = [
+    'ของเสีย = FG ที่ย้ายเข้า "สต็อก Defect" (ย้ายเข้า) ของสินค้า+Lot ที่ MO นั้นรับเข้า · สัดส่วนสกิลคิดจาก ชม. ทุกไลน์ของ MO (ไม่นับไลน์ที่ยังไม่ผูกสกิล)',
+    'สี: เขียว < 0.5% · เหลือง 0.5–2% · แดง ≥ 2% · ของเสียเกิดจากหลายปัจจัย (วัตถุดิบ/เครื่องจักร/สินค้า) — ใช้ดูแนวโน้มเมื่อข้อมูลสะสมหลาย MO ไม่ใช่สรุปจาก MO เดียว',
+  ];
+  if (pending) notes.push(`มี ${pending} MO ในช่วงนี้ที่ยังไม่รับ FG เข้า จึงยังคำนวณอัตราของเสียไม่ได้`);
+  if (_laborutilDefectErr) notes.push(`<span class="text-warning">โหลดข้อมูลสต็อก Defect ไม่ได้ (${esc(_laborutilDefectErr)}) — ถือว่าไม่มีของเสีย</span>`);
+  document.getElementById('laborutil-qual-note').innerHTML = notes.map(n => `• ${n}`).join('<br>');
+}
+
+// ── helper ร่วมของหน้า laborutil ──
+// (การ์ด "ชั่วโมงที่จ่าย vs ชั่วโมงที่ใช้ผลิต" และ "ผลิตภาพ" ถูกเอาออก 2026-09-25 ตามคำขอผู้ใช้ — ใกล้เคียงหน้าแดชบอร์ด
+//  ต้นทุน & กำไร และยังนึกต่อยอดไม่ออก; โค้ดเดิมเก็บไว้ที่ backup/laborutil_removed_payroll_productivity_2026-09-25.txt)
+let _laborutilMOs = {};           // MO_ID → manufacturing_orders row (ใช้ในการ์ดสกิล vs คุณภาพ)
+// .in() เป็นก้อน + paginate ในแต่ละก้อน (กันเกิน 1000 แถว)
+// extra = (query) => query.eq(...) สำหรับกรองเพิ่ม (optional)
+async function _laborutilFetchIn(table, cols, col, values, chunk = 50, extra = null) {
+  let all = [];
+  for (let i = 0; i < values.length; i += chunk) {
+    const part = values.slice(i, i + chunk);
+    for (let from = 0; ; from += 1000) {
+      let q = _sb.from(table).select(cols).in(col, part);
+      if (extra) q = extra(q);
+      const { data, error } = await q.range(from, from + 999);
+      if (error) return { data: all, error };
+      all = all.concat(data || []);
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return { data: all, error: null };
+}
+function _laborutilMin(t) { if (!t) return null; const [h, m] = String(t).split(':').map(Number); return isNaN(h) || isNaN(m) ? null : h * 60 + m; }
+
+// ── ข้อเสนอแนะ & แจ้งเตือน ─────────────────────────
+function laborutilSuggTab(pane) {
+  document.querySelectorAll('#laborutil-sugg-tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.pane === pane));
+  document.querySelectorAll('.laborutil-sugg-pane').forEach(p => { p.style.display = p.dataset.pane === pane ? '' : 'none'; });
+}
+
+function _laborutilRenderSuggestions(passEmp, lineFilter) {
+  const esc = _laborutilEsc;
+  const isAdmin = !!_currentUser?.isAdmin;
+  const win = _laborutilSuggWindow();
+  const cur = _laborutilRange(0);
+  const note = document.getElementById('laborutil-sugg-note');
+  if (note) note.textContent = `พัฒนาทักษะ: ย้อน ${_LABORUTIL_SUGG_DAYS} วัน (${_fmtDate(win.st)} – ${_fmtDate(win.en)}) · แจ้งเตือน: ช่วงที่เลือก`;
+  const empty = msg => `<div class="text-center text-muted py-3"><i class="fas fa-check-circle text-success me-1"></i>${msg}</div>`;
+  const setCnt = (k, n) => { const el = document.getElementById('laborutil-cnt-' + k); if (el) el.textContent = n; };
+  const tbl = (head, body) => `<table class="table table-sm table-hover mb-0 align-middle" style="font-size:.83rem"><thead class="table-light"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+  const lineDot = l => `<span class="laborutil-dot" style="background:${_planLineColor(l)}"></span>${esc(l)}`;
+
+  // 1) สะสม ชม. ต่อ (พนักงาน, สกิล) ภายใน 90 วัน
+  const acc = {}; // `${emp}|${skill}` → {emp, skill, level, hrs, lines:Set, last}
+  _laborutilLogs.filter(r => r.WorkDate >= win.st && r.WorkDate <= win.en && passEmp(r.EmployeeCode)).forEach(r => {
+    const h = _laborutilHours(r.TimeIn, r.TimeOut);
+    if (h == null) return;
+    const lineLv = _laborutilLevelFor(r.EmployeeCode, r.Line);
+    (_laborutilLineSkills[r.Line] || []).forEach(sc => {
+      const lv = _laborutilLevels[`${r.EmployeeCode}|${sc}`] || 0;
+      // Lv0 ของสกิลนี้ แต่มีสกิลอื่นของไลน์เดียวกันอยู่แล้ว (lineLv≥1) = ทำได้อยู่แล้ว ไม่ใช่ "ไม่มีสกิล" → ข้าม
+      if (lv === 0 && lineLv >= 1) return;
+      if (lv >= 2) return;
+      const k = `${r.EmployeeCode}|${sc}`;
+      const a = acc[k] = acc[k] || { emp: r.EmployeeCode, empName: r.EmployeeName, skill: sc, level: lv, hrs: 0, lines: new Set(), last: '' };
+      a.hrs += h; a.lines.add(r.Line); if (r.WorkDate > a.last) a.last = r.WorkDate;
+    });
+  });
+  const actBtn = (a, toLv, label, cls) => isAdmin
+    ? `<button class="btn btn-sm ${cls} py-0" onclick="laborutilSetSkillLevel('${esc(a.emp)}','${esc(a.skill)}',${toLv})">${label}</button>`
+    : '<span class="small text-muted">แจ้งแอดมินปรับในแมททริกสกิล</span>';
+  const row = (a, btn) => `<tr><td><b>${esc(_laborutilEmpName(a.emp, a.empName))}</b><div class="small text-muted">${esc(a.emp)}</div></td>
+    <td>${esc(_laborutilSkillNames[a.skill] || a.skill)}</td><td>${[...a.lines].map(lineDot).join('<br>')}</td>
+    <td class="text-end fw-bold">${a.hrs.toFixed(1)}</td><td>${_fmtDate(a.last)}</td><td class="text-end">${btn}</td></tr>`;
+
+  const promote = Object.values(acc).filter(a => a.level === 1 && a.hrs >= _LABORUTIL_PROMOTE_HRS).sort((a, b) => b.hrs - a.hrs);
+  setCnt('promote', promote.length);
+  document.getElementById('laborutil-pane-promote').innerHTML = promote.length
+    ? `<div class="small text-muted mb-2">พนักงานระดับ Lv1 (กำลังฝึก) ที่ทำงานสกิลนั้นสะสม ≥ ${_LABORUTIL_PROMOTE_HRS} ชม. — ควรประเมินว่าทำได้เองแล้วหรือยัง</div>` +
+      tbl(['พนักงาน', 'สกิล', 'ไลน์ที่ทำ', 'ชม.สะสม', 'ทำล่าสุด', ''], promote.map(a => row(a, actBtn(a, 2, '<i class="fas fa-arrow-up me-1"></i>เลื่อนเป็น Lv2', 'btn-success'))).join(''))
+    : empty(`ยังไม่มีคน Lv1 ที่ทำครบ ${_LABORUTIL_PROMOTE_HRS} ชม.`);
+
+  const train = Object.values(acc).filter(a => a.level === 0 && a.hrs >= _LABORUTIL_TRAIN_HRS).sort((a, b) => b.hrs - a.hrs);
+  setCnt('train', train.length);
+  document.getElementById('laborutil-pane-train').innerHTML = train.length
+    ? `<div class="small text-muted mb-2">ไม่มีสกิลของไลน์นั้นเลย แต่ถูกส่งไปทำสะสม ≥ ${_LABORUTIL_TRAIN_HRS} ชม. — ควรจัดฝึกอย่างเป็นทางการ หรือหยุดส่งไปไลน์นี้</div>` +
+      tbl(['พนักงาน', 'สกิล', 'ไลน์ที่ทำ', 'ชม.สะสม', 'ทำล่าสุด', ''], train.map(a => row(a, actBtn(a, 1, '<i class="fas fa-graduation-cap me-1"></i>ตั้งเป็น Lv1 (เริ่มฝึก)', 'btn-outline-primary'))).join(''))
+    : empty('ไม่มีคนที่ถูกส่งไปทำไลน์ที่ไม่มีสกิลเกินเกณฑ์');
+
+  // 2) ไลน์ที่มีคนเก่ง (Lv≥2, ยังทำงานอยู่) น้อย — ไม่กรองประเภท/ค้นหา เพราะเป็นความเสี่ยงระดับไลน์
+  const active = Object.values(_laborutilEmpMap).filter(e => e.Status === 'ทำงานอยู่');
+  const riskLines = [...new Set([...PLAN_LINES, ...Object.keys(_laborutilLineSkills)])]
+    .filter(l => (_laborutilLineSkills[l] || []).length && (!lineFilter || l === lineFilter))
+    .map(l => {
+      const skilled = active.filter(e => (_laborutilLevelFor(e.EmployeeCode, l) || 0) >= 2);
+      const trainees = active.filter(e => _laborutilLevelFor(e.EmployeeCode, l) === 1);
+      return { line: l, skilled, trainees };
+    })
+    .filter(x => x.skilled.length <= _LABORUTIL_RISK_MAX)
+    .sort((a, b) => a.skilled.length - b.skilled.length);
+  setCnt('risk', riskLines.length);
+  const names = arr => arr.length ? arr.map(e => esc(_laborutilEmpName(e.EmployeeCode))).join(', ') : '<span class="text-muted">—</span>';
+  document.getElementById('laborutil-pane-risk').innerHTML = riskLines.length
+    ? `<div class="small text-muted mb-2">ไลน์ที่มีคนทำได้เอง (Lv2–3) ≤ ${_LABORUTIL_RISK_MAX} คน — ถ้าคนนั้นลา/ลาออกจะไม่มีคนแทน · คอลัมน์ขวาคือผู้ที่กำลังฝึก (ผู้สมัครที่ควรดันขึ้นก่อน)</div>` +
+      tbl(['ไลน์', 'คน Lv2–3', 'รายชื่อ', 'กำลังฝึก (Lv1)'], riskLines.map(x => `<tr><td>${lineDot(x.line)}</td>
+        <td class="text-center"><span class="badge ${x.skilled.length === 0 ? 'bg-danger' : 'bg-warning text-dark'}">${x.skilled.length}</span></td>
+        <td>${names(x.skilled)}</td><td>${names(x.trainees)}</td></tr>`).join(''))
+    : empty(`ทุกไลน์ (ที่ผูกสกิลแล้ว) มีคนทำได้เองมากกว่า ${_LABORUTIL_RISK_MAX} คน`);
+
+  // 3) เวลาไม่ครบ — ช่วงที่เลือก ∪ ช่วงป้ายแจ้งเตือนที่เมนู (30 วันล่าสุด ไม่นับวันนี้) ให้ตัวเลขตรงกัน
+  // ไม่นับวันนี้ — คนยังทำงานอยู่ ยังไม่สแกนออกเป็นเรื่องปกติ (เหมือนป้ายที่เมนู)
+  const bw = _laborutilBadgeWindow();
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const missing = _laborutilLogs.filter(r => r.WorkDate < todayStr && ((r.WorkDate >= cur.st && r.WorkDate <= cur.en) || (r.WorkDate >= bw.st && r.WorkDate <= bw.en))
+      && passEmp(r.EmployeeCode) && (!lineFilter || r.Line === lineFilter) && _laborutilHours(r.TimeIn, r.TimeOut) == null)
+    .sort((a, b) => (b.WorkDate).localeCompare(a.WorkDate));
+  setCnt('missing', missing.length);
+  document.getElementById('laborutil-pane-missing').innerHTML = missing.length
+    ? `<div class="small text-muted mb-2">รายการที่ไม่มีเวลาเข้า/ออก หรือเวลาออกไม่หลังเวลาเข้า (ช่วงที่เลือก + ${_LABORUTIL_BADGE_DAYS} วันล่าสุด) — ไม่ถูกนับ ชม. ในแดชบอร์ดนี้ · ${isAdmin ? 'กด "แก้เวลา" เพื่อแก้ได้ทันที' : 'แจ้งแอดมินให้แก้ (ปุ่มแก้เวลาเห็นเฉพาะแอดมิน)'}</div>` +
+      tbl(['วันที่', 'พนักงาน', 'ไลน์', 'MO', 'เข้า', 'ออก', ''], missing.map(r => `<tr><td>${_fmtDate(r.WorkDate)}</td>
+        <td>${esc(_laborutilEmpName(r.EmployeeCode, r.EmployeeName))}</td><td>${lineDot(r.Line)}</td><td>${esc(r.MO_Ref)}</td>
+        <td class="${r.TimeIn ? '' : 'text-danger fw-bold'}">${esc(r.TimeIn || 'ไม่มี')}</td>
+        <td class="${r.TimeOut ? '' : 'text-danger fw-bold'}">${esc(r.TimeOut || 'ไม่มี')}</td>
+        <td class="text-end">${isAdmin && r._row_id != null ? `<button class="btn btn-sm btn-outline-primary py-0" onclick="laborutilEditTime(${r._row_id})"><i class="fas fa-pen me-1"></i>แก้เวลา</button>` : ''}</td></tr>`).join(''))
+    : empty('เวลาครบทุกรายการ');
+
+  // 3b) เวลาทับกัน — ช่วงเดียวกับแท็บเวลาไม่ครบ (ช่วงที่เลือก ∪ 30 วันล่าสุด ไม่นับวันนี้) ไม่กรองไลน์
+  // เพราะคู่ที่ทับกันมักอยู่คนละไลน์ — กรองแค่ประเภท/ค้นหาพนักงาน
+  const ovPairs = _laborutilFindOverlaps(_laborutilLogs.filter(r => r.WorkDate < todayStr
+      && ((r.WorkDate >= cur.st && r.WorkDate <= cur.en) || (r.WorkDate >= bw.st && r.WorkDate <= bw.en)) && passEmp(r.EmployeeCode)))
+    .sort((x, y) => y.a.WorkDate.localeCompare(x.a.WorkDate));
+  setCnt('overlap', ovPairs.length);
+  const editBtn = r => isAdmin && r._row_id != null
+    ? `<button class="btn btn-sm btn-outline-primary py-0 ms-1" onclick="laborutilEditTime(${r._row_id})" title="แก้เวลารายการนี้"><i class="fas fa-pen"></i></button>` : '';
+  const side = r => `${lineDot(r.Line)} <span class="small text-muted">${esc(r.MO_Ref)}</span><br><b>${esc(r.TimeIn)}–${esc(r.TimeOut)}</b>${editBtn(r)}`;
+  document.getElementById('laborutil-pane-overlap').innerHTML = ovPairs.length
+    ? `<div class="small text-muted mb-2">คนเดียวกัน วันเดียวกัน มีช่วงเวลาคาบเกี่ยวกัน 2 รายการ — ชม. ช่วงที่ทับถูกนับซ้ำในแดชบอร์ด (ชม.รวม/ค่าแรงสูงเกินจริง) · ${isAdmin ? 'กด <i class="fas fa-pen"></i> แก้เวลารายการที่ผิด' : 'แจ้งแอดมินให้แก้'}</div>` +
+      tbl(['วันที่', 'พนักงาน', 'รายการที่ 1', 'รายการที่ 2', 'ทับกัน'], ovPairs.map(p => `<tr><td>${_fmtDate(p.a.WorkDate)}</td>
+        <td>${esc(_laborutilEmpName(p.a.EmployeeCode, p.a.EmployeeName))}<div class="small text-muted">${esc(p.a.EmployeeCode)}</div></td>
+        <td>${side(p.a)}</td><td>${side(p.b)}</td>
+        <td class="text-danger fw-bold text-nowrap">${(p.minutes / 60).toFixed(1)} ชม.</td></tr>`).join(''))
+    : empty('ไม่มีเวลาทับกัน');
+
+  // 4) ทำงานยาว / OT ติดกัน — รวม ชม.ทุกไลน์ต่อวัน (ไม่กรองไลน์ เพราะเป็นภาระรวมของคน)
+  const daily = {}; // emp → {date → hrs}
+  _laborutilLogs.filter(r => r.WorkDate >= cur.st && r.WorkDate <= cur.en && passEmp(r.EmployeeCode)).forEach(r => {
+    const h = _laborutilHours(r.TimeIn, r.TimeOut);
+    if (h == null) return;
+    const d = daily[r.EmployeeCode] = daily[r.EmployeeCode] || {};
+    d[r.WorkDate] = (d[r.WorkDate] || 0) + h;
+  });
+  const fat = [];
+  Object.entries(daily).forEach(([emp, days]) => {
+    const dates = Object.keys(days).sort();
+    const longDays = dates.filter(dt => days[dt] > _LABORUTIL_LONGDAY_HRS);
+    // หา streak วัน OT ติดกันที่ยาวที่สุด (วันที่ต่อเนื่องจริงตามปฏิทิน)
+    let best = [], run = [];
+    dates.forEach(dt => {
+      if (days[dt] <= _LABORUTIL_OTDAY_HRS) { run = []; return; }
+      if (run.length) {
+        const [y, m, d] = run[run.length - 1].split('-').map(Number);
+        if (_planWeekLocalDateStr(new Date(y, m - 1, d + 1)) !== dt) run = [];
+      }
+      run.push(dt);
+      if (run.length > best.length) best = run.slice();
+    });
+    const streak = best.length >= _LABORUTIL_OT_STREAK ? best : [];
+    if (longDays.length || streak.length) fat.push({ emp, days, longDays, streak, max: Math.max(...dates.map(dt => days[dt])) });
+  });
+  fat.sort((a, b) => b.streak.length - a.streak.length || b.longDays.length - a.longDays.length);
+  setCnt('fatigue', fat.length);
+  document.getElementById('laborutil-pane-fatigue').innerHTML = fat.length
+    ? `<div class="small text-muted mb-2">รวม ชม.ทุกไลน์ต่อวัน (นับรวมพัก) — ทำงานยาว = เกิน ${_LABORUTIL_LONGDAY_HRS} ชม./วัน · OT ติดกัน = เกิน ${_LABORUTIL_OTDAY_HRS} ชม./วัน ติดกัน ≥ ${_LABORUTIL_OT_STREAK} วัน</div>` +
+      tbl(['พนักงาน', 'วันที่ทำงานยาว', 'OT ติดกัน', 'สูงสุด/วัน'], fat.map(f => `<tr>
+        <td><b>${esc(_laborutilEmpName(f.emp))}</b><div class="small text-muted">${esc(f.emp)}</div></td>
+        <td>${f.longDays.length ? f.longDays.map(dt => `${_fmtDate(dt)} (${f.days[dt].toFixed(1)})`).join('<br>') : '<span class="text-muted">—</span>'}</td>
+        <td>${f.streak.length ? `<span class="badge bg-danger">${f.streak.length} วัน</span> <span class="small">${_fmtDate(f.streak[0])} – ${_fmtDate(f.streak[f.streak.length - 1])}</span>` : '<span class="text-muted">—</span>'}</td>
+        <td class="text-end fw-bold">${f.max.toFixed(1)}</td></tr>`).join(''))
+    : empty('ไม่มีใครทำงานยาวหรือ OT ติดกันเกินเกณฑ์');
+}
+
+// แก้เวลาเข้า/ออกของรายการเวลาไม่ครบ — admin เท่านั้น (added 2026-09-25) เขียนตรง production_labor_log
+// เหมือนหน้าประวัติของสแกนบันทึกเวลาแรงงาน (ไม่ผ่านคำขออนุมัติ เพราะผู้แก้เป็นแอดมินอยู่แล้ว) · ช่องเวลาใช้
+// dropdown ชั่วโมง/นาที (ทีละ 5 นาที) แบบเดียวกับหน้าบันทึกผลิต/สแกนเวลา · กันเวลาทับกับรายการอื่นของคนเดียวกันวันเดียวกัน
+async function laborutilEditTime(rowId) {
+  if (!_currentUser?.isAdmin) { _err('ไม่มีสิทธิ์', 'เฉพาะแอดมินเท่านั้นที่แก้เวลาได้'); return; }
+  const r = _laborutilLogs.find(x => x._row_id === rowId);
+  if (!r) return;
+  const esc = _laborutilEsc;
+  const timeSel = (id, val) => {
+    const [h, m] = (val || '').split(':');
+    const hh = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+    const mm = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+    const mSel = m && !mm.includes(m) ? m : null; // คงนาทีเดิมที่ไม่ลงตัว 5 นาทีไว้ ไม่ปัดทิ้งเงียบๆ
+    return `<div class="d-flex gap-1 justify-content-center">
+      <select id="${id}-h" class="form-select form-select-sm" style="width:80px"><option value="">ชม.</option>${hh.map(v => `<option ${v === h ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <span class="align-self-center">:</span>
+      <select id="${id}-m" class="form-select form-select-sm" style="width:80px"><option value="">นาที</option>${mSel ? `<option selected>${mSel}</option>` : ''}${mm.map(v => `<option ${v === m ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`;
+  };
+  const res = await Swal.fire({
+    title: 'แก้เวลาเข้า–ออก',
+    html: `<div class="small text-start mb-3"><b>${esc(_laborutilEmpName(r.EmployeeCode, r.EmployeeName))}</b> (${esc(r.EmployeeCode)})<br>
+        ${_fmtDate(r.WorkDate)} · ${esc(r.Line)} · ${esc(r.MO_Ref)}</div>
+      <div class="row g-2"><div class="col-6"><div class="small fw-bold mb-1">เวลาเข้า</div>${timeSel('lu-tin', r.TimeIn)}</div>
+      <div class="col-6"><div class="small fw-bold mb-1">เวลาออก</div>${timeSel('lu-tout', r.TimeOut)}</div></div>`,
+    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', focusConfirm: false,
+    preConfirm: () => {
+      const g = id => { const h = document.getElementById(id + '-h').value, m = document.getElementById(id + '-m').value; return h && m ? `${h}:${m}` : ''; };
+      const tin = g('lu-tin'), tout = g('lu-tout');
+      if (!tin || !tout) { Swal.showValidationMessage('กรุณาเลือกเวลาเข้าและเวลาออกให้ครบ'); return false; }
+      if (_laborutilHours(tin, tout) == null) { Swal.showValidationMessage('เวลาออกต้องหลังเวลาเข้า'); return false; }
+      const a1 = _laborutilMin(tin), a2 = _laborutilMin(tout);
+      const clash = _laborutilLogs.filter(o => o._row_id !== rowId && o.EmployeeCode === r.EmployeeCode && o.WorkDate === r.WorkDate
+        && _laborutilHours(o.TimeIn, o.TimeOut) != null && a1 < _laborutilMin(o.TimeOut) && _laborutilMin(o.TimeIn) < a2);
+      if (clash.length) {
+        Swal.showValidationMessage('เวลาทับกับรายการอื่นของคนนี้วันเดียวกัน: ' + clash.map(o => `${o.Line} ${o.TimeIn}–${o.TimeOut}`).join(', '));
+        return false;
+      }
+      return { tin, tout };
+    },
+  });
+  if (!res.isConfirmed || !res.value) return;
+  const { tin, tout } = res.value;
+  const { data, error } = await _sb.from('production_labor_log')
+    .update({ TimeIn: tin, TimeOut: tout, UpdatedAt: new Date().toISOString() }).eq('_row_id', rowId).select('_row_id');
+  if (error) { _err('บันทึกเวลาไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('บันทึกเวลาไม่สำเร็จ', 'ไม่มีแถวถูกแก้ไข (อาจไม่มีสิทธิ์ หรือรายการถูกลบไปแล้ว)'); return; }
+  _logAudit('EDIT', 'production_labor_log', `${r.MO_Ref}|${r.Line}|${r.WorkDate}|${r.EmployeeCode}`,
+    `เวลา ${r.TimeIn || '—'}–${r.TimeOut || '—'} → ${tin}–${tout} (จากหน้าอัตราการทำงานพนักงาน)`);
+  r.TimeIn = tin; r.TimeOut = tout;
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกเวลาแล้ว', showConfirmButton: false, timer: 1800 });
+  laborutilRender();
+  _laborutilUpdateNavBadge();
+}
+
+// ปรับระดับสกิลจากข้อเสนอแนะ — admin เท่านั้น (สอดคล้องกับหน้าแมททริกสกิลที่เป็น admin-only)
+async function laborutilSetSkillLevel(emp, skill, level) {
+  if (!_currentUser?.isAdmin) { _err('ไม่มีสิทธิ์', 'เฉพาะแอดมินเท่านั้นที่ปรับระดับสกิลได้'); return; }
+  const cur = _laborutilLevels[`${emp}|${skill}`] || 0;
+  const ok = await Swal.fire({
+    icon: 'question', title: `ปรับสกิลเป็น Lv${level}?`,
+    html: `<b>${_laborutilEsc(_laborutilEmpName(emp))}</b><br>${_laborutilEsc(_laborutilSkillNames[skill] || skill)}: Lv${cur} → <b>Lv${level}</b>`,
+    showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก',
+  });
+  if (!ok.isConfirmed) return;
+  const payload = { EmployeeCode: emp, SkillCode: skill, Level: level, UpdatedAt: new Date().toISOString(), UpdatedBy: _currentUser?.email || null };
+  const { error } = await _sb.from('employee_skills').upsert(payload, { onConflict: 'EmployeeCode,SkillCode' });
+  if (error) { _err('บันทึกระดับทักษะไม่สำเร็จ', error.message); return; }
+  _logAudit('EDIT', 'employee_skills', `${emp}|${skill}`, `Level ${cur} → ${level} (จากข้อเสนอแนะ หน้าอัตราการทำงานพนักงาน)`);
+  _laborutilLevels[`${emp}|${skill}`] = level;
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ปรับเป็น Lv${level} แล้ว`, showConfirmButton: false, timer: 1800 });
+  laborutilRender();
+}
+
+function laborutilOpenDetail(i) {
+  const s = _laborutilLastRows[i];
+  if (!s) return;
+  const { st, en } = _laborutilRange(0);
+  const line = document.getElementById('laborutil-filter-line')?.value || '';
+  const logs = _laborutilLogs.filter(r => r.EmployeeCode === s.code && r.WorkDate >= st && r.WorkDate <= en && (!line || r.Line === line))
+    .sort((a, b) => (a.WorkDate + (a.TimeIn || '')).localeCompare(b.WorkDate + (b.TimeIn || '')));
+  const lvLabel = lv => lv == null ? '<span class="badge bg-secondary">ไลน์ยังไม่ผูกสกิล</span>'
+    : lv >= 2 ? `<span class="badge bg-success">Lv${lv}</span>` : lv === 1 ? '<span class="badge bg-warning text-dark">Lv1 กำลังฝึก</span>' : '<span class="badge bg-danger">ไม่มีสกิล</span>';
+  document.getElementById('laborutilDetailTitle').innerHTML = `<i class="fas fa-user me-2"></i>${_laborutilEsc(s.name)} <small class="ms-2">${_laborutilEsc(s.code)} · ${_fmtDate(st)} – ${_fmtDate(en)}</small>`;
+  document.getElementById('laborutilDetailBody').innerHTML = `<table class="table table-sm table-hover mb-0" style="font-size:.85rem">
+    <thead class="table-light"><tr><th>วันที่</th><th>ไลน์</th><th>MO</th><th class="text-center">เข้า–ออก</th><th class="text-end">ชม.</th><th class="text-center">สกิล</th><th class="text-center">ตามแผน</th></tr></thead>
+    <tbody>${logs.map(r => {
+      const h = _laborutilHours(r.TimeIn, r.TimeOut);
+      const inPlan = _laborutilPlanSet.has(`${r.MO_Ref}|${r.Line}|${r.EmployeeCode}`);
+      return `<tr><td>${_fmtDate(r.WorkDate)}</td>
+        <td><span class="laborutil-dot" style="background:${_planLineColor(r.Line)}"></span>${_laborutilEsc(r.Line)}</td>
+        <td>${_laborutilEsc(r.MO_Ref)}</td>
+        <td class="text-center">${_laborutilEsc(r.TimeIn || '—')} – ${_laborutilEsc(r.TimeOut || '—')}</td>
+        <td class="text-end">${h == null ? '<span class="text-danger">ไม่ครบ</span>' : h.toFixed(2)}</td>
+        <td class="text-center">${lvLabel(_laborutilLevelFor(r.EmployeeCode, r.Line))}</td>
+        <td class="text-center">${inPlan ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-shuffle text-warning" title="ไม่อยู่ในแผน (ถูกโยกหน้างาน)"></i>'}</td></tr>`;
+    }).join('')}</tbody>
+    <tfoot><tr class="fw-bold"><td colspan="4" class="text-end">รวม</td><td class="text-end">${s.hours.toFixed(2)}</td><td colspan="2"></td></tr></tfoot></table>`;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('laborutilDetailModal')).show();
+}
+
+function laborutilExportXLSX() {
+  if (!_laborutilLastRows.length) { _err('ไม่มีข้อมูล', `ยังไม่มีข้อมูลใน${_laborutilPeriodWord()}นี้ให้ export`); return; }
+  const { st, en } = _laborutilRange(0);
+  const r1 = v => v == null ? '' : Math.round(v * 10) / 10;
+  const summary = [['รหัส', 'ชื่อ', 'ประเภท', 'ชม.รวม', 'วันทำงาน', 'ชม.ทำได้เอง(Lv2-3)', 'ชม.กำลังฝึก(Lv1)', 'ชม.ไม่มีสกิล', 'ชม.ไลน์ยังไม่ผูกสกิล', '% ตรงสกิล', '% ตรงแผน', 'ชม.แยกตามไลน์']];
+  _laborutilLastRows.forEach(s => summary.push([s.code, s.name, s.type, r1(s.hours), s.days.size, r1(s.strong), r1(s.train), r1(s.none), r1(s.untagged),
+    r1(s.matchPct), r1(s.planPct), Object.entries(s.byLine).map(([l, h]) => `${l}: ${r1(h)}`).join(', ')]));
+  const codes = new Set(_laborutilLastRows.map(s => s.code));
+  const line = document.getElementById('laborutil-filter-line')?.value || '';
+  const detail = [['วันที่', 'รหัส', 'ชื่อ', 'ไลน์', 'MO', 'เข้า', 'ออก', 'ชม.', 'ระดับสกิล', 'ตามแผน']];
+  _laborutilLogs.filter(r => codes.has(r.EmployeeCode) && r.WorkDate >= st && r.WorkDate <= en && (!line || r.Line === line))
+    .sort((a, b) => (a.WorkDate + a.EmployeeCode).localeCompare(b.WorkDate + b.EmployeeCode))
+    .forEach(r => {
+      const lv = _laborutilLevelFor(r.EmployeeCode, r.Line);
+      detail.push([r.WorkDate, r.EmployeeCode, _laborutilEmpName(r.EmployeeCode, r.EmployeeName), r.Line, r.MO_Ref, r.TimeIn || '', r.TimeOut || '',
+        r1(_laborutilHours(r.TimeIn, r.TimeOut)), lv == null ? 'ไม่ผูกสกิล' : lv, _laborutilPlanSet.has(`${r.MO_Ref}|${r.Line}|${r.EmployeeCode}`) ? 'ใช่' : 'ไม่']);
+    });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'สรุปรายคน');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), 'รายละเอียดรายวัน');
+  if (_laborutilQualRows.length) {
+    const qr = [['MO', 'สินค้า', 'Lot FG', 'FG รับเข้า', 'ของเสีย', 'อัตราของเสีย %', '% ชม.ไม่มีสกิล', '% ชม.กำลังฝึก', 'สาเหตุ']];
+    _laborutilQualRows.forEach(r => qr.push([r.mo, r.product, r.lots, r.fgQty, r.defQty, Math.round(r.rate * 100) / 100, r1(r.nonePct), r1(r.trainPct), r.reasons]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(qr), 'สกิล vs คุณภาพ');
+  }
+  XLSX.writeFile(wb, `อัตราการทำงาน_${st}_${en}.xlsx`);
+}
+
 async function loadSkillMatrixData() {
   _showLoader();
   const [empRes, skillRes, levelRes] = await Promise.all([
@@ -28444,6 +29309,83 @@ async function _coUpdateNavBadge(notifyIfPending = false) {
   }
 }
 
+// ป้ายแจ้งเตือน "เวลาไม่ครบ" ที่เมนูอัตราการทำงานพนักงาน (added 2026-09-25) — หัวหน้างานขึ้นไป
+// นับ production_labor_log 30 วันล่าสุด ไม่นับวันนี้ (วันนี้คนยังทำงานอยู่ ยังไม่สแกนออกเป็นเรื่องปกติ)
+// ที่ไม่มีเวลาเข้า/ออก หรือเวลาออกไม่หลังเวลาเข้า — เงื่อนไขเดียวกับ _laborutilHours() == null ในหน้านั้น
+let _laborutilBadgeSeq = 0;
+const _LABORUTIL_BADGE_DAYS = 30;
+function _laborutilBadgeWindow() {
+  const t = new Date();
+  return { st: _planWeekLocalDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - _LABORUTIL_BADGE_DAYS)),
+           en: _planWeekLocalDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1)) };
+}
+// คู่รายการเวลาทับกัน: คนเดียวกัน วันเดียวกัน ต่างแถว (MO/ไลน์) ที่ช่วงเวลาคาบเกี่ยวกัน — ข้ามแถวเวลาไม่ครบ
+// (added 2026-09-25) ใช้ร่วมกันทั้งป้ายที่เมนูและแท็บ "เวลาทับกัน" ในหน้าอัตราการทำงานพนักงาน
+function _laborutilFindOverlaps(logs) {
+  const by = {};
+  logs.forEach(r => {
+    if (_laborutilHours(r.TimeIn, r.TimeOut) == null) return;
+    (by[`${r.EmployeeCode}|${r.WorkDate}`] = by[`${r.EmployeeCode}|${r.WorkDate}`] || []).push(r);
+  });
+  const pairs = [];
+  Object.values(by).forEach(arr => {
+    if (arr.length < 2) return;
+    arr.sort((a, b) => _laborutilMin(a.TimeIn) - _laborutilMin(b.TimeIn));
+    for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+      const a = arr[i], b = arr[j];
+      const aIn = _laborutilMin(a.TimeIn), aOut = _laborutilMin(a.TimeOut), bIn = _laborutilMin(b.TimeIn), bOut = _laborutilMin(b.TimeOut);
+      if (aIn < bOut && bIn < aOut) pairs.push({ a, b, minutes: Math.min(aOut, bOut) - Math.max(aIn, bIn) });
+    }
+  });
+  return pairs;
+}
+
+async function _laborutilUpdateNavBadge(notifyIfPending = false) {
+  const badge = document.getElementById('nav-laborutil-badge');
+  if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  const mySeq = ++_laborutilBadgeSeq;
+  const { st, en } = _laborutilBadgeWindow();
+  const { data, error } = await _fetchAllPagedRange('production_labor_log', 'EmployeeCode,WorkDate,TimeIn,TimeOut', 'WorkDate', st, en);
+  if (mySeq !== _laborutilBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ — ทิ้งผลเก่า
+  if (error) return; // เป็นแค่ตัวเลขแจ้งเตือนเสริม — เงียบไว้
+  const missingCount = (data || []).filter(r => _laborutilHours(r.TimeIn, r.TimeOut) == null).length;
+  const overlapCount = _laborutilFindOverlaps(data || []).length;
+  const count = missingCount + overlapCount;
+  if (badge) badge.title = `ข้อมูลเวลาแรงงานต้องแก้ (${_LABORUTIL_BADGE_DAYS} วันล่าสุด ไม่นับวันนี้): เวลาไม่ครบ ${missingCount} · เวลาทับกัน ${overlapCount}`;
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
+    else badge.style.display = 'none';
+  }
+  if (notifyIfPending && count > 0) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `ข้อมูลเวลาแรงงานต้องแก้ ${count} รายการ`,
+      html: `บันทึกเวลาแรงงาน ${_LABORUTIL_BADGE_DAYS} วันล่าสุด (${_fmtDate(st)} – ${_fmtDate(en)}):<br>
+        ${missingCount ? `• เวลาไม่ครบ <b>${missingCount}</b> รายการ (ไม่ถูกนับ ชม.)<br>` : ''}
+        ${overlapCount ? `• เวลาทับกัน <b>${overlapCount}</b> คู่ (คนเดียวกันอยู่ 2 ไลน์พร้อมกัน — ชม.ถูกนับซ้ำ)` : ''}`,
+      showCancelButton: true, confirmButtonText: 'ไปดูรายการ', cancelButtonText: 'ปิด',
+    });
+    if (res.isConfirmed) laborutilOpenMissing(missingCount ? 'missing' : 'overlap');
+  }
+}
+// เปิดหน้าอัตราการทำงานพนักงาน โหมดรายเดือน ของเดือนปัจจุบัน → แท็บ "เวลาไม่ครบ"
+async function laborutilOpenMissing(tab = 'missing') {
+  _laborutilPeriod = 'month';
+  document.getElementById('laborutil-mode-week')?.classList.remove('active');
+  document.getElementById('laborutil-mode-month')?.classList.add('active');
+  const wk = document.getElementById('laborutil-week'), mo = document.getElementById('laborutil-month');
+  if (wk) wk.style.display = 'none'; if (mo) mo.style.display = '';
+  const t = new Date();
+  _laborutilWeekStart = new Date(t.getFullYear(), t.getMonth(), 1); // เดือนปัจจุบัน — แท็บเวลาไม่ครบรวมช่วง 30 วันให้อยู่แล้ว
+  document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-laborutil')?.classList.add('active');
+  document.getElementById('nav-laborutil')?.classList.add('active');
+  await loadLaborUtilData();
+  laborutilSuggTab(tab);
+  document.getElementById('laborutil-sugg-tabs')?.scrollIntoView({ block: 'start' });
+}
+
 function issueUpdateKPIs() {
   const today = new Date().toISOString().split('T')[0];
   const month = today.substring(0, 7);
@@ -34002,12 +34944,51 @@ function scanlaborHistOpenEdit(seq) {
 // ถ้าวันที่ไม่เปลี่ยน — update แถวเดิมตรงๆ (เหมือนเดิม) แต่ถ้าวันที่เปลี่ยน — WorkDate เป็นส่วนหนึ่งของ UNIQUE
 // constraint (MO_Ref,Line,WorkDate,EmployeeCode) จึง "ย้าย" ตรงๆ ด้วย .update() ไม่ได้ ต้อง upsert แถวใหม่ที่
 // วันเป้าหมายก่อน (เช็คก่อนว่ามีแถวซ้ำอยู่แล้วไหม ถ้ามีให้ยืนยันว่าจะเขียนทับ) แล้วค่อยลบแถวเดิมทิ้ง
+// เช็คเวลาทับกันก่อนเขียน production_labor_log จากหน้าในแอป (added 2026-09-25) — กติกาเดียวกับ scanlaborSubmit
+// และ Edge Function scan-labor: คนเดียวกันวันเดียวกัน ช่วงเวลาต้องไม่คาบเกี่ยวกันข้าม MO/ไลน์
+// entries = [{MO_Ref,Line,WorkDate,EmployeeCode,name,TimeIn,TimeOut}] (แถวที่กำลังจะเขียน — ข้ามแถวที่เวลาไม่ครบ)
+// skipKeys = Set ของ `${MO_Ref}|${Line}|${WorkDate}|${EmployeeCode}` ที่ไม่ต้องนับ (เช่นแถวเดิมที่กำลังย้ายวัน)
+// แถวใน DB ที่ key ตรงกับ entry เอง = แถวที่จะถูกเขียนทับ ไม่นับเป็นตัวชน
+async function _laborCheckOverlapDB(entries, skipKeys = new Set()) {
+  const key = r => `${r.MO_Ref}|${r.Line}|${r.WorkDate}|${r.EmployeeCode}`;
+  const es = entries.filter(e => e.TimeIn && e.TimeOut);
+  if (!es.length) return { conflicts: [] };
+  const { data, error } = await _sb.from('production_labor_log').select('MO_Ref,Line,WorkDate,EmployeeCode,TimeIn,TimeOut')
+    .in('EmployeeCode', [...new Set(es.map(e => e.EmployeeCode))]).in('WorkDate', [...new Set(es.map(e => e.WorkDate))]);
+  if (error) return { error, conflicts: [] };
+  const entryKeys = new Set(es.map(key));
+  const conflicts = [];
+  es.forEach((e, i) => {
+    const who = `${e.name || e.EmployeeCode} (${e.EmployeeCode}) ${_fmtDate(e.WorkDate)}`;
+    es.slice(i + 1).forEach(e2 => {
+      if (e2.EmployeeCode === e.EmployeeCode && e2.WorkDate === e.WorkDate && _scanlaborTimesOverlap(e.TimeIn, e.TimeOut, e2.TimeIn, e2.TimeOut))
+        conflicts.push(`${who}: ${e.Line} (${e.TimeIn}-${e.TimeOut}) ชนกับ ${e2.Line} (${e2.TimeIn}-${e2.TimeOut})`);
+    });
+    (data || []).forEach(o => {
+      if (o.EmployeeCode !== e.EmployeeCode || o.WorkDate !== e.WorkDate) return;
+      if (entryKeys.has(key(o)) || skipKeys.has(key(o))) return;
+      if (o.TimeIn && o.TimeOut && _scanlaborTimesOverlap(e.TimeIn, e.TimeOut, o.TimeIn, o.TimeOut))
+        conflicts.push(`${who}: ${e.Line} (${e.TimeIn}-${e.TimeOut}) ชนกับ ${o.Line} ของ MO ${o.MO_Ref} (${o.TimeIn}-${o.TimeOut})`);
+    });
+  });
+  return { conflicts: [...new Set(conflicts)] };
+}
+
 async function scanlaborHistSaveEdit(seq) {
   const r = _scanlaborHistRowsBySeq[seq];
   if (!r) return;
   const newDate = document.getElementById(`scanlabor-histedit-date-${seq}`)?.value || r.WorkDate;
   const timeIn = document.getElementById(`scanlabor-histedit-in-${seq}`)?.value || null;
   const timeOut = document.getElementById(`scanlabor-histedit-out-${seq}`)?.value || null;
+
+  // กันเวลาทับกับรายการอื่นของคนเดียวกัน (ข้ามแถวเดิมของตัวเองที่วันเดิม — กำลังจะถูกย้าย/แก้)
+  _showLoader();
+  const ov = await _laborCheckOverlapDB(
+    [{ MO_Ref: r.MO_Ref, Line: r.Line, WorkDate: newDate, EmployeeCode: r.EmployeeCode, name: r.EmployeeName, TimeIn: timeIn, TimeOut: timeOut }],
+    new Set([`${r.MO_Ref}|${r.Line}|${r.WorkDate}|${r.EmployeeCode}`]));
+  _hideLoader();
+  if (ov.error) { _err('ตรวจสอบเวลาทับกันไม่สำเร็จ', ov.error.message); return; }
+  if (ov.conflicts.length) { _err('เวลาทำงานชนกัน', `พนักงานคนเดียวกันมีช่วงเวลาคาบเกี่ยวกัน:<br>${ov.conflicts.join('<br>')}`); return; }
 
   if (newDate !== r.WorkDate) {
     _showLoader();
@@ -34175,6 +35156,9 @@ async function scanlaborHistSaveAdd() {
   });
 
   _showLoader();
+  const ov = await _laborCheckOverlapDB(toUpsert.map(u => ({ ...u, name: u.EmployeeName })));
+  if (ov.error) { _hideLoader(); _err('ตรวจสอบเวลาทับกันไม่สำเร็จ', ov.error.message); return; }
+  if (ov.conflicts.length) { _hideLoader(); _err('เวลาทำงานชนกัน', `พนักงานคนเดียวกันมีช่วงเวลาคาบเกี่ยวกัน:<br>${ov.conflicts.join('<br>')}`); return; }
   const { error } = await _sb.from('production_labor_log').upsert(toUpsert, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
   _hideLoader();
   if (error) { _err('เพิ่มไม่สำเร็จ', error.message); return; }
@@ -35036,6 +36020,9 @@ function _renderCurrentUserBadge() {
   // เหมือนเดิม เผื่อพนักงานเข้าตรงๆ ผ่าน console ก็ยังทำงานได้ ไม่ error)
   const navProdrecord = document.getElementById('nav-prodrecord');
   if (navProdrecord) navProdrecord.style.display = _hasRole('supervisor') ? '' : 'none';
+  // "อัตราการทำงานพนักงาน" — admin หรือหัวหน้างานเท่านั้น (2026-09-25)
+  const navLaborutil = document.getElementById('nav-laborutil');
+  if (navLaborutil) navLaborutil.style.display = _hasRole('supervisor') ? '' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -35152,6 +36139,7 @@ async function _realtimeRunRefresh() {
   _prodrecordUpdateNavBadge();
   _prodrecordUpdateApproveBadge();
   _fgoutUpdateWaitingBadge();
+  _laborutilUpdateNavBadge();
   purchasereqUpdateNavBadge();
   _coUpdateNavBadge();
 
@@ -35230,7 +36218,8 @@ document.addEventListener('DOMContentLoaded', function() {
           _prodrecordUpdateApproveBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีบันทึกผลิตรออนุมัติต้นทุน (แค่ครั้งเดียวตอน login, เห็นเฉพาะหัวหน้างานขึ้นไป)
           _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
           purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin เพราะมีแค่ admin ที่อนุมัติได้)
-          _coUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
+          _coUpdateNavBadge(true);
+          _laborutilUpdateNavBadge(true); // เด้งเตือนครั้งเดียวตอน login ถ้ามีเวลาแรงงานไม่ครบ (หัวหน้างานขึ้นไป) // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
         }
       }
     } else {
