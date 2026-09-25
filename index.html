@@ -21536,8 +21536,9 @@ async function prodrecordApproveDeleteRequest(gi) {
   if (error) { _hideLoader(); _err('ลบไม่สำเร็จ', error.message); return; }
   if (!data || !data.length) { _hideLoader(); _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว'); prodrecordLoadData(); return; }
   await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
-  await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
+  const { error: detErr } = await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
   _hideLoader();
+  if (detErr) _err('ลบหัวบันทึกแล้ว แต่ลบรายการวัตถุดิบไม่สำเร็จ', detErr.message);
 
   _logAudit('DELETE_ORPHAN', 'production_records', r.ProdRecord_ID, `อนุมัติคำขอลบจาก ${r.DeleteRequestedBy||'—'} — ลบบันทึกผลิตทิ้ง`);
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบบันทึกสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
@@ -23629,10 +23630,15 @@ let _bprPreviewModal = null;
 // จึงเป็นสัญญาณที่แม่นกว่า Status ปัจจุบัน (ซึ่งเปลี่ยนไปมาได้) สำหรับ "บันทึกนี้เคยมีข้อมูลต้นทุนจริงที่ต้อง
 // เก็บไว้หรือไม่" — ถ้าเคยอนุมัติมาก่อนแม้จะเปิดกลับแล้วก็ยังนับว่าได้รับการยกเว้นตลอดไป
 async function _bprPurgeOld() {
+  // ให้ทำงานเฉพาะหัวหน้างานขึ้นไป — RLS บล็อก DELETE ของ operator อยู่แล้ว แต่ UPDATE stock ไม่ถูกบล็อก เดิม operator
+  // เปิดหน้า BPR ทีไร ยอดคืนถูกย้อนออกจาก stock_balance ซ้ำทุกครั้งทั้งที่ลบอะไรไม่ได้เลย (บั๊กจริงพบ 2026-09-25)
+  if (!_hasRole('supervisor')) return;
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 6);
   const cutoffStr = _planWeekLocalDateStr(cutoff);
-  const oldFilter = q => q.or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`).is('ApprovedAt', null);
+  // ยกเว้นบันทึกที่กรอก FG จริงแล้ว (FG_Actual ไม่ว่าง) ด้วย — เป็นงานบันทึกผลิตที่ยังรออนุมัติต้นทุน ไม่ใช่ BPR
+  // ร่างที่ทิ้งได้ (แก้ 2026-09-25 ตามคำขอผู้ใช้ หลังพบ PROD-2608-031 หายไปพร้อมทิ้งยอดคืนผีไว้ในสต็อก)
+  const oldFilter = q => q.or(`CreatedAt.lt.${cutoffStr},CreatedAt.is.null`).is('ApprovedAt', null).is('FG_Actual', null);
   // ต้องลบ production_record_details ที่ผูกกันด้วยเสมอ ไม่งั้นจะเหลือข้อมูลกำพร้าค้างตลอดไป (ไม่มี FK cascade
   // ระดับ DB) — ดึง ProdRecord_ID ของแถวที่จะถูกลบก่อน แล้วลบ details ก่อนลบ header ต้องย้อนคืน "ของคืน" ที่
   // เคยเข้าสต็อกไปแล้วก่อนลบด้วยเสมอ (บั๊กจริงพบ 2026-08-29 — เดิมลบตรงๆ ทำให้ stock_balance ค้างยอดคืนผี
@@ -23641,7 +23647,8 @@ async function _bprPurgeOld() {
   const idsToDelete = (toDelete || []).map(r => r.ProdRecord_ID).filter(Boolean);
   if (idsToDelete.length) {
     await _prodrecordReverseDetailsStockBeforeDelete(idsToDelete);
-    await _sb.from('production_record_details').delete().in('ProdRecord_ID', idsToDelete);
+    const { error: detErr } = await _sb.from('production_record_details').delete().in('ProdRecord_ID', idsToDelete);
+    if (detErr) { console.error('_bprPurgeOld: ลบรายละเอียดไม่สำเร็จ — ไม่ลบหัวบันทึก', detErr); return; }
   }
   await oldFilter(_sb.from('production_records').delete());
 }
@@ -24213,7 +24220,8 @@ async function moDelete(rowId) {
     const linkedIds = (linkedRecords || []).map(pr => pr.ProdRecord_ID).filter(Boolean);
     if (linkedIds.length) {
       await _prodrecordReverseDetailsStockBeforeDelete(linkedIds);
-      await _sb.from('production_record_details').delete().in('ProdRecord_ID', linkedIds);
+      const { error: detErr } = await _sb.from('production_record_details').delete().in('ProdRecord_ID', linkedIds);
+      if (detErr) _err('ลบรายการวัตถุดิบของบันทึกผลิตไม่สำเร็จ', detErr.message);
     }
     await _sb.from('production_records').delete().eq('MO_Ref', r.MO_ID);
   }
@@ -31660,6 +31668,10 @@ async function stockcardBuildMatTxns(code, lot) {
     const dateByProd = {};
     (prodRows||[]).forEach(p => { dateByProd[p.ProdRecord_ID] = p.Date_End; });
     retRes.data.forEach(r => {
+      // ข้ามแถวรายละเอียดกำพร้า (หัว production_records ถูกลบไปแล้ว) — ทุกเส้นทางลบบันทึกผลิตย้อนยอดคืนออกจาก
+      // stock_balance ไปแล้วก่อนลบ (_prodrecordReverseDetailsStockBeforeDelete) ถ้ายังนับตรงนี้ การ์ดสต็อกจะโชว์
+      // ของคืนผีที่ไม่มีอยู่จริง (บั๊กจริงพบ 2026-09-25 — "คืนจากบันทึกผลิต PROD-2608-031" แต่หน้าบันทึกผลิตไม่มี)
+      if (!(r.ProdRecord_ID in dateByProd)) return;
       txns.push({
         date: String(dateByProd[r.ProdRecord_ID] || ''), type: 'IN', docId: r.DetailID || '',
         lot: r.LotMaterial || '', qty: parseFloat(r.ReturnedQty) || 0, uom: r.UOM || '',
