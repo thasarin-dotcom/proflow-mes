@@ -1850,12 +1850,6 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-material" onclick="showPage('material',this)" title="Master Material">
       <i class="fas fa-vial me-2"></i><span>Master Material</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
-      <i class="fas fa-users me-2"></i><span>พนักงาน</span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน" style="display:none">
-      <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
-    </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
     </a>
@@ -1883,11 +1877,25 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต" style="display:none">
       <i class="fas fa-camera me-2"></i><span>สแกนอัปเดตการผลิต</span>
     </a>
+    </div>
+
+    <hr class="my-2">
+    <!-- Employee Group — แยกหน้าพนักงาน/แมททริกสกิล/สแกนบันทึกเวลาแรงงานออกจาก MASTER เป็นหมวดของตัวเอง (คำขอผู้ใช้ 2026-09-25) -->
+    <div class="nav-group-header" onclick="toggleNavGroup('employee')">
+      <span>EMPLOYEE</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-employee"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-employee">
+    <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
+      <i class="fas fa-users me-2"></i><span>พนักงาน</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน" style="display:none">
+      <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
+    </a>
     <!-- แอดมินเท่านั้นที่เห็นในเมนู (added 2026-09-13 ตามคำขอผู้ใช้) — ซ่อนเริ่มต้นด้วย display:none แล้วให้
          JS เปิดกลับให้เฉพาะ _currentUser.isAdmin เหมือน nav-skillmatrix/nav-weeklyreport/nav-admindash ทุก
          ประการ (ดูจุดที่ toggle ใน onAuthStateChange/ฟังก์ชันอัปเดต badge ผู้ใช้) — ซ่อนแค่ระดับ UI เท่านั้น
          ไม่ได้ผูก RLS เพิ่ม -->
-    <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน" style="display:none">
+    <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน ตามไลน์/สินค้า" style="display:none">
       <i class="fas fa-user-clock me-2"></i><span>สแกนบันทึกเวลาแรงงาน</span>
     </a>
     </div>
