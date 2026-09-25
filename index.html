@@ -3431,6 +3431,15 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <input type="hidden" id="mr-edit-id">
             <div class="row g-3">
 
+              <!-- อ้างอิงใบขอซื้อ (PR) -->
+              <div class="col-12">
+                <label class="form-label">อ้างอิงใบขอซื้อ (PR) <span class="text-muted small">(ถ้ามี)</span></label>
+                <select id="mr-f-pr-ref" class="form-select" onchange="mrPRRefChanged()">
+                  <option value="">— ไม่อ้างอิงใบขอซื้อ —</option>
+                </select>
+                <div id="mr-pr-lines" class="mt-2"></div>
+              </div>
+
               <!-- วันที่ -->
               <div class="col-md-4">
                 <label class="form-label">วันที่รับ <span class="text-danger">*</span></label>
@@ -10941,6 +10950,9 @@ async function purchasereqDelete(prNo) {
 async function purchasereqApprove(prNo) {
   const pr = _purchasereqData.find(p => p.PR_No === prNo);
   if (!pr) return;
+  // ใบที่มีหลายซัพพลายเออร์ → อนุมัติแล้วแยกเป็นใบละซัพ ต่อท้าย -A/-B/... (2026-09-25 ตามคำขอผู้ใช้)
+  const supKeys = [...new Set(pr.lines.map(l => (l.Supplier || '').trim()))];
+  if (supKeys.length > 1) return _purchasereqApproveSplit(pr, supKeys);
   const res = await Swal.fire({
     title: `อนุมัติใบขอซื้อ ${prNo}?`, icon: 'question', showCancelButton: true,
     confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก',
@@ -10959,6 +10971,66 @@ async function purchasereqApprove(prNo) {
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติแล้ว', showConfirmButton: false, timer: 2000 });
   purchasereqLoadData();
 }
+// แยกใบตอนอนุมัติ: สร้างหัวใบใหม่ PR_No-A, -B, ... (สถานะอนุมัติแล้ว, คัดลอกวันที่/ผู้ขอ/หมายเหตุเดิม)
+// → ย้ายรายการไปใบใหม่ตามซัพด้วย _row_id → ลบหัวใบเดิม. ลำดับนี้ตั้งใจให้ข้อมูลไม่หาย: ถ้าพังกลางทาง
+// รายการที่ยังไม่ถูกย้ายยังอยู่กับใบเดิม (ใบเดิมไม่ถูกลบจนกว่าย้ายครบ)
+async function _purchasereqApproveSplit(pr, supKeys) {
+  const suffixes = supKeys.map((_, i) => String.fromCharCode(65 + i)); // A, B, C...
+  const groups = supKeys.map((sup, i) => {
+    const lines = pr.lines.filter(l => (l.Supplier || '').trim() === sup);
+    const val = lines.reduce((s, l) => s + (parseFloat(l.RequestQty) || 0) * (parseFloat(l.UnitCost) || 0), 0);
+    return { newNo: `${pr.PR_No}-${suffixes[i]}`, sup: sup || 'ไม่ระบุซัพพลายเออร์', lines, val };
+  });
+
+  const res = await Swal.fire({
+    title: `อนุมัติใบขอซื้อ ${pr.PR_No}?`,
+    html: `<div class="text-start small">ใบนี้มี ${groups.length} ซัพพลายเออร์ จะถูกแยกเป็น ${groups.length} ใบ (อนุมัติทั้งหมด):
+      <ul class="mb-0 mt-1">${groups.map(g => `<li><b>${g.newNo}</b> — ${g.sup} (${g.lines.length} รายการ · ฿${g.val.toLocaleString('th-TH', { maximumFractionDigits: 0 })})</li>`).join('')}</ul></div>`,
+    icon: 'question', showCancelButton: true, confirmButtonText: 'อนุมัติและแยกใบ', cancelButtonText: 'ยกเลิก',
+  });
+  if (!res.isConfirmed) return;
+
+  _showLoader();
+  // กันเลขที่ชน (เช่น เคยมี PR-69/094-A อยู่แล้ว)
+  const { data: clash, error: clashErr } = await _sb.from('purchase_requests').select('PR_No').in('PR_No', groups.map(g => g.newNo));
+  if (clashErr) { _hideLoader(); _err('ตรวจสอบเลขที่ไม่สำเร็จ', clashErr.message); return; }
+  if ((clash || []).length) { _hideLoader(); _err('แยกใบไม่ได้', `เลขที่ ${clash.map(c => c.PR_No).join(', ')} มีอยู่แล้ว`); return; }
+
+  const { _row_id, lines, ...base } = pr;
+  const approvedBy = _currentUser?.name || _currentUser?.email || null;
+  const approvedAt = new Date().toISOString().split('T')[0];
+  const splitNote = `[แยกจากใบ ${pr.PR_No} ตามซัพพลายเออร์]`;
+  const headers = groups.map(g => ({
+    ...base, PR_No: g.newNo, Status: 'อนุมัติแล้ว', ApprovedBy: approvedBy, ApprovedAt: approvedAt,
+    Note: pr.Note ? `${pr.Note} | ${splitNote}` : splitNote,
+  }));
+  const { error: hdrErr } = await _sb.from('purchase_requests').insert(headers);
+  if (hdrErr) { _hideLoader(); _err('แยกใบไม่สำเร็จ', hdrErr.message); return; }
+
+  for (const g of groups) {
+    const ids = g.lines.map(l => l._row_id).filter(v => v != null);
+    if (!ids.length) continue;
+    const { error: mvErr } = await _sb.from('purchase_request_lines').update({ PR_Ref: g.newNo }).in('_row_id', ids);
+    if (mvErr) {
+      _hideLoader();
+      _err('ย้ายรายการไปใบใหม่ไม่ครบ', `${mvErr.message} — รายการที่ยังไม่ย้ายยังอยู่ในใบ ${pr.PR_No}`);
+      await purchasereqLoadData();
+      return;
+    }
+  }
+
+  const { data: delHdr, error: delErr } = await _sb.from('purchase_requests').delete().eq('PR_No', pr.PR_No).select('PR_No');
+  _hideLoader();
+  if (delErr || !(delHdr || []).length) {
+    _err('แยกใบแล้ว แต่ลบใบเดิมไม่ได้', (delErr?.message || 'อาจไม่มีสิทธิ์ลบ') + ` — ใบ ${pr.PR_No} ไม่มีรายการเหลือแล้ว ลบเองได้`);
+  } else {
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `อนุมัติและแยกเป็น ${groups.map(g => g.newNo).join(', ')}`, showConfirmButton: false, timer: 3000 });
+  }
+  _logAudit('APPROVE', 'purchase_requests', pr.PR_No, `แยกเป็น ${groups.map(g => `${g.newNo} (${g.sup})`).join(', ')}`);
+  _purchasereqExpandedSet.delete(pr.PR_No);
+  await purchasereqLoadData();
+}
+
 async function purchasereqReject(prNo) {
   const { value: reason } = await Swal.fire({
     title: `ปฏิเสธใบขอซื้อ ${prNo}?`, icon: 'warning',
@@ -11562,6 +11634,7 @@ function mrRenderTable() {
         <td class="mr-col-lot">
           <span class="badge bg-light text-dark border">${r.Lot||'—'}</span>
           ${r.MfgLotNo ? `<div class="text-muted mt-1" style="font-size:.72rem;line-height:1.2"><i class="fas fa-industry me-1"></i>ผู้ผลิต: ${r.MfgLotNo}</div>` : ''}
+          ${r.PR_Ref ? `<div class="mt-1"><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:.65rem"><i class="fas fa-file-invoice me-1"></i>${r.PR_Ref}</span></div>` : ''}
           ${req ? _mrPendingBadgeHTML(req) : ''}
         </td>
         <td class="mr-col-exp">${_fmtDate(r.ExpDate)}</td>
@@ -11681,12 +11754,78 @@ function mrOpenModal(rowId = null) {
     document.getElementById('mr-f-total').value      = r.TotalCost||'';
     document.getElementById('mr-f-supplier').value   = r.Supplier||'';
     document.getElementById('mr-f-remark').value     = r.Remark||'';
+    _mrLoadPROptions(r.PR_Ref || '');
   } else {
     editId.value = '';
     title.innerHTML = '<i class="fas fa-truck-ramp-box me-2"></i>เพิ่มรายการรับวัตถุดิบ';
-    document.getElementById('mr-f-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('mr-f-date').value = _planWeekLocalDateStr(new Date());
+    _mrLoadPROptions('');
   }
   _mrModal.show();
+}
+
+// ── อ้างอิงใบขอซื้อ (PR) — เลือกได้เฉพาะใบ 'อนุมัติแล้ว' (+ ใบเดิมของแถวที่กำลังแก้ไข แม้สถานะเปลี่ยนไปแล้ว) ──
+let _mrPRLines = [];   // รายการของ PR ที่เลือกอยู่ + ยอดรับแล้ว
+async function _mrLoadPROptions(selected) {
+  const sel = document.getElementById('mr-f-pr-ref');
+  sel.innerHTML = '<option value="">— ไม่อ้างอิงใบขอซื้อ —</option>';
+  document.getElementById('mr-pr-lines').innerHTML = '';
+  _mrPRLines = [];
+  const { data, error } = await _sb.from('purchase_requests')
+    .select('PR_No,PRDate,Status').or(`Status.eq.อนุมัติแล้ว${selected ? `,PR_No.eq.${selected}` : ''}`);
+  if (error) { console.warn('โหลดใบขอซื้อไม่ได้', error.message); return; }
+  (data || []).sort((a, b) => (b.PR_No || '').localeCompare(a.PR_No || '')).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.PR_No;
+    o.textContent = `${p.PR_No} · ${_fmtDate(p.PRDate)}${p.Status !== 'อนุมัติแล้ว' ? ` (${p.Status})` : ''}`;
+    sel.appendChild(o);
+  });
+  sel.value = selected || '';
+  if (selected) mrPRRefChanged();
+}
+
+async function mrPRRefChanged() {
+  const prNo = document.getElementById('mr-f-pr-ref').value;
+  const box = document.getElementById('mr-pr-lines');
+  _mrPRLines = [];
+  if (!prNo) { box.innerHTML = ''; return; }
+  box.innerHTML = '<small class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลดรายการในใบขอซื้อ...</small>';
+  const editId = parseInt(document.getElementById('mr-edit-id').value) || null;
+  const [lineRes, recvRes] = await Promise.all([
+    _sb.from('purchase_request_lines').select('*').eq('PR_Ref', prNo),
+    _sb.from('mr_receive').select('_row_id,MaterialCode,Qty').eq('PR_Ref', prNo),
+  ]);
+  if (document.getElementById('mr-f-pr-ref').value !== prNo) return; // เปลี่ยนใบระหว่างโหลด
+  if (lineRes.error) { box.innerHTML = `<small class="text-danger">โหลดรายการไม่ได้: ${lineRes.error.message}</small>`; return; }
+  const recvByMat = {};
+  (recvRes.error ? [] : (recvRes.data || [])).forEach(r => {
+    if (r._row_id === editId) return; // ไม่นับแถวที่กำลังแก้ไขเอง
+    recvByMat[r.MaterialCode] = (recvByMat[r.MaterialCode] || 0) + (parseFloat(r.Qty) || 0);
+  });
+  _mrPRLines = (lineRes.data || []).map(l => {
+    const req = parseFloat(l.RequestQty) || 0;
+    const got = recvByMat[l.MaterialCode] || 0;
+    return { ...l, req, got, remain: Math.max(0, req - got) };
+  });
+  if (!_mrPRLines.length) { box.innerHTML = '<small class="text-muted">ใบนี้ไม่มีรายการ</small>'; return; }
+  box.innerHTML = `<small class="text-muted d-block mb-1">กดเลือกรายการที่รับเข้า เพื่อเติมวัตถุดิบ/ราคา/ซัพพลายเออร์ และจำนวนคงค้างให้อัตโนมัติ</small>
+    <div class="d-flex flex-wrap gap-1">${_mrPRLines.map((l, i) => {
+      const done = l.remain <= 0;
+      return `<button type="button" class="btn btn-sm ${done ? 'btn-outline-secondary' : 'btn-outline-primary'}" onclick="mrPickPRLine(${i})" title="${done ? 'รับครบแล้ว' : ''}">
+        ${done ? '<i class="fas fa-check me-1"></i>' : ''}${l.MaterialName || l.MaterialCode}
+        <span class="ms-1 small ${done ? '' : 'text-danger'}">ค้าง ${l.remain.toLocaleString()} / ${l.req.toLocaleString()} ${l.UOM || ''}</span>
+      </button>`;
+    }).join('')}</div>`;
+}
+
+function mrPickPRLine(i) {
+  const l = _mrPRLines[i];
+  if (!l) return;
+  const m = _mrMaterials.find(x => x.MaterialCode === l.MaterialCode) || {};
+  mrSelectMaterial(l.MaterialCode, l.MaterialName || m.MaterialName || '', l.UOM || m.UOM || '',
+    l.UnitCost ?? m.UnitCost ?? 0, l.Supplier || m.SUPPLIER || '');
+  if (l.remain > 0) document.getElementById('mr-f-qty').value = l.remain;
+  mrCalcTotal();
 }
 
 // ── Material Autocomplete ──
@@ -11755,6 +11894,10 @@ async function mrSubmit(e) {
     Supplier    : document.getElementById('mr-f-supplier').value,
     Remark      : document.getElementById('mr-f-remark').value,
   };
+  // ใส่ PR_Ref เฉพาะเมื่อเลือกใบ หรือแถวเดิมเคยมี (ให้เคลียร์ได้) — กันการรับของปกติพังถ้ายังไม่ได้รัน alter_mr_receive_add_pr_ref.sql
+  const prRef = document.getElementById('mr-f-pr-ref').value || null;
+  const oldPrRef = isEdit ? (_mrData.find(d => d._row_id === parseInt(editId))?.PR_Ref || null) : null;
+  if (prRef || oldPrRef) payload.PR_Ref = prRef;
 
   const saveBtn = document.getElementById('mr-save-btn');
   saveBtn.disabled = true;
