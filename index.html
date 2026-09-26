@@ -16178,7 +16178,12 @@ async function planOrderProduction(rowId) {
   // จะมีวันที่ของตัวเองแล้วโผล่เป็นแถวเต็มแยกได้ (บั๊กจริงที่พบ: ไลน์ยิง Lot ไม่มี MO_Ref ของตัวเอง ทำให้ปุ่ม
   // "ยืนยัน" ของไลน์นั้นไม่โผล่เลยด้วยซ้ำ ดูเงื่อนไข `r.MO_Ref || !r.CO_Ref` ใน _planRowActions)
   const siblingIds = _planJobSiblingsOf(r).map(s => s._row_id);
-  const { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).in('_row_id', [rowId, ...siblingIds]);
+  let { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).in('_row_id', [rowId, ...siblingIds]);
+  // _planData มีแค่แถวของเดือนที่เปิดดูอยู่ — ไลน์พี่น้องที่วันที่ตกเดือนถัดไป (เช่น ยิง Lot ข้ามเดือน) จะหลุดจาก
+  // _planJobSiblingsOf เลยตามผูกซ้ำจาก DB ตรงๆ ด้วย BatchRef อีกรอบ (เฉพาะแถวที่ยังไม่มี MO_Ref กันทับของงานอื่น)
+  if (!planErr && r.BatchRef) {
+    ({ error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).eq('BatchRef', r.BatchRef).is('MO_Ref', null));
+  }
   if (planErr) {
     _hideLoader();
     _err('ผูกแผนกับ MO ไม่สำเร็จ', planErr.message + ` — สร้าง MO ${moId} และโอนยอดจองแล้ว กรุณาผูกแผนนี้กับ MO ด้วยตนเอง`);
@@ -34393,10 +34398,18 @@ async function progressqrPromptLine(moId, productName) {
 // เลือกไลน์เอง (progressqrPromptLine เดิม) แทน ──
 async function progressqrPrintForMO(moId, productName) {
   _showLoader();
-  const { data, error } = await _sb.from('production_plan').select('Line').eq('MO_Ref', moId);
+  const { data, error } = await _sb.from('production_plan').select('Line,BatchRef').eq('MO_Ref', moId);
+  if (error) { _hideLoader(); _err('โหลดไลน์ผลิตของ MO นี้ไม่ได้', error.message); return; }
+  // ไลน์พี่น้องของงานเดียวกัน (BatchRef เดียวกัน) ที่ตอน "สั่งผลิต" ไม่ได้ถูกผูก MO_Ref ไว้ (หลุดเพราะอยู่คนละเดือน
+  // กับที่เปิดดูอยู่ — ดูหมายเหตุใน planOrderProduction) ให้นับรวมด้วย ไม่งั้น QR จะออกไม่ครบทุกไลน์
+  const batchRefs = [...new Set((data || []).map(r => r.BatchRef).filter(Boolean))];
+  let sibRows = [];
+  if (batchRefs.length) {
+    const { data: sib } = await _sb.from('production_plan').select('Line').in('BatchRef', batchRefs);
+    sibRows = sib || [];
+  }
   _hideLoader();
-  if (error) { _err('โหลดไลน์ผลิตของ MO นี้ไม่ได้', error.message); return; }
-  const lines = [...new Set((data || []).map(r => r.Line).filter(Boolean))];
+  const lines = [...new Set([...(data || []), ...sibRows].map(r => r.Line).filter(Boolean))];
   if (!lines.length) { await progressqrPromptLine(moId, productName); return; }
   _progressqrRenderMultiPage(moId, productName, lines);
 }
