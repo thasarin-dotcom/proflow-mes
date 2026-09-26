@@ -16177,13 +16177,10 @@ async function planOrderProduction(rowId) {
   // ที่พบใน planConfirmSubmit (2026-09-08): เดิมไม่มีปัญหาเพราะไลน์พี่น้องไม่เคยมีปุ่มกดเองเลย จนกว่ายิง Lot
   // จะมีวันที่ของตัวเองแล้วโผล่เป็นแถวเต็มแยกได้ (บั๊กจริงที่พบ: ไลน์ยิง Lot ไม่มี MO_Ref ของตัวเอง ทำให้ปุ่ม
   // "ยืนยัน" ของไลน์นั้นไม่โผล่เลยด้วยซ้ำ ดูเงื่อนไข `r.MO_Ref || !r.CO_Ref` ใน _planRowActions)
-  const siblingIds = _planJobSiblingsOf(r).map(s => s._row_id);
-  let { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).in('_row_id', [rowId, ...siblingIds]);
-  // _planData มีแค่แถวของเดือนที่เปิดดูอยู่ — ไลน์พี่น้องที่วันที่ตกเดือนถัดไป (เช่น ยิง Lot ข้ามเดือน) จะหลุดจาก
-  // _planJobSiblingsOf เลยตามผูกซ้ำจาก DB ตรงๆ ด้วย BatchRef อีกรอบ (เฉพาะแถวที่ยังไม่มี MO_Ref กันทับของงานอื่น)
-  if (!planErr && r.BatchRef) {
-    ({ error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).eq('BatchRef', r.BatchRef).is('MO_Ref', null));
-  }
+  // _planJobSiblingsOf ถาม DB ตรงๆ ด้วย BatchRef แล้ว (แก้ที่ต้นตอ 2026-09-26) ไม่ต้องมี catch-up query
+  // แยกต่างหากอีกรอบเหมือนก่อนหน้านี้
+  const siblingIds = (await _planJobSiblingsOf(r)).map(s => s._row_id);
+  const { error: planErr } = await _sb.from('production_plan').update({ MO_Ref: moId }).in('_row_id', [rowId, ...siblingIds]);
   if (planErr) {
     _hideLoader();
     _err('ผูกแผนกับ MO ไม่สำเร็จ', planErr.message + ` — สร้าง MO ${moId} และโอนยอดจองแล้ว กรุณาผูกแผนนี้กับ MO ด้วยตนเอง`);
@@ -16869,7 +16866,7 @@ function planCheckConflictLive(b) {
 // ทุกไลน์เสมอไม่ว่าจะแก้จากไลน์ไหน (ไม่เกี่ยวกับ oldIsFill)
 const _PLAN_JOB_LEVEL_FIELDS = ['PlanDate', 'ProductCode', 'ProductName', 'PlanQty', 'UOM', 'MO_Ref', 'CO_Ref', 'Remark'];
 async function _planCascadeSharedFieldsToSiblings(oldRow, payload) {
-  const siblings = _planJobSiblingsOf(oldRow);
+  const siblings = await _planJobSiblingsOf(oldRow);
   if (!siblings.length) return;
 
   const otherFields  = _PLAN_JOB_LEVEL_FIELDS.filter(f => f !== 'PlanDate');
@@ -16958,7 +16955,20 @@ async function _planSyncProdRecordDateAfterEdit(oldRow, payload) {
 function _planJobKey(row) {
   return row.BatchRef || `${row.PlanDate}|${row.ProductCode}`;
 }
-function _planJobSiblingsOf(row) {
+// ถาม DB ตรงๆ ด้วย BatchRef เสมอ (ไม่พึ่ง _planData ซึ่งมีแค่แถวของเดือนที่เปิดดูอยู่ตอนนี้เท่านั้น) — เดิม
+// (ก่อน 2026-09-26) หาแค่ใน _planData เฉยๆ แล้วเจอบั๊กจริงซ้ำ 2 รอบเพราะเหตุผลเดียวกัน (planOrderProduction
+// 2026-09-08 มี catch-up query ปะแก้เฉพาะจุดไว้แล้ว ดูฟังก์ชันนั้น, planConfirmSubmit 2026-09-26: ไลน์
+// พี่น้อง เช่น ยิง Lot/แพ็ค ที่วันที่ตกไปเดือนถัดไป ไม่ถูกยืนยัน/ผูก MO_Ref ตามไปด้วยเพราะหลุดจาก _planData
+// ของเดือนที่เปิดดูอยู่) แก้ที่ต้นตอครั้งนี้แทนการปะแก้แยกจุดทีละที่ — ฟังก์ชันนี้เปลี่ยนเป็น async แล้ว ทุกจุดที่
+// เรียกต้อง await (ดู planOpenConfirmModal ที่ต้องเปลี่ยนเป็น async ตามไปด้วยเพราะเหตุนี้)
+// แถวเก่าก่อนมี BatchRef (ไม่มีค่านี้เลย) fallback กลับไปใช้ _planData ตามเดิม (ยอมรับว่าไม่ทนข้ามเดือนสำหรับ
+// แถวเก่ากลุ่มนี้เท่านั้น — เกิดขึ้นได้แค่ก่อนฟีเจอร์หลายไลน์ต่องานจะมีอยู่เท่านั้น)
+async function _planJobSiblingsOf(row) {
+  if (row.BatchRef) {
+    const { data, error } = await _sb.from('production_plan').select('*')
+      .eq('BatchRef', row.BatchRef).neq('_row_id', row._row_id);
+    if (!error) return data || [];
+  }
   const key = _planJobKey(row);
   return _planData.filter(d => d._row_id !== row._row_id && _planJobKey(d) === key);
 }
@@ -17184,13 +17194,16 @@ async function planDelete(rowId) {
   await planLoadData();
 }
 
-function planOpenConfirmModal(rowId) {
+async function planOpenConfirmModal(rowId) {
   const r = _planData.find(d => d._row_id === rowId);
   if (!r) return;
   // ไลน์พี่น้องของงานเดียวกัน (บรรจุ/แพ็ค/ยิง Lot) — หาแบบทนวันที่ต่างกัน เพราะยิง Lot อาจล่วงหน้าไปวันอื่น
   // แล้ว (ดู _planJobKey) กด "ยืนยัน" จากแถวไหนของงานนี้ก็ต้องยืนยันไปพร้อมกันทั้งงาน ไม่ใช่แค่แถวที่กด (บั๊ก
-  // ที่พบจริง 2026-09-07: ยืนยันยิง Lot ที่ล่วงหน้าแล้ว ไลน์บรรจุไม่ยืนยันตาม)
-  const siblings = _planJobSiblingsOf(r);
+  // ที่พบจริง 2026-09-07: ยืนยันยิง Lot ที่ล่วงหน้าแล้ว ไลน์บรรจุไม่ยืนยันตาม — และอีกรอบ 2026-09-26: ไลน์
+  // พี่น้องที่วันที่ตกไปเดือนถัดไปไม่โผล่ใน _planData ของเดือนที่เปิดดูอยู่ เลยไม่ถูกนับเป็นพี่น้องด้วย ดู
+  // _planJobSiblingsOf ที่แก้เป็น async ถาม DB ตรงๆ ด้วย BatchRef แล้ว — ฟังก์ชันนี้จึงต้องเป็น async ตามไปด้วย
+  // เรียกจาก onclick เดียว fire-and-forget อยู่แล้ว เปลี่ยนได้โดยไม่กระทบที่อื่น เหมือน planOpenAddModal เดิม)
+  const siblings = await _planJobSiblingsOf(r);
   if (!_planConfirmModal) _planConfirmModal = new bootstrap.Modal(document.getElementById('planConfirmModal'));
   document.getElementById('planConfirmForm').reset();
   document.getElementById('plan-confirm-id').value = rowId;
@@ -17257,7 +17270,7 @@ async function planConfirmSubmit(e) {
 
   // ไลน์พี่น้องของงานเดียวกัน (ดูหมายเหตุที่ planOpenConfirmModal) — ยืนยันทุกไลน์พร้อมกันในใบบันทึกผลิตใบ
   // เดียวกันใบเดียว ไม่ใช่แค่แถวที่กด (added 2026-09-08)
-  const siblings = _planJobSiblingsOf(r);
+  const siblings = await _planJobSiblingsOf(r);
   const allRows = [r, ...siblings];
   const allIds = allRows.map(x => x._row_id);
   const allDates = allRows.map(x => x.PlanDate).filter(Boolean).sort();
