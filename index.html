@@ -22868,6 +22868,98 @@ async function prodrecordRequestCostApproval(gi) {
   prodrecordLoadData();
 }
 
+// พรีวิวข้อมูลที่ส่งขออนุมัติ (อ่านอย่างเดียว) — วัตถุดิบที่เบิก/ใช้จริง + เวลาทำงานพนักงานแต่ละขั้นตอน
+// ให้แอดมินตรวจก่อนอนุมัติ/ตีกลับ (2026-09-26 ตามคำขอผู้ใช้)
+async function prodrecordOpenPreview(gi) {
+  const r = _prodrecordLastRows[gi];
+  if (!r) return;
+  _showLoader();
+  const [{ data: details, error }] = await Promise.all([
+    _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID).order('_row_id'),
+    _planLoadSkillData(),
+  ]);
+  _hideLoader();
+  if (error) { _err('โหลดข้อมูลไม่สำเร็จ', error.message); return; }
+
+  const num = (v, d = 2) => (parseFloat(v) || 0).toLocaleString(undefined, { maximumFractionDigits: d });
+  const empName = code => {
+    const e = (_planEmployees || []).find(x => x.EmployeeCode === code);
+    return e ? `${e.FirstName || ''}${e.NickName ? ` (${e.NickName})` : ''}` : code;
+  };
+  const typeLabel = { ft: 'FT', pt: 'PT', os: 'OS' };
+
+  const mats = details || [];
+  const matHtml = !mats.length ? '<div class="text-muted small">ไม่มีรายการวัตถุดิบ</div>' : `
+    <table class="table table-sm table-bordered mb-0" style="font-size:.8rem"><thead class="table-light"><tr>
+      <th>#</th><th>วัตถุดิบ</th><th>Lot</th><th class="text-end">เบิกไป</th><th class="text-end">ของเสีย</th>
+      <th class="text-end">ของคืน</th><th class="text-end">ใช้จริง</th><th>หน่วย</th><th class="text-end">ต้นทุน</th>
+    </tr></thead><tbody>
+    ${mats.map((d, i) => `<tr>
+      <td>${i + 1}</td><td>${d.MaterialCode || ''} ${d.MaterialName || ''}</td><td>${d.LotMaterial || '—'}</td>
+      <td class="text-end">${num(d.IssuedQty, 3)}</td><td class="text-end">${num(d.ScrapQty, 3)}</td>
+      <td class="text-end">${num(d.ReturnedQty, 3)}</td><td class="text-end fw-bold">${num(d.ActualUsedQty, 3)}</td>
+      <td>${d.UOM || ''}</td><td class="text-end">฿${num(d.TotalCost)}</td></tr>`).join('')}
+    <tr class="table-light fw-bold"><td colspan="8" class="text-end">รวมต้นทุนวัตถุดิบ</td>
+      <td class="text-end">฿${num(mats.reduce((s, d) => s + (parseFloat(d.TotalCost) || 0), 0))}</td></tr>
+    </tbody></table>`;
+
+  let stations = [];
+  try { stations = typeof r.StationsData === 'string' ? JSON.parse(r.StationsData || '[]') : (r.StationsData || []); } catch (e) { stations = []; }
+  const stHtml = _prodrecordSteps.map(step => {
+    const s = stations.find(x => x.key === step.key);
+    const days = s ? (Array.isArray(s.days) ? s.days : [{ date: r.Date_Start, ...s }]) : [];
+    if (!days.length) return `<div class="mb-2"><b>${step.label}</b> <span class="text-muted small">— ไม่มีข้อมูล</span></div>`;
+    const rows = [];
+    days.forEach(d => {
+      Object.entries(d.WorkerTimes || {}).forEach(([code, t]) => {
+        const h = (t.start && t.end) ? _prodrecordCalcHoursFromTime(t.start, t.end, t.type) : { normal: 0, ot: 0 };
+        rows.push(`<tr><td>${_fmtDate(d.date)}</td><td>${empName(code)}</td><td>${typeLabel[t.type] || '—'}</td>
+          <td>${t.start || '—'} – ${t.end || '—'}</td><td class="text-end">${h.normal.toFixed(2)}</td>
+          <td class="text-end ${h.ot > 0 ? 'text-danger fw-bold' : ''}">${h.ot.toFixed(2)}</td></tr>`);
+      });
+      ['ft', 'pt', 'os'].forEach(type => {
+        const extra = parseFloat(d[`${type}Extra`]) || 0;
+        const legacy = !d.WorkerTimes && !d.WorkerCodes ? (parseFloat(d[`${type}Workers`]) || 0) : 0;
+        const n = extra || legacy;
+        if (!n) return;
+        const nh = parseFloat(d[`${type}NormalHrs`]) || 0, oh = parseFloat(d[`${type}OtHrs`]) || 0;
+        rows.push(`<tr class="table-warning"><td>${_fmtDate(d.date)}</td><td>เพิ่มเอง ${n} คน (ไม่อยู่ใน Master)</td><td>${typeLabel[type]}</td>
+          <td>${d[`${type}Start`] || '—'} – ${d[`${type}End`] || '—'}</td><td class="text-end">${nh.toFixed(2)}</td>
+          <td class="text-end ${oh > 0 ? 'text-danger fw-bold' : ''}">${oh.toFixed(2)}</td></tr>`);
+      });
+    });
+    return `<div class="mb-3"><b>${step.label}</b> <span class="text-muted small">(${days.length} วัน)</span>
+      ${!rows.length ? '<div class="text-muted small">ไม่มีรายชื่อ/เวลา</div>' : `
+      <table class="table table-sm table-bordered mb-0 mt-1" style="font-size:.8rem"><thead class="table-light"><tr>
+        <th>วันที่</th><th>พนักงาน</th><th>ประเภท</th><th>เข้า – ออก</th><th class="text-end">ชม.ปกติ</th><th class="text-end">ชม.OT</th>
+      </tr></thead><tbody>${rows.join('')}</tbody></table>`}</div>`;
+  }).join('');
+
+  const html = `<div class="text-start" style="max-height:65vh;overflow:auto">
+    <div class="mb-2"><b>${r.ProductName || ''}</b> · Lot FG ${r.Lot_FG ?? '—'} · MO ${r.MO_Ref || '—'}</div>
+    <div class="row g-2 mb-3 small">
+      <div class="col-6 col-md-3"><div class="p-2 rounded" style="background:#f8fafc">แผน <b>${num(r.FG_Planned, 0)}</b> · จริง <b>${num(r.FG_Actual, 0)}</b> ${r.UOM || ''}</div></div>
+      <div class="col-6 col-md-3"><div class="p-2 rounded" style="background:#f8fafc">ผลิต ${_fmtDate(r.Date_Start)} – ${_fmtDate(r.Date_End)}</div></div>
+      <div class="col-6 col-md-3"><div class="p-2 rounded" style="background:#f8fafc">น้ำหนักเฉลี่ย ${r.AVG_Weight != null ? num(r.AVG_Weight) + ' g' : '—'}</div></div>
+      <div class="col-6 col-md-3"><div class="p-2 rounded" style="background:#f0fdf4">% ยีลด์ <b>${r.Bulk_Actual != null ? parseFloat(r.Bulk_Actual).toFixed(1) + '%' : '—'}</b></div></div>
+    </div>
+    ${r.CostApprovalRequested ? `<div class="small text-muted mb-2"><i class="fas fa-paper-plane me-1"></i>ส่งโดย ${r.CostApprovalRequestedBy || '—'} เมื่อ ${_fmtDateTime(r.CostApprovalRequestedAt)}</div>` : ''}
+    ${r.ProductionNote ? `<div class="small mb-2">หมายเหตุ: ${r.ProductionNote}</div>` : ''}
+    <h6 class="fw-bold mt-2"><i class="fas fa-boxes-stacked me-1"></i>วัตถุดิบที่เบิก / ใช้จริง</h6>${matHtml}
+    <h6 class="fw-bold mt-3"><i class="fas fa-user-clock me-1"></i>เวลาทำงานพนักงาน</h6>${stHtml}
+  </div>`;
+
+  const canAct = r.CostApprovalRequested && r.Status !== 'อนุมัติแล้ว' && _hasRole('admin');
+  const res = await Swal.fire({
+    title: `พรีวิว ${r.ProdRecord_ID}`, html, width: 1000,
+    showConfirmButton: canAct, confirmButtonText: '<i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน', confirmButtonColor: '#198754',
+    showDenyButton: canAct, denyButtonText: '<i class="fas fa-rotate-left me-1"></i>ตีกลับแก้ไข', denyButtonColor: '#6c757d',
+    showCancelButton: true, cancelButtonText: 'ปิด',
+  });
+  if (res.isConfirmed) prodrecordOpenApproveModal(gi);
+  else if (res.isDenied) prodrecordCancelCostApprovalRequest(gi);
+}
+
 // ดึงกลับ (หัวหน้า) / ตีกลับ (แอดมิน) — ล้าง flag คำขอ ให้กลับไปแก้ไขผลผลิตได้อีก
 async function prodrecordCancelCostApprovalRequest(gi) {
   if (!_hasRole('supervisor')) return;
@@ -22942,6 +23034,7 @@ function prodrecordRenderTable() {
           ${hasActual && !approved && !r.CostApprovalRequested ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordOpenEntryModal(${gi})"><i class="fas fa-edit me-1"></i>แก้ไขผลผลิต</button>
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-warning" onclick="prodrecordRequestCostApproval(${gi})"><i class="fas fa-paper-plane me-1"></i>ส่งข้อมูลขออนุมัติต้นทุน</button>` : ''}` : ''}
           ${hasActual && !approved && r.CostApprovalRequested ? `<span class="badge bg-info text-dark" title="ส่งโดย ${r.CostApprovalRequestedBy||'—'} เมื่อ ${_fmtDateTime(r.CostApprovalRequestedAt)}"><i class="fas fa-paper-plane me-1"></i>ส่งขออนุมัติแล้ว</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="prodrecordOpenPreview(${gi})" title="ดูข้อมูลวัตถุดิบที่เบิก และเวลาทำงานพนักงาน"><i class="fas fa-magnifying-glass me-1"></i>พรีวิว</button>
             ${_hasRole('admin') ? `<button class="btn btn-sm btn-success" onclick="prodrecordOpenApproveModal(${gi})"><i class="fas fa-check-circle me-1"></i>อนุมัติต้นทุน</button>` : ''}
             ${_hasRole('supervisor') ? `<button class="btn btn-sm btn-outline-secondary" onclick="prodrecordCancelCostApprovalRequest(${gi})" title="${_hasRole('admin') ? 'ตีกลับให้หัวหน้าแก้ไข' : 'ดึงกลับมาแก้ไข'}"><i class="fas fa-rotate-left me-1"></i>${_hasRole('admin') ? 'ตีกลับแก้ไข' : 'ดึงกลับแก้ไข'}</button>` : ''}` : ''}
           ${approved ? `<button class="btn btn-sm btn-outline-primary" onclick="prodrecordReportPrint(${gi})" title="พิมพ์รายงานต้นทุน"><i class="fas fa-print me-1"></i>พิมพ์ต้นทุน</button>
