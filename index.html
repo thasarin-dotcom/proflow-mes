@@ -2789,7 +2789,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         </div>
         <div class="col-md-8">
           <div class="glass-card h-100">
-            <div class="fw-bold small text-muted mb-2">จำนวน CO รายเดือน (6 เดือนล่าสุด)</div>
+            <div class="fw-bold small text-muted mb-2">จำนวน CO / MO รายเดือน (6 เดือนล่าสุด)</div>
             <div style="position:relative;height:220px"><canvas id="codash-chart-trend"></canvas></div>
           </div>
         </div>
@@ -2810,7 +2810,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         </div>
       </div>
 
-      <div class="glass-card p-0 overflow-hidden">
+      <div class="glass-card p-0 overflow-hidden mb-3">
         <div class="p-2 px-3 border-bottom fw-bold small text-muted">
           <i class="fas fa-exclamation-triangle text-danger me-1"></i>CO ที่เลยกำหนดส่งแล้ว
         </div>
@@ -27491,14 +27491,21 @@ function codemandRenderMaterials() {
 
 async function codashLoadData() {
   _showLoader();
-  const { data, error } = await _sb.from('customer_orders').select('*').order('_row_id', { ascending: false });
+  const [coRes, moRes] = await Promise.all([
+    _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
+    _sb.from('manufacturing_orders').select('*').order('_row_id', { ascending: false }), // ไม่ paginate — เหมือน loadMOData เดิม, ยังห่างไกล PostgREST cap 1000 แถวมาก
+  ]);
   _hideLoader();
-  if (error) { _err('โหลดข้อมูล CO ไม่ได้', error.message); return; }
+  if (coRes.error) { _err('โหลดข้อมูล CO ไม่ได้', coRes.error.message); return; }
 
-  const coData = data || [];
+  const coData = coRes.data || [];
+  // ส่วน MO เพิ่ม 2026-09-28 — error เงียบๆ (แค่ log) ไม่บล็อกส่วน CO ที่โหลดสำเร็จแล้ว, ตกเป็น [] ถ้าพลาด
+  if (moRes.error) console.error('โหลดข้อมูล MO ไม่ได้', moRes.error);
+  const moData = moRes.error ? [] : (moRes.data || []);
+
   codashRenderKPIs(coData);
   codashRenderStatusChart(coData);
-  codashRenderTrendChart(coData);
+  codashRenderTrendChart(coData, moData); // กราฟเดียวโชว์ทั้ง CO และ MO คู่กัน (2026-09-28 ตามคำขอผู้ใช้)
   codashRenderCustomersChart(coData);
   codashRenderProductsChart(coData);
   codashRenderOverdueTable(coData);
@@ -27546,23 +27553,29 @@ function codashRenderStatusChart(coData) {
   });
 }
 
-function codashRenderTrendChart(coData) {
+// รับ moData เพิ่ม (optional) เพื่อโชว์จำนวน MO รายเดือนคู่กับ CO ในกราฟเดียว — เพิ่ม 2026-09-28 ตามคำขอผู้ใช้
+// "จำนวน MO รายเดือน ให้ขึ้นคู่กับ co เลย" (เดิมเป็นกราฟแยกต่างหากของ MO เอง ตอนนี้รวมเป็นกราฟเดียว)
+function codashRenderTrendChart(coData, moData) {
   const months = [];
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
   }
-  const counts = months.map(m => coData.filter(r => (r.Date||'').startsWith(m)).length);
+  const coCounts = months.map(m => coData.filter(r => (r.Date||'').startsWith(m)).length);
+  const moCounts = months.map(m => (moData||[]).filter(r => (r.MO_Date||'').startsWith(m)).length);
   const labels = months.map(m => { const [y,mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
 
   _codashDestroy('trend');
   _codashCharts.trend = new Chart(document.getElementById('codash-chart-trend'), {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'จำนวน CO', data: counts, backgroundColor: '#1e3a8a', borderRadius: 4, maxBarThickness: 36 }] },
+    data: { labels, datasets: [
+      { label: 'CO', data: coCounts, backgroundColor: '#1e3a8a', borderRadius: 4, maxBarThickness: 28 },
+      { label: 'MO', data: moCounts, backgroundColor: '#0f766e', borderRadius: 4, maxBarThickness: 28 },
+    ] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
       scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
     },
   });
@@ -36388,6 +36401,16 @@ function _renderCurrentUserBadge() {
 const _REALTIME_SKIP_PAGES = new Set(['lotscan', 'scanprogress', 'scanlabor']);
 let _realtimeChannel = null;
 let _realtimeRefreshTimer = null;
+// กันรอบรีเฟรชซ้อนกัน (added 2026-09-28, แก้บั๊กจริง "หน้าเว็บค้างบ่อย กดไม่ได้ ต้องรีเฟรช F5") — เดิม
+// event ที่เข้ามาระหว่างรอบก่อนหน้ายัง await _PAGE_LOADERS[page]() ค้างอยู่ (โหลดข้อมูล+เรนเดอร์หน้าใหม่ทั้งหน้า
+// อาจกินเวลาหลายวินาทีในหน้าหนัก เช่น Gantt/แดชบอร์ดต้นทุน) จะเรียก _realtimeScheduleRefresh() ซ้ำทันที
+// ตั้ง timer ใหม่ 1.2 วิ ที่มักจะครบก่อนรอบเดิมจบด้วยซ้ำ — ในโรงงานที่มีคนสแกน/บันทึกข้อมูลถี่ๆ พร้อมกันหลายคน
+// (ทุกตารางทั้ง schema ถูก subscribe รวมกันจุดเดียว ดูหมายเหตุ _realtimeSubscribe ด้านล่าง) ทำให้หน้าที่เปิดค้าง
+// ไว้โดนสั่งโหลดซ้ำซ้อนกันหลายรอบพร้อมกันไม่มีที่สิ้นสุด บล็อก JS thread จนกดอะไรไม่ได้เลยจนกว่าจะ F5 —
+// _realtimeRefreshInFlight กันไม่ให้เริ่มรอบใหม่ขณะรอบก่อนหน้ายังไม่จบ (event ที่เข้ามาตอนนั้นแค่ตั้ง
+// _realtimeRefreshPending ไว้ก่อน แล้วให้ finally ของรอบที่กำลังรันเป็นคนสั่งรอบถัดไปเองครั้งเดียวตอนจบ)
+let _realtimeRefreshInFlight = false;
+let _realtimeRefreshPending = false;
 // บัฟเฟอร์ payload ของ postgres_changes ที่มาระหว่างรอ debounce (แต่ละตัวมี {table,eventType,new,old})
 // เก็บไว้ใช้ไฮไลท์ "แถวที่เพิ่งเปลี่ยนจริง" หลังโหลดข้อมูลหน้าเสร็จ (ดู _realtimeHighlightRows) — เคลียร์ทิ้ง
 // ทันทีที่เริ่มรอบรีเฟรชใหม่ ไม่ใช่หลังไฮไลท์เสร็จ กันเหตุการณ์ที่มาระหว่างกำลังโหลดหน้าไปตกหล่น/ปนรอบถัดไป
@@ -36402,6 +36425,7 @@ function _realtimeIsBusy() {
 }
 
 function _realtimeScheduleRefresh() {
+  if (_realtimeRefreshInFlight) { _realtimeRefreshPending = true; return; }
   if (_realtimeRefreshTimer) clearTimeout(_realtimeRefreshTimer);
   _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 1200);
 }
@@ -36460,32 +36484,46 @@ async function _realtimeRunRefresh() {
   if (!_currentUser) return; // ออกจากระบบไปแล้วระหว่างรอ debounce
   if (_realtimeIsBusy()) { _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 2000); return; }
 
-  _realtimeFlashPage();
-  const changes = _realtimeChangedRows;
-  _realtimeChangedRows = [];
+  // กันซ้อนรอบ — ดูหมายเหตุที่ _realtimeRefreshInFlight ด้านบน. ครอบทั้งฟังก์ชันด้วย try/finally เพราะมี
+  // early return หลายจุดด้านล่าง (โหมดแท็บเลตคลัง, ไม่มีหน้า active, หน้าอยู่ใน skip list) ทุกทางออกต้องเคลียร์
+  // flag เหมือนกันหมด ไม่งั้นรอบถัดไปจะค้าง "กำลังรัน" ตลอดไปทั้งที่จบไปแล้วจริง
+  _realtimeRefreshInFlight = true;
+  try {
+    _realtimeFlashPage();
+    const changes = _realtimeChangedRows;
+    _realtimeChangedRows = [];
 
-  if (_currentUser.isWarehouse) {
-    _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้ (ยังไม่ทำไฮไลท์รายแถวในโหมดนี้)
-    return;
+    if (_currentUser.isWarehouse) {
+      _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้ (ยังไม่ทำไฮไลท์รายแถวในโหมดนี้)
+      return;
+    }
+
+    // เลขแจ้งเตือน sidebar (badge) อัปเดตทุกครั้งไม่ว่าจะอยู่หน้าไหน — query เบา ไม่กระทบ DOM หลักของหน้า
+    _planUpdateNavBadge();
+    _issueUpdateWaitingBadge();
+    _issueUpdateNavBadge();
+    _prodrecordUpdateNavBadge();
+    _prodrecordUpdateApproveBadge();
+    _fgoutUpdateWaitingBadge();
+    _laborutilUpdateNavBadge();
+    purchasereqUpdateNavBadge();
+    _coUpdateNavBadge();
+
+    const activeEl = document.querySelector('.page-view.active');
+    if (!activeEl) return;
+    const page = activeEl.id.replace(/^page-/, '');
+    if (_REALTIME_SKIP_PAGES.has(page)) return;
+    if (_PAGE_LOADERS[page]) await _PAGE_LOADERS[page]();   // await ไว้ก่อน จะได้ไฮไลท์หลัง DOM ของหน้าเรนเดอร์เสร็จจริง
+    _realtimeHighlightRows(page, changes);
+  } finally {
+    _realtimeRefreshInFlight = false;
+    if (_realtimeRefreshPending) {
+      // มี event ใหม่เข้ามาระหว่างรอบนี้กำลังรัน (ถูกกันไว้ที่ _realtimeScheduleRefresh ไม่ให้ซ้อน) —
+      // สั่งรอบถัดไปครั้งเดียวตอนนี้ที่รอบเก่าจบแล้วจริง แทนที่จะปล่อยทิ้งการเปลี่ยนแปลงนั้นไปเฉยๆ
+      _realtimeRefreshPending = false;
+      _realtimeScheduleRefresh();
+    }
   }
-
-  // เลขแจ้งเตือน sidebar (badge) อัปเดตทุกครั้งไม่ว่าจะอยู่หน้าไหน — query เบา ไม่กระทบ DOM หลักของหน้า
-  _planUpdateNavBadge();
-  _issueUpdateWaitingBadge();
-  _issueUpdateNavBadge();
-  _prodrecordUpdateNavBadge();
-  _prodrecordUpdateApproveBadge();
-  _fgoutUpdateWaitingBadge();
-  _laborutilUpdateNavBadge();
-  purchasereqUpdateNavBadge();
-  _coUpdateNavBadge();
-
-  const activeEl = document.querySelector('.page-view.active');
-  if (!activeEl) return;
-  const page = activeEl.id.replace(/^page-/, '');
-  if (_REALTIME_SKIP_PAGES.has(page)) return;
-  if (_PAGE_LOADERS[page]) await _PAGE_LOADERS[page]();   // await ไว้ก่อน จะได้ไฮไลท์หลัง DOM ของหน้าเรนเดอร์เสร็จจริง
-  _realtimeHighlightRows(page, changes);
 }
 
 function _realtimeSubscribe() {
