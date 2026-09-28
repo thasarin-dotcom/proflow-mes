@@ -6302,7 +6302,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <div class="text-muted small mb-2">สูตร: จำนวนซอง × 0.012</div>
       <div class="p-3 rounded text-center" style="background:#eff6ff;border:1px solid #bfdbfe">
         <div class="text-muted small">ผลลัพธ์</div>
-        <div class="fw-bold" style="font-size:2.2rem;color:#1e3a8a"><span id="sachetcalc-result">0</span> <span style="font-size:1.2rem">เมตร</span></div>
+        <div class="fw-bold" style="font-size:2.2rem;color:#1e3a8a"><span id="sachetcalc-result">0.000</span> <span style="font-size:1.2rem">เมตร</span></div>
       </div>
       <button type="button" class="btn btn-outline-secondary btn-sm mt-3" onclick="sachetcalcClear()">
         <i class="fas fa-eraser me-1"></i>ล้างค่า
@@ -9298,7 +9298,7 @@ function sachetcalcRecalc() {
   const qty = parseFloat(document.getElementById('sachetcalc-qty').value);
   const meters = (isFinite(qty) && qty > 0) ? qty * SACHETCALC_METER_PER_SACHET : 0;
   document.getElementById('sachetcalc-result').textContent =
-    meters.toLocaleString('th-TH', { maximumFractionDigits: 3 });
+    meters.toLocaleString('th-TH', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 function sachetcalcClear() {
   document.getElementById('sachetcalc-qty').value = '';
@@ -9323,7 +9323,7 @@ function sachetcalcOilRecalc() {
   const leftover = grams - sachets * fill;
   const fmt = (v, d) => v.toLocaleString('th-TH', { maximumFractionDigits: d });
   resEl.textContent = fmt(sachets, 0);
-  detEl.textContent = `น้ำมัน ${fmt(kg, 3)} กก. · เหลือเศษ ${fmt(leftover, 2)} กรัม · ใช้ซองยาว ${fmt(sachets * SACHETCALC_METER_PER_SACHET, 3)} เมตร`;
+  detEl.textContent = `น้ำมัน ${fmt(kg, 3)} กก. · เหลือเศษ ${fmt(leftover, 2)} กรัม · ใช้ซองยาว ${(sachets * SACHETCALC_METER_PER_SACHET).toLocaleString('th-TH', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} เมตร`;
 }
 function sachetcalcOilClear() {
   ['sachetcalc-oil-qty', 'sachetcalc-sg', 'sachetcalc-fill'].forEach(id => document.getElementById(id).value = '');
@@ -14803,8 +14803,8 @@ async function dlvbillOnScopeChange() {
 // ยังเป็นคนละตารางเหมือนเดิม (เก็บ DeliveryRowIds/IssueRowIds คนละแบบกัน) แค่ "เลขถัดไป"/"เช็คเลขซ้ำ" ต้องมองรวมกัน ──
 async function _billNoNextSuggest(year) {
   const [fg, misc] = await Promise.all([
-    _sb.from('delivery_bill_numbers').select('BillNo').eq('Year', year),
-    _sb.from('misc_issue_numbers').select('SlipNo').eq('Year', year),
+    _sb.from('delivery_bill_numbers').select('BillNo,CancelledAt').eq('Year', year),
+    _sb.from('misc_issue_numbers').select('SlipNo,CancelledAt').eq('Year', year),
   ]);
   const error = fg.error || misc.error;
   if (error) return { value: null, error };
@@ -14812,9 +14812,19 @@ async function _billNoNextSuggest(year) {
   // สืบเนื่องจากสมุดเลขที่เอกสารเดิมของบริษัทที่มีอยู่ก่อนระบบนี้ (พบจริง 2026-08-26: มี 11 แถวในตาราง แต่เลขจริง
   // คือ 189-199 ไม่ใช่ 001-011) นับจำนวนแถว+1 จะได้เลขที่ต่ำกว่าเลขจริงมาก ต้อง parse เลขจากทุกแถวแล้วหาค่าสูงสุด
   const parseSeq = (no) => { const m = /^\d+\/(\d+)$/.exec(no || ''); return m ? parseInt(m[1], 10) : 0; };
-  const allNos = [...(fg.data || []).map(r => r.BillNo), ...(misc.data || []).map(r => r.SlipNo)];
-  const maxSeq = allNos.reduce((max, no) => Math.max(max, parseSeq(no)), 0);
-  return { value: `${year}/${String(maxSeq + 1).padStart(3, '0')}`, error: null };
+  const allRows = [
+    ...(fg.data || []).map(r => ({ seq: parseSeq(r.BillNo), cancelled: !!r.CancelledAt })),
+    ...(misc.data || []).map(r => ({ seq: parseSeq(r.SlipNo), cancelled: !!r.CancelledAt })),
+  ];
+  const maxSeq = allRows.reduce((max, r) => Math.max(max, r.seq), 0);
+  // ถ้าเลขรันสูงสุดของปีนี้เป็นใบที่ถูกยกเลิกไปแล้วทั้งหมด (ยังไม่มีใครออกใหม่ทับเลขนี้เลย) ให้แนะนำเลขเดิมซ้ำแทน
+  // การข้ามไปเลขถัดไป — เลขที่ยกเลิกไปแล้วไม่เคยถูกใช้พิมพ์จริง ถ้าปล่อยให้ข้ามไปเรื่อยๆ จะเกิดช่องว่างในสมุดเลขที่
+  // เอกสารจริงของบริษัท (2026-09-28: ผู้ใช้รายงานเจอเลข 235 ที่ยกเลิกแล้วแต่ระบบแนะนำ 236 ข้ามไปเลย) — ยังพิมพ์/
+  // แก้เลขเป็นเลขอื่นเองได้ตามปกติ นี่แค่เปลี่ยนค่า "แนะนำ" เริ่มต้นในช่องกรอกเท่านั้น
+  const maxRows = allRows.filter(r => r.seq === maxSeq);
+  const maxAllCancelled = maxSeq > 0 && maxRows.length > 0 && maxRows.every(r => r.cancelled);
+  const nextSeq = maxAllCancelled ? maxSeq : maxSeq + 1;
+  return { value: `${year}/${String(nextSeq).padStart(3, '0')}`, error: null };
 }
 
 // เช็คว่าเลขที่ val ถูกใช้ไปแล้วหรือยัง ข้ามทั้ง 2 ทะเบียน — ทั้ง delivery_bill_numbers และ misc_issue_numbers
