@@ -7632,6 +7632,30 @@ function _hideLoader() {
 }
 
 // ══════════════════════════════════════════════
+// Print-mode helper (added 2026-09-28) — แก้บั๊กจริง "พิมพ์ใบส่งสินค้าแล้วติดของที่พิมพ์รอบก่อนมา ต้อง
+// รีเฟรชเองตลอด" (เช่นพิมพ์ป้าย "Released" ที่หน้า MO ไปก่อน แล้วมาพิมพ์ใบส่งสินค้าต่อ โผล่ทั้งคู่ในหน้าต่าง
+// พิมพ์เดียวกัน) — ก่อนหน้านี้แต่ละจุดที่สั่งพิมพ์เอกสาร (bpr/stockcard/mr/delivery/pcost/weeklyreport/
+// moreleased/lotlabel/lotscan/dlvlabel/miscslip/admindash/planweek/purchasereq/holdstockreport, 15
+// print-root) เขียน `classList.remove('print-mode-a','print-mode-b',...)` เป็น list มือเอง แล้วค่อย
+// `classList.add('print-mode-ตัวเอง')` — แต่ละ list ถูกเขียนไว้ ณ ตอนที่ฟีเจอร์นั้นถูกสร้าง มีแค่ print-mode
+// ที่มีอยู่ ณ ตอนนั้น ไม่เคยถูกอัปเดตย้อนหลังตามทุกครั้งที่มี print-root ใหม่เพิ่มเข้ามาทีหลัง (15 จุด ณ
+// วันนี้ ไม่มีจุดไหน list ครบทั้ง 15 เลยสักจุด) — ผลคือถ้าพิมพ์เอกสาร A ก่อน (ติด `print-mode-a` ค้างที่
+// body จนกว่าจะมีคนสั่ง remove) แล้วพิมพ์เอกสาร B ที่ list ของมันดันไม่ได้ระบุ `print-mode-a` ไว้ให้ลบ —
+// ทั้ง 2 print-root จะโชว์ `display:block` พร้อมกันในหน้าต่างพิมพ์เดียว (ของเก่ายังค้างอยู่ ไม่ได้ถูกลบทิ้ง)
+// เหมือนที่ผู้ใช้เจอเป๊ะ (พิมพ์ป้าย Released ก่อน แล้วพิมพ์ใบส่งสินค้า → เห็นป้าย Released ปนมาด้วย) —
+// ต้องรีเฟรช (F5) ถึงจะหายเพราะ reload ล้าง class ทั้งหมดทิ้งกลับไปเริ่มใหม่
+// Fix: ฟังก์ชันกลางจุดเดียว ลบทุก body class ที่ขึ้นต้นด้วย "print-mode-" แบบไดนามิก (สแกนจาก
+// classList จริง ไม่ใช่ list เขียนมือ) ก่อนค่อยเติมโหมดใหม่ — ต่อให้เพิ่ม print-root ที่ 16 ในอนาคตก็ไม่มี
+// ทางลืมลบให้ครบอีก เพราะไม่มี list ให้ลืมอัปเดตแล้ว ทุกจุดที่เคย toggle เองต้องเปลี่ยนมาเรียกฟังก์ชันนี้แทน
+// ══════════════════════════════════════════════
+function _printSetMode(mode) {
+  Array.from(document.body.classList)
+    .filter(c => c.startsWith('print-mode-'))
+    .forEach(c => document.body.classList.remove(c));
+  document.body.classList.add('print-mode-' + mode);
+}
+
+// ══════════════════════════════════════════════
 // Error Helper
 // ══════════════════════════════════════════════
 function _err(msg, detail) {
@@ -11546,11 +11570,7 @@ function purchasereqOpenPrintModal(prNo) {
   const html = _purchasereqBuildHTML(pr);
   document.getElementById('purchasereq-print-root').innerHTML = html;
   document.getElementById('purchasereq-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
-    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-planweek',
-    'print-mode-holdstockreport');
-  document.body.classList.add('print-mode-purchasereq');
+  _printSetMode('purchasereq');
   if (!_purchasereqPrintModal) _purchasereqPrintModal = new bootstrap.Modal(document.getElementById('purchasereqPrintModal'));
   _purchasereqPrintModal.show();
 }
@@ -12687,8 +12707,7 @@ async function mrReportEditRcNo(rowId, currentVal) {
 }
 
 function mrReportRenderPreview() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard');
-  document.body.classList.add('print-mode-mr');
+  _printSetMode('mr');
 
   const dateStr = document.getElementById('mr-rpt-date').value;
   const supplierFilter = document.getElementById('mr-rpt-supplier').value;
@@ -14951,10 +14970,9 @@ async function dlvbillEditNo(rowId, currentVal) {
 }
 
 async function dlvbillRenderPreview() {
-  // ลบ print-mode ของ root อื่นทั้ง 3 ให้ครบ (ไม่ใช่แค่ root เดียวแบบที่ BPR/Stock Card ทำกันเอง) กัน root ที่ 4 นี้
-  // ไปซ้อนบั๊กเดิม (เคยมี 2 print-mode ค้างพร้อมกันได้ถ้าเปิดรายงานหนึ่งแล้วสลับไปเปิดอีกรายงานโดยไม่ได้พิมพ์ก่อน)
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr');
-  document.body.classList.add('print-mode-delivery');
+  // 2026-09-28: เปลี่ยนมาใช้ _printSetMode() กลาง (ลบทุก print-mode-* แบบไดนามิก) แทน list เขียนมือข้างบน —
+  // list แบบเดิมแก้ปัญหานี้ได้แค่บางส่วน (ครบแค่ 3 root ตอนที่เขียน ไม่ครบ 15 root ที่มีอยู่จริงตอนนี้)
+  _printSetMode('delivery');
 
   const rows = _dlvbillScopeRows();
   const wrap = document.getElementById('dlvbill-preview-body');
@@ -17556,11 +17574,7 @@ async function planPrintWeeksOpen(weeks = _planPrintWeeks) {
     btn2.className = 'btn ' + (weeks === 2 ? 'btn-light' : 'btn-outline-light');
   }
 
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
-    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash', 'print-mode-purchasereq',
-    'print-mode-holdstockreport');
-  document.body.classList.add('print-mode-planweek');
+  _printSetMode('planweek');
 
   if (!_planWeekPrintModal) _planWeekPrintModal = new bootstrap.Modal(document.getElementById('planWeekPrintModal'));
   _planWeekPrintModal.show();
@@ -19324,8 +19338,7 @@ function weeklyreportOpenPrintPreview() {
   const html = _weeklyreportBuildPrintHTML(_wreportSummary, _wreportMonthWeekData);
   document.getElementById('weeklyreport-print-root').innerHTML = html;
   document.getElementById('weeklyreport-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-pcost', 'print-mode-admindash');
-  document.body.classList.add('print-mode-weeklyreport');
+  _printSetMode('weeklyreport');
   if (!_weeklyreportPrintModal) _weeklyreportPrintModal = new bootstrap.Modal(document.getElementById('weeklyreportPrintModal'));
   _weeklyreportPrintModal.show();
 }
@@ -24933,8 +24946,7 @@ async function prodrecordReportPrint(gi) {
   };
 
   const html = _pcostBuildHTML(data);
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery', 'print-mode-admindash');
-  document.body.classList.add('print-mode-pcost');
+  _printSetMode('pcost');
   document.getElementById('pcost-preview-body').innerHTML = html;
   document.getElementById('pcost-print-root').innerHTML   = html;
 
@@ -25180,8 +25192,7 @@ async function bprPrint(rowId) {
   const html = _bprBuildHTML(data);
   document.getElementById('bpr-print-root').innerHTML = html;
   document.getElementById('bpr-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-stockcard');
-  document.body.classList.add('print-mode-bpr');
+  _printSetMode('bpr');
   if (!_bprPreviewModal) _bprPreviewModal = new bootstrap.Modal(document.getElementById('bprPreviewModal'));
   _bprPreviewModal.show();
 
@@ -26108,9 +26119,7 @@ function _morelRemarkGroupOnChange(seq, field, value) {
 }
 
 function moReleasedPrint() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-admindash');
-  document.body.classList.add('print-mode-moreleased');
+  _printSetMode('moreleased');
   window.print();
 }
 
@@ -26122,9 +26131,7 @@ function moReleasedPrintBlankSheet() {
   let stickers = '';
   for (let i = 0; i < 10; i++) stickers += `<div class="morel-sticker">${_morelStickerHTML(blank)}</div>`;
   document.getElementById('mo-released-print-root').innerHTML = `<div class="morel-sheet">${stickers}</div>`;
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-admindash');
-  document.body.classList.add('print-mode-moreleased');
+  _printSetMode('moreleased');
   window.print();
 }
 
@@ -29292,11 +29299,7 @@ function admindashOpenReportPreview() {
   const html = _admindashBuildReportHTML();
   document.getElementById('admindash-report-print-root').innerHTML = html;
   document.getElementById('admindash-report-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
-    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-purchasereq',
-    'print-mode-holdstockreport');
-  document.body.classList.add('print-mode-admindash');
+  _printSetMode('admindash');
   if (!_admindashReportModal) _admindashReportModal = new bootstrap.Modal(document.getElementById('admindashReportModal'));
   _admindashReportModal.show();
 }
@@ -31694,11 +31697,7 @@ function _miscSlipBuildGroups(rows) {
 
 // พิมพ์ด้วยเทมเพลตเดียวกับใบส่งสินค้า FG (.dlvbill-page) เป๊ะ ตามที่ผู้ใช้ขอ — reuse CSS class เดิมทั้งหมด ไม่สร้างใหม่
 async function miscSlipRenderPreview() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
-    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-admindash', 'print-mode-purchasereq',
-    'print-mode-holdstockreport');
-  document.body.classList.add('print-mode-miscslip');
+  _printSetMode('miscslip');
 
   const rows = _miscSlipScopeRows();
   const wrap = document.getElementById('miscslip-preview-body');
@@ -33147,11 +33146,7 @@ function _holdstockReportBuildGroups(rows) {
 // พิมพ์ด้วยเทมเพลตเดียวกับใบส่งสินค้า FG/เบิกเบ็ดเตล็ด (.dlvbill-page) — reuse CSS class เดิม ไม่สร้างใหม่ เปลี่ยน
 // แค่หัวเรื่อง/กล่องลูกค้า/หมายเหตุ/ผู้เซ็นชื่อ ตามวิธีจัดการ (ทำลาย/คืนลูกค้า)
 function holdstockReportRenderPreview() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr', 'print-mode-delivery',
-    'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel',
-    'print-mode-lotscan', 'print-mode-dlvlabel', 'print-mode-miscslip', 'print-mode-admindash',
-    'print-mode-planweek', 'print-mode-purchasereq');
-  document.body.classList.add('print-mode-holdstockreport');
+  _printSetMode('holdstockreport');
 
   const rows = _holdstockReportScopeRows();
   const wrap = document.getElementById('holdstockreport-preview-body');
@@ -33619,8 +33614,7 @@ function stockcardOpenPrintPreview() {
   const html = _stockcardBuildPrintHTML(rep);
   document.getElementById('stockcard-print-root').innerHTML = html;
   document.getElementById('stockcard-preview-body').innerHTML = html;
-  document.body.classList.remove('print-mode-bpr');
-  document.body.classList.add('print-mode-stockcard');
+  _printSetMode('stockcard');
   if (!_stockcardPrintModal) _stockcardPrintModal = new bootstrap.Modal(document.getElementById('stockcardPrintModal'));
   _stockcardPrintModal.show();
 }
@@ -34339,9 +34333,7 @@ function lotscanOpenReport() {
 }
 
 function lotscanPrintReport() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-dlvlabel', 'print-mode-admindash');
-  document.body.classList.add('print-mode-lotscan');
+  _printSetMode('lotscan');
   window.print();
 }
 
@@ -35884,9 +35876,7 @@ function _lotlabelRenderPreview() {
 }
 
 function lotlabelPrint() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-dlvlabel', 'print-mode-admindash');
-  document.body.classList.add('print-mode-lotlabel');
+  _printSetMode('lotlabel');
   window.print();
 }
 
@@ -35990,9 +35980,7 @@ function _dlvlabelRenderPreview() {
 }
 
 function dlvlabelPrint() {
-  document.body.classList.remove('print-mode-bpr', 'print-mode-stockcard', 'print-mode-mr',
-    'print-mode-delivery', 'print-mode-pcost', 'print-mode-weeklyreport', 'print-mode-moreleased', 'print-mode-lotlabel', 'print-mode-admindash');
-  document.body.classList.add('print-mode-dlvlabel');
+  _printSetMode('dlvlabel');
   window.print();
 }
 
