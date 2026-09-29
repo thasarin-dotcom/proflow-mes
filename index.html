@@ -1864,6 +1864,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-material" onclick="showPage('material',this)" title="Master Material">
       <i class="fas fa-vial me-2"></i><span>Master Material</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-pricetier" onclick="showPage('pricetier',this)" title="ราคาซื้อ Bulk">
+      <i class="fas fa-tags me-2"></i><span>ราคาซื้อ Bulk</span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
     </a>
@@ -5330,6 +5333,112 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
             <button type="submit" class="btn btn-primary" id="material-save-btn">
+              <i class="fas fa-save me-1"></i>บันทึก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ -->
+  <!-- PAGE: ราคาซื้อ Bulk (Purchase Price Tiers, เฉพาะวัตถุดิบ TYPE=BULK) -->
+  <!-- ════════════════════════════════════ -->
+  <div class="page-view" id="page-pricetier">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-tags me-2"></i>ราคาซื้อ Bulk
+        </h4>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-8">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="pricetier-search" class="form-control border-start-0 search-input"
+                placeholder="ค้นหา รหัส / ชื่อวัตถุดิบ..." oninput="pricetierRenderCards()">
+              <button type="button" class="btn btn-outline-secondary border-start-0 search-clear-btn" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา" tabindex="-1"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4 d-flex gap-2 justify-content-end">
+            <button class="btn btn-sm btn-primary" onclick="pricetierLoadData()">
+              <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="alert alert-info py-2 px-3 mb-3" style="font-size:.82rem">
+        <i class="fas fa-circle-info me-1"></i>ตั้งราคาซื้อแบบขั้นบันไดตามจำนวนสั่งซื้อ (เช่น 100–400 หน่วย ราคา 130 บาท)
+        เฉพาะวัตถุดิบประเภท <b>Bulk</b> — ระบบจะดึงราคาที่ตรงกับจำนวนไปช่วยกรอกให้อัตโนมัติตอนออก
+        <b>ใบขอซื้อวัตถุดิบ</b>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="kpi-card"><div class="kpi-num" id="pricetier-kpi-total">—</div><div class="kpi-label">วัตถุดิบ Bulk ทั้งหมด</div></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#198754">
+            <div class="kpi-num text-success" id="pricetier-kpi-priced">—</div><div class="kpi-label">ตั้งราคาแล้ว</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" id="pricetier-kpi-unpriced-card" style="border-color:#f59e0b;cursor:pointer" onclick="pricetierToggleFilterUnpriced()" title="คลิกเพื่อกรองเฉพาะที่ยังไม่ตั้งราคา">
+            <div class="kpi-num text-warning" id="pricetier-kpi-unpriced">—</div><div class="kpi-label">ยังไม่ตั้งราคา</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="kpi-card" style="border-color:#64748b">
+            <div class="kpi-num text-secondary" id="pricetier-kpi-tiers">—</div><div class="kpi-label">ช่วงราคารวมทั้งหมด</div>
+          </div>
+        </div>
+      </div>
+      <div id="pricetier-cards"><div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+  <!-- ════════════ ราคาซื้อ Bulk: Add/Edit Tier Modal ════════════ -->
+  <div class="modal fade" id="pricetierModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="pricetierModalTitle"><i class="fas fa-tags me-2"></i>เพิ่มช่วงราคา</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="pricetierForm" onsubmit="pricetierTierSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="pricetier-f-code">
+            <input type="hidden" id="pricetier-f-edit-id">
+            <div class="mb-2">
+              <span class="text-muted small">วัตถุดิบ</span>
+              <div class="fw-bold" id="pricetier-f-material-label">—</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="form-label">จำนวนตั้งแต่ (ขั้นต่ำ) <span class="text-danger">*</span></label>
+                <input type="number" id="pricetier-f-min" class="form-control" min="0" step="0.01" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label">จำนวนถึง (สูงสุด)</label>
+                <input type="number" id="pricetier-f-max" class="form-control" min="0" step="0.01">
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="pricetier-f-unlimited" onchange="pricetierUnlimitedToggle()">
+                  <label class="form-check-label small" for="pricetier-f-unlimited">ไม่จำกัด (ขึ้นไป)</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label">ราคา/หน่วย (฿) <span class="text-danger">*</span></label>
+                <input type="number" id="pricetier-f-price" class="form-control" min="0" step="0.01" required>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" id="pricetier-save-btn">
               <i class="fas fa-save me-1"></i>บันทึก
             </button>
           </div>
@@ -9257,6 +9366,7 @@ const _PAGE_LOADERS = {
   'plan'     : planLoadData,
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
+  'pricetier' : pricetierLoadData,
   'employee' : loadEmployeeData,
   'skillmatrix': loadSkillMatrixData,
   'laborutil' : loadLaborUtilData,
@@ -10756,6 +10866,7 @@ let _purchasereqManualMode = false;
 let _purchasereqManualMaterials = [];   // materials master (MaterialCode,MaterialName,UOM,MinStock) — โหลดสดทุกครั้งที่เปิดโหมดนี้
 let _purchasereqManualStockMap = {};    // MaterialCode → { qty, val } รวมจาก stock_balance ทุก Lot (สำหรับคงเหลือ/ต้นทุนเฉลี่ย)
 let _purchasereqManualSupplierMap = {}; // MaterialCode → [ซัพพลายเออร์ที่เคยใช้จริง] (เหมือน _purchasereqBuildSupplierMap)
+let _purchasereqPriceTierMap = {}; // MaterialCode → [{MinQty,MaxQty,Price},...] จากหน้า "ราคาซื้อ Bulk" (material_price_tiers)
 
 async function purchasereqLoadData() {
   _showLoader();
@@ -10846,20 +10957,31 @@ function _purchasereqOnSupplierChange(seq) {
   if (sel && other) other.style.display = sel.value === '__other__' ? 'block' : 'none';
 }
 
-// r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions} — snapshot ทั้งหมดเก็บลง data-* ของ
-// แถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกันทั้งสร้างใหม่/แก้ไข)
-// "ราคา/หน่วย" เพิ่ม 2026-09-02 เป็นช่องกรอกจริง ไม่ใช่ data-* ที่มองไม่เห็นอีกต่อไป — ตัวที่มีต้นทุนเฉลี่ยจาก
-// stock_balance อยู่แล้ว (r.unit > 0) ดึงมาใส่ให้เลย ส่วนวัตถุดิบใหม่ที่ยังไม่มีต้นทุน (r.unit === 0/ไม่มี Lot
-// เลย) ปล่อยว่างไว้ให้กรอกเอง ไม่ยัดเป็น 0 ให้เข้าใจผิดว่าราคาจริงคือ 0
+// r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions,tiers,lockPrice} — snapshot ทั้งหมด
+// เก็บลง data-* ของแถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกัน
+// ทั้งสร้างใหม่/แก้ไข) "ราคา/หน่วย" เพิ่ม 2026-09-02 เป็นช่องกรอกจริง ไม่ใช่ data-* ที่มองไม่เห็นอีกต่อไป — ตัวที่มี
+// ต้นทุนเฉลี่ยจาก stock_balance อยู่แล้ว (r.unit > 0) ดึงมาใส่ให้เลย ส่วนวัตถุดิบใหม่ที่ยังไม่มีต้นทุน (r.unit === 0/
+// ไม่มี Lot เลย) ปล่อยว่างไว้ให้กรอกเอง ไม่ยัดเป็น 0 ให้เข้าใจผิดว่าราคาจริงคือ 0
+// tiers = ราคาซื้อขั้นบันไดจากหน้า "ราคาซื้อ Bulk" (material_price_tiers, เพิ่ม 2026-09-29) — ถ้ามีและตรงกับ
+// จำนวนที่กรอก ราคาขั้นบันไดชนะราคาเฉลี่ยสต็อกเดิม (เป็นราคาซื้อจริงที่ตกลงไว้ ตรงประเด็นกว่าต้นทุนย้อนหลัง) แต่
+// ถ้า lockPrice=true (กำลังแก้ไขใบขอซื้อที่บันทึกไว้แล้ว ผ่าน purchasereqEditOpen) ราคาที่เคยกรอกไว้ถือเป็นค่าจริง
+// ห้ามเผลอทับอัตโนมัติ — เห็นเรทราคาเป็น hint เฉยๆ ไม่เขียนทับช่องราคา
 function _purchasereqLineRowHTML(r) {
   const seq = _purchasereqRowSeq++;
   const nameAttr = (r.name || '').replace(/"/g, '&quot;');
   const uomAttr  = (r.uom || '').replace(/"/g, '&quot;');
-  const unitVal  = (r.unit || 0) > 0 ? (Math.round(r.unit * 100) / 100).toFixed(2) : '';
   const qtyEmpty = r.qty === '' || r.qty == null || !(parseFloat(r.qty) > 0);
+  const initialQty = qtyEmpty ? 0 : (parseFloat(r.qty) || 0);
+  const tiers = r.tiers || [];
+  const tierMatch = !r.lockPrice ? _priceTierMatch(tiers, initialQty) : null;
+  const unitFromTier = tierMatch ? (parseFloat(tierMatch.Price) || 0) : null;
+  const unitVal = unitFromTier != null ? unitFromTier.toFixed(2)
+                : (r.unit || 0) > 0 ? (Math.round(r.unit * 100) / 100).toFixed(2) : '';
+  const priceAuto = (!r.lockPrice && tiers.length) ? '1' : '0';
+  const tiersAttr = JSON.stringify(tiers).replace(/'/g, '&#39;');
   return `<div class="purchasereq-line-row border rounded p-2 mb-2" data-seq="${seq}" data-code="${r.code}"
       data-name="${nameAttr}" data-uom="${uomAttr}" data-qtyatrequest="${r.qtyAtRequest || 0}"
-      data-min="${r.min || 0}">
+      data-min="${r.min || 0}" data-priceauto="${priceAuto}" data-tiers='${tiersAttr}'>
     <div class="row g-2 align-items-center">
       <div class="col-md-4">
         <div class="fw-semibold" style="font-size:.85rem">${r.name || '—'}</div>
@@ -10884,15 +11006,17 @@ function _purchasereqLineRowHTML(r) {
         <label class="form-label mb-1" style="font-size:.7rem">ราคา/หน่วย (฿)</label>
         <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-unitcost-${seq}"
           min="0" step="0.01" value="${unitVal}" placeholder="ระบุราคา"
+          oninput="_purchasereqUnitCostManualEdit(${seq})"
           onchange="if(this.value!=='') this.value=(Math.round(parseFloat(this.value)*100)/100).toFixed(2)">
       </div>
       <div class="col-4">
         <label class="form-label mb-1" style="font-size:.7rem">จำนวนขอซื้อ</label>
         <input type="number" class="form-control form-control-sm text-end" id="purchasereq-f-qty-${seq}"
-          min="0" step="0.01" value="${qtyEmpty ? '' : r.qty}" oninput="_purchasereqValidateRow(${seq})"
+          min="0" step="0.01" value="${qtyEmpty ? '' : r.qty}" oninput="_purchasereqApplyTierPrice(${seq})"
           style="background:#fef08a;font-weight:600" placeholder="กรอกจำนวน">
       </div>
     </div>
+    ${tiers.length ? `<div class="mt-1" id="purchasereq-f-tierhint-${seq}">${_purchasereqTierHintHTML(tiers, initialQty)}</div>` : ''}
   </div>`;
 }
 function _purchasereqValidateRow(seq) {
@@ -10900,6 +11024,43 @@ function _purchasereqValidateRow(seq) {
   if (!inp) return;
   const empty = inp.value === '' || !(parseFloat(inp.value) > 0);
   inp.classList.toggle('is-invalid', empty);   // พื้นเหลืองคงไว้ตลอด (ช่องที่ต้องโฟกัส) — ไม่ toggle ตามค่า
+}
+// เรทราคาขั้นบันไดทั้งหมดของวัตถุดิบนี้ ตัวที่ตรงกับจำนวนปัจจุบัน (qty) ทำตัวหนา/สีเน้น — informational
+// อย่างเดียว ไม่เขียนทับช่องราคา (การเขียนทับอยู่ที่ _purchasereqApplyTierPrice แยกกัน)
+function _purchasereqTierHintHTML(tiers, qty) {
+  if (!tiers || !tiers.length) return '';
+  const match = _priceTierMatch(tiers, qty);
+  const parts = tiers.map(t => {
+    const label = `${(parseFloat(t.MinQty)||0).toLocaleString()}${t.MaxQty == null ? '+' : '–' + parseFloat(t.MaxQty).toLocaleString()}`;
+    const isMatch = match && match._row_id === t._row_id;
+    return `<span class="${isMatch ? 'fw-bold text-primary' : 'text-muted'}">${label}: ฿${(parseFloat(t.Price)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>`;
+  });
+  const noMatchHint = (!match && qty > 0) ? ' <span class="text-warning">(จำนวนนี้ไม่ตรงกับช่วงราคาใดเลย)</span>' : '';
+  return `<div style="font-size:.7rem"><i class="fas fa-tags me-1 text-muted"></i>เรทราคา Bulk: ${parts.join(' &nbsp;·&nbsp; ')}${noMatchHint}</div>`;
+}
+// ผู้ใช้พิมพ์แก้ราคาเอง → เลิกให้ auto-fill จากราคาขั้นบันไดทับอีก (ตามคำแก้ไขของผู้ใช้ ไม่ใช่ค่าที่ระบบเดาให้)
+function _purchasereqUnitCostManualEdit(seq) {
+  const row = document.querySelector(`#purchasereq-lines-container .purchasereq-line-row[data-seq="${seq}"]`);
+  if (row) row.dataset.priceauto = '0';
+}
+// เรียกตอนแก้ไข "จำนวนขอซื้อ" — อัปเดต hint เรทราคาเสมอ และเติมราคาให้อัตโนมัติเฉพาะแถวที่ยังไม่ถูกแก้ราคาเอง
+// (data-priceauto==='1') และมีช่วงราคาที่ตรงกับจำนวนใหม่เท่านั้น — ถ้าจำนวนใหม่ไม่ตรงช่วงไหนเลย ปล่อยราคาเดิมไว้
+// ไม่เคลียร์ทิ้ง
+function _purchasereqApplyTierPrice(seq) {
+  _purchasereqValidateRow(seq);
+  const row = document.querySelector(`#purchasereq-lines-container .purchasereq-line-row[data-seq="${seq}"]`);
+  if (!row) return;
+  let tiers = [];
+  try { tiers = JSON.parse(row.dataset.tiers || '[]'); } catch (e) { tiers = []; }
+  const qtyInput = document.getElementById(`purchasereq-f-qty-${seq}`);
+  const qty = parseFloat(qtyInput?.value) || 0;
+  const hintEl = document.getElementById(`purchasereq-f-tierhint-${seq}`);
+  if (hintEl) hintEl.innerHTML = _purchasereqTierHintHTML(tiers, qty);
+  if (!tiers.length || row.dataset.priceauto !== '1') return;
+  const match = _priceTierMatch(tiers, qty);
+  if (!match) return;
+  const costInput = document.getElementById(`purchasereq-f-unitcost-${seq}`);
+  if (costInput) costInput.value = (Math.round((parseFloat(match.Price) || 0) * 100) / 100).toFixed(2);
 }
 function purchasereqRemoveLineRow(seq) {
   const container = document.getElementById('purchasereq-lines-container');
@@ -10929,10 +11090,12 @@ async function purchasereqOpenCreateModal() {
   document.getElementById('purchasereq-add-material-box').style.display = 'none';
 
   _showLoader();
-  const [supplierMap, suggestedPrNo] = await Promise.all([
+  const [supplierMap, suggestedPrNo, tierMap] = await Promise.all([
     _purchasereqBuildSupplierMap(),
     purchasereqSuggestPRNo(),
+    _pricetierFetchMap(),
   ]);
+  _purchasereqPriceTierMap = tierMap;
   _hideLoader();
   document.getElementById('purchasereq-f-prno').value = suggestedPrNo;
 
@@ -10948,6 +11111,7 @@ async function purchasereqOpenCreateModal() {
       code, name: group[0]?.MaterialName || code, uom: group[0]?.UOM || '',
       qtyAtRequest: qty, min, qty: _purchasereqSuggestQty(qty, min), unit: unitCost,
       supplier: suppliers[0] || '', suppliersOptions: suppliers,
+      tiers: _purchasereqPriceTierMap[code] || [],
     };
   });
   document.getElementById('purchasereq-lines-container').innerHTML = rows.map(_purchasereqLineRowHTML).join('');
@@ -10970,7 +11134,8 @@ async function purchasereqEditOpen(prNo) {
   document.getElementById('purchasereq-add-material-box').style.display = 'none';
 
   _showLoader();
-  const supplierMap = await _purchasereqBuildSupplierMap();
+  const [supplierMap, tierMap] = await Promise.all([_purchasereqBuildSupplierMap(), _pricetierFetchMap()]);
+  _purchasereqPriceTierMap = tierMap;
   _hideLoader();
 
   const rows = pr.lines.map(l => ({
@@ -10978,6 +11143,7 @@ async function purchasereqEditOpen(prNo) {
     qtyAtRequest: parseFloat(l.QtyAtRequest) || 0, min: parseFloat(l.MinStock) || 0,
     qty: parseFloat(l.RequestQty) || 0, unit: parseFloat(l.UnitCost) || 0,
     supplier: l.Supplier || '', suppliersOptions: supplierMap[l.MaterialCode] || [],
+    tiers: _purchasereqPriceTierMap[l.MaterialCode] || [], lockPrice: true,
   }));
   document.getElementById('purchasereq-lines-container').innerHTML = rows.map(_purchasereqLineRowHTML).join('');
 
@@ -11009,11 +11175,12 @@ async function purchasereqOpenManualCreateModal(prefill = null, note = '') {
   document.getElementById('purchasereq-add-material-dropdown').style.display = 'none';
 
   _showLoader();
-  const [matRes, stockRes, supplierMap, suggestedPrNo] = await Promise.all([
+  const [matRes, stockRes, supplierMap, suggestedPrNo, tierMap] = await Promise.all([
     _sb.from('materials').select('MaterialCode,MaterialName,UOM,MinStock'),
     _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,UnitCost,StockValue'),
     _purchasereqBuildSupplierMap(),
     purchasereqSuggestPRNo(),
+    _pricetierFetchMap(),
   ]);
   _hideLoader();
   if (matRes.error) { _err('โหลด Master วัตถุดิบไม่ได้', matRes.error.message); return; }
@@ -11026,6 +11193,7 @@ async function purchasereqOpenManualCreateModal(prefill = null, note = '') {
     g.val += parseFloat(r.StockValue) || 0;
   });
   _purchasereqManualSupplierMap = supplierMap;
+  _purchasereqPriceTierMap = tierMap;
   document.getElementById('purchasereq-f-prno').value = suggestedPrNo;
   (prefill || []).forEach(p => purchasereqManualAddMaterial(p.code, p.qty, p, false));
 
@@ -11068,6 +11236,7 @@ function purchasereqManualAddMaterial(code, qtyOverride = null, fallback = null,
     qtyAtRequest: stock.qty, min, qty: qtyOverride != null ? qtyOverride : _purchasereqSuggestQty(stock.qty, min),
     unit: unitCost, supplier: (_purchasereqManualSupplierMap[code]||[])[0] || '',
     suppliersOptions: _purchasereqManualSupplierMap[code] || [],
+    tiers: _purchasereqPriceTierMap[code] || [],
   };
   document.getElementById('purchasereq-lines-container').insertAdjacentHTML('beforeend', _purchasereqLineRowHTML(row));
   document.getElementById('purchasereq-add-material-search').value = '';
@@ -12022,7 +12191,25 @@ async function _mrLoadPROptions(selected) {
   const { data, error } = await _sb.from('purchase_requests')
     .select('PR_No,PRDate,Status').or(`Status.eq.อนุมัติแล้ว${selected ? `,PR_No.eq.${selected}` : ''}`);
   if (error) { console.warn('โหลดใบขอซื้อไม่ได้', error.message); return; }
-  (data || []).sort((a, b) => (b.PR_No || '').localeCompare(a.PR_No || '')).forEach(p => {
+  // ตัดใบที่รับครบทุกรายการแล้วออก (ยกเว้นใบเดิมของแถวที่กำลังแก้ไข) — ครบ = ทุกวัตถุดิบในใบ Σ mr_receive.Qty (PR_Ref เดียวกัน) ≥ RequestQty
+  const prNos = (data || []).map(p => p.PR_No);
+  let openSet = new Set(prNos);
+  if (prNos.length) {
+    const [lineRes, recvRes] = await Promise.all([
+      _sb.from('purchase_request_lines').select('PR_Ref,MaterialCode,RequestQty').in('PR_Ref', prNos),
+      _fetchAllPagedNotNull('mr_receive', 'PR_Ref,MaterialCode,Qty', 'PR_Ref'),
+    ]);
+    if (!lineRes.error && !recvRes.error) {
+      const got = {};
+      (recvRes.data || []).forEach(r => { const k = `${r.PR_Ref}|${r.MaterialCode}`; got[k] = (got[k] || 0) + (parseFloat(r.Qty) || 0); });
+      const need = {};
+      (lineRes.data || []).forEach(l => { const k = `${l.PR_Ref}|${l.MaterialCode}`; need[k] = (need[k] || 0) + (parseFloat(l.RequestQty) || 0); });
+      const pending = new Set();
+      Object.keys(need).forEach(k => { if ((got[k] || 0) < need[k]) pending.add(k.split('|')[0]); });
+      openSet = pending;
+    }
+  }
+  (data || []).filter(p => openSet.has(p.PR_No) || p.PR_No === selected).sort((a, b) => (b.PR_No || '').localeCompare(a.PR_No || '')).forEach(p => {
     const o = document.createElement('option');
     o.value = p.PR_No;
     o.textContent = `${p.PR_No} · ${_fmtDate(p.PRDate)}${p.Status !== 'อนุมัติแล้ว' ? ` (${p.Status})` : ''}`;
@@ -20674,6 +20861,243 @@ async function materialSubmit(e) {
   Swal.fire({ toast:true, position:'top-end', icon:'success',
     title: isEdit ? 'แก้ไขสำเร็จ' : 'เพิ่มวัตถุดิบสำเร็จ', showConfirmButton:false, timer:2000, timerProgressBar:true });
   loadMaterialData();
+}
+
+// ══════════════════════════════════════════════
+// PAGE: ราคาซื้อ Bulk (Purchase Price Tiers) — เฉพาะวัตถุดิบประเภท BULK เท่านั้น
+// ตั้งราคาซื้อแบบขั้นบันไดตามจำนวนสั่งซื้อ (เช่น 100–400 หน่วย ราคา 130 บาท) เก็บใน
+// material_price_tiers (ดู create_material_price_tiers.sql, ต้องรันก่อนถึงจะใช้ได้ — ถ้ายังไม่รัน
+// หน้านี้จะโหลด Bulk material ได้ปกติ แต่ทุกใบขึ้น "ยังไม่ตั้งราคา" และบันทึกช่วงราคาไม่ได้จนกว่าจะรัน)
+// ใบขอซื้อวัตถุดิบ (purchasereq) ดึงตารางนี้ไปช่วยเลือกราคาที่ตรงกับจำนวนที่ขอซื้อจริงให้อัตโนมัติ
+// ══════════════════════════════════════════════
+let _pricetierMaterials = [];   // materials master ที่ TYPE==='BULK' เท่านั้น
+let _pricetierData = [];        // material_price_tiers ทั้งหมด (ทุกวัตถุดิบ ไม่กรอง)
+let _pricetierExpandedSet = new Set();
+let _pricetierModal = null;
+let _pricetierFilterUnpriced = false;
+
+async function pricetierLoadData() {
+  _showLoader();
+  const [matRes, tierRes] = await Promise.all([
+    _sb.from('materials').select('MaterialCode,MaterialName,UOM').eq('TYPE', 'BULK'),
+    _fetchAllPaged('material_price_tiers', '*'),
+  ]);
+  _hideLoader();
+  if (matRes.error) { _err('โหลด Master วัตถุดิบไม่ได้', matRes.error.message); return; }
+  if (tierRes.error) { _pricetierData = []; }
+  else { _pricetierData = tierRes.data || []; }
+  // ไม่แสดงแถวไม่มีรหัส — หัวข้อหมวดหมู่เก่าจาก Sheet เดิม ไม่ใช่วัตถุดิบจริง (เหมือนหน้า Master วัตถุดิบ)
+  _pricetierMaterials = (matRes.data || []).filter(m => !!m.MaterialCode)
+    .sort((a, b) => (a.MaterialCode||'').localeCompare(b.MaterialCode||''));
+  pricetierRenderCards();
+}
+
+function _pricetierTiersFor(code) {
+  return _pricetierData.filter(t => t.MaterialCode === code)
+    .sort((a, b) => (parseFloat(a.MinQty)||0) - (parseFloat(b.MinQty)||0));
+}
+
+function _pricetierFmtRange(t) {
+  const min = (parseFloat(t.MinQty) || 0).toLocaleString();
+  return t.MaxQty == null ? `${min} ขึ้นไป` : `${min} – ${parseFloat(t.MaxQty).toLocaleString()}`;
+}
+
+function pricetierToggleExpand(code) {
+  if (_pricetierExpandedSet.has(code)) _pricetierExpandedSet.delete(code); else _pricetierExpandedSet.add(code);
+  pricetierRenderCards();
+}
+
+function pricetierToggleFilterUnpriced() {
+  _pricetierFilterUnpriced = !_pricetierFilterUnpriced;
+  document.getElementById('pricetier-kpi-unpriced-card')?.classList.toggle('bom-kpi-active', _pricetierFilterUnpriced);
+  pricetierRenderCards();
+}
+
+function pricetierRenderCards() {
+  const q = (document.getElementById('pricetier-search')?.value || '').toLowerCase();
+  const pricedCodes = new Set(_pricetierData.map(t => t.MaterialCode));
+  const el = id => document.getElementById(id);
+  if (el('pricetier-kpi-total'))    el('pricetier-kpi-total').textContent    = _pricetierMaterials.length;
+  if (el('pricetier-kpi-priced'))   el('pricetier-kpi-priced').textContent   = _pricetierMaterials.filter(m => pricedCodes.has(m.MaterialCode)).length;
+  if (el('pricetier-kpi-unpriced')) el('pricetier-kpi-unpriced').textContent = _pricetierMaterials.filter(m => !pricedCodes.has(m.MaterialCode)).length;
+  if (el('pricetier-kpi-tiers'))    el('pricetier-kpi-tiers').textContent    = _pricetierData.length;
+
+  const rows = _pricetierMaterials.filter(m => {
+    if (_pricetierFilterUnpriced && pricedCodes.has(m.MaterialCode)) return false;
+    if (!q) return true;
+    return [m.MaterialCode, m.MaterialName].join(' ').toLowerCase().includes(q);
+  });
+
+  const container = document.getElementById('pricetier-cards');
+  if (!rows.length) { container.innerHTML = '<div class="glass-card text-center py-5 text-muted">ไม่พบข้อมูล</div>'; return; }
+
+  container.innerHTML = rows.map(m => {
+    const code = m.MaterialCode;
+    const tiers = _pricetierTiersFor(code);
+    const expanded = _pricetierExpandedSet.has(code);
+    const prices = tiers.map(t => parseFloat(t.Price) || 0);
+    const rangeBadge = tiers.length
+      ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2">${tiers.length} ช่วงราคา · ฿${Math.min(...prices).toLocaleString(undefined,{maximumFractionDigits:2})}–${Math.max(...prices).toLocaleString(undefined,{maximumFractionDigits:2})}</span>`
+      : `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่ตั้งราคา</span>`;
+    return `<div class="glass-card mb-2">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="cursor:pointer" onclick="pricetierToggleExpand('${code}')">
+        <div>
+          <span class="badge bg-primary me-2">${code}</span>
+          <b>${m.MaterialName || '—'}</b>
+          <span class="badge bg-light text-dark border ms-2">UOM: ${m.UOM || '—'}</span>
+          ${rangeBadge}
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();pricetierOpenTierModal('${code}')" title="เพิ่มช่วงราคา">
+            <i class="fas fa-plus"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" title="${expanded ? 'ย่อ' : 'ดูรายละเอียด'}">
+            <i class="fas fa-chevron-${expanded ? 'up' : 'down'}"></i>
+          </button>
+        </div>
+      </div>
+      ${!expanded ? '' : `
+      <div class="table-responsive mt-2">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>ช่วงจำนวนสั่งซื้อ</th><th class="text-end">ราคา/หน่วย (฿)</th><th class="text-center" style="width:90px">จัดการ</th></tr></thead>
+          <tbody>
+            ${tiers.length ? tiers.map(t => `<tr>
+              <td>${_pricetierFmtRange(t)}</td>
+              <td class="text-end">฿${(parseFloat(t.Price)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+              <td class="text-center text-nowrap">
+                <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" onclick="event.stopPropagation();pricetierOpenTierModal('${code}',${t._row_id})" title="แก้ไข">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="event.stopPropagation();pricetierDeleteTier(${t._row_id})" title="ลบ">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>`).join('') : `<tr><td colspan="3" class="text-center text-muted py-3">ยังไม่มีช่วงราคา — กด <i class="fas fa-plus"></i> เพื่อเพิ่ม</td></tr>`}
+          </tbody>
+        </table>
+      </div>`}
+    </div>`;
+  }).join('');
+}
+
+function pricetierOpenTierModal(code, rowId = null) {
+  if (!_pricetierModal) _pricetierModal = new bootstrap.Modal(document.getElementById('pricetierModal'));
+  document.getElementById('pricetierForm').reset();
+  document.getElementById('pricetier-f-code').value = code;
+  document.getElementById('pricetier-f-edit-id').value = '';
+  document.getElementById('pricetier-f-unlimited').checked = false;
+  document.getElementById('pricetier-f-max').disabled = false;
+  const m = _pricetierMaterials.find(x => x.MaterialCode === code);
+  document.getElementById('pricetier-f-material-label').textContent = m ? `${code} — ${m.MaterialName || ''}` : code;
+  const title = document.getElementById('pricetierModalTitle');
+  if (rowId) {
+    const t = _pricetierData.find(x => x._row_id === rowId);
+    if (!t) return;
+    title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขช่วงราคา';
+    document.getElementById('pricetier-f-edit-id').value = rowId;
+    document.getElementById('pricetier-f-min').value = t.MinQty ?? 0;
+    if (t.MaxQty == null) {
+      document.getElementById('pricetier-f-unlimited').checked = true;
+      document.getElementById('pricetier-f-max').disabled = true;
+      document.getElementById('pricetier-f-max').value = '';
+    } else {
+      document.getElementById('pricetier-f-max').value = t.MaxQty;
+    }
+    document.getElementById('pricetier-f-price').value = t.Price ?? '';
+  } else {
+    title.innerHTML = '<i class="fas fa-plus-circle me-2"></i>เพิ่มช่วงราคา';
+  }
+  _pricetierModal.show();
+}
+
+function pricetierUnlimitedToggle() {
+  const chk = document.getElementById('pricetier-f-unlimited');
+  const maxInput = document.getElementById('pricetier-f-max');
+  maxInput.disabled = chk.checked;
+  if (chk.checked) maxInput.value = '';
+}
+
+// ช่วงถือว่าทับซ้อนกันถ้ามีจำนวนใดๆ ที่เข้าเงื่อนไขทั้งสองช่วงพร้อมกัน (ทั้ง Min/Max รวมขอบเขตตัวเอง) —
+// ช่วงที่ต่อกันพอดี เช่น 1-99 กับ 100-400 ไม่ถือว่าทับซ้อน (99 < 100), แต่ 100-400 กับ 400-500 ถือว่าทับซ้อน
+// (ใช้ค่า 400 ร่วมกัน) บังคับให้ผู้ใช้ตั้งช่วงถัดไปเป็น 401 แทน ตรงกับวิธีที่ระบุตัวอย่างมา (100-400)
+function _pricetierRangesOverlap(aMin, aMax, bMin, bMax) {
+  const aHi = aMax == null ? Infinity : aMax;
+  const bHi = bMax == null ? Infinity : bMax;
+  return aMin <= bHi && bMin <= aHi;
+}
+
+async function pricetierTierSubmit(e) {
+  e.preventDefault();
+  const code = document.getElementById('pricetier-f-code').value;
+  const editId = document.getElementById('pricetier-f-edit-id').value;
+  const isEdit = !!editId;
+  const min = parseFloat(document.getElementById('pricetier-f-min').value);
+  const unlimited = document.getElementById('pricetier-f-unlimited').checked;
+  const maxRaw = document.getElementById('pricetier-f-max').value;
+  const max = unlimited ? null : (maxRaw !== '' ? parseFloat(maxRaw) : null);
+  const price = parseFloat(document.getElementById('pricetier-f-price').value);
+
+  if (!(min >= 0)) { _err('กรุณาระบุจำนวนขั้นต่ำให้ถูกต้อง'); return; }
+  if (!unlimited && max == null) { _err('กรุณาระบุจำนวนสูงสุด หรือติ๊ก "ไม่จำกัด"'); return; }
+  if (max != null && max <= min) { _err('จำนวนสูงสุดต้องมากกว่าจำนวนขั้นต่ำ'); return; }
+  if (!(price > 0)) { _err('กรุณาระบุราคาต่อหน่วยให้ถูกต้อง'); return; }
+
+  const others = _pricetierTiersFor(code).filter(t => !isEdit || t._row_id !== parseInt(editId));
+  const clash = others.find(t => _pricetierRangesOverlap(min, max, parseFloat(t.MinQty)||0, t.MaxQty == null ? null : parseFloat(t.MaxQty)));
+  if (clash) { _err('ช่วงจำนวนซ้อนทับกับช่วงราคาที่มีอยู่แล้ว', `ซ้อนกับช่วง ${_pricetierFmtRange(clash)} (฿${clash.Price})`); return; }
+
+  const payload = { MaterialCode: code, MinQty: min, MaxQty: max, Price: Math.round(price * 100) / 100 };
+  const saveBtn = document.getElementById('pricetier-save-btn');
+  saveBtn.disabled = true;
+  _showLoader();
+  let error;
+  if (isEdit) ({ error } = await _sb.from('material_price_tiers').update(payload).eq('_row_id', parseInt(editId)));
+  else ({ error } = await _sb.from('material_price_tiers').insert(payload));
+  _hideLoader();
+  saveBtn.disabled = false;
+
+  if (error) { _err('บันทึกไม่สำเร็จ — ตรวจสอบว่ารัน create_material_price_tiers.sql แล้วหรือยัง', error.message); return; }
+
+  _logAudit(isEdit ? 'EDIT' : 'ADD', 'material_price_tiers', code, payload);
+  _pricetierModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกแล้ว', showConfirmButton: false, timer: 2000 });
+  pricetierLoadData();
+}
+
+async function pricetierDeleteTier(rowId) {
+  const t = _pricetierData.find(x => x._row_id === rowId);
+  if (!t) return;
+  const res = await Swal.fire({
+    icon: 'warning', title: 'ลบช่วงราคานี้?',
+    html: `${t.MaterialCode} · ${_pricetierFmtRange(t)} · ฿${t.Price}`,
+    showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545'
+  });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  const { error, data } = await _sb.from('material_price_tiers').delete().eq('_row_id', rowId).select();
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ', 'ไม่มีสิทธิ์ลบรายการนี้'); return; }
+  _logAudit('DELETE', 'material_price_tiers', t.MaterialCode, `ลบช่วง ${_pricetierFmtRange(t)}`);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบแล้ว', showConfirmButton: false, timer: 2000 });
+  pricetierLoadData();
+}
+
+// ── ใช้ร่วมกับหน้าใบขอซื้อวัตถุดิบ (purchasereq) — โหลดราคาขั้นบันไดของทุกวัตถุดิบที่เคยตั้งไว้ที่หน้านี้
+// (บังคับเฉพาะ BULK อยู่แล้วตอนเพิ่มจากหน้านี้) คืนค่าเป็น {MaterialCode: [tier,...]} เรียง MinQty น้อยไปมาก
+async function _pricetierFetchMap() {
+  const { data, error } = await _fetchAllPaged('material_price_tiers', '_row_id,MaterialCode,MinQty,MaxQty,Price');
+  if (error) return {};
+  const map = {};
+  (data || []).forEach(t => { (map[t.MaterialCode] ||= []).push(t); });
+  Object.keys(map).forEach(k => map[k].sort((a, b) => (parseFloat(a.MinQty)||0) - (parseFloat(b.MinQty)||0)));
+  return map;
+}
+
+// tiers ต้องเรียง MinQty น้อยไปมากแล้ว (จาก _pricetierFetchMap/_pricetierTiersFor) — คืนช่วงแรกที่ qty เข้าเงื่อนไข
+function _priceTierMatch(tiers, qty) {
+  if (!tiers || !tiers.length || !(qty > 0)) return null;
+  return tiers.find(t => qty >= (parseFloat(t.MinQty) || 0) && (t.MaxQty == null || qty <= parseFloat(t.MaxQty))) || null;
 }
 
 // ══════════════════════════════════════════════
