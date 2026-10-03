@@ -178,6 +178,32 @@ body.wh-desktop-mode .planweek-day-card { min-width: 90px; padding: .55rem .4rem
   position: fixed; inset: 0; z-index: 20000; pointer-events: none;
   box-shadow: inset 0 0 0 5px rgba(37,99,235,0); opacity: 0;
 }
+/* กระดิ่งแจ้งเตือน "คำขอแก้ไข" ลอยมุมขวาบน (added 2026-10-04 ตามคำขอผู้ใช้ "แจ้งเตือนขวาบน เหมือนระบบ BM
+   Flow") — คนละตำแหน่งกับ #nav-editreq-badge ที่อยู่บนลิงก์ sidebar เดิม (ซ่อนตาม sidebar ถ้า scroll/
+   พับเมนู) แต่นับจากตัวเลขเดียวกัน (_editreqUpdateNavBadge อัปเดตทั้งคู่พร้อมกัน) — ลอยคงที่ทุกหน้า เห็นได้
+   แม้ไม่ได้อยู่ที่หน้า "คำขอแก้ไข"/ไม่ได้เปิด sidebar ไว้ เฉพาะ admin (ซ่อนโดย default, เปิดใน
+   _renderCurrentUserBadge เหมือนทุกองค์ประกอบ admin-only อื่นในแอปนี้) z-index ต่ำกว่า modal/Swal ตั้งใจ
+   (1030 < Bootstrap modal 1040/1050) กันบังปุ่มปิด modal เวลามี popup เปิดอยู่ */
+#editreq-bell {
+  position: fixed; top: 14px; right: 18px; z-index: 1030;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  display: none; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1.15rem; color: #1e3a8a;
+}
+#editreq-bell:hover { box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+#editreq-bell .badge {
+  position: absolute; top: -4px; right: -4px; font-size: .62rem;
+}
+/* รูปพนักงาน (nav-employee) — avatar กลมในตาราง + กรอบสี่เหลี่ยมใหญ่ในโมดัล (added 2026-10-04,
+   ดูแบบจาก BM Flow ตามคำขอผู้ใช้ "ให้ใส่รูปได้เหมือนระบบ BM Flow") */
+.emp-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #e2e8f0; color: #475569;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+img.emp-avatar { cursor: zoom-in; }
+.emp-photo-lg { width: 140px; height: 140px; border-radius: 12px; overflow: hidden; background: #e2e8f0;
+  display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 2.8rem; border: 1px solid #cbd5e1; }
+.emp-photo-lg img { width: 100%; height: 100%; object-fit: cover; }
 #realtime-flash-overlay.flash { animation: realtimeFlashAnim .9s ease-out; }
 @keyframes realtimeFlashAnim {
   0%   { box-shadow: inset 0 0 0 5px rgba(37,99,235,.55); opacity: 1; }
@@ -5518,6 +5544,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <table class="table table-hover mb-0">
             <thead>
               <tr>
+                <th style="width:56px">รูป</th>
                 <th class="wh-col-sm">รหัส</th><th class="wh-col-lg">ชื่อ-นามสกุล</th><th class="wh-col-xs">ประเภท</th>
                 <th class="wh-col-md">ตำแหน่ง</th><th class="wh-col-md">แผนก</th><th class="wh-col-xs">สถานะ</th>
                 <th class="wh-hide-remark">เบอร์โทร</th>
@@ -5525,7 +5552,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               </tr>
             </thead>
             <tbody id="employee-tbody">
-              <tr><td colspan="8" class="text-center text-muted py-4">
+              <tr><td colspan="9" class="text-center text-muted py-4">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -5537,7 +5564,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 
   <!-- ════════════ Employee: Add/Edit Modal ════════════ -->
   <div class="modal fade" id="employeeModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header" style="background:#1e3a8a;color:white">
           <h5 class="modal-title" id="employeeModalTitle"><i class="fas fa-users me-2"></i>เพิ่มพนักงานใหม่</h5>
@@ -5548,6 +5575,18 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <input type="hidden" id="employee-edit-id">
             <input type="hidden" id="employee-orig-code">
             <div class="row g-3">
+              <div class="col-md-3 text-center">
+                <div class="emp-photo-lg mx-auto mb-2" id="employee-photo-preview"><i class="fas fa-user"></i></div>
+                <input type="file" id="employee-photo-file" accept="image/*" class="d-none" onchange="employeePickPhoto(this)">
+                <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1" onclick="document.getElementById('employee-photo-file').click()">
+                  <i class="fas fa-camera me-1"></i>เลือก / ถ่ายรูป
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="employee-photo-remove-btn" style="display:none" onclick="employeeRemovePhoto()">
+                  <i class="fas fa-times me-1"></i>เอารูปออก
+                </button>
+                <div class="small text-muted mt-1" style="font-size:.7rem">ระบบย่อรูปให้อัตโนมัติ</div>
+              </div>
+              <div class="col-md-9"><div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">รหัสพนักงาน <span class="text-danger">*</span></label>
                 <input type="text" id="employee-f-code" class="form-control" required>
@@ -5599,6 +5638,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <label class="form-label">หมายเหตุ</label>
                 <input type="text" id="employee-f-note" class="form-control">
               </div>
+              </div></div>
             </div>
           </div>
           <div class="modal-footer">
@@ -7033,6 +7073,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 <!-- Realtime update flash — ดู _realtimeFlashPage() -->
 <div id="realtime-flash-overlay"></div>
 
+<!-- กระดิ่งแจ้งเตือน "คำขอแก้ไข" ลอยมุมขวาบน — ดูหมายเหตุที่ #editreq-bell ใน CSS ด้านบน -->
+<div id="editreq-bell" title="คำขอแก้ไขรออนุมัติ (รวมทุกหน้า)" onclick="showPage('editreq', document.getElementById('nav-editreq'))">
+  <i class="fas fa-bell"></i>
+  <span id="editreq-bell-badge" class="badge bg-danger rounded-pill" style="display:none"></span>
+</div>
+
 <!-- Public Report View — โหมดพิเศษเมื่อ URL มี ?report=TOKEN ข้าม login gate ทั้งหมด ดูฟังก์ชัน
      _renderPublicReport ท้ายไฟล์ (เรียกจาก DOMContentLoaded ก่อนเช็ค session ใดๆ) -->
 <div id="publicReportView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
@@ -7274,9 +7320,25 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-os-cost" placeholder="เช่น 66750">
           </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-bold" style="color:#0f766e">PT — เรทค่าจ้างจริง (฿/คน/วัน)</label>
-          <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-pt-dayrate" placeholder="เช่น 400">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#1e3a8a">FT — ค่า OT จริงรวม (฿/เดือน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-ft-otcost" placeholder="เช่น 15003">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#7c3aed">OS — ค่า OT จริงรวม (฿/เดือน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-os-otcost" placeholder="เช่น 7200">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#0f766e">PT — เรทค่าจ้างจริง (฿/คน/วัน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-pt-dayrate" placeholder="เช่น 400">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#0f766e">PT — ค่า OT จริงรวม (฿/เดือน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-pt-otcost" placeholder="เช่น 2247">
+          </div>
         </div>
         <div class="mb-1">
           <label class="form-label small fw-bold">หมายเหตุ</label>
@@ -10957,15 +11019,16 @@ function _purchasereqOnSupplierChange(seq) {
   if (sel && other) other.style.display = sel.value === '__other__' ? 'block' : 'none';
 }
 
-// r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions,tiers,lockPrice} — snapshot ทั้งหมด
-// เก็บลง data-* ของแถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกัน
-// ทั้งสร้างใหม่/แก้ไข) "ราคา/หน่วย" เพิ่ม 2026-09-02 เป็นช่องกรอกจริง ไม่ใช่ data-* ที่มองไม่เห็นอีกต่อไป — ตัวที่มี
-// ต้นทุนเฉลี่ยจาก stock_balance อยู่แล้ว (r.unit > 0) ดึงมาใส่ให้เลย ส่วนวัตถุดิบใหม่ที่ยังไม่มีต้นทุน (r.unit === 0/
-// ไม่มี Lot เลย) ปล่อยว่างไว้ให้กรอกเอง ไม่ยัดเป็น 0 ให้เข้าใจผิดว่าราคาจริงคือ 0
+// r = {code,name,uom,qtyAtRequest,min,qty,unit,supplier,suppliersOptions,tiers} — snapshot ทั้งหมดเก็บลง data-*
+// ของแถวเอง เพื่อให้ purchasereqSubmit() อ่านกลับได้ตรงๆ ไม่ต้องแยก derive จากที่มา (ใช้ทางเดียวกันทั้งสร้างใหม่/
+// แก้ไข) "ราคา/หน่วย" เพิ่ม 2026-09-02 เป็นช่องกรอกจริง ไม่ใช่ data-* ที่มองไม่เห็นอีกต่อไป — ตัวที่มีต้นทุนเฉลี่ย
+// จาก stock_balance อยู่แล้ว (r.unit > 0) ดึงมาใส่ให้เลย ส่วนวัตถุดิบใหม่ที่ยังไม่มีต้นทุน (r.unit === 0/ไม่มี Lot
+// เลย) ปล่อยว่างไว้ให้กรอกเอง ไม่ยัดเป็น 0 ให้เข้าใจผิดว่าราคาจริงคือ 0
 // tiers = ราคาซื้อขั้นบันไดจากหน้า "ราคาซื้อ Bulk" (material_price_tiers, เพิ่ม 2026-09-29) — ถ้ามีและตรงกับ
-// จำนวนที่กรอก ราคาขั้นบันไดชนะราคาเฉลี่ยสต็อกเดิม (เป็นราคาซื้อจริงที่ตกลงไว้ ตรงประเด็นกว่าต้นทุนย้อนหลัง) แต่
-// ถ้า lockPrice=true (กำลังแก้ไขใบขอซื้อที่บันทึกไว้แล้ว ผ่าน purchasereqEditOpen) ราคาที่เคยกรอกไว้ถือเป็นค่าจริง
-// ห้ามเผลอทับอัตโนมัติ — เห็นเรทราคาเป็น hint เฉยๆ ไม่เขียนทับช่องราคา
+// จำนวนที่กรอก ราคาขั้นบันไดชนะราคาเฉลี่ยสต็อกเดิม/ราคาที่เคยบันทึกไว้เสมอ (เป็นราคาซื้อจริงที่ตกลงไว้ ตรงประเด็น
+// กว่าต้นทุนย้อนหลัง) — ใช้กับทั้งสร้างใหม่และแก้ไขใบเดิม (`purchasereqEditOpen`) ตามคำยืนยันของผู้ใช้ 2026-09-29
+// ("ใส่เรทราคา ในช่องราคา/หน่วยให้เลย" แม้กำลังแก้ไขใบที่บันทึกไว้แล้วก็ตาม — เดิมคิดว่าไม่ควรทับราคาที่เคยกรอกไว้
+// แต่ผู้ใช้ต้องการให้ราคาขั้นบันไดชนะเสมอ)
 function _purchasereqLineRowHTML(r) {
   const seq = _purchasereqRowSeq++;
   const nameAttr = (r.name || '').replace(/"/g, '&quot;');
@@ -10973,11 +11036,11 @@ function _purchasereqLineRowHTML(r) {
   const qtyEmpty = r.qty === '' || r.qty == null || !(parseFloat(r.qty) > 0);
   const initialQty = qtyEmpty ? 0 : (parseFloat(r.qty) || 0);
   const tiers = r.tiers || [];
-  const tierMatch = !r.lockPrice ? _priceTierMatch(tiers, initialQty) : null;
+  const tierMatch = _priceTierMatch(tiers, initialQty);
   const unitFromTier = tierMatch ? (parseFloat(tierMatch.Price) || 0) : null;
   const unitVal = unitFromTier != null ? unitFromTier.toFixed(2)
                 : (r.unit || 0) > 0 ? (Math.round(r.unit * 100) / 100).toFixed(2) : '';
-  const priceAuto = (!r.lockPrice && tiers.length) ? '1' : '0';
+  const priceAuto = tiers.length ? '1' : '0';
   const tiersAttr = JSON.stringify(tiers).replace(/'/g, '&#39;');
   return `<div class="purchasereq-line-row border rounded p-2 mb-2" data-seq="${seq}" data-code="${r.code}"
       data-name="${nameAttr}" data-uom="${uomAttr}" data-qtyatrequest="${r.qtyAtRequest || 0}"
@@ -11143,7 +11206,7 @@ async function purchasereqEditOpen(prNo) {
     qtyAtRequest: parseFloat(l.QtyAtRequest) || 0, min: parseFloat(l.MinStock) || 0,
     qty: parseFloat(l.RequestQty) || 0, unit: parseFloat(l.UnitCost) || 0,
     supplier: l.Supplier || '', suppliersOptions: supplierMap[l.MaterialCode] || [],
-    tiers: _purchasereqPriceTierMap[l.MaterialCode] || [], lockPrice: true,
+    tiers: _purchasereqPriceTierMap[l.MaterialCode] || [],
   }));
   document.getElementById('purchasereq-lines-container').innerHTML = rows.map(_purchasereqLineRowHTML).join('');
 
@@ -11958,13 +12021,6 @@ function _mrReqForTarget(rowId) {
 }
 // เช็คว่า Lot วัตถุดิบนี้เคยถูกเบิกไปใช้ผลิต (มีแถวใน issue_production อ้างถึง) หรือยัง — ใช้ตัดสินว่า
 // การแก้ไข/ลบรายการรับวัตถุดิบของ Lot นี้ต้องผ่านคิวรออนุมัติ Admin หรือทำได้ทันทีเหมือนเดิม
-async function _mrLotIsIssued(matCode, lot) {
-  if (!matCode || !lot) return false;
-  const { count } = await _sb.from('issue_production').select('_row_id', { count: 'exact', head: true })
-    .eq('MaterialCode', matCode).eq('Lot', lot);
-  return (count || 0) > 0;
-}
-
 function mrUpdateKPIs() {
   const today = new Date().toISOString().split('T')[0];
   const month = today.substring(0, 7);
@@ -12344,9 +12400,10 @@ async function mrSubmit(e) {
   let isPendingRequest = false;
   if (isEdit) {
     oldRow = _mrData.find(d => d._row_id === parseInt(editId));
-    // Lot ที่ถูกเบิกไปใช้ผลิตแล้ว — หัวหน้างาน/พนักงานทั่วไปแก้ไขไม่ได้ทันทีอีกต่อไป ต้องส่งเป็นคำขอรอ
-    // Admin อนุมัติแทน (เฉพาะ Lot ที่ยังไม่เคยเบิกไปใช้เลยยังแก้ไขได้ทันทีเหมือนเดิม — ดู create_mr_edit_requests.sql)
-    const lotIssued = oldRow && !_hasRole('admin') && await _mrLotIsIssued(oldRow.MaterialCode, oldRow.Lot);
+    // ทุกการแก้ไขที่ไม่ใช่ Admin ต้องส่งเป็นคำขอรออนุมัติเสมอ (ตัดเงื่อนไข "เฉพาะ Lot ที่เบิกไปใช้แล้ว"
+    // ออก 2026-10-04 ตามคำขอผู้ใช้ "ให้คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติจากแอดมินก่อน" — เดิมจำกัดแค่ Lot
+    // ที่เบิกไปใช้ผลิตแล้วเท่านั้น ดู create_mr_edit_requests.sql)
+    const lotIssued = oldRow && !_hasRole('admin');
     if (lotIssued) {
       isPendingRequest = true;
       ({ error } = await _sb.from('mr_edit_requests').insert({
@@ -12460,12 +12517,12 @@ async function mrDelete(rowId) {
     return;
   }
 
-  if (!_hasRole('admin') && await _mrLotIsIssued(r.MaterialCode, r.Lot)) {
-    // Lot นี้เบิกไปใช้ผลิตแล้ว — ลบทันทีไม่ได้ ส่งเป็นคำขอลบรออนุมัติแทน (ดู create_mr_edit_requests.sql)
+  if (!_hasRole('admin')) {
+    // ไม่ใช่ Admin — ลบทันทีไม่ได้ ส่งเป็นคำขอลบรออนุมัติแทนเสมอ (ดู create_mr_edit_requests.sql)
     const res = await Swal.fire({
       title: 'ส่งคำขอลบรายการนี้?',
       html: `<div class="text-start"><b>${r.MaterialName||''}</b><br>Lot: ${r.Lot||''} | จำนวน: ${r.Qty||''}<br>
-        <small class="text-muted">Lot นี้ถูกเบิกไปใช้ผลิตแล้ว — คำขอจะถูกส่งให้แอดมินอนุมัติก่อน ยังไม่ลบจริงจนกว่าจะได้รับอนุมัติ</small></div>`,
+        <small class="text-muted">คำขอจะถูกส่งให้แอดมินอนุมัติก่อน ยังไม่ลบจริงจนกว่าจะได้รับอนุมัติ</small></div>`,
       icon: 'question', showCancelButton: true,
       confirmButtonText: 'ส่งคำขอลบ', cancelButtonText: 'ยกเลิก'
     });
@@ -12507,8 +12564,8 @@ async function mrDelete(rowId) {
     title:'ลบสำเร็จ', showConfirmButton:false, timer:1500 });
 }
 
-// ── Bulk Delete ── (Lot ที่เบิกไปใช้แล้ว จะแยกไปส่งเป็นคำขอลบรออนุมัติแทน ถ้าไม่ใช่ Admin — Lot ที่ยังไม่
-// เคยเบิกไปใช้เลยในชุดเดียวกันยังลบได้ทันทีตามปกติ)
+// ── Bulk Delete ── (ถ้าไม่ใช่ Admin ทุกแถวที่เลือกจะแยกไปส่งเป็นคำขอลบรออนุมัติแทนทั้งหมด — ตัดเงื่อนไข
+// "เฉพาะ Lot ที่เบิกไปใช้แล้ว" ออก 2026-10-04 ตามคำขอผู้ใช้ "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติจากแอดมินก่อน")
 async function mrBulkDelete() {
   const ids = Array.from(document.querySelectorAll('.mr-row-check:checked')).map(c => parseInt(c.value));
   if (!ids.length) return;
@@ -12521,15 +12578,11 @@ async function mrBulkDelete() {
   const rowsToDelete = _mrData.filter(d => goIds.includes(d._row_id));
 
   let issuedRows = [], freeIds = [];
-  if (_hasRole('admin')) {
-    freeIds = goIds;
-  } else {
-    const checks = await Promise.all(rowsToDelete.map(r => _mrLotIsIssued(r.MaterialCode, r.Lot)));
-    rowsToDelete.forEach((r, i) => { if (checks[i]) issuedRows.push(r); else freeIds.push(r._row_id); });
-  }
+  if (_hasRole('admin')) freeIds = goIds;
+  else issuedRows = rowsToDelete;
 
   const res = await Swal.fire({
-    title: `ลบ ${freeIds.length} รายการ${issuedRows.length ? ` + ส่งคำขอลบอีก ${issuedRows.length} รายการ (Lot ที่เบิกไปใช้แล้ว)` : ''}?`,
+    title: `ลบ ${freeIds.length} รายการ${issuedRows.length ? ` + ส่งคำขอลบอีก ${issuedRows.length} รายการ (รอแอดมินอนุมัติ)` : ''}?`,
     icon: 'warning',
     html: skipIds.length ? `<small class="text-muted">ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว</small>` : '',
     showCancelButton: true, confirmButtonColor: '#d33',
@@ -21102,9 +21155,17 @@ function _priceTierMatch(tiers, qty) {
 
 // ══════════════════════════════════════════════
 // PAGE: พนักงาน (Employee Master)
+// รูปพนักงาน (added 2026-10-04 ตามคำขอผู้ใช้ "ให้ใส่รูปได้เหมือนระบบ BM Flow") — เก็บใน Storage bucket
+// private ชื่อ "employee-photos" แสดงผ่าน signed URL (หมดอายุ 1 ชม., ขอใหม่ทุกครั้งที่โหลดหน้า) ย่อรูปฝั่ง
+// เบราว์เซอร์ก่อนอัปโหลดเสมอ (ด้านยาวสุด 480px, JPEG 85%) ทุกครั้งที่เปลี่ยนรูปใช้ path ใหม่ (มี timestamp)
+// แล้วค่อยลบไฟล์เก่า — กันเบราว์เซอร์แสดงรูปเก่าจาก cache ต้องรัน alter_employees_add_photo.sql ก่อน
 // ══════════════════════════════════════════════
+const EMP_PHOTO_BUCKET = 'employee-photos';
 let _employeeData = [];
 let _employeeModal = null;
+let _employeePhotoUrls = {};  // PhotoPath -> signed URL
+let _employeePhotoBlob = null; // รูปใหม่ที่เลือก (ย่อแล้ว) รออัปโหลดตอนกดบันทึก
+let _employeePhotoRemove = false; // กด "เอารูปออก"
 
 async function loadEmployeeData() {
   _showLoader();
@@ -21112,8 +21173,64 @@ async function loadEmployeeData() {
   _hideLoader();
   if (error) { _err('โหลดข้อมูลพนักงานไม่ได้', error.message); return; }
   _employeeData = data || [];
+  const paths = _employeeData.map(r => r.PhotoPath).filter(Boolean);
+  _employeePhotoUrls = {};
+  if (paths.length) {
+    const { data: urls } = await _sb.storage.from(EMP_PHOTO_BUCKET).createSignedUrls(paths, 3600);
+    (urls || []).forEach(u => { if (u.signedUrl) _employeePhotoUrls[u.path] = u.signedUrl; });
+  }
   employeeUpdateKPIs();
   employeeRenderTable();
+}
+function _empInitials(r) { return ((r.NickName || r.FirstName || '?').trim().charAt(0) || '?').toUpperCase(); }
+function _empAvatar(r) {
+  const url = r.PhotoPath && _employeePhotoUrls[r.PhotoPath];
+  return url
+    ? `<img class="emp-avatar" src="${url}" alt="" onclick="employeeViewPhoto(${r._row_id})">`
+    : `<span class="emp-avatar">${_empInitials(r)}</span>`;
+}
+function employeeViewPhoto(rowId) {
+  const r = _employeeData.find(x => x._row_id === rowId);
+  const url = r?.PhotoPath && _employeePhotoUrls[r.PhotoPath];
+  if (!url) return;
+  Swal.fire({ imageUrl: url, imageAlt: '', title: `${r.FirstName || ''} ${r.LastName || ''}`,
+    text: [r.EmployeeCode, r.Position].filter(Boolean).join(' · '), showConfirmButton: false, showCloseButton: true });
+}
+function _empSetPreview(url) {
+  document.getElementById('employee-photo-preview').innerHTML = url ? `<img src="${url}" alt="">` : '<i class="fas fa-user"></i>';
+  document.getElementById('employee-photo-remove-btn').style.display = url ? '' : 'none';
+}
+// ย่อรูปฝั่งเบราว์เซอร์ก่อนอัปโหลด (ด้านยาวสุด maxSide px, JPEG 85%) — รูปจากมือถือ 3-5 MB เหลือ ~50-100 KB
+async function _empResizeImage(file, maxSide = 480) {
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('อ่านไฟล์รูปไม่ได้'));
+    i.src = URL.createObjectURL(file);
+  });
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(img.src);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+}
+async function employeePickPhoto(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { _err('ไฟล์ไม่ถูกต้อง', 'เลือกไฟล์รูปภาพเท่านั้น'); return; }
+  try {
+    _employeePhotoBlob = await _empResizeImage(file);
+    _employeePhotoRemove = false;
+    _empSetPreview(URL.createObjectURL(_employeePhotoBlob));
+  } catch (err) { _err('ใช้รูปนี้ไม่ได้', err.message); }
+}
+function employeeRemovePhoto() {
+  _employeePhotoBlob = null;
+  _employeePhotoRemove = true;
+  document.getElementById('employee-photo-file').value = '';
+  _empSetPreview(null);
 }
 
 function employeeUpdateKPIs() {
@@ -21141,11 +21258,12 @@ function employeeRenderTable() {
   });
 
   const tbody = document.getElementById('employee-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
 
   const typeBadge = { 'FT': 'background:#0d6efd', 'PT': 'background:#198754', 'OS': 'background:#8b5cf6' };
   const typeLabel = { 'FT': 'ประจำ (FT)', 'PT': 'พาร์ทไทม์ (PT)', 'OS': 'เอาท์ซอร์ส (OS)' };
   tbody.innerHTML = rows.map(r => `<tr>
+    <td>${_empAvatar(r)}</td>
     <td><span class="badge bg-secondary">${r.EmployeeCode}</span></td>
     <td>${r.FirstName || ''} ${r.LastName || ''}${r.NickName ? ` <small class="text-muted">(${r.NickName})</small>` : ''}</td>
     <td><span class="badge text-white" style="${typeBadge[r.EmployeeType] || 'background:#94a3b8'}">${typeLabel[r.EmployeeType] || r.EmployeeType || '—'}</span></td>
@@ -21166,12 +21284,16 @@ function employeeOpenModal(rowId = null) {
   document.getElementById('employeeForm').reset();
   document.getElementById('employee-edit-id').value = '';
   document.getElementById('employee-orig-code').value = '';
+  _employeePhotoBlob = null;
+  _employeePhotoRemove = false;
+  document.getElementById('employee-photo-file').value = '';
 
   const title = document.getElementById('employeeModalTitle');
   if (rowId) {
     const r = _employeeData.find(d => d._row_id === rowId);
     if (!r) return;
     title.innerHTML = '<i class="fas fa-edit me-2"></i>แก้ไขข้อมูลพนักงาน';
+    _empSetPreview(r.PhotoPath && _employeePhotoUrls[r.PhotoPath]);
     document.getElementById('employee-edit-id').value      = rowId;
     document.getElementById('employee-orig-code').value    = r.EmployeeCode || '';
     document.getElementById('employee-f-code').value       = r.EmployeeCode || '';
@@ -21187,6 +21309,7 @@ function employeeOpenModal(rowId = null) {
     document.getElementById('employee-f-note').value       = r.Note || '';
   } else {
     title.innerHTML = '<i class="fas fa-plus-circle me-2"></i>เพิ่มพนักงานใหม่';
+    _empSetPreview(null);
   }
   _employeeModal.show();
 }
@@ -21222,22 +21345,54 @@ async function employeeSubmit(e) {
   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังบันทึก...';
   _showLoader();
 
-  let error;
+  let error, data;
   const oldRow = isEdit ? _employeeData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
-    ({ error } = await _sb.from('employees').update(payload).eq('_row_id', parseInt(editId)));
+    ({ error, data } = await _sb.from('employees').update(payload).eq('_row_id', parseInt(editId)).select());
   } else {
-    ({ error } = await _sb.from('employees').insert(payload));
+    ({ error, data } = await _sb.from('employees').insert(payload).select());
+  }
+
+  if (error) {
+    _hideLoader();
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
+    if (error.code === '23505') { _err('รหัสพนักงานนี้มีอยู่แล้ว', `"${code}" ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น`); return; }
+    _err('บันทึกไม่สำเร็จ', error.message); return;
+  }
+
+  // รูป: อัปโหลดรูปใหม่/เอารูปออก แล้วค่อยลบไฟล์เก่าทีหลังสุด (ถ้าขั้นก่อนหน้าพลาด รูปเดิมยังอยู่ ไม่หายไปเฉยๆ)
+  const saved = data[0];
+  const oldPath = oldRow?.PhotoPath || null;
+  let newPath = oldPath;
+  if (_employeePhotoBlob) {
+    newPath = `emp-${saved._row_id}-${Date.now()}.jpg`;
+    const up = await _sb.storage.from(EMP_PHOTO_BUCKET).upload(newPath, _employeePhotoBlob, { contentType: 'image/jpeg' });
+    if (up.error) {
+      _hideLoader();
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
+      _err('บันทึกข้อมูลแล้ว แต่อัปโหลดรูปไม่สำเร็จ', up.error.message + ' — กดบันทึกอีกครั้งเพื่อลองใหม่');
+      return;
+    }
+  } else if (_employeePhotoRemove) {
+    newPath = null;
+  }
+  if (newPath !== oldPath) {
+    const { error: photoErr } = await _sb.from('employees').update({ PhotoPath: newPath }).eq('_row_id', saved._row_id);
+    if (photoErr) {
+      _hideLoader();
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
+      _err('บันทึกรูปไม่สำเร็จ', photoErr.message);
+      return;
+    }
+    if (oldPath) await _sb.storage.from(EMP_PHOTO_BUCKET).remove([oldPath]);
   }
 
   _hideLoader();
   saveBtn.disabled = false;
   saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>บันทึก';
-
-  if (error) {
-    if (error.code === '23505') { _err('รหัสพนักงานนี้มีอยู่แล้ว', `"${code}" ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น`); return; }
-    _err('บันทึกไม่สำเร็จ', error.message); return;
-  }
 
   if (isEdit) _logAudit('EDIT', 'employees', payload.EmployeeCode, _diffFields(oldRow, payload));
   _employeeModal.hide();
@@ -26610,12 +26765,6 @@ let _coEditRequests = [];
 function _coReqForTarget(rowId) {
   return _coEditRequests.find(r => r.TargetRowId === rowId);
 }
-// CO นี้ "กำลังเบิก/ผลิตอยู่แล้ว" หรือยัง — มี MO ผูกอยู่แล้ว (ไม่ว่าจะปิดงานหรือยัง) หรือเคยเบิกจากคลังไป
-// แล้วอย่างน้อย 1 ครั้ง — ใช้ตัดสินว่าแก้ไขจำนวนสั่ง/กำหนดส่งของ CO นี้ต้องผ่านคิวรออนุมัติ Admin หรือไม่
-function _coHasRealProgress(orderId) {
-  return _coAnyMOSet.has(orderId) || (_coTotalWithdrawnMap[orderId] || 0) > 0;
-}
-
 const _coStatusColor = {
   'รอสั่งผลิต'   : 'secondary',
   'สั่งผลิตแล้ว' : 'primary',
@@ -27052,8 +27201,11 @@ function coRenderTable() {
   }).join('');
 }
 
-// ── คำขอแก้ไขจำนวนสั่ง/กำหนดส่งของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว — render helper (สิทธิ์อนุมัติ/ปฏิเสธ =
-// _hasRole('admin') เท่านั้น ตามที่ user ยืนยัน — ยกเลิกคำขอเปิดให้ทุก role เหมือนหน้าเบิกผลิต/รับวัตถุดิบ) ──
+// ── คำขอแก้ไข CO — render helper (สิทธิ์อนุมัติ/ปฏิเสธ = _hasRole('admin') เท่านั้น ตามที่ user ยืนยัน —
+// ยกเลิกคำขอเปิดให้ทุก role เหมือนหน้าเบิกผลิต/รับวัตถุดิบ) — เดิมคิวนี้เกิดเฉพาะตอนแก้ OrderQty/DueDate
+// ของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว ตอนนี้ (2026-10-04) ทุกการแก้ไขของ non-admin เข้าคิวนี้หมด ไม่จำกัดฟิลด์
+// อีกต่อไป — _coRequestSummaryHTML เลยเปลี่ยนจากโชว์แค่ OrderQty/DueDate มาโชว์ทุกฟิลด์ที่เปลี่ยนจริงผ่าน
+// _diffFields (ตัวเดียวกับที่ audit log ใช้) ──
 function _coRequestActionsHTML(req) {
   const adminBtns = _hasRole('admin')
     ? `<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();coApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check me-1"></i>อนุมัติ</button>
@@ -27062,12 +27214,10 @@ function _coRequestActionsHTML(req) {
   return `${adminBtns}<button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();coCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo me-1"></i>ยกเลิกคำขอ</button>`;
 }
 function _coRequestSummaryHTML(req) {
-  const oldQty = parseFloat(req.OldPayload?.OrderQty)||0, newQty = parseFloat(req.Payload?.OrderQty)||0;
-  const oldDue = req.OldPayload?.DueDate || '—', newDue = req.Payload?.DueDate || '—';
+  const diff = _diffFields(req.OldPayload, req.Payload);
   return `<div class="text-start" style="font-size:.88rem">
     <b>${req.Order_ID||''}</b> — ${req.OldPayload?.CustomerName||''} (${req.OldPayload?.ProductName||''})<br>
-    ${oldQty !== newQty ? `จำนวนสั่งเดิม: <b>${oldQty.toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${newQty.toLocaleString()}</b><br>` : ''}
-    ${oldDue !== newDue ? `กำหนดส่งเดิม: <b>${_fmtDate(req.OldPayload?.DueDate)||'—'}</b> → ขอแก้เป็น: <b class="text-primary">${_fmtDate(req.Payload?.DueDate)||'—'}</b><br>` : ''}
+    ${diff ? `<span class="text-primary">${diff}</span><br>` : '<span class="text-muted">ไม่พบฟิลด์ที่เปลี่ยน</span><br>'}
     <small class="text-muted">ขอโดย ${req.RequestedBy||'—'}</small></div>`;
 }
 
@@ -27490,12 +27640,11 @@ async function coSubmit(e) {
   let isPendingRequest = false;
   const oldRow = isEdit ? _coData.find(d => d._row_id === parseInt(editId)) : null;
   if (isEdit) {
-    // แก้จำนวนสั่ง (OrderQty) หรือกำหนดส่ง (DueDate) ของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว (มี MO ผูกอยู่ หรือ
-    // เคยเบิกจากคลังไปแล้ว) — หัวหน้างานแก้ไม่ได้ทันทีอีกต่อไป ต้องส่งเป็นคำขอรอ Admin อนุมัติแทน (ฟิลด์
-    // อื่น หรือ CO ที่ยังไม่มี MO/ยังไม่เคยเบิกเลย ยังแก้ไขได้ทันทีเหมือนเดิม — ดู create_co_edit_requests.sql)
-    const qtyChanged = (parseFloat(payloads[0].OrderQty)||0) !== (parseFloat(oldRow?.OrderQty)||0);
-    const dueChanged = (payloads[0].DueDate || null) !== (oldRow?.DueDate || null);
-    const needsApproval = oldRow && !_hasRole('admin') && (qtyChanged || dueChanged) && _coHasRealProgress(oldRow.Order_ID);
+    // ทุกการแก้ไข CO ที่ไม่ใช่ Admin ต้องส่งเป็นคำขอรออนุมัติเสมอ (ตัดเงื่อนไข "เฉพาะ OrderQty/DueDate
+    // ของ CO ที่กำลังเบิก/ผลิตอยู่แล้ว" ออก 2026-10-04 ตามคำขอผู้ใช้ "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติ
+    // จากแอดมินก่อน" — เดิมจำกัดแค่ 2 ฟิลด์นี้ และแค่ CO ที่มี MO ผูกอยู่/เคยเบิกไปแล้วเท่านั้น ดู
+    // create_co_edit_requests.sql — `Payload`/`OldPayload` เก็บทั้งแถวอยู่แล้ว ไม่ต้องแก้ schema)
+    const needsApproval = oldRow && !_hasRole('admin');
     if (needsApproval) {
       isPendingRequest = true;
       ({ error } = await _sb.from('co_edit_requests').insert({
@@ -29384,9 +29533,12 @@ function admindashOpenPayrollModal(month) {
   document.getElementById('admindash-payroll-month').value = month;
   document.getElementById('admindash-payroll-ft-headcount').value = p.FT_Headcount ?? '';
   document.getElementById('admindash-payroll-ft-cost').value = p.FT_TotalCost ?? '';
+  document.getElementById('admindash-payroll-ft-otcost').value = p.FT_OTCost ?? '';
   document.getElementById('admindash-payroll-os-headcount').value = p.OS_Headcount ?? '';
   document.getElementById('admindash-payroll-os-cost').value = p.OS_TotalCost ?? '';
+  document.getElementById('admindash-payroll-os-otcost').value = p.OS_OTCost ?? '';
   document.getElementById('admindash-payroll-pt-dayrate').value = p.PT_DayRate ?? '';
+  document.getElementById('admindash-payroll-pt-otcost').value = p.PT_OTCost ?? '';
   document.getElementById('admindash-payroll-note').value = p.Note ?? '';
   if (!_admindashPayrollModal) _admindashPayrollModal = new bootstrap.Modal(document.getElementById('admindashPayrollModal'));
   _admindashPayrollModal.show();
@@ -29399,18 +29551,25 @@ async function admindashSavePayroll() {
     Month: month,
     FT_Headcount: parseFloat(document.getElementById('admindash-payroll-ft-headcount').value) || null,
     FT_TotalCost: parseFloat(document.getElementById('admindash-payroll-ft-cost').value) || null,
+    FT_OTCost: parseFloat(document.getElementById('admindash-payroll-ft-otcost').value) || null,
     OS_Headcount: parseFloat(document.getElementById('admindash-payroll-os-headcount').value) || null,
     OS_TotalCost: parseFloat(document.getElementById('admindash-payroll-os-cost').value) || null,
+    OS_OTCost: parseFloat(document.getElementById('admindash-payroll-os-otcost').value) || null,
     PT_DayRate: parseFloat(document.getElementById('admindash-payroll-pt-dayrate').value) || null,
+    PT_OTCost: parseFloat(document.getElementById('admindash-payroll-pt-otcost').value) || null,
     Note: document.getElementById('admindash-payroll-note').value || null,
   };
   _showLoader();
   const { data, error } = await _sb.from('admindash_payroll_actual').upsert(payload, { onConflict: 'Month' }).select();
   _hideLoader();
   if (error) {
-    _err('บันทึกค่าจ้างจริงไม่ได้', /does not exist|42P01/.test(error.message + (error.code || ''))
-      ? 'ยังไม่ได้สร้างตาราง admindash_payroll_actual — รัน create_admindash_payroll_actual.sql ใน Supabase SQL Editor ก่อน'
-      : error.message);
+    let hint = error.message;
+    if (error.code === '42P01' || /relation .* does not exist/.test(error.message)) {
+      hint = 'ยังไม่ได้สร้างตาราง admindash_payroll_actual — รัน create_admindash_payroll_actual.sql ใน Supabase SQL Editor ก่อน';
+    } else if (error.code === '42703' || /column .* does not exist/.test(error.message)) {
+      hint = 'ยังไม่ได้เพิ่มคอลัมน์ค่า OT จริง — รัน alter_admindash_payroll_actual_add_ot.sql ใน Supabase SQL Editor ก่อน';
+    }
+    _err('บันทึกค่าจ้างจริงไม่ได้', hint);
     return;
   }
   _logAudit('EDIT', 'admindash_payroll_actual', month, `บันทึกค่าจ้างจริงเดือน ${month}`);
@@ -29487,13 +29646,18 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     // เดือนนี้" กับ "ต้นทุนจ้างพนักงาน 1 คนทั้งเดือน" (= ค่าจ้างจริงรวม ÷ จำนวนหัวคนของประเภทนั้น) — ถ้า OT ที่
     // จ่ายไปเทียบเท่า/มากกว่าจ้างเพิ่ม 1 คน (≥0.8) แสดงว่าจ่าย OT แพงกว่าหรือใกล้เคียงกับจ้างเพิ่ม ควรพิจารณา
     // จ้างประจำแทน — ตัวเลข 0.8/0.4 เป็นเกณฑ์คร่าวๆ ของผู้เขียน ไม่ใช่ตัวเลขที่ผู้ใช้กำหนดเอง ปรับได้ถ้าไวไป/หย่อนไป
-    const otBlock = (otCost, otHours, headcount, paid) => {
+    // otPaid = ค่า OT จริงที่กรอกไว้ในโมดัล (FT_OTCost/OS_OTCost, เพิ่ม 2026-10-04 ตามคำขอผู้ใช้) — แสดงคู่กับ
+    // OT ที่ระบบคำนวณจากชั่วโมงจริง×เรทที่อนุมัติ (otCost) ให้เทียบกันได้ตรงๆ ว่าจ่ายจริงมากกว่า/น้อยกว่าที่
+    // ระบบคิดไว้แค่ไหน — ไม่ได้ทำเป็น Utilization% แยกต่างหาก (ต่างจาก FT/OS Utilization หลัก) เพื่อไม่ให้
+    // ตารางซับซ้อนเกินจำเป็น แค่โชว์ตัวเลขคู่กันให้ผู้ใช้เทียบเอง
+    const otBlock = (otCost, otHours, headcount, paid, otPaid) => {
       if (!otHours) return '<span class="text-muted">—</span>';
       const costPerHead = headcount > 0 ? paid / headcount : null;
       const equivHeads = costPerHead ? otCost / costPerHead : null;
       const cls = equivHeads == null ? '' : (equivHeads >= 0.8 ? 'text-danger fw-bold' : (equivHeads >= 0.4 ? 'text-warning fw-bold' : ''));
       return `${fmtB(otCost)} <span class="text-muted" style="font-size:.68rem">(${Math.round(otHours * 10) / 10} ชม.)</span>` +
-        (equivHeads != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivHeads.toFixed(2)} คน${equivHeads >= 0.8 ? ' ⚠️ OT แพงเกือบเท่าจ้างเพิ่ม' : ''}</span>` : '');
+        (equivHeads != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivHeads.toFixed(2)} คน${equivHeads >= 0.8 ? ' ⚠️ OT แพงเกือบเท่าจ้างเพิ่ม' : ''}</span>` : '') +
+        (otPaid != null ? `<br><span class="text-muted" style="font-size:.68rem">จ่ายจริง ${fmtB(otPaid)}</span>` : '');
     };
     // PT ก็มี OT เหมือนกัน (PT_OT_Rate) — เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ "PT ก็มี OT นะ" หลังจากรอบแรกให้ PT
     // แค่โชว์ยอด OT เฉยๆ ไม่มีตัวเทียบเท่าแบบ FT/OS (ตอนนั้นให้เหตุผลว่า PT ไม่มี headcount คงที่ให้หาร) —
@@ -29501,12 +29665,13 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     // เพราะ PT จ้างเป็นวันอยู่แล้ว ไม่ต้องมี headcount คงที่ก็เทียบเป็น "จำนวนวันจ้างเพิ่ม" ได้ตรงๆ — เกณฑ์สี
     // ≥15 วัน-คน (มากกว่าครึ่งเดือนทำงาน) = แดง, ≥7 วัน-คน (ประมาณ 1 สัปดาห์) = เหลือง เป็นเกณฑ์คร่าวๆ ของ
     // ผู้เขียนเช่นเดียวกับเกณฑ์ FT/OS ด้านบน ไม่ใช่ตัวเลขที่ผู้ใช้กำหนดเอง
-    const ptOtBlock = (otCost, otHours, dayRate) => {
+    const ptOtBlock = (otCost, otHours, dayRate, otPaid) => {
       if (!otHours) return '<span class="text-muted">—</span>';
       const equivDays = dayRate ? otCost / dayRate : null;
       const cls = equivDays == null ? '' : (equivDays >= 15 ? 'text-danger fw-bold' : (equivDays >= 7 ? 'text-warning fw-bold' : ''));
       return `${fmtB(otCost)} <span class="text-muted" style="font-size:.68rem">(${Math.round(otHours * 10) / 10} ชม.)</span>` +
-        (equivDays != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivDays.toFixed(1)} วัน-คน${equivDays >= 15 ? ' ⚠️ OT สูง ลองจ้าง PT เพิ่มแทน' : ''}</span>` : '');
+        (equivDays != null ? `<br><span class="${cls}" style="font-size:.7rem">≈${equivDays.toFixed(1)} วัน-คน${equivDays >= 15 ? ' ⚠️ OT สูง ลองจ้าง PT เพิ่มแทน' : ''}</span>` : '') +
+        (otPaid != null ? `<br><span class="text-muted" style="font-size:.68rem">จ่ายจริง ${fmtB(otPaid)}</span>` : '');
     };
 
     return `<tr>
@@ -29516,13 +29681,13 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
       <td class="text-end">${fmtB(ftPaid)}${ftHeadcount ? ` <span class="text-muted" style="font-size:.68rem">(${ftHeadcount} คน)</span>` : ''}</td>
       <td class="text-end">${fmtB(t.ftCost)}</td>
       <td class="text-end fw-bold ${utilClass(ftUtil)}">${ftUtil != null ? ftUtil + '%' : '—'}</td>
-      <td class="text-end">${otBlock(t.ftOtCost, t.ftOtHours, ftHeadcount, ftPaid)}</td>
+      <td class="text-end">${otBlock(t.ftOtCost, t.ftOtHours, ftHeadcount, ftPaid, p.FT_OTCost != null ? parseFloat(p.FT_OTCost) : null)}</td>
       <td class="text-end">${fmtB(osPaid)}${osHeadcount ? ` <span class="text-muted" style="font-size:.68rem">(${osHeadcount} คน)</span>` : ''}</td>
       <td class="text-end">${fmtB(t.osCost)}</td>
       <td class="text-end fw-bold ${utilClass(osUtil)}">${osUtil != null ? osUtil + '%' : '—'}</td>
-      <td class="text-end">${otBlock(t.osOtCost, t.osOtHours, osHeadcount, osPaid)}</td>
+      <td class="text-end">${otBlock(t.osOtCost, t.osOtHours, osHeadcount, osPaid, p.OS_OTCost != null ? parseFloat(p.OS_OTCost) : null)}</td>
       <td class="text-end">${ptDayRate != null ? '฿' + ptDayRate.toLocaleString() : '—'}<br><span class="text-muted" style="font-size:.68rem">เรทระบบ ${avgPtRateDay != null ? '฿' + Math.round(avgPtRateDay).toLocaleString() : '—'}${ptDiffPct != null ? ` (${ptDiffPct >= 0 ? '+' : ''}${ptDiffPct}%)` : ''}</span></td>
-      <td class="text-end">${ptOtBlock(t.ptOtCost, t.ptOtHours, ptDayRate)}</td>
+      <td class="text-end">${ptOtBlock(t.ptOtCost, t.ptOtHours, ptDayRate, p.PT_OTCost != null ? parseFloat(p.PT_OTCost) : null)}</td>
       <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="admindashOpenPayrollModal('${m}')" title="แก้ไข"><i class="fas fa-pen"></i></button></td>
     </tr>`;
   }).join('');
@@ -29873,8 +30038,9 @@ async function _issueUpdateWaitingBadge(notifyIfPending = false, knownCount = nu
 
 // นับคำขอแก้ไข/เพิ่ม/ลบ ที่ยังรออนุมัติ ขึ้นเป็นเลขแจ้งเตือนสีเหลืองที่ nav-issue — เหมือน _planUpdateNavBadge
 // เป๊ะๆ (query ตรงเองทุกครั้ง ไม่พึ่ง _issueEditRequests เพื่อให้เห็นค่าที่ถูกต้องได้ตั้งแต่หน้าแรกหลัง login
-// แม้ยังไม่เคยเข้าหน้าเบิกผลิตเลยในเซสชันนี้) เห็นเฉพาะหัวหน้างานขึ้นไป (_hasRole('supervisor')) เพราะมีแค่
-// ระดับนี้ที่กดอนุมัติได้ — operator เห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
+// แม้ยังไม่เคยเข้าหน้าเบิกผลิตเลยในเซสชันนี้) เห็นเฉพาะ admin (_hasRole('admin'), แก้จาก supervisor เดิม
+// 2026-10-04 — มีแค่ admin เท่านั้นที่กดอนุมัติได้แล้ว ตามคำขอผู้ใช้ "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติ
+// จากแอดมินก่อน") — supervisor/operator เห็นไปก็ทำอะไรกับมันไม่ได้ตรงนี้
 // notifyIfPending=true (เรียกครั้งเดียวตอน login bootstrap) จะเด้ง Swal เตือนทันทีถ้ามีคำขอค้างด้วย ไม่ใช่แค่
 // ขึ้นเลขเงียบๆ ที่ sidebar — ตามที่ user ขอให้ "แจ้งเตือน Admin เลย" ไม่ใช่ต้องเปิดหน้าเบิกผลิตเองถึงจะเห็น
 // ใช้ stale-response guard แบบเดียวกับ _prodrecordUpdateNavBadge (ดูหมายเหตุ 2026-08-17 ที่ฟังก์ชันนั้น) —
@@ -29886,7 +30052,7 @@ let _issueBadgeSeq = 0;
 
 async function _issueUpdateNavBadge(notifyIfPending = false) {
   const badge = document.getElementById('nav-issue-badge');
-  if (!_hasRole('supervisor')) { if (badge) badge.style.display = 'none'; return; }
+  if (!_hasRole('admin')) { if (badge) badge.style.display = 'none'; return; }
   const mySeq = ++_issueBadgeSeq;
   const { count, error } = await _sb.from('issue_edit_requests')
     .select('_row_id', { count: 'exact', head: true })
@@ -30062,7 +30228,7 @@ function issueRenderTable() {
   const pendingBar = _issueEditRequests.length
     ? `<div class="alert alert-warning py-2 mb-2" style="font-size:.85rem">
         <i class="fas fa-clock me-1"></i><b>${_issueEditRequests.length}</b> คำขอแก้ไข/เพิ่ม/ลบ รายการเบิก
-        กำลังรอ${_hasRole('supervisor') ? 'ให้คุณอนุมัติ' : 'หัวหน้างาน/แอดมินอนุมัติ'} — ดูรายละเอียดในการ์ด MO ด้านล่าง (มี badge สีเหลือง)
+        กำลังรอ${_hasRole('admin') ? 'ให้คุณอนุมัติ' : 'แอดมินอนุมัติ'} — ดูรายละเอียดในการ์ด MO ด้านล่าง (มี badge สีเหลือง)
       </div>`
     : '';
 
@@ -30212,14 +30378,13 @@ function _issuePendingBadgeHTML(req) {
   return '';
 }
 function _issueRequestActionsHTML(req) {
-  // สิทธิ์อนุมัติ/ปฏิเสธ = หัวหน้างานขึ้นไป (_hasRole('supervisor')) เหมือน prodrecordOpenApproveModal/
-  // prodrecordReopen — ไม่ใช่ _currentUser.isAdmin ซึ่งเป็นคนละ tier กัน (isAdmin สงวนไว้แค่หน้าที่มีข้อมูล
-  // อ่อนไหว/จัดการผู้ใช้ เช่น audit log, คำขอสมัครใช้งาน, จัดการผู้ใช้)
-  const supervisorBtns = _hasRole('supervisor')
+  // สิทธิ์อนุมัติ/ปฏิเสธ = admin เท่านั้น (เปลี่ยนจาก _hasRole('supervisor') เดิม 2026-10-04 ตามคำขอผู้ใช้
+  // "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติจากแอดมินก่อน" — ให้ตรงกับ MR/CO/Hold stock ที่ใช้ admin-only อยู่แล้ว)
+  const adminBtns = _hasRole('admin')
     ? `<button class="btn btn-outline-success btn-sm py-0 px-2 me-1" onclick="issueApproveRequest(${req._row_id})" title="อนุมัติ"><i class="fas fa-check"></i></button>
        <button class="btn btn-outline-danger btn-sm py-0 px-2 me-1" onclick="issueRejectRequest(${req._row_id})" title="ปฏิเสธ"><i class="fas fa-times"></i></button>`
     : '';
-  return `${supervisorBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="issueCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
+  return `${adminBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="issueCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
 }
 
 function issueCheckState() {
@@ -30566,7 +30731,7 @@ async function issueSubmit(e) {
       Remark   : remark,
     };
 
-    if (_hasRole('supervisor')) {
+    if (_hasRole('admin')) {
       ({ error } = await _sb.from('issue_production').update(payload).eq('_row_id', parseInt(editId)));
       if (!error) {
         // คืนสต็อกของยอด/วัตถุดิบ/lot เดิมก่อน แล้วค่อยตัดสต็อกใหม่ตามค่าที่แก้ — กันสต็อกเพี้ยนถ้าแก้ไขจำนวนหรือ
@@ -30788,9 +30953,10 @@ async function issueDelete(rowId) {
     return;
   }
 
-  if (!_hasRole('supervisor')) {
-    // operator ลบรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่คืนสต็อก
-    // จนกว่าหัวหน้างาน/แอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql)
+  if (!_hasRole('admin')) {
+    // ไม่ใช่ admin ลบรายการที่เบิกไปแล้วไม่ได้ทันที — ส่งเป็นคำขอลบรออนุมัติแทน ไม่ลบจริง/ไม่คืนสต็อก
+    // จนกว่าแอดมินจะกดอนุมัติ (ดู create_issue_edit_requests.sql; เปลี่ยนจากหัวหน้างานขึ้นไป→admin เท่านั้น
+    // 2026-10-04 ตามคำขอผู้ใช้ "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติจากแอดมินก่อน")
     const res = await Swal.fire({
       title: 'ส่งคำขอลบรายการนี้?',
       html: `<div class="text-start"><b>${r.MaterialName||''}</b><br>Lot: ${r.Lot||''} | จำนวน: ${r.IssuedQty||''}<br>
@@ -30852,8 +31018,8 @@ async function issueBulkDelete() {
 
   const rowsToDelete = _issueData.filter(d => goIds.includes(d._row_id));
 
-  if (!_hasRole('supervisor')) {
-    // operator — ส่งเป็นคำขอลบทีละแถว รออนุมัติ ไม่ลบจริง/ไม่คืนสต็อกจนกว่าหัวหน้างาน/แอดมินจะอนุมัติ
+  if (!_hasRole('admin')) {
+    // ไม่ใช่ admin — ส่งเป็นคำขอลบทีละแถว รออนุมัติ ไม่ลบจริง/ไม่คืนสต็อกจนกว่าแอดมินจะอนุมัติ
     const res = await Swal.fire({
       title: `ส่งคำขอลบ ${goIds.length} รายการ?`,
       html: `<small class="text-muted">รอแอดมินอนุมัติก่อนจึงจะลบจริง${skipIds.length ? ` · ข้าม ${skipIds.length} รายการที่มีคำขอค้างอยู่แล้ว` : ''}</small>`,
@@ -30917,8 +31083,8 @@ async function issueBulkDelete() {
 
 // ══════════════════════════════════════════════
 // Issue: อนุมัติ/ปฏิเสธ/ยกเลิก คำขอแก้ไข-เพิ่ม-ลบ รายการเบิกที่ค้างอยู่ (issue_edit_requests)
-// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _hasRole('supervisor') (ซ่อนปุ่ม) เหมือน prodrecordOpenApproveModal/
-// prodrecordReopen ทุกประการ — ไม่มี DB-level restriction สำหรับกลุ่มนี้ (ข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้
+// สิทธิ์อนุมัติ/ปฏิเสธจำกัดแค่ระดับ UI ด้วย _hasRole('admin') (ซ่อนปุ่ม, เปลี่ยนจาก supervisor เดิม
+// 2026-10-04) — ไม่มี DB-level restriction สำหรับกลุ่มนี้ (ข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้
 // เหมือน moForceClose/moCancelPlan/deliveryCancel) — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
 // ══════════════════════════════════════════════
 function _issueRequestSummaryHTML(req) {
@@ -31081,7 +31247,8 @@ async function issueCancelRequest(reqId) {
 
 // ══════════════════════════════════════════════
 // Issue: เพิ่มรายการวัตถุดิบให้ MO ที่เบิกไปแล้ว (แยกจากการเบิกครั้งแรก) — แอดมินตัดสต็อกทันที
-// ผู้ใช้ทั่วไปส่งเป็นคำขอ 'ADD' รออนุมัติแทน (ดู issueApproveRequest ด้านบน)
+// ที่เหลือทุก role ส่งเป็นคำขอ 'ADD' รออนุมัติแทน (ดู issueApproveRequest ด้านบน) — เปลี่ยนจาก
+// หัวหน้างานขึ้นไป→admin เท่านั้น 2026-10-04 ตามคำขอผู้ใช้ "คำขอแก้ไขทุกอย่างต้องผ่านการอนุมัติจากแอดมินก่อน"
 // ══════════════════════════════════════════════
 let _issueAddLineModal = null;
 
@@ -31096,9 +31263,9 @@ function issueOpenAddLineModal(moId) {
   document.getElementById('issueaddline-mo-id').value = moId;
   const mo = _issueMOAllMap[moId];
   document.getElementById('issueaddline-mo-display').value = `${moId} — ${mo?.ProductName||''}`;
-  document.getElementById('issueaddline-alert').innerHTML = _hasRole('supervisor')
-    ? '<i class="fas fa-check-circle me-1"></i>สิทธิ์หัวหน้างาน/แอดมิน — บันทึกแล้วตัดสต็อกทันที'
-    : '<i class="fas fa-clock me-1"></i>รายการนี้จะถูกส่งเป็น "คำขอ" รอหัวหน้างาน/แอดมินอนุมัติก่อน ยังไม่ตัดสต็อกจนกว่าจะได้รับอนุมัติ';
+  document.getElementById('issueaddline-alert').innerHTML = _hasRole('admin')
+    ? '<i class="fas fa-check-circle me-1"></i>สิทธิ์แอดมิน — บันทึกแล้วตัดสต็อกทันที'
+    : '<i class="fas fa-clock me-1"></i>รายการนี้จะถูกส่งเป็น "คำขอ" รอแอดมินอนุมัติก่อน ยังไม่ตัดสต็อกจนกว่าจะได้รับอนุมัติ';
   _issueAddLineModal.show();
 }
 
@@ -31161,7 +31328,7 @@ async function issueAddLineSubmit(e) {
     Lot: lot || null, IssuedQty: qty, UOM: uom, Remark: remark,
   };
 
-  if (_hasRole('supervisor')) {
+  if (_hasRole('admin')) {
     const { error } = await _sb.from('issue_production').insert(payload);
     if (!error) await issueUpdateStock(matCode, lot, qty);
     _hideLoader();
@@ -35503,7 +35670,13 @@ function editreqRender() {
 let _editreqBadgeSeq = 0;
 async function _editreqUpdateNavBadge(notifyIfPending = false) {
   const badge = document.getElementById('nav-editreq-badge');
-  if (!_currentUser?.isAdmin) { if (badge) badge.style.display = 'none'; return; }
+  const bell  = document.getElementById('editreq-bell');
+  const bellBadge = document.getElementById('editreq-bell-badge');
+  if (!_currentUser?.isAdmin) {
+    if (badge) badge.style.display = 'none';
+    if (bell) bell.style.display = 'none';
+    return;
+  }
   const mySeq = ++_editreqBadgeSeq;
   const [mr, co, issue, hold, labor] = await Promise.all([
     _sb.from('mr_edit_requests').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ'),
@@ -35517,6 +35690,12 @@ async function _editreqUpdateNavBadge(notifyIfPending = false) {
   if (badge) {
     if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
     else badge.style.display = 'none';
+  }
+  // กระดิ่งลอยขวาบน — แสดงตลอด (admin อยู่แล้วตาม guard ด้านบน) ตัวเลขขึ้นเฉพาะมีคำขอค้างจริง
+  if (bell) bell.style.display = 'flex';
+  if (bellBadge) {
+    if (count > 0) { bellBadge.textContent = count > 99 ? '99+' : String(count); bellBadge.style.display = 'inline-block'; }
+    else bellBadge.style.display = 'none';
   }
   if (notifyIfPending && count > 0) {
     const res = await Swal.fire({
