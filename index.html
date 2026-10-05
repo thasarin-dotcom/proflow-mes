@@ -12668,6 +12668,7 @@ async function mrApproveRequest(reqId) {
 
   _logAudit('APPROVE', 'mr_receive', req.Payload?.MaterialCode || req.OldPayload?.MaterialCode,
     `${req.Action} — ${req.OldPayload?.MaterialName || req.Payload?.MaterialName || ''}`);
+  _realtimeSendEditReqResolved('mr', req.RequestedBy, 'approve', _mrRequestSummaryHTML(req));
 
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
   loadMRData();
@@ -12694,6 +12695,7 @@ async function mrRejectRequest(reqId) {
   if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
 
   _logAudit('REJECT', 'mr_receive', req.OldPayload?.MaterialCode || req.Payload?.MaterialCode, reason.trim());
+  _realtimeSendEditReqResolved('mr', req.RequestedBy, 'reject', `${_mrRequestSummaryHTML(req)}<br><b>เหตุผล:</b> ${reason.trim()}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
   loadMRData();
 }
@@ -27258,6 +27260,7 @@ async function coApproveRequest(reqId) {
   _hideLoader();
 
   _logAudit('APPROVE', 'customer_orders', req.Order_ID, _diffFields(req.OldPayload, req.Payload));
+  _realtimeSendEditReqResolved('co', req.RequestedBy, 'approve', _coRequestSummaryHTML(req));
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
   loadCOData();
 }
@@ -27283,6 +27286,7 @@ async function coRejectRequest(reqId) {
   if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
 
   _logAudit('REJECT', 'customer_orders', req.Order_ID, reason.trim());
+  _realtimeSendEditReqResolved('co', req.RequestedBy, 'reject', `${_coRequestSummaryHTML(req)}<br><b>เหตุผล:</b> ${reason.trim()}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
   loadCOData();
 }
@@ -31157,6 +31161,7 @@ async function issueApproveRequest(reqId) {
 
   _logAudit('APPROVE', 'issue_production', req.MO_ID || req.Payload?.MaterialCode || req.OldPayload?.MaterialCode,
     `${req.Action} — ${req.OldPayload?.MaterialName || req.Payload?.MaterialName || ''}`);
+  _realtimeSendEditReqResolved('issue', req.RequestedBy, 'approve', _issueRequestSummaryHTML(req));
 
   if (prodSync?.blockedApproved?.length) {
     // ใบบันทึกผลิตที่ผูกอยู่อนุมัติต้นทุนไปแล้ว — ไม่แก้ยอดให้เงียบๆ (เหมือนทุกจุดอื่นในแอปนี้ที่ไม่แก้ข้อมูล
@@ -31237,6 +31242,7 @@ async function issueRejectRequest(reqId) {
   if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
 
   _logAudit('REJECT', 'issue_production', req.MO_ID, reason.trim());
+  _realtimeSendEditReqResolved('issue', req.RequestedBy, 'reject', `${_issueRequestSummaryHTML(req)}<br><b>เหตุผล:</b> ${reason.trim()}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
   loadIssueData();
 }
@@ -33416,6 +33422,8 @@ async function holdstockApprovePendingMove(moveId) {
     return;
   }
 
+  _realtimeSendEditReqResolved('holdstock', m.PendingRequestedBy, 'approve',
+    `<div class="text-start">${m.ItemCode} — ${m.ItemName||''} · Lot ${m.Lot}<br>${label}</div>`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'อนุมัติแล้ว', showConfirmButton:false, timer:1500 });
   await _holdstockLoadHistory();
   holdstockLoadData();
@@ -33441,6 +33449,8 @@ async function holdstockRejectPendingMove(moveId) {
   _hideLoader();
   if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
   _logAudit('REJECT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, reason.trim());
+  _realtimeSendEditReqResolved('holdstock', m.PendingRequestedBy, 'reject',
+    `<div class="text-start">${m.ItemCode} — ${m.ItemName||''} · Lot ${m.Lot}</div><b>เหตุผล:</b> ${reason.trim()}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'ปฏิเสธคำขอแล้ว', showConfirmButton:false, timer:1500 });
   await _holdstockLoadHistory();
 }
@@ -37186,6 +37196,9 @@ function _realtimeSubscribe() {
     // Broadcast แยกจาก postgres_changes ข้างบน — ใช้สำหรับ "แจ้งเตือนเครื่องอื่นทันที" ที่อยาก
     // ให้แม่นยำกว่าการ diff old/new ของ postgres_changes เอง (ดูหมายเหตุที่ _realtimeNotifyCostApproved)
     .on('broadcast', { event: 'cost_approved' }, (msg) => _realtimeNotifyCostApproved(msg.payload))
+    // แจ้งเตือนเฉพาะ "คนที่ขอ" เมื่อคำขอแก้ไข (MR/CO/เบิกผลิต/Defect-Retain) ของเขาถูกอนุมัติ/ปฏิเสธ —
+    // ดูหมายเหตุยาวที่ _realtimeNotifyEditReqResolved ด้านล่าง
+    .on('broadcast', { event: 'editreq_resolved' }, (msg) => _realtimeNotifyEditReqResolved(msg.payload))
     .subscribe();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && _currentUser) _realtimeScheduleRefresh(); // กลับมาเปิดแท็บ ให้เช็คของใหม่ทันที เผื่อพลาด event ตอนแท็บถูกซ่อนอยู่
@@ -37211,6 +37224,42 @@ function _realtimeNotifyCostApproved(info) {
     title: 'อนุมัติต้นทุนแล้ว',
     html: `<b>${info.prodId || '—'}</b>${info.moRef ? ` · MO ${info.moRef}` : ''}${info.productName ? ` — ${info.productName}` : ''}<br>
       <small class="text-muted">โดย ${info.approvedBy || '—'}</small>`,
+  });
+}
+
+// ══════════════════════════════════════════════
+// แจ้งเตือนมุมขวาบนที่ "เครื่องของคนที่ขอ" เมื่อคำขอแก้ไข (mr/co/issue/holdstock) ของเขาถูกอนุมัติ/ปฏิเสธ
+// (added 2026-10-05 ตามคำขอผู้ใช้ "ตอนแอดมินอนุมัติ ไม่เห็นเด้งแจ้งเตือนของหน้าคนอื่นที่ขอเลย แบบ BM Flow")
+// — เดิมมีแค่ bell/badge มุมขวาบน (#editreq-bell) นับจำนวนคำขอค้างให้ "แอดมิน" เห็นเฉยๆ ไม่เคยมีฝั่ง
+// "แจ้งกลับไปหาคนที่ขอ" เลยเมื่อแอดมินกดอนุมัติ/ปฏิเสธจริง — คู่นี้คือส่วนที่หายไป
+//
+// ใช้ Broadcast แบบเดียวกับ cost_approved ข้างบน (ส่งออกไปทุกเครื่อง แล้วแต่ละเครื่องเช็คเองว่า
+// targetEmail ตรงกับ _currentUser.email ไหมถึงจะโชว์ toast จริง — ไม่ได้ส่งแบบเจาะจงเครื่องเดียว
+// เพราะ Supabase ไม่มีแนวคิด "ส่งหาคนคนเดียว" ในฟีเจอร์นี้ ต้อง broadcast กว้างแล้วกรองฝั่งรับแทน)
+//
+// **ใช้ได้แค่ 4 จาก 5 คิวคำขอแก้ไข** — mr_edit_requests/co_edit_requests/issue_edit_requests/
+// hold_stock_moves (Pending*) ทุกตัวเก็บ RequestedBy/PendingRequestedBy เป็นอีเมลจริงของคนที่ล็อกอินส่ง
+// คำขอ (ดึงจาก _currentUser.email ตอนส่งคำขอ) แต่ production_labor_edit_requests (คำขอแก้ไขเวลาแรงงาน
+// จากลิงก์สาธารณะ ?scanlabor=1 ไม่ login) ไม่มีทางแจ้งกลับแบบนี้ได้เลย เพราะผู้ขอไม่เคย subscribe
+// Realtime channel นี้ตั้งแต่แรก (หน้าแบบฟอร์มสาธารณะโหลดแค่ _renderPublicScanLabor ไม่ได้โหลดแอปเต็ม) —
+// ถ้าต้องการแจ้งผู้ควบคุมงานที่ส่งคำขอผ่านลิงก์สาธารณะจริงๆ ต้องเป็นช่องทางอื่น (เช่น LINE OA เหมือน
+// notify-* functions อื่นในแอปนี้) ไม่ใช่ Realtime broadcast แบบนี้ — ไม่ได้ทำในรอบนี้
+function _realtimeSendEditReqResolved(type, targetEmail, action, detail) {
+  if (!targetEmail) return; // ไม่มีอีเมลผู้ขอ (ข้อมูลเก่า/แถวเสีย) — ไม่มีใครให้แจ้ง ข้ามเงียบๆ
+  _realtimeChannel?.send({
+    type: 'broadcast', event: 'editreq_resolved',
+    payload: { type, targetEmail, action, detail },
+  });
+}
+
+function _realtimeNotifyEditReqResolved(info) {
+  if (!info?.targetEmail || info.targetEmail !== _currentUser?.email) return; // ไม่ใช่เครื่องของคนที่ขอ — ไม่ต้องโชว์
+  const approved = info.action === 'approve';
+  Swal.fire({
+    toast: true, position: 'top-end', icon: approved ? 'success' : 'error',
+    showConfirmButton: false, timer: 6000, timerProgressBar: true,
+    title: approved ? 'คำขอแก้ไขของคุณได้รับการอนุมัติแล้ว' : 'คำขอแก้ไขของคุณถูกปฏิเสธ',
+    html: info.detail || '',
   });
 }
 
