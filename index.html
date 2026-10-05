@@ -5048,25 +5048,25 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
     <div class="scroll-content">
       <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
+        <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="kpi-card"><div class="kpi-num" id="bom-kpi-products">—</div><div class="kpi-label">สินค้าทั้งหมด</div></div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="kpi-card" style="border-color:#64748b">
             <div class="kpi-num text-secondary" id="bom-kpi-lines">—</div><div class="kpi-label">รายการวัตถุดิบทั้งหมด</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="kpi-card" id="bom-kpi-incompletecap-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterIncompleteCap()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ครบ">
             <div class="kpi-num text-warning" id="bom-kpi-incompletecap">—</div><div class="kpi-label">ยังไม่ครบกำลังการผลิต/วัน</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="kpi-card" id="bom-kpi-nolines-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterNoLines()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ได้กำหนดไลน์ผลิต">
             <div class="kpi-num text-warning" id="bom-kpi-nolines">—</div><div class="kpi-label">ยังไม่ระบุไลน์ผลิต</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6" style="flex:0 0 20%;max-width:20%">
           <div class="kpi-card" id="bom-kpi-noworkers-card" style="border-color:#f59e0b;cursor:pointer" onclick="bomToggleFilterNoWorkers()" title="คลิกเพื่อกรองเฉพาะสินค้าที่ยังไม่ได้ระบุจำนวนคนครบทั้ง 3 ขั้นตอน">
             <div class="kpi-num text-warning" id="bom-kpi-noworkers">—</div><div class="kpi-label">ยังไม่ระบุจำนวนคน</div>
           </div>
@@ -25219,6 +25219,15 @@ async function prodrecordApproveSubmit() {
   if (error) { _err('อนุมัติไม่สำเร็จ', error.message); return; }
 
   _logAudit('APPROVE', 'production_records', r.ProdRecord_ID, `ต้นทุนรวม ฿${c.totalCost.toLocaleString(undefined,{maximumFractionDigits:2})} · ต้นทุน/หน่วย ฿${c.costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}`);
+  // แจ้งเตือนมุมขวาบนที่เครื่องอื่น (ดู _realtimeNotifyCostApproved) — fromEmail กันเครื่องตัวเองเห็นซ้ำกับ
+  // toast "อนุมัติต้นทุนสำเร็จ" ด้านล่างนี้เอง; ไม่รอผลส่ง ไม่บล็อกถ้าช่องสัญญาณยังไม่พร้อม (optional chaining)
+  _realtimeChannel?.send({
+    type: 'broadcast', event: 'cost_approved',
+    payload: {
+      prodId: r.ProdRecord_ID, moRef: r.MO_Ref, productName: r.ProductName,
+      approvedBy: _currentUser?.name || _currentUser?.email, fromEmail: _currentUser?.email,
+    },
+  });
   _prodrecordApproveModal.hide();
   Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติต้นทุนสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
   prodrecordLoadData();
@@ -37134,9 +37143,34 @@ function _realtimeSubscribe() {
       if (payload?.table) _realtimeChangedRows.push(payload);
       _realtimeScheduleRefresh();
     })
+    // Broadcast แยกจาก postgres_changes ข้างบน — ใช้สำหรับ "แจ้งเตือนเครื่องอื่นทันที" ที่อยาก
+    // ให้แม่นยำกว่าการ diff old/new ของ postgres_changes เอง (ดูหมายเหตุที่ _realtimeNotifyCostApproved)
+    .on('broadcast', { event: 'cost_approved' }, (msg) => _realtimeNotifyCostApproved(msg.payload))
     .subscribe();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && _currentUser) _realtimeScheduleRefresh(); // กลับมาเปิดแท็บ ให้เช็คของใหม่ทันที เผื่อพลาด event ตอนแท็บถูกซ่อนอยู่
+  });
+}
+
+// ══════════════════════════════════════════════
+// แจ้งเตือนมุมขวาบนที่ "เครื่องอื่น" เมื่อมีคนอนุมัติต้นทุนบันทึกผลิต (added 2026-10-05 ตามคำขอผู้ใช้
+// "เมื่ออนุมัติต้นทุนแล้ว ให้แจ้งเตือนที่มุมขวาของเครื่องอื่นด้วย") — ใช้ Supabase Realtime **Broadcast**
+// (ข้อความส่งตรงผ่าน channel เดียวกับ postgres_changes ข้างบน, `prodrecordApproveSubmit` เป็นคน .send()
+// เอง) แทนที่จะ diff payload.old/new ของ postgres_changes เพราะตารางนี้ยังไม่ได้ตั้ง REPLICA IDENTITY
+// FULL (ดู enable_realtime_all_tables.sql — ไม่ได้ตั้งไว้) ทำให้ postgres_changes UPDATE event ส่วนใหญ่มา
+// แค่ primary key ใน `old`, ไม่มี `old.Status` ให้เทียบว่า "เพิ่งเปลี่ยนเป็นอนุมัติแล้วจริงไหม" — อาศัย diff
+// ไม่ได้แม่นพอ (จะยิงแจ้งเตือนซ้ำทุกครั้งที่มีการ UPDATE แถวที่อนุมัติไปแล้ว เช่นตอนแอดมินกด "คำนวณ
+// Overhead+ค่าแรงใหม่ทั้งหมด" ซึ่งไม่ได้เปลี่ยน Status เลยแต่ก็เป็น UPDATE เหมือนกัน) Broadcast หลีกเลี่ยง
+// ปัญหานี้ทั้งหมดเพราะเป็นข้อความที่ตั้งใจส่งเฉพาะตอนอนุมัติจริงๆ เท่านั้น
+function _realtimeNotifyCostApproved(info) {
+  if (!info) return;
+  if (!_hasRole('supervisor')) return; // operator มองไม่เห็นหน้าบันทึกผลิตอยู่แล้ว (ซ่อน nav ตั้งแต่ 2026-09-14) แจ้งไปก็งง เปิดเข้าไปดูไม่ได้
+  if (info.fromEmail && info.fromEmail === _currentUser?.email) return; // เครื่องของคนที่กดอนุมัติเอง — เห็น toast "อนุมัติต้นทุนสำเร็จ" จาก prodrecordApproveSubmit ไปแล้ว ไม่ต้องซ้ำ
+  Swal.fire({
+    toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 5000, timerProgressBar: true,
+    title: 'อนุมัติต้นทุนแล้ว',
+    html: `<b>${info.prodId || '—'}</b>${info.moRef ? ` · MO ${info.moRef}` : ''}${info.productName ? ` — ${info.productName}` : ''}<br>
+      <small class="text-muted">โดย ${info.approvedBy || '—'}</small>`,
   });
 }
 
