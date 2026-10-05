@@ -6421,6 +6421,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                   <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">ยอดยกมา</th><th class="text-end wh-col-xs">รับเข้า</th>
                   <th class="text-end wh-col-xs">จ่ายออก</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-sm">วันหมดอายุ</th>
                   <th class="text-end wh-col-sm" id="stockcard-lot-value-head">มูลค่าคงเหลือ</th>
+                  <th class="text-end wh-col-sm" id="stockcard-lot-cost-head" style="display:none">ต้นทุน/หน่วย</th>
+                  <th class="text-end wh-col-sm" id="stockcard-lot-price-head" style="display:none">ราคาขาย/หน่วย</th>
+                  <th class="text-end wh-col-sm" id="stockcard-lot-profit-head" style="display:none">กำไร/หน่วย</th>
                 </tr>
               </thead>
               <tbody id="stockcard-lot-tbody"></tbody>
@@ -33897,6 +33900,9 @@ function stockcardOnModeChange() {
   document.getElementById('stockcard-result').classList.add('d-none');
   document.getElementById('stockcard-kpi-value-wrap').style.display = stockcardMode() === 'fg' ? 'none' : '';
   document.getElementById('stockcard-lot-value-head').style.display = stockcardMode() === 'fg' ? 'none' : '';
+  document.getElementById('stockcard-lot-cost-head').style.display   = stockcardMode() === 'fg' ? '' : 'none';
+  document.getElementById('stockcard-lot-price-head').style.display  = stockcardMode() === 'fg' ? '' : 'none';
+  document.getElementById('stockcard-lot-profit-head').style.display = stockcardMode() === 'fg' ? '' : 'none';
   stockcardLoadItemList();
 }
 
@@ -33961,9 +33967,10 @@ async function stockcardRun() {
   const dateTo   = mTo   ? new Date(parseInt(mTo.split('-')[0]), parseInt(mTo.split('-')[1]), 0).toISOString().split('T')[0] : null;
 
   _showLoader();
-  const [txns, holdTotals] = await Promise.all([
+  const [txns, holdTotals, fgCostPrice] = await Promise.all([
     mode === 'mat' ? stockcardBuildMatTxns(code, lot) : stockcardBuildFgTxns(code, lot),
     _stockcardComputeHoldTotals(mode, code, lot),
+    mode === 'fg' ? _stockcardFetchFgCostPrice(code) : Promise.resolve(null),
   ]);
   _hideLoader();
   document.getElementById('stockcard-kpi-defect').textContent = holdTotals.defect > 0 ? `${holdTotals.defect.toLocaleString()} ${holdTotals.uom}`.trim() : '0';
@@ -34001,7 +34008,13 @@ async function stockcardRun() {
     const inTxnsCost = inTxns.filter(t=>(t.unitCost||0) > 0);
     const expDate  = inTxnsExp.length  ? inTxnsExp.sort((a,b)=>a.date.localeCompare(b.date))[0].expDate    : '';
     const unitCost = inTxnsCost.length ? inTxnsCost.sort((a,b)=>a.date.localeCompare(b.date))[0].unitCost : 0;
-    perLot[l] = { openingBal:ob, totalIn:tin, totalOut:tout, closing, expDate, unitCost, closingValue: closing*unitCost, txns: ltInRange };
+    // ต้นทุน/หน่วย ของ FG มาจาก production_records.CostPerUnit ของ Lot_FG นี้ (เฉพาะที่อนุมัติต้นทุนแล้ว —
+    // ดู _stockcardFetchFgCostPrice) ราคาขาย/หน่วย มาจาก bom.SellingPrice ทั่วไปเสมอ (หน้านี้ไม่ผูกกับลูกค้า
+    // รายใดรายหนึ่ง จึงไม่ resolve ราคาเฉพาะลูกค้า SellingPrice2) กำไร/หน่วย คำนวณได้ก็ต่อเมื่อมีทั้งคู่
+    const fgCost   = fgCostPrice ? (fgCostPrice.costByLot[l] ?? null) : null;
+    const fgPrice  = fgCostPrice ? fgCostPrice.sellingPrice : null;
+    const fgProfit = (fgCost != null && fgPrice != null) ? (fgPrice - fgCost) : null;
+    perLot[l] = { openingBal:ob, totalIn:tin, totalOut:tout, closing, expDate, unitCost, closingValue: closing*unitCost, fgCost, fgPrice, fgProfit, txns: ltInRange };
   });
   const totalValue = Object.values(perLot).reduce((s,pl) => s + (pl.closingValue||0), 0);
 
@@ -34041,10 +34054,17 @@ async function stockcardRun() {
   }
 
   const lotTbody = document.getElementById('stockcard-lot-tbody');
+  const lotColCount = mode === 'fg' ? 9 : 7;
   lotTbody.innerHTML = !allLots.length
-    ? '<tr><td colspan="7" class="text-center py-4 text-muted">ไม่มีข้อมูล Lot</td></tr>'
+    ? `<tr><td colspan="${lotColCount}" class="text-center py-4 text-muted">ไม่มีข้อมูล Lot</td></tr>`
     : allLots.map(l => {
         const pl = perLot[l];
+        const fmtMoney = v => v != null ? '฿' + v.toLocaleString('th-TH', {maximumFractionDigits:2}) : '—';
+        const modeCols = mode === 'fg'
+          ? `<td class="text-end">${fmtMoney(pl.fgCost)}</td>
+             <td class="text-end">${fmtMoney(pl.fgPrice)}</td>
+             <td class="text-end fw-bold ${pl.fgProfit != null ? (pl.fgProfit >= 0 ? 'text-success' : 'text-danger') : ''}">${fmtMoney(pl.fgProfit)}</td>`
+          : `<td class="text-end">฿${pl.closingValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>`;
         return `<tr>
           <td><span class="badge bg-light text-dark border">${l}</span></td>
           <td class="text-end">${pl.openingBal.toLocaleString()}</td>
@@ -34052,7 +34072,7 @@ async function stockcardRun() {
           <td class="text-end text-danger">${pl.totalOut.toLocaleString()}</td>
           <td class="text-end fw-bold">${pl.closing.toLocaleString()}</td>
           <td>${_fmtDate(pl.expDate)}</td>
-          <td class="text-end">${mode==='mat' ? '฿'+pl.closingValue.toLocaleString('th-TH',{maximumFractionDigits:0}) : '—'}</td>
+          ${modeCols}
         </tr>`;
       }).join('');
 }
@@ -34074,6 +34094,23 @@ async function _stockcardComputeHoldTotals(mode, code, lot) {
     if (r.HoldType === 'RETAIN') retain += bal; else defect += bal;
   });
   return { defect, retain, uom };
+}
+
+// ── ต้นทุน/ราคาขายต่อหน่วยของ FG สำหรับตาราง "แยกตาม Lot" — โครงเดียวกับ _fgStockComputeTotalValue()/
+// _holdstockFgCostByLot (จับคู่ Lot_FG กับ production_records.CostPerUnit ที่อนุมัติแล้วเท่านั้น ไม่ fallback
+// ไปราคาขายแบบ _fgStockComputeTotalValue เพราะที่นี่ต้องแยกคอลัมน์ต้นทุน/ราคาขายให้เห็นชัดเจน ไม่ปนกัน) ราคาขาย
+// ใช้ราคาทั่วไปเสมอ (ไม่ resolve ราคาเฉพาะลูกค้า เพราะหน้านี้ไม่มีบริบทลูกค้าให้ผูก)
+async function _stockcardFetchFgCostPrice(code) {
+  const [prodRes, bomRes] = await Promise.all([
+    _sb.from('production_records').select('Lot_FG,CostPerUnit').eq('ProductCode', code).eq('Status', 'อนุมัติแล้ว'),
+    _sb.from('bom').select('SellingPrice').eq('ProductCode', code).limit(1).maybeSingle(),
+  ]);
+  const costByLot = {};
+  (prodRes.data || []).forEach(r => {
+    if (r.CostPerUnit != null) costByLot[r.Lot_FG] = parseFloat(r.CostPerUnit) || 0;
+  });
+  const sellingPrice = bomRes.data && bomRes.data.SellingPrice != null ? parseFloat(bomRes.data.SellingPrice) : null;
+  return { costByLot, sellingPrice };
 }
 
 // ── กดที่การ์ด KPI Defect/Retain บนการ์ดสต็อก → เด้งไปหน้าสต็อก Defect/Retain กรองเฉพาะสินค้าตัวนี้ให้เลย ──
@@ -34264,6 +34301,9 @@ function _stockcardBuildPrintHTML(rep) {
             <td><b>คงเหลือ</b></td><td><b>${pl.closing.toLocaleString()} ${rep.uom||''}</b></td></tr>
         ${rep.mode==='mat' ? `<tr><td><b>ราคา/หน่วย</b></td><td>฿${pl.unitCost.toLocaleString()}</td>
             <td><b>มูลค่าคงเหลือ</b></td><td>฿${pl.closingValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</td></tr>` : ''}
+        ${rep.mode==='fg' ? `<tr><td><b>ต้นทุน/หน่วย</b></td><td>${pl.fgCost!=null?'฿'+pl.fgCost.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</td>
+            <td><b>ราคาขาย/หน่วย</b></td><td>${pl.fgPrice!=null?'฿'+pl.fgPrice.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</td></tr>
+        <tr><td><b>กำไร/หน่วย</b></td><td colspan="3">${pl.fgProfit!=null?'฿'+pl.fgProfit.toLocaleString(undefined,{maximumFractionDigits:2}):'—'}</td></tr>` : ''}
       </table>
       <table class="stockcard-print-table">
         <thead><tr>
