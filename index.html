@@ -829,8 +829,12 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
 .plan-day-cell.plan-day-dragover{outline:2px dashed #3b82f6;outline-offset:-2px;background:#eff6ff}
 .plan-day-off{font-size:.62rem;font-weight:700;color:#dc2626;letter-spacing:.03em;text-transform:uppercase}
 .plan-day-num{font-size:.78rem;font-weight:700;color:#334155}
-/* cursor:grab บ่งบอกว่าลากได้ (เพิ่ม 2026-10-06 — ดู _planChipHTML) */
-.plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab}
+/* cursor:grab บ่งบอกว่าลากได้ (เพิ่ม 2026-10-06 — ดู _planChipHTML) — user-select:none จำเป็นมาก ไม่งั้น
+   เบราว์เซอร์มักตีความการคลิกค้าง+ลากบนตัวอักษรข้างในเป็น "เลือกข้อความ" แทนที่จะเป็น "ลากอิลิเมนต์" ตามสเปก
+   HTML5 Drag & Drop (ชิปมีข้อความอยู่ข้างในตรงๆ ไม่ใช่รูปภาพ/ไอคอนล้วน) ทำให้ draggable="true" ไม่ทำงานจริง
+   เวลาเมาส์/ทัชแพดจริง — จับได้ "เงียบๆ ไม่มีอาการ" ตามที่ผู้ใช้รายงาน แม้ dragstart event จะยิงถูกต้องตอน
+   เทสต์ผ่าน JS โดยตรงก็ตาม (เพราะ JS เรียก dragstart ตรงๆ ข้ามขั้นตอน text-selection ของเบราว์เซอร์ไปเลย) */
+.plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;-webkit-user-select:none;-moz-user-select:none}
 .plan-chip:active{cursor:grabbing}
 .plan-chip.st-planned{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .plan-chip.st-confirmed{background:#dcfce7;color:#15803d;border:1px solid #86efac}
