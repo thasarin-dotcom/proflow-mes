@@ -825,9 +825,13 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
 .plan-day-cell.plan-day-today{border-color:#3b82f6;border-width:2px}
 .plan-day-cell.plan-day-sunday{background:#fef2f2;border-color:#fecaca}
 .plan-day-cell.plan-day-sunday .plan-day-num{color:#dc2626}
+/* ไฮไลต์เซลล์ที่กำลังลากชิปแผนมาวาง (เพิ่ม 2026-10-06 — ดู planCellDragOver/planCellDrop) */
+.plan-day-cell.plan-day-dragover{outline:2px dashed #3b82f6;outline-offset:-2px;background:#eff6ff}
 .plan-day-off{font-size:.62rem;font-weight:700;color:#dc2626;letter-spacing:.03em;text-transform:uppercase}
 .plan-day-num{font-size:.78rem;font-weight:700;color:#334155}
-.plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* cursor:grab บ่งบอกว่าลากได้ (เพิ่ม 2026-10-06 — ดู _planChipHTML) */
+.plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab}
+.plan-chip:active{cursor:grabbing}
 .plan-chip.st-planned{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .plan-chip.st-confirmed{background:#dcfce7;color:#15803d;border:1px solid #86efac}
 /* เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) ปลดล็อกห้อง/เวลา/คนแล้ว —
@@ -16247,14 +16251,17 @@ function _planMOLot(moRef) {
 
 // การ์ด "1 งาน" ในเซลล์ปฏิทิน — แยกออกมาจาก planRenderCalendar เพราะตอนนี้ใช้ 2 ที่ (เซลล์ในเดือนปกติ +
 // เซลล์จางๆ นอกเดือน ดูหมายเหตุที่ planRenderCalendar) ต้องเรนเดอร์เหมือนกันเป๊ะ ไม่ใช่คนละสูตร
+// draggable="true" (เพิ่ม 2026-10-06 ตามคำขอผู้ใช้ "อยากให้จับเลื่อนแพลนได้เลย คลิกลาก") — ลากชิปนี้ไปวาง
+// เซลล์วันอื่นเพื่อย้ายทั้งงาน (ทุกไลน์ บรรจุ/แพ็ค/ยิง Lot ขยับตามกัน) ดู planChipDragStart/planDragMoveJob
 function _planChipHTML(r) {
   const lot = _planMOLot(r.MO_Ref);
   // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — เปลี่ยนสี+ขึ้นเครื่องหมาย
   // ถูกให้เห็นชัดว่าห้อง/เวลา/คนของงานนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว ไม่ต้องรอครบเวลาที่จองไว้เดิม
   const finished = _planLineFinished(r);
   const stCls = finished ? 'st-finished' : (r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned');
-  return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}"
-    title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''}">
+  return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}" draggable="true"
+    ondragstart="planChipDragStart(event, ${r._row_id})" ondragend="planChipDragEnd(event)"
+    title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''} — ลากไปวางวันอื่นเพื่อย้ายทั้งงาน">
     ${finished ? '<i class="fas fa-check-circle me-1"></i>' : ''}${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
   </div>`;
 }
@@ -16285,16 +16292,19 @@ function planRenderCalendar() {
   _planFilterRowsForDisplay(_planCalendarOverflowData).forEach(r => { (overflowByDate[r.PlanDate] ||= []).push(r); });
 
   // เซลล์ก่อนวันที่ 1 / หลังวันสุดท้ายของเดือน (ให้ตารางเต็มแถวพอดี 7 คอลัมน์) — จางลงด้วย
-  // .plan-day-outside{opacity:.5} เดิม (ไม่ต้องเพิ่ม CSS ใหม่) ไม่มี onclick — คลิกไปเปลี่ยนเดือนจริงด้วย
-  // ลูกศร <> ด้านบนแทน ไม่ใช่ scope ของฟีเจอร์นี้
+  // .plan-day-outside{opacity:.5} เดิม (ไม่ต้องเพิ่ม CSS ใหม่) ไม่มี onclick (คลิกไปเปลี่ยนเดือนจริงด้วย
+  // ลูกศร <> ด้านบนแทน ไม่ใช่ scope ของฟีเจอร์นี้) แต่รับการ "วาง" (drop) ได้เหมือนเซลล์ปกติ — ลากแผนข้ามเดือน
+  // มาวางที่เซลล์จางๆ ได้ (เพิ่ม 2026-10-06, ดู planCellDrop/planDragMoveJob)
   const prevMonthLastDay = new Date(y, m, 0).getDate();
+  const dragAttrs = (dateStr) =>
+    `ondragover="planCellDragOver(event)" ondragleave="planCellDragLeave(event)" ondrop="planCellDrop(event,'${dateStr}')"`;
 
   let cells = '';
   for (let i = 0; i < firstDow; i++) {
     const d = prevMonthLastDay - firstDow + 1 + i;
     const dateStr = _planWeekLocalDateStr(new Date(y, m, 1 - firstDow + i));
     const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
-    cells += `<div class="plan-day-cell plan-day-outside"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+    cells += `<div class="plan-day-cell plan-day-outside" ${dragAttrs(dateStr)}><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -16302,7 +16312,7 @@ function planRenderCalendar() {
     const items = (byDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
     const isToday = dateStr === todayStr;
     const isSunday = new Date(y, m, d).getDay() === 0;
-    cells += `<div class="plan-day-cell${isToday ? ' plan-day-today' : ''}${isSunday ? ' plan-day-sunday' : ''}" onclick="planOpenDayModal('${dateStr}')">
+    cells += `<div class="plan-day-cell${isToday ? ' plan-day-today' : ''}${isSunday ? ' plan-day-sunday' : ''}" onclick="planOpenDayModal('${dateStr}')" ${dragAttrs(dateStr)}>
       <div class="plan-day-num">${d}</div>${isSunday ? '<div class="plan-day-off">Day Off</div>' : ''}${_planCellBodyHTML(items)}
     </div>`;
   }
@@ -16313,10 +16323,212 @@ function planRenderCalendar() {
     const d = i + 1;
     const dateStr = _planWeekLocalDateStr(new Date(y, m + 1, d));
     const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
-    cells += `<div class="plan-day-cell plan-day-outside"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+    cells += `<div class="plan-day-cell plan-day-outside" ${dragAttrs(dateStr)}><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
   }
 
   document.getElementById('plan-calendar-body').innerHTML = cells;
+}
+
+// ── ลากชิปแผนบนปฏิทินไปวางวันอื่นเพื่อย้ายวันที่ (เพิ่ม 2026-10-06 ตามคำขอผู้ใช้ "อยากให้จับเลื่อนแพลนได้เลย
+// คลิกลาก") — ใช้ HTML5 native drag & drop (draggable/dragstart/dragover/drop) ไม่ใช่ pointer-based แบบ
+// Gantt/คิวยิง Lot เพราะที่นี่แค่ "ย้ายการ์ดข้ามเซลล์วัน" ไม่ต้องคำนวณตำแหน่งละเอียดระดับพิกเซลเหมือนแท่ง
+// Gantt — เก็บ row id ที่กำลังลากไว้ใน global ตัวแปรเดียว (ง่ายกว่า serialize ผ่าน dataTransfer เพราะเป็น
+// หน้าเดียวกันอยู่แล้ว ไม่มี cross-window/iframe ให้ต้องห่วง) แต่ยังเรียก dataTransfer.setData ไว้ด้วยเผื่อ
+// เบราว์เซอร์บางตัวต้องการให้เรียกถึงจะเริ่มลากได้จริง (ไม่ได้พึ่งค่าที่ได้คืนมาเป็นหลัก)
+let _planDragRowId = null;
+
+function planChipDragStart(ev, rowId) {
+  _planDragRowId = rowId;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(rowId)); } catch (err) {}
+  ev.stopPropagation(); // กันไม่ให้ click ของเซลล์แม่ (planOpenDayModal) ถูกกระตุ้นจากการเริ่มลาก
+}
+
+// เผื่อกรณีลากแล้วปล่อยนอกเซลล์ที่รับวาง (เช่นกด Esc หรือวางนอกตาราง) — ล้าง highlight ที่อาจค้างอยู่ และ
+// เคลียร์ _planDragRowId กันค่าเก่าหลงเหลือไปปนกับการลากครั้งถัดไป
+function planChipDragEnd(ev) {
+  document.querySelectorAll('.plan-day-cell.plan-day-dragover').forEach(el => el.classList.remove('plan-day-dragover'));
+  _planDragRowId = null;
+}
+
+function planCellDragOver(ev) {
+  ev.preventDefault(); // จำเป็น — ไม่งั้น drop event จะไม่ยิงเลยตามสเปก HTML5 DnD
+  ev.currentTarget.classList.add('plan-day-dragover');
+}
+
+function planCellDragLeave(ev) {
+  ev.currentTarget.classList.remove('plan-day-dragover');
+}
+
+function planCellDrop(ev, dateStr) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('plan-day-dragover');
+  let rowId = _planDragRowId;
+  if (rowId == null) {
+    const raw = ev.dataTransfer.getData('text/plain');
+    rowId = raw ? parseInt(raw) : null;
+  }
+  _planDragRowId = null;
+  if (rowId == null || isNaN(rowId)) return;
+  planDragMoveJob(rowId, dateStr);
+}
+
+// ย้าย "ทั้งงาน" (ทุกไลน์ บรรจุ/แพ็ค/ยิง Lot ของงานเดียวกัน) ไปวันที่ใหม่ ขยับเท่ากันหมดเป็นจำนวนวัน (ตามที่
+// ผู้ใช้ยืนยัน — ไม่ใช่ตั้งวันที่เดียวกันทุกไลน์ เพราะไลน์ยิง Lot อาจตั้งใจอยู่ก่อน/หลังไลน์บรรจุไปแล้ว ต้อง
+// รักษาระยะห่างเดิมไว้) ใช้ _planJobSiblingsOf (ถาม DB ด้วย BatchRef ตรงๆ ทนข้ามเดือนได้แล้ว — ดูหมายเหตุที่
+// ฟังก์ชันนั้น) ลากได้ทั้งสถานะ "วางแผน"/"ยืนยันแล้ว" ตามที่ผู้ใช้ยืนยัน — ถ้ายืนยันแล้วและผูกใบบันทึกผลิตไว้
+// จะ sync Date_Start/Date_End ให้อัตโนมัติด้วย (ดู _planSyncProdRecordDateAfterEdit จุดเดียว ไม่คิดสูตรใหม่ —
+// ฟังก์ชันนั้นเองจะไม่แตะให้ถ้าบันทึกผลิตอนุมัติต้นทุนไปแล้ว ตามหลักเดิมของแอปนี้)
+async function planDragMoveJob(rowId, targetDateStr) {
+  const allVisible = [..._planData, ..._planCalendarOverflowData];
+  const r = allVisible.find(d => d._row_id === rowId);
+  if (!r) return;
+  if (r.PlanDate === targetDateStr) return; // วางที่เดิม ไม่ต้องทำอะไร
+
+  const deltaDays = _ganttDaysBetween(r.PlanDate, targetDateStr);
+
+  _showLoader();
+  // เผื่อยังไม่เคยเปิดฟอร์มเพิ่ม/แก้ไขแผนในเซสชันนี้เลย (_planEmployees ว่างเปล่าอยู่) — ต้องมีรายชื่อพนักงาน
+  // พร้อมก่อนถึงจะเสนอ "สลับคน" ได้ถูกต้องตอนเจอคนชนกัน (ดู _planResolveDragWorkerConflicts) ฟังก์ชันนี้
+  // แคชผลไว้แล้วอยู่แล้ว เรียกซ้ำไม่มีต้นทุนเพิ่มถ้าเคยโหลดแล้ว
+  await _planLoadSkillData();
+  const siblings = await _planJobSiblingsOf(r);
+  const jobRows  = [r, ...siblings];
+  const jobIds   = new Set(jobRows.map(x => x._row_id));
+  const moves    = jobRows.map(row => ({ row, newDate: _ganttAddDays(row.PlanDate, deltaDays) }));
+
+  // เช็คชนไลน์/คนก่อนย้ายจริงทุกไลน์ในงาน (เหมือนทุกจุดที่แก้วันที่แผนในแอปนี้ ไม่ใช่กฎที่หย่อนกว่า) — ยกเว้น
+  // แถวของงานเดียวกันเอง (กำลังย้ายพร้อมกันอยู่แล้ว ไม่ควรเอามาชนกันเอง) เช็คกับทั้ง _planData (เดือนที่เปิด
+  // อยู่) + _planCalendarOverflowData (เซลล์จางๆ นอกเดือน) รวมกัน เผื่อย้ายข้ามไปตกวันที่อยู่คนละเดือน
+  // ไลน์ชน (ห้อง/เวลาเดียวกันถูกจองซ้อน) ยังบล็อกแข็งเหมือนเดิม — สลับห้องให้เองไม่สมเหตุสมผล ไม่ใช่สิ่งที่
+  // ผู้ใช้ขอ (ขอเฉพาะกรณี "คนชนกัน") ส่วนคนชนกัน (ดูด้านล่าง) เก็บรวมไว้ก่อน ไม่บล็อกทันที — ให้เลือกสลับคน
+  // ได้เองในตัวเดียวกันนี้เลยแทนที่จะต้องยกเลิกแล้วไปแก้ฟอร์มเอง (ตามคำขอผู้ใช้ 2026-10-06)
+  const checkRows = allVisible.filter(d => !jobIds.has(d._row_id));
+  const workerConflictsByMove = [];
+  for (const move of moves) {
+    const { row, newDate } = move;
+    const timeStart = (row.TimeStart || '').slice(0, 5);
+    const timeEnd   = (row.TimeEnd || '').slice(0, 5);
+    const conflict  = _planFindConflict(newDate, row.Line, timeStart, timeEnd, null, checkRows);
+    if (conflict) {
+      _hideLoader();
+      _err('ย้ายวันที่ไม่สำเร็จ — ไลน์ชนกัน',
+        `ไลน์ "${row.Line}" วันที่ ${_planFmtDateLabel(newDate)} ถูกจองโดย "${conflict.ProductName||''}" (${conflict.Shift||''} ${_planShiftTimeLabel(conflict)}) ไว้แล้ว`);
+      return;
+    }
+    const workerCodes = (row.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+    const workerConflicts = workerCodes.length
+      ? _planFindWorkerConflicts(newDate, timeStart, timeEnd, workerCodes, null, checkRows) : [];
+    if (workerConflicts.length) workerConflictsByMove.push({ move, conflicts: workerConflicts });
+  }
+
+  // คนชนกัน — เปิดให้เลือกสลับคนแทนที่ได้ทันทีในกล่องเดียว (ตัวเลือกคัดมาแล้วว่าไม่ชนกับใครที่สล็อตใหม่นี้
+  // อีก — poka-yoke, กันเลือกแล้วเจอ error ซ้ำ) ถ้าผู้ใช้กด "ยกเลิกการย้าย" ไม่ย้ายอะไรเลยทั้งงาน (เหมือนเดิม)
+  let workerOverrides = {}; // rowId -> WorkerCodes array ใหม่
+  if (workerConflictsByMove.length) {
+    const picks = await _planResolveDragWorkerConflicts(workerConflictsByMove, checkRows);
+    if (!picks) { _hideLoader(); return; }
+    picks.forEach(p => {
+      const rid = p.move.row._row_id;
+      const base = workerOverrides[rid] || (p.move.row.WorkerCodes || '').split(',').map(x => x.trim()).filter(Boolean);
+      workerOverrides[rid] = base.map(c => c === p.code ? p.newCode : c);
+    });
+  }
+
+  // ผ่านทุกไลน์แล้ว — อัปเดตทีละแถว (วันที่ใหม่ของแต่ละไลน์ไม่เท่ากัน ทำเป็น batch เดียวไม่ได้) แถวที่สลับคน
+  // ไว้ส่งทั้ง WorkerCodes (รหัสอ้างอิง) + Workers (ชื่อที่โชว์ — derive จากรหัสใหม่ด้วยสูตรเดียวกับ planSubmit)
+  for (const { row, newDate } of moves) {
+    const payload = { PlanDate: newDate };
+    const newCodes = workerOverrides[row._row_id];
+    if (newCodes) {
+      payload.WorkerCodes = newCodes.join(',');
+      payload.Workers = newCodes.map(c => {
+        const emp = _planEmployees.find(x => x.EmployeeCode === c);
+        return emp ? (emp.NickName || emp.FirstName || c) : c;
+      }).join(', ');
+    }
+    const { error } = await _sb.from('production_plan').update(payload).eq('_row_id', row._row_id);
+    if (error) {
+      _hideLoader();
+      _err('ย้ายวันที่ไม่สำเร็จ', error.message + ` (ไลน์ "${row.Line}")`);
+      await planLoadData();
+      return;
+    }
+  }
+
+  // งานที่ยืนยันแล้วและผูกใบบันทึกผลิตไว้ — sync วันที่ในใบให้ตรงปฏิทินใหม่ด้วย sync ครั้งเดียวต่อ
+  // ProdRecord_Ref ที่เจอ (ไลน์พี่น้องที่ยืนยันพร้อมกันแชร์ใบเดียวกันอยู่แล้ว ไม่ต้อง sync ซ้ำ)
+  const syncedRefs = new Set();
+  for (const { row, newDate } of moves) {
+    if (row.Status === 'ยืนยันแล้ว' && row.ProdRecord_Ref && !syncedRefs.has(row.ProdRecord_Ref)) {
+      syncedRefs.add(row.ProdRecord_Ref);
+      await _planSyncProdRecordDateAfterEdit(row, { PlanDate: newDate });
+    }
+  }
+
+  _hideLoader();
+  const swapNote = Object.keys(workerOverrides).length ? ' + สลับคนที่ชนกันแล้ว' : '';
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success',
+    title: (jobRows.length > 1 ? `ย้ายแผนสำเร็จ (${jobRows.length} ไลน์)` : 'ย้ายแผนสำเร็จ') + swapNote,
+    showConfirmButton: false, timer: 2500 });
+  await planLoadData();
+}
+
+// ── กล่องให้เลือก "สลับใคร" เมื่อลากย้ายวันแล้วเจอคนชนกับแผนอื่นที่ชนเวลา (เพิ่ม 2026-10-06 ตามคำขอผู้ใช้
+// "ถ้าเจอคนชนกัน ให้แจ้ง เปลี่ยนคน ให้เลือกได้ทันที") — ต่อ 1 คู่ (ไลน์ที่กำลังย้าย, คนที่ชน) มี dropdown ให้
+// เลือกคนแทนที่ 1 ตัว ตัวเลือกคัดกรองไว้แล้วว่าต้องไม่ชนกับใครที่สล็อตใหม่นั้นอีก (เช็คด้วย
+// _planFindWorkerConflicts ตัวเดียวกับที่ใช้เช็คจริงตอนบันทึก) — ป้องกันเลือกแล้วเจอ error ซ้ำ (poka-yoke)
+// คืน array ของ {move, code, conflictRow, newCode} ถ้ายืนยัน หรือ null ถ้ากด "ยกเลิกการย้าย"
+async function _planResolveDragWorkerConflicts(conflictsByMove, checkRows) {
+  // dedupe ต่อ (แถวที่กำลังย้าย, คนที่ชน) คู่เดียว — คนคนเดียวอาจชนกับหลายแผนพร้อมกันได้ (ดู
+  // _planFindWorkerConflicts เอง ไม่ dedupe) แต่โชว์ dropdown ให้เลือกสลับแค่ครั้งเดียวพอ ไม่ต้องซ้ำ
+  const items = [];
+  const seen = new Set();
+  conflictsByMove.forEach(({ move, conflicts }) => {
+    conflicts.forEach(c => {
+      const key = `${move.row._row_id}|${c.code}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ move, code: c.code, conflictRow: c.row });
+    });
+  });
+
+  const rowsHtml = items.map((it, idx) => {
+    const emp = _planEmployees.find(e => e.EmployeeCode === it.code);
+    const empName = emp ? (emp.NickName || emp.FirstName || it.code) : it.code;
+    const ts = (it.move.row.TimeStart || '').slice(0, 5), te = (it.move.row.TimeEnd || '').slice(0, 5);
+    const candidates = _planEmployees.filter(e => e.EmployeeCode !== it.code &&
+      !_planFindWorkerConflicts(it.move.newDate, ts, te, [e.EmployeeCode], null, checkRows).length);
+    const options = candidates.map(e =>
+      `<option value="${e.EmployeeCode}">${e.NickName || e.FirstName || e.EmployeeCode}</option>`).join('');
+    return `<div class="text-start mb-2 p-2" style="border:1px solid #e5e7eb;border-radius:6px">
+      <div class="small text-muted">${it.move.row.Line||''} · ${_planFmtDateLabel(it.move.newDate)} (${ts}-${te})</div>
+      <div><b>${empName}</b> ชนกับ "${it.conflictRow.ProductName||''}" (${it.conflictRow.Line||''} ${it.conflictRow.Shift||''})</div>
+      <select class="form-select form-select-sm mt-1" id="plan-dragswap-${idx}">
+        <option value="">— เลือกคนแทน —</option>
+        ${options || '<option value="" disabled>ไม่มีคนว่างให้เลือกเลย</option>'}
+      </select>
+    </div>`;
+  }).join('');
+
+  const res = await Swal.fire({
+    title: 'เจอคนซ้ำกับแผนอื่นที่ชนเวลากัน',
+    html: `<div class="text-start small mb-2">เลือกคนแทนสำหรับแต่ละคนที่ชนกันด้านล่าง แล้วกด "ยืนยันสลับคน" เพื่อย้ายแผนต่อ — หรือกด "ยกเลิกการย้าย" ถ้าไม่ต้องการย้ายแล้ว</div>${rowsHtml}`,
+    width: 560,
+    showCancelButton: true,
+    confirmButtonText: 'ยืนยันสลับคน',
+    cancelButtonText: 'ยกเลิกการย้าย',
+    focusConfirm: false,
+    preConfirm: () => {
+      const picks = items.map((it, idx) => ({ ...it, newCode: document.getElementById(`plan-dragswap-${idx}`)?.value || null }));
+      if (picks.some(p => !p.newCode)) {
+        Swal.showValidationMessage('กรุณาเลือกคนแทนให้ครบทุกแถว หรือกด "ยกเลิกการย้าย"');
+        return false;
+      }
+      return picks;
+    },
+  });
+  return res.isConfirmed ? res.value : null;
 }
 
 function _planFmtDateLabel(dateStr) {
@@ -17076,9 +17288,13 @@ function _planMOClosed(r) {
 // คืนแผนที่ชนเวลากันในไลน์เดียวกัน วันเดียวกัน (excludeRowId ใช้ตอนแก้ไขเพื่อไม่ชนกับตัวเอง) — ข้ามแถวที่
 // "เสร็จงานจริงแล้ว" ไปเลย (ดู _planLineFinished) ตามที่ผู้ใช้ขอ: งานที่เสร็จก่อนกำหนดในแผน ปลดล็อกห้อง/
 // เวลาให้งานใหม่จองซ้อนทับได้ทันที ไม่ต้องรอให้ครบเวลาที่จองไว้เดิม
-function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
+// rows (เพิ่ม 2026-10-06 ตามฟีเจอร์ลากย้ายวันบนปฏิทิน): แหล่งแถวที่ใช้เช็ค เดิม hardcode _planData เสมอ (พอใช้
+// ได้ทุกจุดเดิม เพราะเช็คแค่วันในเดือนที่เปิดฟอร์มอยู่) แต่ลากข้ามไปวางที่เซลล์จางๆ นอกเดือน (ดู
+// _planCalendarOverflowData) ต้องเช็คกับแถวของเดือนนั้นด้วย เลยเปิดให้ส่ง array อื่นแทนได้ ไม่กระทบจุดเดิมที่
+// ไม่ได้ส่ง param นี้มาเลย
+function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId, rows = _planData) {
   if (!date || !line || !timeStart || !timeEnd) return null;
-  return _planData.find(r =>
+  return rows.find(r =>
     r._row_id !== excludeRowId &&
     r.PlanDate === date &&
     r.Line === line &&
@@ -17096,10 +17312,11 @@ function _planFindConflict(date, line, timeStart, timeEnd, excludeRowId) {
 // เดิม (2026-09-07) เคยข้ามแถวไลน์ "ยิง Lot" ไปเลย เพราะวันที่ที่บันทึกไว้เป็นแค่วันที่ยืมจากไลน์บรรจุ ไม่ใช่
 // วันที่จริง — ตอนนี้ไลน์ยิง Lot มีช่องวันที่ของตัวเองแล้ว (added 2026-09-08 ดูหมายเหตุที่ _planDateForBlock)
 // วันที่ที่บันทึกไว้จึงเป็นวันที่จริงแล้ว เทียบกันมีความหมายเหมือนไลน์อื่นทุกอย่าง เลยเลิกข้ามแถวไลน์ยิง Lot
-function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, excludeRowId) {
+// rows (เพิ่ม 2026-10-06, เหตุผลเดียวกับ _planFindConflict ด้านบน): แหล่งแถวที่ใช้เช็ค ดีฟอลต์ _planData เดิม
+function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, excludeRowId, rows = _planData) {
   if (!date || !timeStart || !timeEnd || !workerCodes.length) return [];
   const conflicts = [];
-  _planData.forEach(r => {
+  rows.forEach(r => {
     if (r._row_id === excludeRowId) return;
     if (r.PlanDate !== date) return;
     if (_planMOClosed(r)) return; // MO ปิดทางการแล้ว — คนของแถวนี้ว่างแล้วจริง ไม่นับชนอีกต่อไป (ยอดสแกนถึงเป้าอย่างเดียวไม่พอ)
