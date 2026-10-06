@@ -29030,19 +29030,50 @@ async function _admindashFetchStepCapacity(code) {
   };
 }
 
+// หาลูกค้าของแต่ละบันทึกผลิต (ถ้ามี) ตามสาย MO_Ref → manufacturing_orders.CO_Ref → customer_orders.CustomerName
+// — จุดเดียวกับที่ prodrecordOpenApproveModal (Stage B)/bprPrint ใช้อยู่แล้ว แค่ทำเป็นเวอร์ชัน batched (ดึง MO/CO
+// ที่เกี่ยวข้องทั้งหมดทีเดียวผ่าน .in(), ไม่ await ทีละ record) เพราะตาราง "เจาะลึกรายสินค้า" มีหลาย Lot พร้อมกัน —
+// เพิ่ม 2026-10-06 ตามคำขอผู้ใช้ "ราคาขายให้ลูกค้าแต่ละเจ้าไม่เท่ากันนะ" คืนค่า {ProdRecord_ID: CustomerName}
+async function _admindashResolveDrillCustomerNames(rows) {
+  const moRefs = [...new Set(rows.map(r => r.MO_Ref).filter(Boolean))];
+  if (!moRefs.length) return {};
+  const { data: mos } = await _sb.from('manufacturing_orders').select('MO_ID,CO_Ref').in('MO_ID', moRefs);
+  const moToCoRef = {};
+  (mos || []).forEach(m => { if (m.CO_Ref) moToCoRef[m.MO_ID] = m.CO_Ref; });
+  const coRefs = [...new Set(Object.values(moToCoRef))];
+  if (!coRefs.length) return {};
+  const { data: cos } = await _sb.from('customer_orders').select('Order_ID,CustomerName').in('Order_ID', coRefs);
+  const coToCustomer = {};
+  (cos || []).forEach(c => { if (c.CustomerName) coToCustomer[c.Order_ID] = c.CustomerName; });
+  const result = {};
+  rows.forEach(r => {
+    const coRef = r.MO_Ref ? moToCoRef[r.MO_Ref] : null;
+    if (coRef && coToCustomer[coRef]) result[r.ProdRecord_ID] = coToCustomer[coRef];
+  });
+  return result;
+}
+
 // คำนวณตาราง "เจาะลึกรายสินค้า" ของสินค้า 1 รายการ (ตัวเลขดิบ ไม่ format เป็น string) — ใช้ร่วมกันทั้งตอนแสดง
 // บนจอ (admindashRenderDrilldown) และตอน export ทุกสินค้าเป็น Excel หลายชีท (admindashExportAllProductsXLSX)
 // กันโค้ด 2 จุดคำนวณไม่ตรงกัน
 async function _admindashComputeDrillRows(code) {
-  // ตารางนี้เจาะลึกเป็นระดับ Lot การผลิต ไม่ใช่ระดับการขายให้ลูกค้ารายใดรายหนึ่ง (1 Lot อาจถูกแบ่งส่งหลายลูกค้า
-  // ได้) จึงใช้ราคาขายทั่วไป (SellingPrice) เสมอ ไม่ resolve ราคาพิเศษต่อลูกค้า — ต่างจาก _admindashDlvPrice()
-  // ที่ผูกกับแถว delivery จริงซึ่งรู้ลูกค้าแน่ชัด (_admindashPriceMap[code] ตอนนี้คือแถว bom ดิบ ไม่ใช่ตัวเลข
-  // ราคาเดียวแล้ว)
-  const price = _admindashPriceMap[code]?.SellingPrice != null ? parseFloat(_admindashPriceMap[code].SellingPrice) : null;
+  // ราคาขายทั่วไป (bom.SellingPrice) — ใช้เป็นค่า fallback สุดท้ายเมื่อบันทึกนี้ไม่ผูก MO/CO ที่มีราคาพิเศษ และ
+  // ใช้เป็นตัวเช็ค "ยังไม่ได้ตั้งราคาขายเลย" (alertEl ด้านล่าง) — **ไม่ใช้ค่านี้ตรงๆ กับทุกแถวอีกต่อไป** (แก้
+  // 2026-10-06 ตามคำขอผู้ใช้ "ราคาขายให้ลูกค้าแต่ละเจ้าไม่เท่ากันนะ": เดิมคอมเมนต์ตรงนี้อ้างว่า "1 Lot อาจถูก
+  // แบ่งส่งหลายลูกค้าได้" เลยใช้ราคาทั่วไปเสมอ — แต่จริงๆ ตารางนี้เจาะเป็นระดับ "บันทึกผลิต" (1 แถว = 1
+  // production_records = ผูกกับ 1 MO_Ref เดียว ซึ่งปกติผูกกับ 1 CO/ลูกค้าเดียวตั้งแต่ตอนวางแผน) ไม่ใช่ระดับ
+  // delivery ที่แบ่งส่งได้จริงหลายลูกค้า จึง resolve ราคาต่อลูกค้าของแต่ละบันทึกได้แม่นเหมือน Stage B
+  // (prodrecordOpenApproveModal) เป๊ะ ผ่าน _admindashResolveDrillCustomerNames + _bomResolveSellingPrice ตัวเดียวกัน
+  const bomRow = _admindashPriceMap[code] || null;
+  const price = bomRow?.SellingPrice != null ? parseFloat(bomRow.SellingPrice) : null;
   const rows = _admindashLastProd.filter(r => r.ProductCode === code)
     .sort((a, b) => (_admindashMonthKey(b) || '').localeCompare(_admindashMonthKey(a) || ''));
-  const partsByRecord = await _admindashFetchMaterialSplit(code, rows);
+  const [partsByRecord, customerNames] = await Promise.all([
+    _admindashFetchMaterialSplit(code, rows),
+    _admindashResolveDrillCustomerNames(rows),
+  ]);
 
+  const priceByRecord = {};
   const computedRows = rows.map(r => {
     const qty = parseFloat(r.FG_Actual) || 0;
     const p = partsByRecord[r.ProdRecord_ID] || { material: parseFloat(r.MaterialCost) || 0, packaging: 0 };
@@ -29051,7 +29082,11 @@ async function _admindashComputeDrillRows(code) {
     // ก่อนหักของเสีย — สูตรเดียวกับที่ใช้ในหน้าอนุมัติต้นทุน/รายงานพิมพ์ (2026-08-27 ตามคำขอผู้ใช้ "จะได้เห็นกำไรจริงๆ")
     const scrapPct = r.ScrapPct != null ? parseFloat(r.ScrapPct) : null;
     const cost = (scrapPct != null && scrapPct < 100) ? rawCost / (1 - scrapPct / 100) : rawCost;
-    const profitPerUnit = price != null ? price - cost : null;
+    // ราคาขายของแถวนี้ resolve ตามลูกค้าจริงของบันทึกนี้ (ถ้ามี) เหมือน Stage B เป๊ะ — ไม่ใช่ราคาทั่วไปคงที่
+    const resolved = _bomResolveSellingPrice(bomRow, customerNames[r.ProdRecord_ID] || null);
+    const rowPrice = resolved ? resolved.price : null;
+    priceByRecord[r.ProdRecord_ID] = rowPrice;
+    const profitPerUnit = rowPrice != null ? rowPrice - cost : null;
     return {
       lot: r.Lot_FG || '', month: _admindashMonthKey(r) || '', qty, uom: r.UOM || '',
       // ทุกตัวเลข % ปัดเหลือทศนิยม 2 ตำแหน่งเสมอ (ตามคำขอผู้ใช้ 2026-08-27) — scrapPct ที่แสดงตรงนี้ปัดแล้ว
@@ -29063,12 +29098,14 @@ async function _admindashComputeDrillRows(code) {
       laborPerUnit: qty ? (parseFloat(r.LaborCost) || 0) / qty : null,
       utilityPerUnit: qty ? (parseFloat(r.Overhead) || 0) / qty : null,
       costPerUnit: cost,
-      sellingPrice: price,
+      sellingPrice: rowPrice,
+      priceTier: resolved?.tier || null,
+      priceCustomerName: resolved?.tier === 'customer' ? resolved.customerName : null,
       profitPerUnit,
-      marginPct: (price != null && price > 0) ? Math.round(profitPerUnit / price * 10000) / 100 : null,
+      marginPct: (rowPrice != null && rowPrice > 0) ? Math.round(profitPerUnit / rowPrice * 10000) / 100 : null,
     };
   });
-  return { price, rows, partsByRecord, computedRows };
+  return { price, rows, partsByRecord, computedRows, priceByRecord };
 }
 
 // แบ่งจำนวนเต็ม `total` ตามสัดส่วน `shares` (largest-remainder / Hamilton apportionment) — คืนค่าที่บวกกัน
@@ -29113,7 +29150,7 @@ async function admindashRenderDrilldown() {
 
   if (tableEl) tableEl.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดรายละเอียดต้นทุน...</div>';
 
-  const [{ price, rows, partsByRecord, computedRows }, stepCapacity] = await Promise.all([
+  const [{ price, rows, partsByRecord, computedRows, priceByRecord }, stepCapacity] = await Promise.all([
     _admindashComputeDrillRows(code),
     _admindashFetchStepCapacity(code),
   ]);
@@ -29314,7 +29351,9 @@ async function admindashRenderDrilldown() {
             <td class="text-end">${fmtB(c.laborPerUnit)}</td>
             <td class="text-end">${fmtB(c.utilityPerUnit)}</td>
             <td class="text-end">${fmtB(c.costPerUnit)}</td>
-            <td class="text-end">${c.sellingPrice != null ? fmtB(c.sellingPrice) : '—'}</td>
+            <td class="text-end">${c.sellingPrice != null ? fmtB(c.sellingPrice) : '—'}${
+              c.priceTier === 'customer' ? `<br><span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:.62rem">ลูกค้า: ${c.priceCustomerName}</span>` : ''
+            }</td>
             <td class="text-end ${pClass}">${c.profitPerUnit != null ? (c.profitPerUnit >= 0 ? '+' : '') + fmtB(c.profitPerUnit) : '—'}</td>
             <td class="text-end ${pClass}">${c.marginPct != null ? c.marginPct + '%' : '—'}${
               (c.marginPct != null && c.marginPct >= 0 && c.marginPct < _ADMINDASH_LOW_MARGIN_PCT)
@@ -29335,7 +29374,7 @@ async function admindashRenderDrilldown() {
   const byMonth = months.map(m => {
     const monthRows = rows.filter(r => _admindashMonthKey(r) === m);
     const totalQty = monthRows.reduce((s, r) => s + (parseFloat(r.FG_Actual) || 0), 0);
-    if (!totalQty) return { material: null, packaging: null, labor: null, utility: null, cost: null };
+    if (!totalQty) return { material: null, packaging: null, labor: null, utility: null, cost: null, avgPrice: null };
     const sumField = f => monthRows.reduce((s, r) => s + (parseFloat(r[f]) || 0), 0);
     const sumSplit = key => monthRows.reduce((s, r) => s + ((partsByRecord[r.ProdRecord_ID]?.[key]) || 0), 0);
     // ต้นทุนรวมที่ใช้คิดกำไร% ในกราฟ ต้องรวม Scrap % ต่อบันทึกก่อนถ่วงน้ำหนักรวมเดือน (สอดคล้องกับตารางด้านล่าง
@@ -29345,15 +29384,26 @@ async function admindashRenderDrilldown() {
       const sp = r.ScrapPct != null ? parseFloat(r.ScrapPct) : null;
       return s + ((sp != null && sp < 100) ? tc / (1 - sp / 100) : tc);
     }, 0);
+    // ราคาขายเฉลี่ยถ่วงน้ำหนักของเดือนนี้ — ใช้ราคาที่ resolve ตามลูกค้าจริงของแต่ละบันทึก (priceByRecord) ไม่ใช่
+    // ราคาทั่วไปคงที่ตัวเดียวอีกต่อไป (แก้ 2026-10-06 เหมือน computedRows ด้านบน) บันทึกที่ resolve ราคาไม่ได้เลย
+    // (ไม่มีทั้งราคาทั่วไปและราคาพิเศษ) ไม่ถูกนับทั้งเศษและส่วน กันดึงค่าเฉลี่ยเพี้ยน
+    let revenueKnown = 0, qtyKnown = 0;
+    monthRows.forEach(r => {
+      const q = parseFloat(r.FG_Actual) || 0;
+      const p = priceByRecord[r.ProdRecord_ID];
+      if (p != null) { revenueKnown += q * p; qtyKnown += q; }
+    });
+    const avgPrice = qtyKnown > 0 ? revenueKnown / qtyKnown : null;
     return {
       material: sumSplit('material') / totalQty,
       packaging: sumSplit('packaging') / totalQty,
       labor: sumField('LaborCost') / totalQty,
       utility: sumField('Overhead') / totalQty,
       cost: sumScrapAdjCost / totalQty,
+      avgPrice,
     };
   });
-  const marginByMonth = byMonth.map(m => (price == null || m.cost == null) ? null : Math.round((price - m.cost) / price * 1000) / 10);
+  const marginByMonth = byMonth.map(m => (m.avgPrice == null || m.cost == null) ? null : Math.round((m.avgPrice - m.cost) / m.avgPrice * 1000) / 10);
 
   _admindashCharts.drilltrend = new Chart(document.getElementById('admindash-chart-drilltrend'), {
     type: 'line',
