@@ -825,17 +825,18 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
 .plan-day-cell.plan-day-today{border-color:#3b82f6;border-width:2px}
 .plan-day-cell.plan-day-sunday{background:#fef2f2;border-color:#fecaca}
 .plan-day-cell.plan-day-sunday .plan-day-num{color:#dc2626}
-/* ไฮไลต์เซลล์ที่กำลังลากชิปแผนมาวาง (เพิ่ม 2026-10-06 — ดู planCellDragOver/planCellDrop) */
+/* ไฮไลต์เซลล์ที่กำลังลากชิปแผนมาวาง (เพิ่ม 2026-10-06 — toggle ด้วย JS ตรงๆ ใน _planChipPointerMove/Up
+   ไม่ใช่ native dragover/drop event ของเบราว์เซอร์ — ดูหมายเหตุยาวที่ planChipPointerDown) */
 .plan-day-cell.plan-day-dragover{outline:2px dashed #3b82f6;outline-offset:-2px;background:#eff6ff}
 .plan-day-off{font-size:.62rem;font-weight:700;color:#dc2626;letter-spacing:.03em;text-transform:uppercase}
 .plan-day-num{font-size:.78rem;font-weight:700;color:#334155}
-/* cursor:grab บ่งบอกว่าลากได้ (เพิ่ม 2026-10-06 — ดู _planChipHTML) — user-select:none จำเป็นมาก ไม่งั้น
-   เบราว์เซอร์มักตีความการคลิกค้าง+ลากบนตัวอักษรข้างในเป็น "เลือกข้อความ" แทนที่จะเป็น "ลากอิลิเมนต์" ตามสเปก
-   HTML5 Drag & Drop (ชิปมีข้อความอยู่ข้างในตรงๆ ไม่ใช่รูปภาพ/ไอคอนล้วน) ทำให้ draggable="true" ไม่ทำงานจริง
-   เวลาเมาส์/ทัชแพดจริง — จับได้ "เงียบๆ ไม่มีอาการ" ตามที่ผู้ใช้รายงาน แม้ dragstart event จะยิงถูกต้องตอน
-   เทสต์ผ่าน JS โดยตรงก็ตาม (เพราะ JS เรียก dragstart ตรงๆ ข้ามขั้นตอน text-selection ของเบราว์เซอร์ไปเลย) */
+/* cursor:grab บ่งบอกว่าลากได้ (เพิ่ม 2026-10-06 — ดู _planChipHTML) — user-select:none กันเบราว์เซอร์ตีความ
+   การกดค้าง+ลากบนตัวอักษรข้างในเป็น "เลือกข้อความ" แทนที่จะเป็นจุดเริ่มลาก (ยังมีประโยชน์แม้เปลี่ยนมาใช้
+   pointer events แล้ว เพราะกลไกเดิมยังเป็นการกดเมาส์ค้างแล้วลากบนอิลิเมนต์ที่มีข้อความอยู่ดี) */
 .plan-chip{font-size:.66rem;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;-webkit-user-select:none;-moz-user-select:none}
 .plan-chip:active{cursor:grabbing}
+/* สถานะกำลังถูกลากอยู่ (เพิ่ม 2026-10-06 — toggle ใน _planChipPointerMove/Up) ให้เห็นชัดว่าชิปไหนกำลังย้าย */
+.plan-chip.plan-chip-dragging{opacity:.4;outline:2px dashed #1e3a8a}
 .plan-chip.st-planned{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
 .plan-chip.st-confirmed{background:#dcfce7;color:#15803d;border:1px solid #86efac}
 /* เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) ปลดล็อกห้อง/เวลา/คนแล้ว —
@@ -16255,16 +16256,16 @@ function _planMOLot(moRef) {
 
 // การ์ด "1 งาน" ในเซลล์ปฏิทิน — แยกออกมาจาก planRenderCalendar เพราะตอนนี้ใช้ 2 ที่ (เซลล์ในเดือนปกติ +
 // เซลล์จางๆ นอกเดือน ดูหมายเหตุที่ planRenderCalendar) ต้องเรนเดอร์เหมือนกันเป๊ะ ไม่ใช่คนละสูตร
-// draggable="true" (เพิ่ม 2026-10-06 ตามคำขอผู้ใช้ "อยากให้จับเลื่อนแพลนได้เลย คลิกลาก") — ลากชิปนี้ไปวาง
-// เซลล์วันอื่นเพื่อย้ายทั้งงาน (ทุกไลน์ บรรจุ/แพ็ค/ยิง Lot ขยับตามกัน) ดู planChipDragStart/planDragMoveJob
+// onpointerdown (เพิ่ม 2026-10-06, เปลี่ยนจาก native HTML5 drag วันเดียวกัน — ดูหมายเหตุยาวที่ planChipPointerDown
+// ด้านล่างว่าทำไมเปลี่ยน) — ลากชิปนี้ไปวางเซลล์วันอื่นเพื่อย้ายทั้งงาน (ทุกไลน์ บรรจุ/แพ็ค/ยิง Lot ขยับตามกัน)
 function _planChipHTML(r) {
   const lot = _planMOLot(r.MO_Ref);
   // เสร็จงานจริงแล้ว (ยอดสแกนเรียลไทม์ ≥ ยอดสั่งผลิต — ดู _planLineFinished) — เปลี่ยนสี+ขึ้นเครื่องหมาย
   // ถูกให้เห็นชัดว่าห้อง/เวลา/คนของงานนี้ปลดล็อกให้งานอื่นจองซ้อนได้แล้ว ไม่ต้องรอครบเวลาที่จองไว้เดิม
   const finished = _planLineFinished(r);
   const stCls = finished ? 'st-finished' : (r.Status === 'ยืนยันแล้ว' ? 'st-confirmed' : 'st-planned');
-  return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}" draggable="true"
-    ondragstart="planChipDragStart(event, ${r._row_id})" ondragend="planChipDragEnd(event)"
+  return `<div class="plan-chip ${stCls}" style="border-left:3px solid ${_planLineColor(r.Line)}"
+    onpointerdown="planChipPointerDown(event, ${r._row_id})"
     title="${r.Line||''} · ${r.Shift||''} (${_planShiftTimeLabel(r)}) · ${r.ProductName||''} — ${(parseFloat(r.PlanQty)||0).toLocaleString()} ${r.UOM||''}${lot ? ' · Lot '+lot : ''}${finished ? ' · เสร็จงานจริงแล้ว (ปลดล็อกห้อง/เวลา/คนแล้ว)' : ''} — ลากไปวางวันอื่นเพื่อย้ายทั้งงาน">
     ${finished ? '<i class="fas fa-check-circle me-1"></i>' : ''}${r.Shift ? r.Shift+' ' : ''}${r.ProductName||'—'} · ${(parseFloat(r.PlanQty)||0).toLocaleString()}
   </div>`;
@@ -16297,18 +16298,17 @@ function planRenderCalendar() {
 
   // เซลล์ก่อนวันที่ 1 / หลังวันสุดท้ายของเดือน (ให้ตารางเต็มแถวพอดี 7 คอลัมน์) — จางลงด้วย
   // .plan-day-outside{opacity:.5} เดิม (ไม่ต้องเพิ่ม CSS ใหม่) ไม่มี onclick (คลิกไปเปลี่ยนเดือนจริงด้วย
-  // ลูกศร <> ด้านบนแทน ไม่ใช่ scope ของฟีเจอร์นี้) แต่รับการ "วาง" (drop) ได้เหมือนเซลล์ปกติ — ลากแผนข้ามเดือน
-  // มาวางที่เซลล์จางๆ ได้ (เพิ่ม 2026-10-06, ดู planCellDrop/planDragMoveJob)
+  // ลูกศร <> ด้านบนแทน ไม่ใช่ scope ของฟีเจอร์นี้) ทุกเซลล์มี data-date ไว้ให้ลากแผนมาวางได้ (อ่านค่าผ่าน
+  // document.elementFromPoint(...).closest('.plan-day-cell').dataset.date ตอน pointerup — ดู
+  // _planChipPointerUp/planDragMoveJob) รวมเซลล์จางๆ นอกเดือนด้วย ลากแผนข้ามเดือนมาวางได้เหมือนกัน
   const prevMonthLastDay = new Date(y, m, 0).getDate();
-  const dragAttrs = (dateStr) =>
-    `ondragover="planCellDragOver(event)" ondragleave="planCellDragLeave(event)" ondrop="planCellDrop(event,'${dateStr}')"`;
 
   let cells = '';
   for (let i = 0; i < firstDow; i++) {
     const d = prevMonthLastDay - firstDow + 1 + i;
     const dateStr = _planWeekLocalDateStr(new Date(y, m, 1 - firstDow + i));
     const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
-    cells += `<div class="plan-day-cell plan-day-outside" ${dragAttrs(dateStr)}><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+    cells += `<div class="plan-day-cell plan-day-outside" data-date="${dateStr}"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -16316,7 +16316,7 @@ function planRenderCalendar() {
     const items = (byDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
     const isToday = dateStr === todayStr;
     const isSunday = new Date(y, m, d).getDay() === 0;
-    cells += `<div class="plan-day-cell${isToday ? ' plan-day-today' : ''}${isSunday ? ' plan-day-sunday' : ''}" onclick="planOpenDayModal('${dateStr}')" ${dragAttrs(dateStr)}>
+    cells += `<div class="plan-day-cell${isToday ? ' plan-day-today' : ''}${isSunday ? ' plan-day-sunday' : ''}" data-date="${dateStr}" onclick="planOpenDayModal('${dateStr}')">
       <div class="plan-day-num">${d}</div>${isSunday ? '<div class="plan-day-off">Day Off</div>' : ''}${_planCellBodyHTML(items)}
     </div>`;
   }
@@ -16327,54 +16327,68 @@ function planRenderCalendar() {
     const d = i + 1;
     const dateStr = _planWeekLocalDateStr(new Date(y, m + 1, d));
     const items = (overflowByDate[dateStr] || []).slice().sort((a,b) => (a.TimeStart||'').localeCompare(b.TimeStart||''));
-    cells += `<div class="plan-day-cell plan-day-outside" ${dragAttrs(dateStr)}><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
+    cells += `<div class="plan-day-cell plan-day-outside" data-date="${dateStr}"><div class="plan-day-num">${d}</div>${_planCellBodyHTML(items)}</div>`;
   }
 
   document.getElementById('plan-calendar-body').innerHTML = cells;
 }
 
 // ── ลากชิปแผนบนปฏิทินไปวางวันอื่นเพื่อย้ายวันที่ (เพิ่ม 2026-10-06 ตามคำขอผู้ใช้ "อยากให้จับเลื่อนแพลนได้เลย
-// คลิกลาก") — ใช้ HTML5 native drag & drop (draggable/dragstart/dragover/drop) ไม่ใช่ pointer-based แบบ
-// Gantt/คิวยิง Lot เพราะที่นี่แค่ "ย้ายการ์ดข้ามเซลล์วัน" ไม่ต้องคำนวณตำแหน่งละเอียดระดับพิกเซลเหมือนแท่ง
-// Gantt — เก็บ row id ที่กำลังลากไว้ใน global ตัวแปรเดียว (ง่ายกว่า serialize ผ่าน dataTransfer เพราะเป็น
-// หน้าเดียวกันอยู่แล้ว ไม่มี cross-window/iframe ให้ต้องห่วง) แต่ยังเรียก dataTransfer.setData ไว้ด้วยเผื่อ
-// เบราว์เซอร์บางตัวต้องการให้เรียกถึงจะเริ่มลากได้จริง (ไม่ได้พึ่งค่าที่ได้คืนมาเป็นหลัก)
-let _planDragRowId = null;
+// คลิกลาก") — ใช้ pointer events (pointerdown/pointermove/pointerup) แบบเดียวกับ Gantt/คิวยิง Lot
+// (_prodStatusStepPointerDown/_lotqStepPointerDown) ไม่ใช่ HTML5 native drag & drop ของเบราว์เซอร์
+// (draggable/dragstart/dragover/drop) แบบที่ลองก่อนหน้านี้ในวันเดียวกัน — **เปลี่ยนหลังผู้ใช้ทดสอบจริงแล้ว
+// เจอว่า native DnD ทำให้เว็บ "ค้าง กดอะไรไม่ได้เลย"** ตอนคลิกค้างจะลาก (สาเหตุที่แน่ชัดยังสรุปไม่ได้ 100% —
+// อาจเป็น text-selection-vs-drag ของเบราว์เซอร์ หรือ native drag state ค้างจากบางสาเหตุ แต่เนื่องจากแอปนี้มี
+// กลไก pointer-based drag ที่พิสูจน์แล้วว่าใช้งานได้จริงอยู่แล้วสำหรับ Gantt จึงย้ายมาใช้แบบเดียวกันแทนที่จะ
+// ไล่จับบั๊กของกลไก native DnD ต่อ) ข้อดีเพิ่มเติม: ใช้ pointer events แปลว่ารองรับจอสัมผัส/แท็บเล็ตได้ด้วย
+// โดยไม่ต้องทำอะไรเพิ่ม (native DnD ไม่รองรับ touch เลยในเบราว์เซอร์ส่วนใหญ่)
+let _planCalDrag = null; // {rowId, startClientX, startClientY, moved, el}
+// กัน click ที่เบราว์เซอร์มักยิงตามหลัง pointerup ของการลาก ไม่ให้ไปเปิด day modal ของเซลล์ที่เพิ่งวางซ้อน
+// (ดู planOpenDayModal ที่เช็คค่านี้เป็นจุดแรก)
+let _planCalDragSuppressClick = false;
 
-function planChipDragStart(ev, rowId) {
-  _planDragRowId = rowId;
-  ev.dataTransfer.effectAllowed = 'move';
-  try { ev.dataTransfer.setData('text/plain', String(rowId)); } catch (err) {}
-  ev.stopPropagation(); // กันไม่ให้ click ของเซลล์แม่ (planOpenDayModal) ถูกกระตุ้นจากการเริ่มลาก
+function planChipPointerDown(ev, rowId) {
+  if (ev.button != null && ev.button !== 0) return; // ปุ่มซ้าย/แตะเท่านั้น
+  _planCalDrag = { rowId, startClientX: ev.clientX, startClientY: ev.clientY, moved: false, el: ev.currentTarget };
+  document.addEventListener('pointermove', _planChipPointerMove);
+  document.addEventListener('pointerup', _planChipPointerUp, { once: true });
+  ev.stopPropagation(); // กันไม่ให้ click ของเซลล์แม่ (planOpenDayModal) ถูกกระตุ้นจากจุดเริ่มกด
 }
 
-// เผื่อกรณีลากแล้วปล่อยนอกเซลล์ที่รับวาง (เช่นกด Esc หรือวางนอกตาราง) — ล้าง highlight ที่อาจค้างอยู่ และ
-// เคลียร์ _planDragRowId กันค่าเก่าหลงเหลือไปปนกับการลากครั้งถัดไป
-function planChipDragEnd(ev) {
-  document.querySelectorAll('.plan-day-cell.plan-day-dragover').forEach(el => el.classList.remove('plan-day-dragover'));
-  _planDragRowId = null;
+// หาเซลล์วันที่ตัวชี้อยู่เหนือ ณ ขณะนี้ — ลอง document.elementFromPoint ก่อน (hit-test จริงตามพิกเซลบนจอ
+// ถูกต้องเสมอแม้จอสัมผัสที่ implicit pointer capture ล็อก ev.target ไว้ที่อิลิเมนต์ตั้งต้น) แล้ว fallback
+// ไป ev.target ถ้า elementFromPoint คืนค่า null (เช่น พิกัดอยู่นอก viewport จริงบางกรณี) — ev.target เองก็
+// ถูกต้องอยู่แล้วสำหรับเมาส์/ทัชแพดทั่วไป (ไม่มี implicit capture ให้ค่าค้างที่อิลิเมนต์ตั้งต้น)
+function _planCalCellAtPoint(ev) {
+  return (document.elementFromPoint(ev.clientX, ev.clientY) || ev.target)?.closest('.plan-day-cell');
 }
 
-function planCellDragOver(ev) {
-  ev.preventDefault(); // จำเป็น — ไม่งั้น drop event จะไม่ยิงเลยตามสเปก HTML5 DnD
-  ev.currentTarget.classList.add('plan-day-dragover');
-}
-
-function planCellDragLeave(ev) {
-  ev.currentTarget.classList.remove('plan-day-dragover');
-}
-
-function planCellDrop(ev, dateStr) {
-  ev.preventDefault();
-  ev.currentTarget.classList.remove('plan-day-dragover');
-  let rowId = _planDragRowId;
-  if (rowId == null) {
-    const raw = ev.dataTransfer.getData('text/plain');
-    rowId = raw ? parseInt(raw) : null;
+function _planChipPointerMove(ev) {
+  const d = _planCalDrag;
+  if (!d) return;
+  const dx = ev.clientX - d.startClientX, dy = ev.clientY - d.startClientY;
+  if (!d.moved) {
+    if (Math.hypot(dx, dy) < 5) return; // ยังไม่ถึง threshold — ถือว่ายังเป็นแค่คลิก ไม่ใช่การลาก
+    d.moved = true;
+    d.el.classList.add('plan-chip-dragging');
   }
-  _planDragRowId = null;
-  if (rowId == null || isNaN(rowId)) return;
-  planDragMoveJob(rowId, dateStr);
+  document.querySelectorAll('.plan-day-cell.plan-day-dragover').forEach(el => el.classList.remove('plan-day-dragover'));
+  const target = _planCalCellAtPoint(ev);
+  if (target) target.classList.add('plan-day-dragover');
+}
+
+function _planChipPointerUp(ev) {
+  document.removeEventListener('pointermove', _planChipPointerMove);
+  const d = _planCalDrag;
+  _planCalDrag = null;
+  if (!d) return;
+  d.el.classList.remove('plan-chip-dragging');
+  document.querySelectorAll('.plan-day-cell.plan-day-dragover').forEach(el => el.classList.remove('plan-day-dragover'));
+  if (!d.moved) return; // แค่คลิกเฉยๆ ไม่ได้ลาก — ปล่อยให้ click ปกติของเซลล์ทำงานต่อ (เปิด day modal)
+  _planCalDragSuppressClick = true;
+  const target = _planCalCellAtPoint(ev);
+  const dateStr = target?.dataset.date;
+  if (dateStr) planDragMoveJob(d.rowId, dateStr);
 }
 
 // ย้าย "ทั้งงาน" (ทุกไลน์ บรรจุ/แพ็ค/ยิง Lot ของงานเดียวกัน) ไปวันที่ใหม่ ขยับเท่ากันหมดเป็นจำนวนวัน (ตามที่
@@ -16541,6 +16555,9 @@ function _planFmtDateLabel(dateStr) {
 }
 
 function planOpenDayModal(dateStr) {
+  // กัน click ที่เบราว์เซอร์ยิงตามหลัง pointerup ของการลากแผน (ดู _planChipPointerUp) ไม่ให้เปิด day modal
+  // ของเซลล์ที่เพิ่งลากไปวางซ้อนโดยไม่ตั้งใจ
+  if (_planCalDragSuppressClick) { _planCalDragSuppressClick = false; return; }
   if (!_planDayModal) _planDayModal = new bootstrap.Modal(document.getElementById('planDayModal'));
   document.getElementById('plan-day-date-value').value = dateStr;
   document.getElementById('planDayModalTitle').innerHTML =
