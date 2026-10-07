@@ -6831,7 +6831,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="col-md-5">
             <small class="text-muted">
               <i class="fas fa-circle-info me-1"></i>
-              คำขอแก้ไข/เพิ่ม/ลบ ที่รออนุมัติจากทุกหน้า (รับวัตถุดิบ/CO/เบิกผลิต/Defect-Retain/เวลาแรงงาน) — กด
+              คำขอแก้ไข/เพิ่ม/ลบ ที่รออนุมัติจากทุกหน้า (รับวัตถุดิบ/CO/เบิกผลิต/Defect-Retain/เวลาแรงงาน/บันทึกผลิต) — กด
               "อนุมัติ" แล้วข้อมูลจริงจะถูกแก้ทันที
             </small>
           </div>
@@ -6843,6 +6843,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <option value="issue">เบิกผลิต (Issue)</option>
               <option value="hold">Defect/Retain</option>
               <option value="labor">เวลาแรงงาน</option>
+              <option value="prodrecord">บันทึกผลิต (ขอลบ)</option>
             </select>
           </div>
           <div class="col-md-4 d-flex justify-content-end">
@@ -24217,7 +24218,8 @@ function _prodrecordCalcHoursFromTime(startStr, endStr, type) {
   const normalEnd = Math.min(endMin, cutoff);
   const lunchOverlap = Math.max(0, Math.min(normalEnd, lunchEnd) - Math.max(startMin, lunchStart));
   const normalMin = Math.max(0, (normalEnd - startMin) - lunchOverlap);
-  const otMin = Math.max(0, endMin - Math.max(startMin, cutoff));
+  // OT นับเป็นช่วงละ 30 นาทีเต็ม ปัดขึ้นเสมอ (2026-10-07 ตามคำขอผู้ใช้ — เช่น ออก 18:20 นับ OT ถึง 18:30 = 0.5 ชม.)
+  const otMin = Math.ceil(Math.max(0, endMin - Math.max(startMin, cutoff)) / 30) * 30;
   const normal = normalMin / 60, ot = otMin / 60;
   return { totalHrs: normal + ot, normal, ot };
 }
@@ -35899,36 +35901,48 @@ async function scanlaborPendingReject(reqId) {
 
 // ══════════════════════════════════════════════
 // หน้า "คำขอแก้ไข" (added 2026-09-28 ตามคำขอผู้ใช้ "อยากให้เพิ่มหน้าคำขอแก้ไข เหมือนของ BM Flow แต่ให้เห็นได้
-// เฉพาะแอดมิน") — รวมคิวคำขอแก้ไข/เพิ่ม/ลบที่มีอยู่แล้วกระจาย 5 หน้า (mr_edit_requests, co_edit_requests,
-// issue_edit_requests, hold_stock_moves.Pending*, production_labor_edit_requests) มาแสดงเป็นรายการเดียว
-// ให้แอดมินอนุมัติ/ปฏิเสธได้จากจุดเดียว แทนที่จะต้องไล่เข้าไปทีละหน้า
+// เฉพาะแอดมิน") — รวมคิวคำขอแก้ไข/เพิ่ม/ลบที่มีอยู่แล้วกระจาย 6 หน้า (mr_edit_requests, co_edit_requests,
+// issue_edit_requests, hold_stock_moves.Pending*, production_labor_edit_requests,
+// production_records.DeleteRequested) มาแสดงเป็นรายการเดียว ให้แอดมินอนุมัติ/ปฏิเสธได้จากจุดเดียว แทนที่จะ
+// ต้องไล่เข้าไปทีละหน้า — คิวที่ 6 (บันทึกผลิต/ขอลบ) เพิ่ม 2026-10-07 หลังผู้ใช้รายงานว่าเห็น "รออนุมัติการลบ"
+// ที่การ์ดหน้าบันทึกผลิตจริง แต่หน้านี้ขึ้น "ไม่มีคำขอรออนุมัติ" — ตอนสร้างหน้านี้ครั้งแรก (2026-09-28) ไม่รู้ว่า
+// production_records มีกลไกคำขอลบของตัวเองอยู่แล้วตั้งแต่ 2026-08-27 (ใช้ flag ในแถวเอง ไม่ใช่ตารางคิวแยก
+// แบบ 5 จุดแรก) เลยตกหล่นไปจากหน้ารวมนี้ — ถ้าเพิ่มคิวใหม่อีกในอนาคต ตรวจสอบให้ครบก่อนว่ามีกี่คิวจริงๆ
+// (grep "รออนุมัติ"/"DeleteRequested"/"Pending" ทั่วไฟล์) อย่าอ้างอิงแค่ตอนที่หน้านี้ถูกสร้างครั้งแรก
 //
 // จงใจไม่เขียนตรรกะ apply สต็อก/ข้อมูลจริงซ้ำอีกชุด — ปุ่มอนุมัติ/ปฏิเสธเรียก mrApproveRequest/coApproveRequest/
-// issueApproveRequest/holdstockApprovePendingMove/scanlaborPendingApprove (และคู่ Reject) ที่มีอยู่แล้วตรงๆ
-// ทุกฟังก์ชันนี้ทำงานกับตัวแปร global เดิมของแต่ละหน้า (_mrEditRequests/_coEditRequests/_issueEditRequests/
-// _holdstockHistoryMoves) เราจึงต้อง fetch แล้วเขียนทับตัวแปรเดิมเหล่านั้นตรงนี้ (ไม่ใช่สร้างสำเนาแยก) ก่อน
-// เรียก ไม่งั้นฟังก์ชันเดิมจะหาแถวไม่เจอ (.find() คืน undefined แล้วเงียบๆ return โดยไม่มี error ใดๆ)
+// issueApproveRequest/holdstockApprovePendingMove/scanlaborPendingApprove/prodrecordApproveDeleteRequest
+// (และคู่ Reject) ที่มีอยู่แล้วตรงๆ ทุกฟังก์ชันนี้ทำงานกับตัวแปร global เดิมของแต่ละหน้า (_mrEditRequests/
+// _coEditRequests/_issueEditRequests/_holdstockHistoryMoves/_prodrecordLastRows) เราจึงต้อง fetch แล้ว
+// เขียนทับตัวแปรเดิมเหล่านั้นตรงนี้ (ไม่ใช่สร้างสำเนาแยก) ก่อนเรียก ไม่งั้นฟังก์ชันเดิมจะหาแถวไม่เจอ (.find()
+// คืน undefined แล้วเงียบๆ return โดยไม่มี error ใดๆ)
 //
 // hold_stock_moves ต้องระวังเป็นพิเศษ: holdstockApprovePendingMove/RejectPendingMove ปิดท้ายด้วย
 // _holdstockLoadHistory() ที่อ่าน _holdstockHistoryRowKey (ปกติถูกตั้งตอนเปิดโมดัลประวัติของ 1 รายการ) ถ้าเรียก
 // จากหน้านี้โดยไม่ตั้งค่าไว้ก่อน (ยังเป็น null ตาม default) จะ throw ตอน reload ประวัติ — ตั้งค่านี้เองก่อนเรียก
-// เสมอผ่าน editreqHoldApprove/Reject ด้านล่าง กันปัญหานี้
+// เสมอผ่าน editreqHoldApprove/Reject ด้านล่าง กันปัญหานี้ — production_records ก็มีกับดักคล้ายกัน:
+// prodrecordApproveDeleteRequest(gi)/prodrecordRejectDeleteRequest(gi) รับ "index ใน _prodrecordLastRows"
+// ไม่ใช่ _row_id ตรงๆ (ต่างจาก 5 คิวแรกที่รับ id จริง) ต้องตั้ง _prodrecordLastRows = [แถวนั้น] แล้วเรียกด้วย
+// index 0 เสมอผ่าน editreqProdrecordApproveDelete/RejectDelete ด้านล่าง ไม่งั้นจะไปแก้/อ่านแถวผิดจากที่
+// หน้าบันทึกผลิตเองเพิ่งโหลดไว้ (หรือ undefined ถ้ายังไม่เคยเปิดหน้านั้นเลยในเซสชันนี้)
 // ══════════════════════════════════════════════
 let _editreqHoldMoves = [];   // hold_stock_moves ที่มี PendingAction ค้างอยู่ (ทุก item รวมกัน ต่างจาก _holdstockHistoryMoves ปกติที่ query เฉพาะ 1 item ตอนเปิดโมดัลประวัติ)
 let _editreqLaborRows = [];   // production_labor_edit_requests ที่ Status='รออนุมัติ'
+let _editreqProdrecordDeleteRows = [];   // production_records ที่ DeleteRequested=true
 
-const EDITREQ_TYPE_LABELS = { mr: 'รับวัตถุดิบ (MR)', co: 'คำสั่งลูกค้า (CO)', issue: 'เบิกผลิต (Issue)', hold: 'Defect/Retain', labor: 'เวลาแรงงาน' };
-const EDITREQ_TYPE_BADGE  = { mr: 'primary', co: 'info', issue: 'warning', hold: 'danger', labor: 'secondary' };
+const EDITREQ_TYPE_LABELS = { mr: 'รับวัตถุดิบ (MR)', co: 'คำสั่งลูกค้า (CO)', issue: 'เบิกผลิต (Issue)', hold: 'Defect/Retain', labor: 'เวลาแรงงาน', prodrecord: 'บันทึกผลิต (ขอลบ)' };
+const EDITREQ_TYPE_BADGE  = { mr: 'primary', co: 'info', issue: 'warning', hold: 'danger', labor: 'secondary', prodrecord: 'dark' };
 
 async function editreqLoad() {
   if (!_currentUser?.isAdmin) return; // กันเรียกผ่าน console/showPage() ตรงๆ ทั้งที่ไม่ใช่ admin — ตารางเบื้องหลังยังไม่มี RLS จำกัด admin เหมือน signup_requests (ข้อจำกัดเดียวกับทุกคิวอนุมัตินี้ทั่วทั้งแอป ดู create_*_edit_requests.sql)
   _showLoader();
-  const [mrRes, coRes, issueRes, holdRes, laborRes] = await Promise.all([
+  const [mrRes, coRes, issueRes, holdRes, laborRes, prodDelRes] = await Promise.all([
     _sb.from('mr_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
     _sb.from('co_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
     _sb.from('issue_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
     _sb.from('hold_stock_moves').select('*').not('PendingAction', 'is', null),
     _sb.from('production_labor_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
+    _sb.from('production_records').select('*').eq('DeleteRequested', true),
   ]);
   _hideLoader();
   // เขียนทับตัวแปร global เดิมของแต่ละหน้าโดยตรง (ดูหมายเหตุด้านบน) — error เงียบๆ เป็น [] ถ้าตารางยังไม่ถูกสร้าง
@@ -35939,6 +35953,7 @@ async function editreqLoad() {
   _editreqHoldMoves      = holdRes.error  ? [] : (holdRes.data  || []);
   _holdstockHistoryMoves = _editreqHoldMoves;
   _editreqLaborRows      = laborRes.error ? [] : (laborRes.data || []);
+  _editreqProdrecordDeleteRows = prodDelRes.error ? [] : (prodDelRes.data || []);
   editreqRender();
 }
 
@@ -35977,6 +35992,30 @@ async function editreqHoldReject(moveId) {
   editreqLoad();
 }
 
+function _editreqProdrecordLabel(r) {
+  return `<div class="text-start" style="font-size:.88rem">
+    <b>${r.ProdRecord_ID||''}</b> — ${r.ProductName||''} · Lot FG ${r.Lot_FG??'—'} · MO ${r.MO_Ref||'—'}<br>
+    <span class="text-danger">ขอลบทิ้ง</span> — ลบแล้วกู้คืนไม่ได้
+    <br><small class="text-muted">ขอโดย ${r.DeleteRequestedBy||'—'}</small></div>`;
+}
+// prodrecordApproveDeleteRequest/RejectDeleteRequest รับ "index ใน _prodrecordLastRows" ไม่ใช่ _row_id
+// ตรงๆ (ต่างจาก 5 คิวแรก) — ตั้ง _prodrecordLastRows = [แถวนี้แถวเดียว] แล้วเรียกด้วย index 0 เสมอ กันไปชน/
+// อ้างแถวผิดจากที่หน้าบันทึกผลิตเองเคยโหลดไว้ (ดูหมายเหตุยาวด้านบนหัวข้อนี้)
+async function editreqProdrecordApproveDelete(rowId) {
+  const r = _editreqProdrecordDeleteRows.find(x => x._row_id === rowId);
+  if (!r) return;
+  _prodrecordLastRows = [r];
+  await prodrecordApproveDeleteRequest(0);
+  editreqLoad();
+}
+async function editreqProdrecordRejectDelete(rowId) {
+  const r = _editreqProdrecordDeleteRows.find(x => x._row_id === rowId);
+  if (!r) return;
+  _prodrecordLastRows = [r];
+  await prodrecordRejectDeleteRequest(0);
+  editreqLoad();
+}
+
 function editreqRender() {
   const filter = document.getElementById('editreq-type-filter')?.value || '';
   const rows = [
@@ -35990,6 +36029,8 @@ function editreqRender() {
       approve: `editreqHoldApprove(${m._row_id})`, reject: `editreqHoldReject(${m._row_id})` })),
     ..._editreqLaborRows.map(r => ({ type: 'labor', at: r.CreatedAt, html: _editreqLaborLabel(r),
       approve: `scanlaborPendingApprove(${r._row_id}).then(editreqLoad)`, reject: `scanlaborPendingReject(${r._row_id}).then(editreqLoad)` })),
+    ..._editreqProdrecordDeleteRows.map(r => ({ type: 'prodrecord', at: r.DeleteRequestedAt, html: _editreqProdrecordLabel(r),
+      approve: `editreqProdrecordApproveDelete(${r._row_id})`, reject: `editreqProdrecordRejectDelete(${r._row_id})` })),
   ].filter(r => !filter || r.type === filter)
    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 
@@ -36025,15 +36066,16 @@ async function _editreqUpdateNavBadge(notifyIfPending = false) {
     return;
   }
   const mySeq = ++_editreqBadgeSeq;
-  const [mr, co, issue, hold, labor] = await Promise.all([
+  const [mr, co, issue, hold, labor, prodDel] = await Promise.all([
     _sb.from('mr_edit_requests').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ'),
     _sb.from('co_edit_requests').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ'),
     _sb.from('issue_edit_requests').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ'),
     _sb.from('hold_stock_moves').select('_row_id', { count: 'exact', head: true }).not('PendingAction', 'is', null),
     _sb.from('production_labor_edit_requests').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ'),
+    _sb.from('production_records').select('_row_id', { count: 'exact', head: true }).eq('DeleteRequested', true),
   ]);
   if (mySeq !== _editreqBadgeSeq) return; // มีการเรียกใหม่กว่าเกิดขึ้นระหว่างรอ query — ทิ้งผลลัพธ์เก่านี้ไป
-  const count = (mr.count||0) + (co.count||0) + (issue.count||0) + (hold.count||0) + (labor.count||0);
+  const count = (mr.count||0) + (co.count||0) + (issue.count||0) + (hold.count||0) + (labor.count||0) + (prodDel.count||0);
   if (badge) {
     if (count > 0) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = 'inline-block'; }
     else badge.style.display = 'none';
