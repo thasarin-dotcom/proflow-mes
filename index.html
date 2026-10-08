@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -7356,6 +7356,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="col-6">
             <label class="form-label small fw-bold" style="color:#0f766e">PT — ค่า OT จริงรวม (฿/เดือน)</label>
             <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-pt-otcost" placeholder="เช่น 2247">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#92400e">ค่าเช่าจริง (฿/เดือน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-rent" placeholder="เช่น 45814">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold" style="color:#92400e">ค่าน้ำ+ค่าไฟจริง (฿/เดือน)</label>
+            <input type="number" min="0" step="0.01" class="form-control" id="admindash-payroll-utility" placeholder="ยอดตามบิลเดือนนั้น">
           </div>
         </div>
         <div class="mb-1">
@@ -29428,7 +29436,7 @@ async function admindashRenderDrilldown() {
       </tr>`;
       tableEl.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
         <thead><tr><th>Lot</th><th>เดือนที่ผลิต</th><th class="text-end">ผลิตจริง</th><th class="text-end">Loss%</th><th class="text-end">Scrap%</th>
-          <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ/หน่วย</th>
+          <th class="text-end">วัตถุดิบ/หน่วย</th><th class="text-end">บรรจุภัณฑ์/หน่วย</th><th class="text-end">ค่าแรง/หน่วย</th><th class="text-end">ค่าน้ำไฟ+ค่าเช่า/หน่วย</th>
           <th class="text-end">ต้นทุนรวม/หน่วย (รวม Scrap)</th><th class="text-end">ราคาขาย/หน่วย</th><th class="text-end">กำไร/หน่วย</th><th class="text-end">กำไร%</th></tr></thead>
         <tbody>${summaryRowHTML}${computedRows.map(c => {
           const pClass = c.profitPerUnit == null ? '' : (c.profitPerUnit >= 0 ? 'text-success' : 'text-danger');
@@ -29520,7 +29528,7 @@ async function admindashRenderDrilldown() {
         { label: 'วัตถุดิบ/หน่วย',   data: byMonth.map(m => m.material),  borderColor: '#1e3a8a', backgroundColor: 'rgba(30,58,138,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
         { label: 'บรรจุภัณฑ์/หน่วย', data: byMonth.map(m => m.packaging), borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
         { label: 'ค่าแรง/หน่วย',     data: byMonth.map(m => m.labor),     borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
-        { label: 'ค่าน้ำไฟ/หน่วย',   data: byMonth.map(m => m.utility),   borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
+        { label: 'ค่าน้ำไฟ+ค่าเช่า/หน่วย',   data: byMonth.map(m => m.utility),   borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.5)', fill: true, spanGaps: true, tension: .3, borderWidth: 1, pointRadius: 2 },
       ],
     },
     options: {
@@ -29936,6 +29944,8 @@ function admindashOpenPayrollModal(month) {
   document.getElementById('admindash-payroll-os-otcost').value = p.OS_OTCost ?? '';
   document.getElementById('admindash-payroll-pt-dayrate').value = p.PT_DayRate ?? '';
   document.getElementById('admindash-payroll-pt-otcost').value = p.PT_OTCost ?? '';
+  document.getElementById('admindash-payroll-rent').value = p.Rent_Cost ?? 45814;
+  document.getElementById('admindash-payroll-utility').value = p.Utility_Cost ?? '';
   document.getElementById('admindash-payroll-note').value = p.Note ?? '';
   if (!_admindashPayrollModal) _admindashPayrollModal = new bootstrap.Modal(document.getElementById('admindashPayrollModal'));
   _admindashPayrollModal.show();
@@ -29954,6 +29964,8 @@ async function admindashSavePayroll() {
     OS_OTCost: parseFloat(document.getElementById('admindash-payroll-os-otcost').value) || null,
     PT_DayRate: parseFloat(document.getElementById('admindash-payroll-pt-dayrate').value) || null,
     PT_OTCost: parseFloat(document.getElementById('admindash-payroll-pt-otcost').value) || null,
+    Rent_Cost: parseFloat(document.getElementById('admindash-payroll-rent').value) || null,
+    Utility_Cost: parseFloat(document.getElementById('admindash-payroll-utility').value) || null,
     Note: document.getElementById('admindash-payroll-note').value || null,
   };
   _showLoader();
@@ -29964,7 +29976,9 @@ async function admindashSavePayroll() {
     if (error.code === '42P01' || /relation .* does not exist/.test(error.message)) {
       hint = 'ยังไม่ได้สร้างตาราง admindash_payroll_actual — รัน create_admindash_payroll_actual.sql ใน Supabase SQL Editor ก่อน';
     } else if (error.code === '42703' || /column .* does not exist/.test(error.message)) {
-      hint = 'ยังไม่ได้เพิ่มคอลัมน์ค่า OT จริง — รัน alter_admindash_payroll_actual_add_ot.sql ใน Supabase SQL Editor ก่อน';
+      hint = /Rent_Cost|Utility_Cost/.test(error.message)
+        ? 'ยังไม่ได้เพิ่มคอลัมน์ค่าเช่า/ค่าน้ำไฟ — รัน alter_admindash_payroll_actual_add_rent_utility.sql ใน Supabase SQL Editor ก่อน'
+        : 'ยังไม่ได้เพิ่มคอลัมน์ค่า OT จริง — รัน alter_admindash_payroll_actual_add_ot.sql ใน Supabase SQL Editor ก่อน';
     }
     _err('บันทึกค่าจ้างจริงไม่ได้', hint);
     return;
@@ -30037,7 +30051,12 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     // ค่าใช้จ่ายจริงรวมทั้งเดือน (ให้เทียบตรงกับรายได้/กำไรทางซ้ายได้) — FT/OS ใช้ยอดจ่ายจริงคงที่ที่กรอกไว้
     // (FT_TotalCost/OS_TotalCost) ส่วน PT ไม่มียอดเหมาจ่ายรายเดือนให้กรอก (จ้างเป็นวัน ไม่ใช่เงินเดือน) จึงใช้
     // ต้นทุนที่ระบบคำนวณจากชั่วโมงจริง×เรทที่อนุมัติแทน (t.ptCost) — นี่คือค่าจ้าง PT จริงที่จ่ายไปเดือนนั้นแล้ว
-    const totalPaidActual = ftPaid + osPaid + (t.ptCost || 0);
+    // + ค่าเช่า/ค่าน้ำไฟจริงที่กรอกต่อเดือน (2026-10-08 ตามคำขอผู้ใช้) — เทียบกับ Overhead (น้ำไฟ+ค่าเช่า) ที่ลงต้นทุน
+    // บันทึกผลิตเดือนนั้นแล้ว (sum production_records.Overhead) ให้เห็นว่าลงต้นทุนครบเท่าที่จ่ายจริงไหม
+    const rentPaid = parseFloat(p.Rent_Cost) || 0, utilityPaid = parseFloat(p.Utility_Cost) || 0;
+    const ohAllocated = monthRows.reduce((s, r) => s + (parseFloat(r.Overhead) || 0), 0);
+    const laborPaidActual = ftPaid + osPaid + (t.ptCost || 0);
+    const totalPaidActual = laborPaidActual + rentPaid + utilityPaid;
 
     // "ควรเพิ่ม-ลด OT ไหม" — เพิ่ม 2026-09-01 ตามคำขอผู้ใช้ต่อจากตัวเลข Utilization เดิม: เทียบ "ค่า OT ที่จ่าย
     // เดือนนี้" กับ "ต้นทุนจ้างพนักงาน 1 คนทั้งเดือน" (= ค่าจ้างจริงรวม ÷ จำนวนหัวคนของประเภทนั้น) — ถ้า OT ที่
@@ -30074,7 +30093,10 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
     return `<tr>
       <td class="fw-bold">${label}</td>
       ${revCell}${profitCell}
-      <td class="text-end fw-bold">${fmtB(totalPaidActual)}</td>
+      <td class="text-end"><span class="fw-bold">${fmtB(totalPaidActual)}</span>
+        <br><span class="text-muted" style="font-size:.68rem">ค่าแรง ${fmtB(laborPaidActual)}</span>
+        <br><span class="text-muted" style="font-size:.68rem">เช่า ${rentPaid ? fmtB(rentPaid) : '—'} · น้ำไฟ ${utilityPaid ? fmtB(utilityPaid) : '<span class="text-danger">ยังไม่กรอก</span>'}</span>
+        ${(rentPaid || utilityPaid) ? `<br><span class="text-muted" style="font-size:.68rem">ลงต้นทุนแล้ว ${fmtB(ohAllocated)} (${Math.round(ohAllocated / (rentPaid + utilityPaid) * 100)}%)</span>` : ''}</td>
       <td class="text-end">${fmtB(ftPaid)}${ftHeadcount ? ` <span class="text-muted" style="font-size:.68rem">(${ftHeadcount} คน)</span>` : ''}</td>
       <td class="text-end">${fmtB(t.ftCost)}</td>
       <td class="text-end fw-bold ${utilClass(ftUtil)}">${ftUtil != null ? ftUtil + '%' : '—'}</td>
@@ -30110,7 +30132,7 @@ function admindashExportDrillCSV() {
 
   const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
   const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'Scrap%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
-    'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+    'ค่าแรง/หน่วย', 'ค่าน้ำไฟ+ค่าเช่า/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
   const lines = [headers.join(',')];
   exp.rows.forEach(c => {
     lines.push([
@@ -30164,7 +30186,7 @@ async function admindashExportAllProductsXLSX() {
     const results = await Promise.all(codes.map(code => _admindashComputeDrillRows(code).then(res => ({ code, ...res }))));
 
     const headers = ['Lot', 'เดือนที่ผลิต', 'ผลิตจริง', 'หน่วย', 'Loss%', 'Scrap%', 'วัตถุดิบ/หน่วย', 'บรรจุภัณฑ์/หน่วย',
-      'ค่าแรง/หน่วย', 'ค่าน้ำไฟ/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
+      'ค่าแรง/หน่วย', 'ค่าน้ำไฟ+ค่าเช่า/หน่วย', 'ต้นทุนรวม/หน่วย (รวม Scrap)', 'ราคาขาย/หน่วย', 'กำไร/หน่วย', 'กำไร%'];
     const round2 = v => v == null ? '' : Math.round(v * 100) / 100;
 
     const wb = XLSX.utils.book_new();
