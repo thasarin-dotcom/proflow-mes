@@ -2866,6 +2866,52 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </table>
         </div>
       </div>
+
+      <div class="glass-card p-0 overflow-hidden mb-3">
+        <div class="p-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-bold small text-muted"><i class="fas fa-layer-group me-1"></i>พยากรณ์ตามซีรี่ FG (เฉลี่ย/เดือน · 6 เดือนล่าสุด)</span>
+          <select class="form-select form-select-sm" style="max-width:280px" id="codash-series-select" onchange="codashOnSeriesChange()">
+            <option value="">— เลือกซีรี่ —</option>
+          </select>
+        </div>
+        <div class="p-3">
+          <div id="codash-series-empty" class="text-center py-4 text-muted">
+            <i class="fas fa-hand-pointer me-1"></i>เลือกซีรี่ FG ด้านบนเพื่อดูยอดเฉลี่ยต่อเดือน (ใช้ประมาณการสั่งซื้อวัตถุดิบ/แพ็คเกจจิ้ง)
+          </div>
+          <div id="codash-series-body" style="display:none">
+            <div class="row g-3 mb-3">
+              <div class="col-6 col-md-4">
+                <div class="kpi-card" style="border-color:#1e3a8a">
+                  <div class="kpi-num text-primary" id="codash-series-kpi-order">—</div><div class="kpi-label">เฉลี่ยสั่งซื้อ (CO) / เดือน</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="kpi-card" style="border-color:#0f766e">
+                  <div class="kpi-num" style="color:#0f766e" id="codash-series-kpi-mo">—</div><div class="kpi-label">เฉลี่ยสั่งผลิตจริง (MO) / เดือน</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="kpi-card" style="border-color:#f97316">
+                  <div class="kpi-num" style="color:#f97316" id="codash-series-kpi-sold">—</div><div class="kpi-label">เฉลี่ยขาย (เบิกให้ลูกค้า) / เดือน</div>
+                </div>
+              </div>
+            </div>
+            <div style="position:relative;height:220px" class="mb-3"><canvas id="codash-series-chart"></canvas></div>
+            <div class="fw-bold small text-muted mb-2">แยกตามสินค้าในซีรี่นี้ (เฉลี่ย/เดือน)</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>รหัสสินค้า</th><th>ชื่อสินค้า</th>
+                    <th class="text-end">สั่งซื้อเฉลี่ย</th><th class="text-end">ผลิตจริงเฉลี่ย</th><th class="text-end">ขายเฉลี่ย</th><th>UOM</th>
+                  </tr>
+                </thead>
+                <tbody id="codash-series-prod-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3078,6 +3124,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
           <div class="fw-bold small text-muted">เจาะลึกรายสินค้า (6 เดือนล่าสุด) — กำไร/หน่วยตามต้นทุนที่อนุมัติแล้วของแต่ละ Lot ที่ผลิต ไม่ว่าจะส่งออกไปแล้วหรือยัง</div>
           <div class="d-flex gap-2">
+            <div class="input-group input-group-sm" style="max-width:220px">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="text" id="admindash-drill-search" class="form-control" placeholder="ค้นหาชื่อ/รหัสสินค้า" oninput="admindashFilterDrillProducts()">
+            </div>
             <select id="admindash-drill-product" class="form-select form-select-sm" style="max-width:320px" onchange="admindashRenderDrilldown()">
               <option value="">— เลือกสินค้า —</option>
             </select>
@@ -28436,9 +28486,15 @@ function codemandRenderMaterials() {
 
 async function codashLoadData() {
   _showLoader();
-  const [coRes, moRes] = await Promise.all([
+  const [coRes, moRes, wdRes, miscRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
     _sb.from('manufacturing_orders').select('*').order('_row_id', { ascending: false }), // ไม่ paginate — เหมือน loadMOData เดิม, ยังห่างไกล PostgREST cap 1000 แถวมาก
+    // เฉพาะแถวที่ผูก CO_Ref (ขายลูกค้าจริง ไม่รวมเบิกตัวอย่าง/ทดสอบ/ภายใน) ไว้ป้อนส่วน "พยากรณ์ตามซีรี่ FG" ด้านล่าง
+    _fetchAllPagedNotNull('fg_withdraw', 'ProductCode,ProductName,QtyFG,Date,UOM,CO_Ref', 'CO_Ref'),
+    // เบิกเบ็ดเตล็ด (วัตถุดิบ/Bulk) — ไว้จับยอด "ขายเนื้อ (Bulk) อย่างเดียว" ที่ไม่ผ่าน fg_withdraw เลย
+    // (เบิกส่ง Bulk ผูก CO_Ref ผ่านปุ่ม "เบิกส่ง Bulk" หรือแท็ก CustomerName ตรงจากฟีเจอร์ "เบิกให้ลูกค้า" —
+    // กรองเฉพาะแถวที่ขายให้ลูกค้าจริงใน _codashBuildSeriesIndex ด้านล่าง ไม่ใช่ทุกแถว)
+    _fetchAllPaged('issue_misc', 'MaterialCode,MaterialName,IssuedQty,UOM,Date,CO_Ref,CustomerName'),
   ]);
   _hideLoader();
   if (coRes.error) { _err('โหลดข้อมูล CO ไม่ได้', coRes.error.message); return; }
@@ -28447,6 +28503,10 @@ async function codashLoadData() {
   // ส่วน MO เพิ่ม 2026-09-28 — error เงียบๆ (แค่ log) ไม่บล็อกส่วน CO ที่โหลดสำเร็จแล้ว, ตกเป็น [] ถ้าพลาด
   if (moRes.error) console.error('โหลดข้อมูล MO ไม่ได้', moRes.error);
   const moData = moRes.error ? [] : (moRes.data || []);
+  if (wdRes.error) console.error('โหลดข้อมูลเบิก FG ไม่ได้', wdRes.error);
+  const wdData = wdRes.error ? [] : (wdRes.data || []);
+  if (miscRes.error) console.error('โหลดข้อมูลเบิกเบ็ดเตล็ดไม่ได้', miscRes.error);
+  const miscData = miscRes.error ? [] : (miscRes.data || []);
 
   codashRenderKPIs(coData);
   codashRenderStatusChart(coData);
@@ -28454,6 +28514,158 @@ async function codashLoadData() {
   codashRenderCustomersChart(coData);
   codashRenderProductsChart(coData);
   codashRenderOverdueTable(coData);
+  _codashBuildSeriesIndex(coData, moData, wdData, miscData); // พยากรณ์ตามซีรี่ FG — เพิ่ม 2026-10-08 ตามคำขอผู้ใช้
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// พยากรณ์ตามซีรี่ FG (เพิ่ม 2026-10-08 ตามคำขอผู้ใช้) — เลือกซีรี่ FG (แยกจากชื่อสินค้าด้วย
+// _fgParseNameParts เดียวกับที่หน้า Stock FG ใช้ กันตรรกะแยกซีรี่เพี้ยนกันคนละที่) แล้วดูยอดเฉลี่ย/เดือน
+// ของ "สั่งซื้อ" (customer_orders.OrderQty), "สั่งผลิตจริง" (manufacturing_orders.MO_Received — ยืนยันกับ
+// ผู้ใช้แล้วว่าใช้ตัวนี้แทน production_records.FG_Actual เพราะครอบคลุมทุก MO ไม่ต้องรออนุมัติต้นทุนก่อน) และ
+// "ขาย" (fg_withdraw เฉพาะแถวที่ผูก CO_Ref รวมกับ issue_misc ที่ขายเนื้อ/Bulk ตรงให้ลูกค้า — ดูหมายเหตุใน
+// _codashBuildSeriesIndex) ไว้ช่วยประมาณการสั่งซื้อวัตถุดิบ/แพ็คเกจจิ้งล่วงหน้า — ช่วงเฉลี่ยคงที่ 6 เดือนปฏิทิน
+// ล่าสุด หารด้วย 6 เสมอ (ไม่ใช่หารด้วยจำนวนเดือนที่มีข้อมูลจริงแบบ _whComputeBulkForecast เพราะอันนั้นทำ
+// trend-fit รายวัตถุดิบซับซ้อนกว่า ส่วนนี้แค่ต้องการค่าเฉลี่ยง่ายๆ ต่อซีรี่/สินค้า — ยืนยันกับผู้ใช้แล้วเลือก
+// ช่วง 6 เดือนด้วย) ไม่ได้แปลง BOM เป็นวัตถุดิบให้ตรงๆ (ตารางแยกตามสินค้าด้านล่างให้ผู้ใช้เทียบ BOM เองต่อ
+// เพราะ BOM เป็นรายสินค้า ไม่ใช่รายซีรี่)
+let _codashSeriesCO = [], _codashSeriesMO = [], _codashSeriesWD = [];
+let _codashSeriesMonths = [];
+let _codashSelectedSeries = '';
+
+function _codashSeriesMonthRange(n = 6) {
+  const months = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months;
+}
+
+function _codashBuildSeriesIndex(coData, moData, wdData, miscData) {
+  _codashSeriesMonths = _codashSeriesMonthRange(6);
+  const startStr = `${_codashSeriesMonths[0]}-01`;
+  // CO แบบ Bulk (ItemType='BULK') รหัสสินค้าเป็น materials.MaterialCode ไม่ใช่ bom.ProductCode จริง —
+  // กันออกจากการแยกซีรี่ FG ตรงนี้ (MO ไม่ผ่าน Bulk อยู่แล้ว ไม่ต้องกรองซ้ำ — ดูหมายเหตุ
+  // "เบิกส่ง Bulk ไม่ผ่าน MO เลย" ใน SKILL.md) — ฝั่ง "ขาย" ยังนับยอดขาย Bulk ได้ผ่าน issue_misc ด้านล่าง
+  _codashSeriesCO = coData
+    .filter(r => r.ItemType !== 'BULK' && (r.Date || '') >= startStr)
+    .map(r => ({ ...r, _parts: _fgParseNameParts(r.ProductName) }));
+  _codashSeriesMO = moData
+    .filter(r => (r.MO_Date || '') >= startStr)
+    .map(r => ({ ...r, _parts: _fgParseNameParts(r.ProductName) }));
+  // "ขาย" รวม 2 แหล่ง: fg_withdraw (ขาย FG สำเร็จรูปที่ผูก CO_Ref — กรอง CO_Ref ไว้แล้วตั้งแต่ query) +
+  // issue_misc ที่ขายเนื้อ/Bulk ตรงให้ลูกค้าโดยไม่ผ่าน FG เลย — ใช้เงื่อนไขเดียวกับ `isBillable`/
+  // `hasCustomer` ที่หน้าเบิกเบ็ดเตล็ดเองใช้ตัดสินว่าแถวไหนคือ "ขายให้ลูกค้าจริง" (ผูก CO_Ref จากปุ่ม
+  // "เบิกส่ง Bulk" หรือแท็ก CustomerName ตรงจากฟีเจอร์ "เบิกให้ลูกค้า") ไม่ใช่เบิกใช้ภายใน/ตัวอย่าง/ทดสอบ —
+  // normalize ชื่อคอลัมน์ให้ตรงกับ fg_withdraw (ProductCode/ProductName/QtyFG) จะได้ใช้ sumByMonth/
+  // ตารางแยกสินค้าเดิมร่วมกันได้เลย ไม่ต้องแยกโค้ด 2 ชุด
+  const miscSaleRows = (miscData || [])
+    .filter(r => (r.CO_Ref || r.CustomerName))
+    .map(r => ({ ProductCode: r.MaterialCode, ProductName: r.MaterialName, Date: r.Date, QtyFG: r.IssuedQty, UOM: r.UOM }));
+  _codashSeriesWD = [...wdData, ...miscSaleRows]
+    .filter(r => (r.Date || '') >= startStr)
+    .map(r => ({ ...r, _parts: _fgParseNameParts(r.ProductName) }));
+
+  const seriesSet = new Set();
+  [..._codashSeriesCO, ..._codashSeriesMO, ..._codashSeriesWD].forEach(r => {
+    if (r._parts.series && r._parts.series !== 'ไม่ระบุซีรี่') seriesSet.add(r._parts.series);
+  });
+  const list = [...seriesSet].sort((a, b) => a.localeCompare(b, 'th'));
+  const sel = document.getElementById('codash-series-select');
+  if (sel) {
+    const keep = _codashSelectedSeries && list.includes(_codashSelectedSeries) ? _codashSelectedSeries : '';
+    sel.innerHTML = '<option value="">— เลือกซีรี่ —</option>' +
+      list.map(s => `<option value="${s.replace(/"/g, '&quot;')}" ${s === keep ? 'selected' : ''}>${s}</option>`).join('');
+    _codashSelectedSeries = keep;
+  }
+  codashRenderSeriesForecast();
+}
+
+function codashOnSeriesChange() {
+  _codashSelectedSeries = document.getElementById('codash-series-select')?.value || '';
+  codashRenderSeriesForecast();
+}
+
+function codashRenderSeriesForecast() {
+  const emptyEl = document.getElementById('codash-series-empty');
+  const bodyEl  = document.getElementById('codash-series-body');
+  if (!_codashSelectedSeries) {
+    if (emptyEl) emptyEl.style.display = '';
+    if (bodyEl)  bodyEl.style.display  = 'none';
+    _codashDestroy('seriesforecast');
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (bodyEl)  bodyEl.style.display  = '';
+
+  const coRows = _codashSeriesCO.filter(r => r._parts.series === _codashSelectedSeries);
+  const moRows = _codashSeriesMO.filter(r => r._parts.series === _codashSelectedSeries);
+  const wdRows = _codashSeriesWD.filter(r => r._parts.series === _codashSelectedSeries);
+
+  const months = _codashSeriesMonths;
+  const sumByMonth = (rows, dateKey, qtyKey) =>
+    months.map(m => rows.filter(r => (r[dateKey] || '').startsWith(m)).reduce((s, r) => s + (parseFloat(r[qtyKey]) || 0), 0));
+  const coByMonth = sumByMonth(coRows, 'Date', 'OrderQty');
+  const moByMonth = sumByMonth(moRows, 'MO_Date', 'MO_Received');
+  const wdByMonth = sumByMonth(wdRows, 'Date', 'QtyFG');
+
+  const avg = arr => Math.round((arr.reduce((a, b) => a + b, 0) / months.length) * 10) / 10;
+  const el = id => document.getElementById(id);
+  el('codash-series-kpi-order').textContent = avg(coByMonth).toLocaleString();
+  el('codash-series-kpi-mo').textContent    = avg(moByMonth).toLocaleString();
+  el('codash-series-kpi-sold').textContent  = avg(wdByMonth).toLocaleString();
+
+  const labels = months.map(m => { const [y, mo] = m.split('-'); return `${mo}/${y.slice(2)}`; });
+  _codashDestroy('seriesforecast');
+  _codashCharts.seriesforecast = new Chart(document.getElementById('codash-series-chart'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'สั่งซื้อ (CO)',       data: coByMonth, backgroundColor: '#1e3a8a', borderRadius: 4, maxBarThickness: 26 },
+      { label: 'ผลิตจริง (MO)',      data: moByMonth, backgroundColor: '#0f766e', borderRadius: 4, maxBarThickness: 26 },
+      { label: 'ขาย (เบิกลูกค้า)',   data: wdByMonth, backgroundColor: '#f97316', borderRadius: 4, maxBarThickness: 26 },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true } },
+    },
+  });
+
+  // ตารางแยกตามสินค้า (ProductCode) ในซีรี่นี้ — ไว้เทียบ BOM ต่อเองเพราะ BOM เป็นรายสินค้า ไม่ใช่รายซีรี่
+  const prodMap = {};
+  const touch = (code, name, uom) => {
+    const k = code || name || '—';
+    if (!prodMap[k]) prodMap[k] = { code, name, uom, order: 0, mo: 0, sold: 0 };
+    if (!prodMap[k].uom && uom) prodMap[k].uom = uom;
+  };
+  coRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].order += parseFloat(r.OrderQty) || 0; });
+  moRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].mo    += parseFloat(r.MO_Received) || 0; });
+  wdRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].sold  += parseFloat(r.QtyFG) || 0; });
+  // เรียงตามผลรวม "สั่งซื้อ (CO) + ผลิตจริง (MO)" มากสุดก่อน — ตามคำขอผู้ใช้ (เดิมเรียงตาม MO อย่างเดียว
+  // ก่อนหน้านี้ ก่อนหน้านั้นอีกคือผลรวมทั้ง 3 ค่ารวมขายด้วย) ไม่รวม "ขาย" ในตัวจัดเรียงรอบนี้
+  const prods = Object.values(prodMap).sort((a, b) => (b.order + b.mo) - (a.order + a.mo));
+  // % สัดส่วนของแต่ละสินค้าเทียบกับผลรวมทั้งซีรี่ ต่อ 1 คอลัมน์ (คิดจากยอดสะสม 6 เดือนตรงๆ ไม่ใช่ค่าเฉลี่ย —
+  // อัตราส่วนออกมาเท่ากัน หารด้วยจำนวนเดือนเท่ากันทั้งเศษ/ส่วนตัดกันพอดี) กัน NaN/Infinity ถ้าผลรวมเป็น 0
+  const totalOrder = prods.reduce((s, p) => s + p.order, 0);
+  const totalMo    = prods.reduce((s, p) => s + p.mo, 0);
+  const totalSold  = prods.reduce((s, p) => s + p.sold, 0);
+  const pctOf = (v, total) => total > 0 ? `${(v / total * 100).toFixed(1)}%` : '—';
+  const tb = document.getElementById('codash-series-prod-tbody');
+  if (tb) {
+    if (!prods.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">ไม่มีข้อมูลในช่วง 6 เดือนล่าสุด</td></tr>';
+    } else {
+      tb.innerHTML = prods.map(p => `<tr>
+        <td class="small">${p.code || '—'}</td>
+        <td class="small">${p.name || '—'}</td>
+        <td class="small text-end">${(Math.round(p.order / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.order, totalOrder)}</div></td>
+        <td class="small text-end">${(Math.round(p.mo / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.mo, totalMo)}</div></td>
+        <td class="small text-end">${(Math.round(p.sold / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.sold, totalSold)}</div></td>
+        <td class="small">${p.uom || ''}</td>
+      </tr>`).join('');
+    }
+  }
 }
 
 function codashRenderKPIs(coData) {
@@ -29073,10 +29285,23 @@ function admindashPopulateDrillProducts(rows) {
   const prev = sel.value;
   const map = new Map();
   rows.forEach(r => { if (r.ProductCode && !map.has(r.ProductCode)) map.set(r.ProductCode, r.ProductName || r.ProductCode); });
-  const products = Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'th'));
-  sel.innerHTML = '<option value="">— เลือกสินค้า —</option>' +
-    products.map(([code, name]) => `<option value="${code}">${name} (${code})</option>`).join('');
-  if (products.some(([code]) => code === prev)) sel.value = prev;
+  _admindashDrillProducts = Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'th'));
+  admindashFilterDrillProducts(prev);
+}
+
+// ช่องค้นหาสินค้าในหน้าเจาะลึก (2026-10-08 ตามคำขอผู้ใช้ — dropdown อย่างเดียวหายาก) พิมพ์ชื่อ/รหัสแล้วกรองตัวเลือก
+// ใน dropdown ให้เหลือเฉพาะที่ตรง ถ้าเหลือตัวเดียวเลือกให้อัตโนมัติเลย
+let _admindashDrillProducts = [];
+function admindashFilterDrillProducts(keepValue) {
+  const sel = document.getElementById('admindash-drill-product');
+  if (!sel) return;
+  const prev = keepValue !== undefined ? keepValue : sel.value;
+  const q = (document.getElementById('admindash-drill-search')?.value || '').trim().toLowerCase();
+  const list = q ? _admindashDrillProducts.filter(([code, name]) => `${name} ${code}`.toLowerCase().includes(q)) : _admindashDrillProducts;
+  sel.innerHTML = `<option value="">— ${q ? `พบ ${list.length} รายการ` : 'เลือกสินค้า'} —</option>` +
+    list.map(([code, name]) => `<option value="${code}">${name} (${code})</option>`).join('');
+  if (list.some(([code]) => code === prev)) sel.value = prev;
+  else if (q && list.length === 1) { sel.value = list[0][0]; admindashRenderDrilldown(); }
 }
 
 // แยกต้นทุนวัตถุดิบดิบ vs บรรจุภัณฑ์ต่อ 1 บันทึกผลิต (ProdRecord_ID) — production_records.MaterialCost เป็นยอด
