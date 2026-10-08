@@ -6054,10 +6054,15 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <label class="form-label">Out Source OT (฿/ชม.)</label>
               <input type="number" id="prodrecord-ap-os-ot" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
             </div>
-            <div class="col-md-12">
+            <div class="col-md-6">
               <label class="form-label">Overhead ค่าสาธารณูปโภค (฿/วัน)</label>
               <input type="number" id="prodrecord-ap-oh-util" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
               <small class="text-muted" id="prodrecord-ap-oh-hourly">= ฿0.00/ชม. (1 วัน = 8 ชม.ปกติ — ถ้ามี OT คิดเพิ่มตามชั่วโมงจริง)</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">ค่าเช่า (฿/วัน)</label>
+              <input type="number" id="prodrecord-ap-rent" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
+              <small class="text-muted" id="prodrecord-ap-rent-hint">ค่าเริ่มต้น 45,814 ÷ 26 วัน — หารตามจำนวนงานที่ทำวันเดียวกัน</small>
             </div>
           </div>
           <div id="prodrecord-ap-preview" class="mt-3"></div>
@@ -25154,12 +25159,15 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   if (!_prodrecordApproveModal) _prodrecordApproveModal = new bootstrap.Modal(document.getElementById('prodrecordApproveModal'));
 
   _showLoader();
-  const [detailsRes, lastApprovedRes, bomRes] = await Promise.all([
+  const [detailsRes, lastApprovedRes, bomRes, allRecsRes] = await Promise.all([
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
-    _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility')
+    _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility,RentPerDay')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
     _sb.from('bom').select('SellingPrice,SellingPrice2,SellingPrice2_CustomerName').eq('ProductCode', r.ProductCode).limit(1),
+    _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
   ]);
+  // จำนวนงานที่ทำงานในแต่ละวัน — ใช้หารค่าเช่า
+  window._prodrecordApproveDateJobCount = _prodrecordBuildDateJobCount(allRecsRes.data || []);
 
   // หาลูกค้าของบันทึกนี้ (ถ้ามี) ตามสาย MO_Ref → manufacturing_orders.CO_Ref → customer_orders.CustomerName
   // — จุดเดียวกับที่ bprPrint() ใช้ดึงชื่อลูกค้ามาพิมพ์อยู่แล้ว ไม่ผูก CO ก็ได้ (ผลิตเข้าสต็อกทั่วไป) แล้วจะ
@@ -25190,13 +25198,14 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? 91.09;
   document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
   document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? last.OverheadUtility ?? '';
+  document.getElementById('prodrecord-ap-rent').value = r.RentPerDay ?? last.RentPerDay ?? _PRODRECORD_RENT_DEFAULT_PER_DAY;
 
   document.getElementById('prodrecord-ap-info').innerHTML =
     `<span class="badge bg-secondary me-1">${r.ProdRecord_ID}</span><b>${r.ProductName||''}</b>` +
     ` <span class="text-muted">· FG จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()} ${r.UOM||''} · ต้นทุนวัตถุดิบ ฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>`;
 
   const rateInputIds = ['prodrecord-ap-ft-rate','prodrecord-ap-ft-ot','prodrecord-ap-pt-rate','prodrecord-ap-pt-ot',
-    'prodrecord-ap-os-rate','prodrecord-ap-os-ot','prodrecord-ap-oh-util'];
+    'prodrecord-ap-os-rate','prodrecord-ap-os-ot','prodrecord-ap-oh-util','prodrecord-ap-rent'];
   rateInputIds.forEach(id => { document.getElementById(id).readOnly = viewOnly; });
   document.getElementById('prodrecord-ap-save-btn').classList.toggle('d-none', viewOnly);
   document.getElementById('prodrecord-ap-cancel-btn').textContent = viewOnly ? 'ปิด' : 'ยกเลิก';
@@ -25264,6 +25273,64 @@ function _prodrecordComputeOverheadHours(stations, workDays) {
     }
   });
   return Object.values(ohDateMax).reduce((sum, h) => sum + h, 0) + _prodrecordFillShiftGap(ohLegacyDayHours) * workDays;
+}
+
+// ── ค่าเช่าโรงงาน (2026-10-08 ตามคำขอผู้ใช้) — ค่าเช่า/วัน (ค่าเริ่มต้น 45,814 ÷ 26 วัน) คิดแบบเดียวกับค่าน้ำไฟ
+// (อัตรา/วัน ÷ 8 × ชม.ทำงานจริงของวันนั้น) แต่ **หารด้วยจำนวนบันทึกผลิต (งาน/ไลน์) ที่ทำงานวันเดียวกัน** กัน
+// ค่าเช่าถูกคิดซ้ำเต็มวันในหลายงานที่เดินพร้อมกัน ค่าที่ได้รวมเข้าไปใน Overhead (จึงไหลลง TotalCost/CostPerUnit/
+// แดชบอร์ดอัตโนมัติ) และเก็บแยกไว้ที่ RentCost ให้เห็นที่มา
+const _PRODRECORD_RENT_DEFAULT_PER_DAY = Math.round(45814 / 26 * 100) / 100;
+
+// ชม.ทำงานต่อวันปฏิทินของบันทึก 1 ใบ — ใช้กติกาเดียวกับ _prodrecordComputeOverheadHours (max ต่อวัน + ปัดเต็มกะ)
+// บันทึกเก่าแบบแบน (ไม่มีวันที่ต่อแถว) กระจายชม.เดียวกันลงทุกวันในช่วง Date_Start–Date_End
+function _prodrecordOhHoursByDate(r, stations) {
+  const byDate = {};
+  let legacy = 0, hasLegacy = false;
+  (stations || []).forEach(s => {
+    if (Array.isArray(s.days)) {
+      s.days.forEach(d => {
+        const h = _prodrecordComputeOverheadHours([{ key: s.key, days: [d] }], 1);
+        const k = d.date || '';
+        if (h > (byDate[k] || 0)) byDate[k] = h;
+      });
+    } else {
+      hasLegacy = true;
+      legacy = Math.max(legacy, _prodrecordComputeOverheadHours([s], 1));
+    }
+  });
+  if (hasLegacy && legacy > 0 && r.Date_Start) {
+    const start = new Date(r.Date_Start), days = _prodrecordWorkDays(r);
+    for (let i = 0; i < days; i++) {
+      const dt = new Date(start); dt.setDate(dt.getDate() + i);
+      const k = _planWeekLocalDateStr(dt);
+      if (legacy > (byDate[k] || 0)) byDate[k] = legacy;
+    }
+  }
+  return byDate;
+}
+
+function _prodrecordParseStations(r) {
+  try { return typeof r.StationsData === 'string' ? JSON.parse(r.StationsData || '[]') : (r.StationsData || []); } catch (e) { return []; }
+}
+
+// นับว่าแต่ละวันมีบันทึกผลิตกี่ใบที่ทำงานจริง (ชม.>0) — allRecords = production_records ทุกสถานะ
+function _prodrecordBuildDateJobCount(allRecords) {
+  const count = {};
+  (allRecords || []).forEach(rec => {
+    const byDate = _prodrecordOhHoursByDate(rec, _prodrecordParseStations(rec));
+    Object.entries(byDate).forEach(([k, h]) => { if (k && h > 0) count[k] = (count[k] || 0) + 1; });
+  });
+  return count;
+}
+
+// คืน { rentCost, lines:[{date, hours, jobs, cost}] }
+function _prodrecordComputeRentCost(r, stations, rentPerDay, dateJobCount) {
+  const byDate = _prodrecordOhHoursByDate(r, stations);
+  const lines = Object.entries(byDate).filter(([, h]) => h > 0).sort().map(([date, hours]) => {
+    const jobs = Math.max(1, (dateJobCount && dateJobCount[date]) || 1);
+    return { date, hours, jobs, cost: (rentPerDay / 8) * hours / jobs };
+  });
+  return { rentCost: lines.reduce((s, l) => s + l.cost, 0), lines };
 }
 
 // ค่าแรงรวม — เหมือน pattern เดียวกับ _prodrecordComputeOverheadHours (ฟังก์ชันเดี่ยวเรียกซ้ำได้ทั้งจาก
@@ -25356,7 +25423,11 @@ function _prodrecordRecalcApprove() {
   // ล้วนๆ ไม่สนใจว่าวันนั้นทำงานกี่ชม.จริง ทำให้ Overhead ไม่ขยับตามชม.OT เลยทั้งที่ค่าแรงขยับตาม อัตรา/ชม. =
   // อัตรา/วัน ÷ 8 (1 วันทำงาน = 8 ชม.ปกติ ตามที่ผู้ใช้ระบุ) แล้วคูณด้วย totalOhHours ที่รวม OT เข้าไปด้วยแล้ว
   const ohHourlyRate = ohUtil / 8;
-  const overhead    = ohHourlyRate * totalOhHours;
+  const utilityCost = ohHourlyRate * totalOhHours;
+  const rentPerDay  = parseFloat(document.getElementById('prodrecord-ap-rent').value) || 0;
+  const rent        = _prodrecordComputeRentCost(r, stations, rentPerDay, window._prodrecordApproveDateJobCount);
+  const rentCost    = rent.rentCost;
+  const overhead    = utilityCost + rentCost; // Overhead รวมค่าเช่าแล้ว
   const materialCost = parseFloat(r.MaterialCost) || 0;
   const totalCost   = materialCost + laborCost + overhead;
   const fgActual    = parseFloat(r.FG_Actual) || 0;
@@ -25399,15 +25470,21 @@ function _prodrecordRecalcApprove() {
   const profitCostBasis = costPerUnitScrapAdj != null ? costPerUnitScrapAdj : costPerUnit;
   const profitPerUnit = sellingPrice != null ? sellingPrice - profitCostBasis : null;
 
-  window._prodrecordApproveComputed = { workDays, laborCost, overhead, totalOhHours, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
+  window._prodrecordApproveComputed = { workDays, laborCost, overhead, utilityCost, rentCost, rentPerDay, totalOhHours, materialCost, totalCost, costPerUnit, yieldOverall, scrapPct, costPerUnitScrapAdj, sellingPrice, profitPerUnit };
 
   const ohHourlyEl = document.getElementById('prodrecord-ap-oh-hourly');
   if (ohHourlyEl) ohHourlyEl.textContent = `= ฿${ohHourlyRate.toLocaleString(undefined,{maximumFractionDigits:2})}/ชม. (1 วัน = 8 ชม.ปกติ — ถ้ามี OT คิดเพิ่มตามชั่วโมงจริง)`;
+  const rentHintEl = document.getElementById('prodrecord-ap-rent-hint');
+  if (rentHintEl) {
+    const fmt = v => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    rentHintEl.innerHTML = `= ฿${fmt(rentPerDay / 8)}/ชม. ÷ จำนวนงานที่ทำวันเดียวกัน` +
+      (rent.lines.length ? '<br>' + rent.lines.map(l => `${_fmtDate(l.date)}: ${fmt(l.hours)} ชม. ÷ ${l.jobs} งาน = ฿${fmt(l.cost)}`).join('<br>') : '');
+  }
 
   document.getElementById('prodrecord-ap-preview').innerHTML = `
     <div class="row g-2 text-center">
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${laborCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ค่าแรงรวม (${workDays} วัน)</div></div></div>
-      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${overhead.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead รวม (${totalOhHours.toLocaleString(undefined,{maximumFractionDigits:1})} ชม.)</div></div></div>
+      <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${overhead.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">Overhead รวม (${totalOhHours.toLocaleString(undefined,{maximumFractionDigits:1})} ชม.)<br>น้ำไฟ ฿${utilityCost.toLocaleString(undefined,{maximumFractionDigits:2})} + ค่าเช่า ฿${rentCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#eff6ff"><div class="fw-bold text-primary">฿${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุนรวม</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">฿${costPerUnit.toLocaleString(undefined,{maximumFractionDigits:2})}</div><div class="text-muted" style="font-size:.7rem">ต้นทุน/หน่วย</div></div></div>
       <div class="col-4"><div class="p-2 rounded" style="background:#f8fafc"><div class="fw-bold">${yieldOverall!=null?yieldOverall.toFixed(1)+'%':'—'}</div><div class="text-muted" style="font-size:.7rem">Yield รวม</div></div></div>
@@ -25450,6 +25527,8 @@ async function prodrecordApproveSubmit() {
     OS_LaborRate    : parseFloat(document.getElementById('prodrecord-ap-os-rate').value) || 0,
     OS_OT_Rate      : parseFloat(document.getElementById('prodrecord-ap-os-ot').value) || 0,
     OverheadUtility : parseFloat(document.getElementById('prodrecord-ap-oh-util').value) || 0,
+    RentPerDay    : c.rentPerDay,
+    RentCost      : c.rentCost,
     LaborCost     : c.laborCost,
     Overhead      : c.overhead,
     TotalCost     : c.totalCost,
@@ -25581,24 +25660,31 @@ async function prodrecordRecalcAllOverhead() {
   if (!_hasRole('admin')) return;
 
   _showLoader();
-  const { data: rows, error: fetchErr } = await _fetchAllPagedEq('production_records',
-    '_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate',
-    'Status', 'อนุมัติแล้ว');
+  const [{ data: rows, error: fetchErr }, { data: allRecs, error: allErr }] = await Promise.all([
+    _fetchAllPagedEq('production_records',
+      '_row_id,ProdRecord_ID,StationsData,Date_Start,Date_End,OverheadUtility,RentPerDay,RentCost,MaterialCost,LaborCost,FG_Actual,Overhead,TotalCost,CostPerUnit,FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate',
+      'Status', 'อนุมัติแล้ว'),
+    _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
+  ]);
   _hideLoader();
-  if (fetchErr) { _err('โหลดรายการไม่สำเร็จ', fetchErr.message); return; }
+  if (fetchErr || allErr) { _err('โหลดรายการไม่สำเร็จ', (fetchErr || allErr).message); return; }
   if (!rows || !rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีบันทึกที่อนุมัติต้นทุนแล้ว', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 }); return; }
+  const dateJobCount = _prodrecordBuildDateJobCount(allRecs || []);
 
   const res = await Swal.fire({
     title: 'คำนวณ Overhead+ค่าแรงใหม่ทั้งหมด?',
-    html: `<div class="text-start">พบ <b>${rows.length}</b> บันทึกที่อนุมัติต้นทุนแล้ว จะคำนวณ ค่าแรง/Overhead/ต้นทุนรวม/ต้นทุนต่อหน่วยใหม่ตามสูตรล่าสุด (ชม.ทำงานจริง+ปัดชม.เก็บล้าง) แล้วเขียนทับค่าเดิม<br>
-      <span class="text-muted">ใบที่ตัวเลขไม่เปลี่ยน (ผลลัพธ์เหมือนเดิม) จะไม่ถูกเขียนทับ</span></div>`,
+    html: `<div class="text-start">พบ <b>${rows.length}</b> บันทึกที่อนุมัติต้นทุนแล้ว จะคำนวณ ค่าแรง/Overhead (น้ำไฟ+ค่าเช่า)/ต้นทุนรวม/ต้นทุนต่อหน่วยใหม่ตามสูตรล่าสุด แล้วเขียนทับค่าเดิม<br>
+      <span class="text-muted">ใบที่ตัวเลขไม่เปลี่ยน (ผลลัพธ์เหมือนเดิม) จะไม่ถูกเขียนทับ</span><br><br>
+      <label class="form-label mb-1">ค่าเช่า (฿/วัน) สำหรับใบที่ยังไม่เคยกำหนดค่าเช่า</label></div>`,
+    input: 'number', inputValue: _PRODRECORD_RENT_DEFAULT_PER_DAY, inputAttributes: { min: 0, step: '0.01' },
     icon: 'warning', showCancelButton: true,
     confirmButtonText: `คำนวณใหม่ทั้ง ${rows.length} ใบ`, cancelButtonText: 'ยกเลิก', confirmButtonColor: '#b45309',
   });
   if (!res.isConfirmed) return;
+  const defaultRent = parseFloat(res.value) || 0;
 
   _showLoader();
-  let updated = 0, unchanged = 0, failed = 0, ohDelta = 0, laborDelta = 0;
+  let updated = 0, unchanged = 0, failed = 0, ohDelta = 0, laborDelta = 0, rentTotal = 0;
   for (const r of rows) {
     let stations = [];
     try { stations = r.StationsData ? JSON.parse(r.StationsData) : []; } catch (e) { stations = []; }
@@ -25606,8 +25692,11 @@ async function prodrecordRecalcAllOverhead() {
 
     const totalOhHours = _prodrecordComputeOverheadHours(stations, workDays);
     const ohUtil = parseFloat(r.OverheadUtility) || 0;
-    const newOverhead = (ohUtil / 8) * totalOhHours;
+    const rentPerDay = r.RentPerDay != null ? (parseFloat(r.RentPerDay) || 0) : defaultRent;
+    const newRentCost = _prodrecordComputeRentCost(r, stations, rentPerDay, dateJobCount).rentCost;
+    const newOverhead = (ohUtil / 8) * totalOhHours + newRentCost;
     const oldOverhead = parseFloat(r.Overhead) || 0;
+    rentTotal += newRentCost;
 
     const newLaborCost = _prodrecordComputeLaborCost(stations, workDays, {
       ftRate: parseFloat(r.FT_LaborRate) || 0, ftOt: parseFloat(r.FT_OT_Rate) || 0,
@@ -25616,7 +25705,8 @@ async function prodrecordRecalcAllOverhead() {
     });
     const oldLaborCost = parseFloat(r.LaborCost) || 0;
 
-    if (Math.abs(newOverhead - oldOverhead) < 0.005 && Math.abs(newLaborCost - oldLaborCost) < 0.005) { unchanged++; continue; }
+    if (Math.abs(newOverhead - oldOverhead) < 0.005 && Math.abs(newLaborCost - oldLaborCost) < 0.005
+        && r.RentPerDay != null && Math.abs(newRentCost - (parseFloat(r.RentCost) || 0)) < 0.005) { unchanged++; continue; }
 
     const materialCost = parseFloat(r.MaterialCost) || 0;
     const newTotalCost = materialCost + newLaborCost + newOverhead;
@@ -25625,6 +25715,7 @@ async function prodrecordRecalcAllOverhead() {
 
     const { error } = await _sb.from('production_records').update({
       LaborCost: newLaborCost, Overhead: newOverhead, TotalCost: newTotalCost, CostPerUnit: newCostPerUnit,
+      RentPerDay: rentPerDay, RentCost: newRentCost,
     }).eq('_row_id', r._row_id);
     if (error) { failed++; continue; }
     ohDelta += newOverhead - oldOverhead;
@@ -25641,7 +25732,7 @@ async function prodrecordRecalcAllOverhead() {
     icon: failed ? 'warning' : 'success',
     title: 'คำนวณ Overhead+ค่าแรงใหม่เสร็จแล้ว',
     html: `<div class="text-start">อัปเดต <b>${updated}</b> บันทึก · ไม่เปลี่ยนแปลง ${unchanged} บันทึก${failed ? ` · <span class="text-danger">ล้มเหลว ${failed} บันทึก</span>` : ''}<br>
-      Overhead รวมที่เปลี่ยน: <b>${ohDelta >= 0 ? '+' : ''}฿${ohDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b><br>
+      Overhead รวมที่เปลี่ยน: <b>${ohDelta >= 0 ? '+' : ''}฿${ohDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b> (ค่าเช่ารวมทุกใบ ฿${rentTotal.toLocaleString(undefined,{maximumFractionDigits:2})})<br>
       ค่าแรงรวมที่เปลี่ยน: <b>${laborDelta >= 0 ? '+' : ''}฿${laborDelta.toLocaleString(undefined,{maximumFractionDigits:2})}</b></div>`,
   });
   prodrecordLoadData();
