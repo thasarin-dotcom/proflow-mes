@@ -2897,16 +2897,36 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               </div>
             </div>
             <div style="position:relative;height:220px" class="mb-3"><canvas id="codash-series-chart"></canvas></div>
-            <div class="fw-bold small text-muted mb-2">แยกตามสินค้าในซีรี่นี้ (เฉลี่ย/เดือน)</div>
+            <div class="fw-bold small text-muted mb-2">แยกตามประเภทในซีรี่นี้ — ขวด (FG) vs Bulk (เฉลี่ย/เดือน)</div>
             <div class="table-responsive">
               <table class="table table-sm table-hover mb-0">
                 <thead>
                   <tr>
-                    <th>รหัสสินค้า</th><th>ชื่อสินค้า</th>
-                    <th class="text-end">สั่งซื้อเฉลี่ย</th><th class="text-end">ผลิตจริงเฉลี่ย</th><th class="text-end">ขายเฉลี่ย</th><th>UOM</th>
+                    <th>ประเภท</th>
+                    <th class="text-end">สั่งซื้อเฉลี่ย (ขวด)</th><th class="text-end">ผลิตจริงเฉลี่ย (ขวด)</th><th class="text-end">ขายเฉลี่ย (ขวด)</th><th class="text-end">ใช้ Bulk เฉลี่ย</th>
                   </tr>
                 </thead>
                 <tbody id="codash-series-prod-tbody"></tbody>
+              </table>
+            </div>
+
+            <div class="fw-bold small text-muted mb-2 mt-4">ประมาณการสั่งซื้อวัตถุดิบ/แพ็คเกจจิ้ง (ซีรี่นี้)</div>
+            <div class="alert alert-light border small py-2 mb-2">
+              <i class="fas fa-circle-info text-primary me-1"></i>
+              <b>Bulk</b> — ต้องมีคงเหลือพอใช้ <b>2 เดือน</b>ข้างหน้า ·
+              <b>Pac (แพ็คเกจจิ้ง)</b> — ต้องมีคงเหลือพอใช้ <b>6 เดือน</b>ข้างหน้า
+              (คิดจากยอดใช้เฉลี่ย/เดือนย้อนหลัง 6 เดือน เทียบกับคงเหลือปัจจุบันในสต็อก)
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>รหัส</th><th>ชื่อวัตถุดิบ</th><th>ประเภท</th>
+                    <th class="text-end">คงเหลือปัจจุบัน</th><th class="text-end">ใช้เฉลี่ย/เดือน</th>
+                    <th class="text-end">ต้องมีพอ</th><th class="text-end">ต้องสั่งเพิ่ม</th>
+                  </tr>
+                </thead>
+                <tbody id="codash-series-mat-tbody"></tbody>
               </table>
             </div>
           </div>
@@ -27155,7 +27175,12 @@ let _coBulkWithdrawnMap = {};   // { Order_ID → ยอดเบิกวัต
 let _coBulkAvailStockMap = {};
 let _coOpenMOSet    = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) และ MO นั้นยังไม่ปิดงาน — กันปุ่ม "สั่งผลิต" กดซ้ำ
 let _coAnyMOSet      = new Set();   // Order_ID ของ CO ที่มี MO ผูกอยู่ (CO_Ref) อย่างน้อย 1 ใบ ไม่ว่าจะปิดงานแล้วหรือยัง — ใช้แยก "ยังไม่มี MO เลย" ออกจาก "มี MO ครบทุกใบแล้ว" ใน _coComputeDisplayStatus
-let _coInPlanSet    = new Set();   // Order_ID ของ CO ที่มีแถวใน production_plan ผูกอยู่แล้ว (CO_Ref) — ใช้เปลี่ยนป้ายเลข CO เป็นสีส้มในหน้า CO
+// สีป้ายเลข CO ในหน้า CO (ผู้ใช้ขอ 2026-10-11 — 1 CO แพลนผลิตได้หลายรอบ): ส้ม = มีรอบในแผนผลิตที่ยังไม่เสร็จ
+// (แถว production_plan ที่ CO_Ref นี้ ยังไม่สั่งผลิต หรือ MO ของรอบนั้นยังไม่ปิด), เขียว = ทุกรอบเสร็จแล้วและ
+// ผลิตครบ/ไม่ต้องผลิตเพิ่ม, เทา = ยังไม่เคยแพลน หรือทุกรอบเสร็จแล้วแต่ยังไม่ครบ (ต้องแพลนรอบใหม่) — ดู _coBadgeTone
+let _coPlannedSet    = new Set();   // Order_ID ที่เคยมีแถวใน production_plan อย่างน้อย 1 รอบ
+let _coActivePlanSet = new Set();   // Order_ID ที่มีรอบในแผนผลิตที่ยังไม่เสร็จ (ยังไม่มี MO หรือ MO ยังไม่อยู่ใน _moDoneStatuses)
+let _coMOReceivedMap = {};          // Order_ID → ผลรวม MO_Received ของทุก MO ที่ผูก CO นี้ (ยอดผลิตได้จริง)
 let _coExpandedSet  = new Set();   // Order_ID ที่กางรายละเอียดอยู่ (ค่าเริ่มต้นพับเก็บทั้งหมด)
 let _coModal        = null;
 let _coBomProducts  = [];
@@ -27226,10 +27251,10 @@ function _coComputeDisplayStatus(r) {
 async function _coRefreshMOAndShippedMaps() {
   const [wdRes, moRes, dlvRes, miscRes, planRes] = await Promise.all([
     _fetchAllPagedNotNull('fg_withdraw', '_row_id,CO_Ref,QtyFG', 'CO_Ref'),
-    _fetchAllPagedNotNull('manufacturing_orders', 'CO_Ref,Status', 'CO_Ref'),
+    _fetchAllPagedNotNull('manufacturing_orders', 'MO_ID,CO_Ref,Status,MO_Received', 'CO_Ref'),
     _fetchAllPagedNotNull('delivery', 'WD_Ref,Status', 'WD_Ref'),
     _fetchAllPagedNotNull('issue_misc', 'CO_Ref,IssuedQty', 'CO_Ref'),
-    _fetchAllPagedNotNull('production_plan', 'CO_Ref', 'CO_Ref'),
+    _fetchAllPagedNotNull('production_plan', 'CO_Ref,MO_Ref', 'CO_Ref'),
   ]);
 
   _coBulkWithdrawnMap = {};
@@ -27261,7 +27286,31 @@ async function _coRefreshMOAndShippedMaps() {
 
   _coOpenMOSet = new Set((moRes.data || []).filter(m => m.CO_Ref && !_moDoneStatuses.includes(m.Status)).map(m => m.CO_Ref));
   _coAnyMOSet  = new Set((moRes.data || []).filter(m => m.CO_Ref).map(m => m.CO_Ref));
-  _coInPlanSet = new Set((planRes.data || []).filter(p => p.CO_Ref).map(p => p.CO_Ref));
+
+  _coMOReceivedMap = {};
+  const moStatusById = {};
+  (moRes.data || []).forEach(m => {
+    moStatusById[m.MO_ID] = m.Status;
+    if (m.CO_Ref) _coMOReceivedMap[m.CO_Ref] = (_coMOReceivedMap[m.CO_Ref] || 0) + (parseFloat(m.MO_Received) || 0);
+  });
+  // MO ที่แผนอ้างถึงแต่ไม่ได้ผูก CO_Ref ไว้ (เช่นสร้าง MO เองแล้วค่อยผูกแผน) — ดึงสถานะเพิ่มเฉพาะตัวที่ขาด
+  const planRows = (planRes.data || []).filter(p => p.CO_Ref);
+  const missingMO = [...new Set(planRows.map(p => p.MO_Ref).filter(id => id && !(id in moStatusById)))];
+  if (missingMO.length) {
+    const { data: extra } = await _sb.from('manufacturing_orders').select('MO_ID,Status').in('MO_ID', missingMO);
+    (extra || []).forEach(m => { moStatusById[m.MO_ID] = m.Status; });
+  }
+  _coPlannedSet    = new Set(planRows.map(p => p.CO_Ref));
+  _coActivePlanSet = new Set(planRows.filter(p => !p.MO_Ref || !_moDoneStatuses.includes(moStatusById[p.MO_Ref])).map(p => p.CO_Ref));
+}
+
+// 'plan' (ส้ม) / 'done' (เขียว) / '' (เทา) — needProduce มาจาก coRenderTable (หัก FG สต็อก+ของรอส่งแล้ว)
+function _coBadgeTone(r, needProduce) {
+  if (_coActivePlanSet.has(r.Order_ID)) return 'plan';
+  if (!_coPlannedSet.has(r.Order_ID)) return '';
+  const orderQty = parseFloat(r.OrderQty) || 0;
+  if ((_coMOReceivedMap[r.Order_ID] || 0) >= orderQty || needProduce <= 0) return 'done';
+  return '';   // ทุกรอบเสร็จแล้วแต่ยังไม่ครบ — ต้องแพลนรอบใหม่
 }
 
 async function coLoadBomProducts() {
@@ -27508,9 +27557,12 @@ function coRenderTable() {
       </div>`}
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-2 px-3" style="cursor:pointer" onclick="coToggleExpand(${idx})">
         <div>
-          ${_coInPlanSet.has(r.Order_ID)
-            ? `<span class="badge me-2" style="background:#f97316" title="มีในแผนผลิตแล้ว"><i class="fas fa-calendar-check me-1"></i>${r.Order_ID||'—'}</span>`
-            : `<span class="badge bg-secondary me-2">${r.Order_ID||'—'}</span>`}
+          ${(() => {
+            const tone = isBulk ? '' : _coBadgeTone(r, needProduce);
+            if (tone === 'plan') return `<span class="badge me-2" style="background:#f97316" title="มีรอบในแผนผลิตที่ยังไม่เสร็จ"><i class="fas fa-calendar-check me-1"></i>${r.Order_ID||'—'}</span>`;
+            if (tone === 'done') return `<span class="badge bg-success me-2" title="ผลิตครบแล้ว ไม่ต้องแพลนเพิ่ม"><i class="fas fa-check-circle me-1"></i>${r.Order_ID||'—'}</span>`;
+            return `<span class="badge bg-secondary me-2"${_coPlannedSet.has(r.Order_ID) ? ' title="ทุกรอบผลิตเสร็จแล้วแต่ยังไม่ครบ — ต้องแพลนรอบใหม่"' : ''}>${r.Order_ID||'—'}</span>`;
+          })()}
           ${(r.PO_No && String(r.PO_No).trim() !== '-') ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-2" title="เลข PO ลูกค้า"><i class="fas fa-file-invoice me-1"></i>PO ${r.PO_No}</span>` : ''}
           <b>${r.CustomerName||'—'}</b>
           <span class="text-muted mx-1">·</span>
@@ -28486,7 +28538,7 @@ function codemandRenderMaterials() {
 
 async function codashLoadData() {
   _showLoader();
-  const [coRes, moRes, wdRes, miscRes] = await Promise.all([
+  const [coRes, moRes, wdRes, miscRes, bomRes, prodRecRes, prodDetailRes, stockRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
     _sb.from('manufacturing_orders').select('*').order('_row_id', { ascending: false }), // ไม่ paginate — เหมือน loadMOData เดิม, ยังห่างไกล PostgREST cap 1000 แถวมาก
     // เฉพาะแถวที่ผูก CO_Ref (ขายลูกค้าจริง ไม่รวมเบิกตัวอย่าง/ทดสอบ/ภายใน) ไว้ป้อนส่วน "พยากรณ์ตามซีรี่ FG" ด้านล่าง
@@ -28495,6 +28547,19 @@ async function codashLoadData() {
     // (เบิกส่ง Bulk ผูก CO_Ref ผ่านปุ่ม "เบิกส่ง Bulk" หรือแท็ก CustomerName ตรงจากฟีเจอร์ "เบิกให้ลูกค้า" —
     // กรองเฉพาะแถวที่ขายให้ลูกค้าจริงใน _codashBuildSeriesIndex ด้านล่าง ไม่ใช่ทุกแถว)
     _fetchAllPaged('issue_misc', 'MaterialCode,MaterialName,IssuedQty,UOM,Date,CO_Ref,CustomerName'),
+    // ไว้หาว่าวัตถุดิบ Bulk แต่ละรหัส เป็น "เนื้อ" ของสินค้า FG ตัวไหน (ดูหมายเหตุใน _codashBuildSeriesIndex
+    // ด้านล่าง — ชื่อวัตถุดิบ Bulk ที่ตั้งใน Master มักคนละชื่อกับชื่อสินค้า FG ที่ขายจริง) — เพิ่ม
+    // MaterialName/UOM เข้ามาด้วย (2026-10-11) ไว้แสดงชื่อ/หน่วยวัตถุดิบในตารางประมาณการสั่งซื้อ ไม่ต้อง
+    // fetch materials master แยกอีกตาราง เพราะ bom เองก็มีคอลัมน์นี้อยู่แล้ว
+    _bomFetchPaged('ProductCode,ProductName,MaterialCode,MaterialName,UOM,Remark'),
+    // บันทึกผลิต (Stage A) + รายละเอียดวัตถุดิบที่ใช้จริง — ไว้รวม "ใช้ Bulk จริงในการผลิต" เข้ากับยอดขาย
+    // เนื้อ Bulk ตรง (ตามคำขอผู้ใช้ 2026-10-11 "รวมทั้ง 2 แหล่ง") ไม่กรอง Status เพราะ ActualUsedQty กรอกไว้
+    // ตั้งแต่ Stage A แล้ว ไม่ต้องรออนุมัติต้นทุน (Stage B) — จุดประสงค์คือดูยอดใช้จริงให้เร็วที่สุด ไม่ใช่
+    // ตัวเลขทางบัญชีที่ต้องรอ final — รายละเอียดนี้ใช้คำนวณยอดใช้ Pac เฉลี่ยต่อเดือนด้วย (ไม่ใช่แค่ Bulk)
+    _fetchAllPaged('production_records', 'ProdRecord_ID,ProductCode,ProductName,Date_Start,Date_End'),
+    _fetchAllPaged('production_record_details', 'ProdRecord_ID,MaterialCode,ActualUsedQty,UOM'),
+    // คงเหลือปัจจุบันต่อวัตถุดิบ (รวมทุก Lot) ไว้เทียบกับยอดใช้เฉลี่ยคำนวณว่าต้องสั่งเพิ่มอีกเท่าไหร่
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance'),
   ]);
   _hideLoader();
   if (coRes.error) { _err('โหลดข้อมูล CO ไม่ได้', coRes.error.message); return; }
@@ -28507,6 +28572,14 @@ async function codashLoadData() {
   const wdData = wdRes.error ? [] : (wdRes.data || []);
   if (miscRes.error) console.error('โหลดข้อมูลเบิกเบ็ดเตล็ดไม่ได้', miscRes.error);
   const miscData = miscRes.error ? [] : (miscRes.data || []);
+  if (bomRes.error) console.error('โหลดข้อมูล BOM ไม่ได้', bomRes.error);
+  const bomData = bomRes.error ? [] : (bomRes.data || []);
+  if (prodRecRes.error) console.error('โหลดข้อมูลบันทึกผลิตไม่ได้', prodRecRes.error);
+  const prodRecData = prodRecRes.error ? [] : (prodRecRes.data || []);
+  if (prodDetailRes.error) console.error('โหลดข้อมูลรายละเอียดบันทึกผลิตไม่ได้', prodDetailRes.error);
+  const prodDetailData = prodDetailRes.error ? [] : (prodDetailRes.data || []);
+  if (stockRes.error) console.error('โหลดข้อมูลสต็อกวัตถุดิบไม่ได้', stockRes.error);
+  const stockData = stockRes.error ? [] : (stockRes.data || []);
 
   codashRenderKPIs(coData);
   codashRenderStatusChart(coData);
@@ -28514,7 +28587,8 @@ async function codashLoadData() {
   codashRenderCustomersChart(coData);
   codashRenderProductsChart(coData);
   codashRenderOverdueTable(coData);
-  _codashBuildSeriesIndex(coData, moData, wdData, miscData); // พยากรณ์ตามซีรี่ FG — เพิ่ม 2026-10-08 ตามคำขอผู้ใช้
+  // พยากรณ์ตามซีรี่ FG — เพิ่ม 2026-10-08 ตามคำขอผู้ใช้
+  _codashBuildSeriesIndex(coData, moData, wdData, miscData, bomData, prodRecData, prodDetailData, stockData);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -28527,10 +28601,13 @@ async function codashLoadData() {
 // ล่าสุด หารด้วย 6 เสมอ (ไม่ใช่หารด้วยจำนวนเดือนที่มีข้อมูลจริงแบบ _whComputeBulkForecast เพราะอันนั้นทำ
 // trend-fit รายวัตถุดิบซับซ้อนกว่า ส่วนนี้แค่ต้องการค่าเฉลี่ยง่ายๆ ต่อซีรี่/สินค้า — ยืนยันกับผู้ใช้แล้วเลือก
 // ช่วง 6 เดือนด้วย) ไม่ได้แปลง BOM เป็นวัตถุดิบให้ตรงๆ (ตารางแยกตามสินค้าด้านล่างให้ผู้ใช้เทียบ BOM เองต่อ
-// เพราะ BOM เป็นรายสินค้า ไม่ใช่รายซีรี่)
-let _codashSeriesCO = [], _codashSeriesMO = [], _codashSeriesWD = [];
+// เพราะ BOM เป็นรายสินค้า ไม่ใช่รายซีรี่) — ตารางแยกตามประเภทด้านล่างมีคอลัมน์ "ใช้ Bulk เฉลี่ย" เพิ่ม
+// (2026-10-11 ตามคำขอผู้ใช้) รวมยอดขายเนื้อ Bulk ตรง + ยอดใช้จริงในการผลิต (production_record_details.
+// ActualUsedQty จากบันทึกผลิต) เข้าด้วยกัน — ยืนยันกับผู้ใช้แล้วว่าต้องการรวมทั้ง 2 แหล่ง ไม่ใช่แทนที่กัน
+let _codashSeriesCO = [], _codashSeriesMO = [], _codashSeriesWD = [], _codashSeriesBulkUse = [], _codashSeriesMatUse = [];
 let _codashSeriesMonths = [];
 let _codashSelectedSeries = '';
+let _codashMaterialStock = {}; // MaterialCode -> คงเหลือรวมทุก Lot (stock_balance.QtyBalance)
 
 function _codashSeriesMonthRange(n = 6) {
   const months = [];
@@ -28542,7 +28619,7 @@ function _codashSeriesMonthRange(n = 6) {
   return months;
 }
 
-function _codashBuildSeriesIndex(coData, moData, wdData, miscData) {
+function _codashBuildSeriesIndex(coData, moData, wdData, miscData, bomData, prodRecData, prodDetailData, stockData) {
   _codashSeriesMonths = _codashSeriesMonthRange(6);
   const startStr = `${_codashSeriesMonths[0]}-01`;
   // CO แบบ Bulk (ItemType='BULK') รหัสสินค้าเป็น materials.MaterialCode ไม่ใช่ bom.ProductCode จริง —
@@ -28554,21 +28631,101 @@ function _codashBuildSeriesIndex(coData, moData, wdData, miscData) {
   _codashSeriesMO = moData
     .filter(r => (r.MO_Date || '') >= startStr)
     .map(r => ({ ...r, _parts: _fgParseNameParts(r.ProductName) }));
+
+  // Bulk MaterialCode → ชื่อสินค้า FG จริง (ProductName จาก bom) — ตัวจริงที่พบ: ชื่อวัตถุดิบ Bulk ที่ตั้งใน
+  // Master ("LRL Escape Signature Body Wash") มักคนละชื่อ/คนละ format กับชื่อสินค้า FG ที่ใช้ในหน้า CO/MO
+  // ("Esc Signature Body Wash 360 ml.") — ถ้าแยกซีรี่จากชื่อวัตถุดิบตรงๆ จะได้ซีรี่คนละก้อนกับ FG เลย ("LRL
+  // Escape Signature" ≠ "Esc Signature") ทำให้ยอดขาย Bulk หายไปจากซีรี่ที่เลือกอย่างเงียบๆ (รายงานจริง
+  // 2026-10-11) — แก้โดยหา ProductName ของ FG เจ้าของสูตรจาก bom ก่อน (เฉพาะ Remark ไม่ใช่ 'Pac' = เนื้อ
+  // Bulk จริง ไม่เอาวัตถุดิบแพ็คเกจจิ้งที่ใช้ร่วมกันหลายสินค้า) แล้วค่อยแยกซีรี่จากชื่อนั้นแทน — รหัส/ชื่อที่
+  // แสดงในตารางแยกสินค้ายังเป็นของวัตถุดิบ Bulk เดิม (ProductCode/ProductName) ไม่ได้เปลี่ยน แค่ใช้ชื่อ FG
+  // ช่วยหา "ซีรี่" เท่านั้น — รหัสซ้ำกันข้ามสินค้า (ไม่ค่อยเกิดแต่เผื่อไว้) ใช้ตัวที่เจอก่อนตัวเดียว (first-wins
+  // เหมือน bomByProduct ที่อื่นในไฟล์นี้)
+  const bulkMatToFgName = {};
+  (bomData || []).forEach(r => {
+    if (!r.MaterialCode || (r.Remark || '').trim().toLowerCase() === 'pac') return;
+    if (!bulkMatToFgName[r.MaterialCode]) bulkMatToFgName[r.MaterialCode] = r.ProductName;
+  });
+
   // "ขาย" รวม 2 แหล่ง: fg_withdraw (ขาย FG สำเร็จรูปที่ผูก CO_Ref — กรอง CO_Ref ไว้แล้วตั้งแต่ query) +
   // issue_misc ที่ขายเนื้อ/Bulk ตรงให้ลูกค้าโดยไม่ผ่าน FG เลย — ใช้เงื่อนไขเดียวกับ `isBillable`/
   // `hasCustomer` ที่หน้าเบิกเบ็ดเตล็ดเองใช้ตัดสินว่าแถวไหนคือ "ขายให้ลูกค้าจริง" (ผูก CO_Ref จากปุ่ม
   // "เบิกส่ง Bulk" หรือแท็ก CustomerName ตรงจากฟีเจอร์ "เบิกให้ลูกค้า") ไม่ใช่เบิกใช้ภายใน/ตัวอย่าง/ทดสอบ —
   // normalize ชื่อคอลัมน์ให้ตรงกับ fg_withdraw (ProductCode/ProductName/QtyFG) จะได้ใช้ sumByMonth/
-  // ตารางแยกสินค้าเดิมร่วมกันได้เลย ไม่ต้องแยกโค้ด 2 ชุด
+  // ตารางแยกสินค้าเดิมร่วมกันได้เลย ไม่ต้องแยกโค้ด 2 ชุด — _seriesName แยกต่างหากไว้ใช้แค่หาซีรี่
   const miscSaleRows = (miscData || [])
     .filter(r => (r.CO_Ref || r.CustomerName))
-    .map(r => ({ ProductCode: r.MaterialCode, ProductName: r.MaterialName, Date: r.Date, QtyFG: r.IssuedQty, UOM: r.UOM }));
+    .map(r => ({
+      ProductCode: r.MaterialCode, ProductName: r.MaterialName, Date: r.Date, QtyFG: r.IssuedQty, UOM: r.UOM,
+      _seriesName: bulkMatToFgName[r.MaterialCode] || r.MaterialName,
+    }));
   _codashSeriesWD = [...wdData, ...miscSaleRows]
     .filter(r => (r.Date || '') >= startStr)
-    .map(r => ({ ...r, _parts: _fgParseNameParts(r.ProductName) }));
+    .map(r => ({ ...r, _parts: _fgParseNameParts(r._seriesName || r.ProductName) }));
+
+  // "ใช้ Bulk จริงในการผลิต" (จากบันทึกผลิต Stage A) — ยืนยันกับผู้ใช้แล้วว่าต้องการรวมเข้ากับยอดขายเนื้อ
+  // Bulk ตรงด้านบน (ไม่ใช่แทนที่) ให้เป็นยอด "ใช้ Bulk" ที่สมบูรณ์ขึ้น (เนื้อที่ใช้ผลิต FG + เนื้อที่ขายตรง
+  // = ปริมาณ Bulk ที่ถูกเบิกออกจากสต็อกจริงทั้งหมด) — เก็บแยกจาก _codashSeriesWD โดยเจตนา เพราะ "ใช้ในการ
+  // ผลิต" ไม่ใช่ "ขาย" ไม่ควรไปปนกับ KPI/กราฟ "ขาย (เบิกให้ลูกค้า)" ด้านบนที่เป็นยอดขายลูกค้าล้วนๆ — รวมกัน
+  // เฉพาะตอนคำนวณคอลัมน์ "ใช้ Bulk เฉลี่ย" ในตารางแยกตามประเภทเท่านั้น (ดู codashRenderSeriesForecast)
+  const prodRecMap = {};
+  (prodRecData || []).forEach(r => { prodRecMap[r.ProdRecord_ID] = r; });
+  // ประเภท (bulk/pac) + ชื่อ/หน่วยต่อคู่ (ProductCode, MaterialCode) จาก bom — ผูกกับคู่ ProductCode+
+  // MaterialCode ไม่ใช่ MaterialCode เดี่ยวๆ เหมือน bulkMatToFgName ด้านบน เพราะที่นี่รู้ ProductCode ตรง
+  // จากหัวบันทึกผลิตอยู่แล้ว (ProductName ก็เป็นชื่อ FG จริงอยู่แล้ว ไม่ต้องเทียบชื่อแบบ issue_misc เลย) จึง
+  // เช็คคู่เป๊ะได้แม่นกว่า ไม่ต้องกลัวว่าวัตถุดิบรหัสเดียวกันถูกใช้ร่วมหลายสินค้าแล้วจับคู่ผิดตัว — ยุบรวมเป็น
+  // map เดียว ใช้ทั้งจับ "ใช้ Bulk ในการผลิต" (ของเดิม) และ "ใช้ Pac ในการผลิต" (ใหม่ 2026-10-11 ตามคำขอ
+  // ผู้ใช้ "Pac ให้บอกว่าต้องใช้อีกเท่าไหร่ ถึงจะพอ 6 เดือน") แทนที่จะวน bomData 2 รอบแยก Bulk/Pac คนละลูป
+  const bomLineInfo = {};
+  (bomData || []).forEach(r => {
+    if (!r.MaterialCode || !r.ProductCode) return;
+    const kind = (r.Remark || '').trim().toLowerCase() === 'pac' ? 'pac' : 'bulk';
+    const key = `${r.ProductCode}|${r.MaterialCode}`;
+    if (!bomLineInfo[key]) bomLineInfo[key] = { kind, name: r.MaterialName, uom: r.UOM };
+  });
+  const prodMatUseRows = (prodDetailData || [])
+    .map(d => {
+      const rec = prodRecMap[d.ProdRecord_ID];
+      if (!rec) return null;
+      const info = bomLineInfo[`${rec.ProductCode}|${d.MaterialCode}`];
+      if (!info) return null;
+      return {
+        MaterialCode: d.MaterialCode, MaterialName: info.name, UOM: d.UOM || info.uom,
+        Qty: parseFloat(d.ActualUsedQty) || 0, Date: rec.Date_End || rec.Date_Start, Kind: info.kind,
+        _seriesName: rec.ProductName,
+      };
+    })
+    .filter(Boolean)
+    .filter(r => (r.Date || '') >= startStr)
+    .map(r => ({ ...r, _parts: _fgParseNameParts(r._seriesName) }));
+  // รูปร่างเดิม (ProductCode/ProductName/QtyFG) ของ _codashSeriesBulkUse ไม่เปลี่ยน — ตารางแยกตามประเภท
+  // (codashRenderSeriesForecast) ยังอ่านฟิลด์ชุดนี้เหมือนเดิมทุกจุด แค่ที่มาตอนนี้ผ่าน bomLineInfo รวมแทน
+  _codashSeriesBulkUse = prodMatUseRows
+    .filter(r => r.Kind === 'bulk')
+    .map(r => ({ ...r, ProductCode: r.MaterialCode, ProductName: r._seriesName, QtyFG: r.Qty }));
+
+  // รายการใช้วัตถุดิบจริงรายตัว (MaterialCode) ทั้ง Bulk+Pac จากทุกแหล่ง (ผลิต + ขายเนื้อ Bulk ตรง) — ต่าง
+  // จากตารางแยกตามประเภทด้านบนที่รวมยอดทั้งซีรี่/ประเภทไว้ด้วยกัน อันนี้แยกราย MaterialCode จริงไว้คำนวณ
+  // "ต้องสั่งเพิ่มอีกเท่าไหร่" ต่อวัตถุดิบแต่ละตัว (ตามคำขอผู้ใช้ 2026-10-11) — ไม่มีแนวคิด "ขาย Pac ตรง" ใน
+  // ระบบนี้ (CO มีแค่ ItemType FG/BULK) จึงมีแค่ Bulk ที่มาจาก issue_misc ได้
+  const miscMatUseRows = miscSaleRows
+    .filter(r => (r.Date || '') >= startStr)
+    .map(r => ({
+      MaterialCode: r.ProductCode, MaterialName: r.ProductName, UOM: r.UOM,
+      Qty: parseFloat(r.QtyFG) || 0, Date: r.Date, Kind: 'bulk', _seriesName: r._seriesName,
+      _parts: _fgParseNameParts(r._seriesName),
+    }));
+  _codashSeriesMatUse = [...prodMatUseRows, ...miscMatUseRows];
+
+  // คงเหลือปัจจุบันรวมทุก Lot ต่อวัตถุดิบ — ไว้เทียบกับยอดใช้เฉลี่ยคำนวณว่าต้องสั่งเพิ่มอีกเท่าไหร่
+  _codashMaterialStock = {};
+  (stockData || []).forEach(r => {
+    if (!r.MaterialCode) return;
+    _codashMaterialStock[r.MaterialCode] = (_codashMaterialStock[r.MaterialCode] || 0) + (parseFloat(r.QtyBalance) || 0);
+  });
 
   const seriesSet = new Set();
-  [..._codashSeriesCO, ..._codashSeriesMO, ..._codashSeriesWD].forEach(r => {
+  [..._codashSeriesCO, ..._codashSeriesMO, ..._codashSeriesWD, ..._codashSeriesBulkUse, ..._codashSeriesMatUse].forEach(r => {
     if (r._parts.series && r._parts.series !== 'ไม่ระบุซีรี่') seriesSet.add(r._parts.series);
   });
   const list = [...seriesSet].sort((a, b) => a.localeCompare(b, 'th'));
@@ -28602,6 +28759,7 @@ function codashRenderSeriesForecast() {
   const coRows = _codashSeriesCO.filter(r => r._parts.series === _codashSelectedSeries);
   const moRows = _codashSeriesMO.filter(r => r._parts.series === _codashSelectedSeries);
   const wdRows = _codashSeriesWD.filter(r => r._parts.series === _codashSelectedSeries);
+  const bulkUseRows = _codashSeriesBulkUse.filter(r => r._parts.series === _codashSelectedSeries);
 
   const months = _codashSeriesMonths;
   const sumByMonth = (rows, dateKey, qtyKey) =>
@@ -28632,40 +28790,103 @@ function codashRenderSeriesForecast() {
     },
   });
 
-  // ตารางแยกตามสินค้า (ProductCode) ในซีรี่นี้ — ไว้เทียบ BOM ต่อเองเพราะ BOM เป็นรายสินค้า ไม่ใช่รายซีรี่
-  const prodMap = {};
-  const touch = (code, name, uom) => {
-    const k = code || name || '—';
-    if (!prodMap[k]) prodMap[k] = { code, name, uom, order: 0, mo: 0, sold: 0 };
-    if (!prodMap[k].uom && uom) prodMap[k].uom = uom;
+  // จัดกลุ่มตาม "ประเภท" (Wash/Shampoo/Conditioner/Moisturiser/...) แทนรายรหัสสินค้า — ตามคำขอผู้ใช้
+  // 2026-10-11 ("ให้ขวดเท่าไหร่ ใช้ Bulk เท่าไหร่") เพราะตารางรายรหัสสินค้าเดิมปนแถว FG (หน่วยขวด/หลอด —
+  // จาก CO/MO/fg_withdraw) กับแถว Bulk (หน่วย กก. — จาก issue_misc) ของประเภทเดียวกันแยกกันคนละแถว ดูยาก
+  // ว่ารวมกันแล้วต้องเตรียมขวด/เนื้อ Bulk เท่าไหร่ — แยกฝั่ง "ขวด" (FG สำเร็จรูป: สั่งซื้อ/ผลิตจริง/ขาย)
+  // กับฝั่ง "Bulk" (เนื้อที่ขายตรงผ่านเบิกเบ็ดเตล็ด, `r._seriesName` เป็นตัวบอกว่าแถวนั้นมาจากฝั่ง Bulk —
+  // ดู _codashBuildSeriesIndex) ไว้ในตารางเดียวกัน
+  const typeMap = {};
+  const touchType = type => {
+    const k = type || 'ไม่ระบุประเภท';
+    if (!typeMap[k]) typeMap[k] = { type: k, fgOrder: 0, fgMo: 0, fgSold: 0, fgUom: '', bulkUsed: 0, bulkUom: '' };
+    return typeMap[k];
   };
-  coRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].order += parseFloat(r.OrderQty) || 0; });
-  moRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].mo    += parseFloat(r.MO_Received) || 0; });
-  wdRows.forEach(r => { touch(r.ProductCode, r.ProductName, r.UOM); prodMap[r.ProductCode || r.ProductName || '—'].sold  += parseFloat(r.QtyFG) || 0; });
-  // เรียงตามผลรวม "สั่งซื้อ (CO) + ผลิตจริง (MO)" มากสุดก่อน — ตามคำขอผู้ใช้ (เดิมเรียงตาม MO อย่างเดียว
-  // ก่อนหน้านี้ ก่อนหน้านั้นอีกคือผลรวมทั้ง 3 ค่ารวมขายด้วย) ไม่รวม "ขาย" ในตัวจัดเรียงรอบนี้
-  const prods = Object.values(prodMap).sort((a, b) => (b.order + b.mo) - (a.order + a.mo));
-  // % สัดส่วนของแต่ละสินค้าเทียบกับผลรวมทั้งซีรี่ ต่อ 1 คอลัมน์ (คิดจากยอดสะสม 6 เดือนตรงๆ ไม่ใช่ค่าเฉลี่ย —
+  coRows.forEach(r => { const t = touchType(r._parts.type); t.fgOrder += parseFloat(r.OrderQty) || 0; if (!t.fgUom && r.UOM) t.fgUom = r.UOM; });
+  moRows.forEach(r => { const t = touchType(r._parts.type); t.fgMo    += parseFloat(r.MO_Received) || 0; if (!t.fgUom && r.UOM) t.fgUom = r.UOM; });
+  wdRows.forEach(r => {
+    const t = touchType(r._parts.type);
+    // r._seriesName มีเฉพาะแถวที่มาจาก issue_misc (ขายเนื้อ Bulk ตรง) — ดู _codashBuildSeriesIndex
+    if (r._seriesName) { t.bulkUsed += parseFloat(r.QtyFG) || 0; if (!t.bulkUom && r.UOM) t.bulkUom = r.UOM; }
+    else                { t.fgSold   += parseFloat(r.QtyFG) || 0; if (!t.fgUom   && r.UOM) t.fgUom   = r.UOM; }
+  });
+  // ยอด "ใช้ Bulk" รวมยอดขายเนื้อตรง (ด้านบน) เข้ากับยอดใช้จริงในการผลิต (จากบันทึกผลิต, ตามคำขอผู้ใช้
+  // 2026-10-11 "รวมทั้ง 2 แหล่ง") — ทั้ง 2 แหล่งคือ Bulk ที่ถูกเบิกออกจากสต็อกจริงเหมือนกัน แค่คนละปลายทาง
+  // (ขายตรง vs ใช้ผลิต FG) จึงรวมเข้าตัวแปรเดียวกันได้ตรงๆ
+  bulkUseRows.forEach(r => { const t = touchType(r._parts.type); t.bulkUsed += parseFloat(r.QtyFG) || 0; if (!t.bulkUom && r.UOM) t.bulkUom = r.UOM; });
+  // เรียงตามผลรวม "สั่งซื้อ (CO) + ผลิตจริง (MO)" มากสุดก่อน (เหมือนเดิม ยังไม่รวม "ขาย"/"Bulk" ในตัวจัดเรียง)
+  const types = Object.values(typeMap).sort((a, b) => (b.fgOrder + b.fgMo) - (a.fgOrder + a.fgMo));
+  // % สัดส่วนของแต่ละประเภทเทียบกับผลรวมทั้งซีรี่ ต่อ 1 คอลัมน์ (คิดจากยอดสะสม 6 เดือนตรงๆ ไม่ใช่ค่าเฉลี่ย —
   // อัตราส่วนออกมาเท่ากัน หารด้วยจำนวนเดือนเท่ากันทั้งเศษ/ส่วนตัดกันพอดี) กัน NaN/Infinity ถ้าผลรวมเป็น 0
-  const totalOrder = prods.reduce((s, p) => s + p.order, 0);
-  const totalMo    = prods.reduce((s, p) => s + p.mo, 0);
-  const totalSold  = prods.reduce((s, p) => s + p.sold, 0);
+  const totalFgOrder = types.reduce((s, t) => s + t.fgOrder, 0);
+  const totalFgMo    = types.reduce((s, t) => s + t.fgMo, 0);
+  const totalFgSold  = types.reduce((s, t) => s + t.fgSold, 0);
+  const totalBulk    = types.reduce((s, t) => s + t.bulkUsed, 0);
   const pctOf = (v, total) => total > 0 ? `${(v / total * 100).toFixed(1)}%` : '—';
   const tb = document.getElementById('codash-series-prod-tbody');
   if (tb) {
-    if (!prods.length) {
-      tb.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">ไม่มีข้อมูลในช่วง 6 เดือนล่าสุด</td></tr>';
+    if (!types.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-muted">ไม่มีข้อมูลในช่วง 6 เดือนล่าสุด</td></tr>';
     } else {
-      tb.innerHTML = prods.map(p => `<tr>
-        <td class="small">${p.code || '—'}</td>
-        <td class="small">${p.name || '—'}</td>
-        <td class="small text-end">${(Math.round(p.order / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.order, totalOrder)}</div></td>
-        <td class="small text-end">${(Math.round(p.mo / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.mo, totalMo)}</div></td>
-        <td class="small text-end">${(Math.round(p.sold / months.length * 10) / 10).toLocaleString()}<div class="text-muted" style="font-size:.72rem">${pctOf(p.sold, totalSold)}</div></td>
-        <td class="small">${p.uom || ''}</td>
-      </tr>`).join('');
+      tb.innerHTML = types.map(t => {
+        const fgOrderAvg = Math.round(t.fgOrder   / months.length * 10) / 10;
+        const fgMoAvg    = Math.round(t.fgMo      / months.length * 10) / 10;
+        const fgSoldAvg  = Math.round(t.fgSold    / months.length * 10) / 10;
+        const bulkAvg    = Math.round(t.bulkUsed  / months.length * 10) / 10;
+        return `<tr>
+          <td class="small fw-bold">${t.type}</td>
+          <td class="small text-end">${fgOrderAvg.toLocaleString()} ${t.fgUom || ''}<div class="text-muted" style="font-size:.72rem">${pctOf(t.fgOrder, totalFgOrder)}</div></td>
+          <td class="small text-end">${fgMoAvg.toLocaleString()} ${t.fgUom || ''}<div class="text-muted" style="font-size:.72rem">${pctOf(t.fgMo, totalFgMo)}</div></td>
+          <td class="small text-end">${fgSoldAvg.toLocaleString()} ${t.fgUom || ''}<div class="text-muted" style="font-size:.72rem">${pctOf(t.fgSold, totalFgSold)}</div></td>
+          <td class="small text-end">${t.bulkUsed > 0 ? `${bulkAvg.toLocaleString()} ${t.bulkUom || ''}<div class="text-muted" style="font-size:.72rem">${pctOf(t.bulkUsed, totalBulk)}</div>` : '—'}</td>
+        </tr>`;
+      }).join('');
     }
   }
+
+  codashRenderMaterialNeeds(months.length);
+}
+
+// ประมาณการสั่งซื้อวัตถุดิบ/แพ็คเกจจิ้งรายวัตถุดิบจริง (MaterialCode) — เพิ่ม 2026-10-11 ตามคำขอผู้ใช้
+// ("Bulk ต้องสั่งอีกกี่ KG ให้พอ 2 เดือน, Pac ต้องใช้อีกเท่าไหร่ถึงจะพอ 6 เดือน จากยอดสต็อกปัจจุบัน") —
+// ต่างจากตารางแยกตามประเภทด้านบน (รวมยอดทั้งประเภท) ตรงนี้แยกรายวัตถุดิบจริงเพราะ Pac มักมีหลายรหัสต่อ
+// สินค้า 1 ตัว (ขวด/ฝา/กล่อง ฯลฯ) แต่ละตัวต้องสั่งแยกกันจริง จะรวมเป็นก้อนเดียวต่อประเภทไม่ได้
+// ระยะที่ต้องมีพอ (จำนวนเดือน) ต่างกันตามประเภทวัตถุดิบ — ยืนยันกับผู้ใช้แล้ว: Bulk = 2 เดือน, Pac = 6 เดือน
+const _CODASH_COVER_MONTHS = { bulk: 2, pac: 6 };
+function codashRenderMaterialNeeds(monthsCount) {
+  const tb = document.getElementById('codash-series-mat-tbody');
+  if (!tb) return;
+  const matRows = _codashSeriesMatUse.filter(r => r._parts.series === _codashSelectedSeries);
+  const matMap = {};
+  matRows.forEach(r => {
+    const k = r.MaterialCode || r.MaterialName || '—';
+    if (!matMap[k]) matMap[k] = { code: r.MaterialCode, name: r.MaterialName, uom: r.UOM, kind: r.Kind, qty: 0 };
+    if (!matMap[k].uom && r.UOM) matMap[k].uom = r.UOM;
+    matMap[k].qty += parseFloat(r.Qty) || 0;
+  });
+  // Bulk ก่อน Pac เสมอ แล้วเรียงตามยอดใช้มากสุดในแต่ละกลุ่ม
+  const mats = Object.values(matMap).sort((a, b) => (a.kind === b.kind ? b.qty - a.qty : (a.kind === 'bulk' ? -1 : 1)));
+  if (!mats.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">ไม่มีข้อมูลการใช้วัตถุดิบในช่วง 6 เดือนล่าสุด</td></tr>';
+    return;
+  }
+  tb.innerHTML = mats.map(m => {
+    const avgPerMonth = m.qty / monthsCount;
+    const coverMonths = _CODASH_COVER_MONTHS[m.kind] || 6;
+    const needed = avgPerMonth * coverMonths;
+    const stock = _codashMaterialStock[m.code] || 0;
+    const toOrder = Math.max(0, needed - stock);
+    const fmt = v => (Math.round(v * 10) / 10).toLocaleString();
+    return `<tr>
+      <td class="small">${m.code || '—'}</td>
+      <td class="small">${m.name || '—'}</td>
+      <td class="small"><span class="badge ${m.kind === 'bulk' ? 'bg-info text-dark' : 'bg-secondary'}">${m.kind === 'bulk' ? 'Bulk' : 'Pac'}</span></td>
+      <td class="small text-end">${fmt(stock)} ${m.uom || ''}</td>
+      <td class="small text-end">${fmt(avgPerMonth)} ${m.uom || ''}</td>
+      <td class="small text-end">${fmt(needed)} ${m.uom || ''}<div class="text-muted" style="font-size:.72rem">${coverMonths} เดือน</div></td>
+      <td class="small text-end ${toOrder > 0 ? 'text-danger fw-bold' : 'text-success'}">${toOrder > 0 ? `${fmt(toOrder)} ${m.uom || ''}` : 'พอแล้ว'}</td>
+    </tr>`;
+  }).join('');
 }
 
 function codashRenderKPIs(coData) {
