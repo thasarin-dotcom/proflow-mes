@@ -15006,16 +15006,27 @@ async function _dlvbillPersistPacking() {
   if (error) console.error('เซฟการจัดกล่องไม่สำเร็จ', error);
 }
 
-// คำนวณกล่องเต็ม/เศษ/เศษที่ถูกจัดเข้ากล่องผสมไปแล้ว ต่อ Lot ในกลุ่มสินค้าเดียว — ไม่แก้ state ตรงนี้ แค่คำนวณอย่างเดียว
+// คำนวณต่อ Lot ในกลุ่มสินค้าเดียว — ไม่แก้ state ตรงนี้ แค่คำนวณอย่างเดียว
+// (2026-10-12) กล่องผสมดึงจาก "ยอดรวมของ Lot" ได้อิสระ ไม่จำกัดแค่เศษอีกต่อไป: หักยอดที่ใส่กล่องผสมออกก่อน
+// แล้วค่อยแบ่ง "ที่เหลือ" เป็นกล่องเต็ม + เศษ — ข้อมูลกล่องผสมเก่า (ที่ดึงจากเศษ) ยังได้ผลเหมือนเดิมเป๊ะ
+// เพราะหักเศษออกก่อนแล้วที่เหลือหารลงตัวพอดี
 function _dlvbillPackCalc(groupKey, group) {
   const state = _dlvbillPacking[groupKey] || { packSize: null, mixBoxes: [] };
   const packSize = state.packSize;
   const lots = group.lots.map(l => {
-    const fullBoxes     = packSize ? Math.floor(l.qty / packSize) : 0;
-    const rawRemainder  = packSize ? (l.qty - fullBoxes * packSize) : l.qty;
-    const usedInMix     = state.mixBoxes.reduce((s, m) => s + (m.alloc[l.lotKey] || 0), 0);
-    const unassigned    = rawRemainder - usedInMix;
-    return { ...l, fullBoxes, rawRemainder, usedInMix, unassigned };
+    const usedInMix     = (state.mixBoxes || []).reduce((s, m) => s + (m.alloc[l.lotKey] || 0), 0);
+    const remaining     = Math.max(0, l.qty - usedInMix);
+    const maxFullBoxes  = packSize ? Math.floor(remaining / packSize) : 0;
+    // (2026-10-12) กำหนดจำนวนกล่องเต็มเองได้ต่อ Lot (state.fullBoxOverride[lotKey]) — ที่ไม่เอาเป็นกล่องเต็ม
+    // กลายเป็นเศษไว้จัดกล่องผสมต่อ, ไม่ระบุ = ใช้กล่องเต็มให้มากที่สุดเหมือนเดิม
+    const ov            = (state.fullBoxOverride || {})[l.lotKey];
+    const hasOverride   = ov != null && ov !== '';
+    const fullBoxes     = packSize ? (hasOverride ? Math.max(0, Math.min(parseInt(ov) || 0, maxFullBoxes)) : maxFullBoxes) : 0;
+    const rawRemainder  = packSize ? (remaining - fullBoxes * packSize) : remaining;
+    const unassigned    = rawRemainder;
+    // ยอดที่ยังหยิบไปใส่กล่องผสมได้: ถ้าล็อกจำนวนกล่องเต็มไว้ = เฉพาะเศษ, ถ้าปล่อยอัตโนมัติ = ทั้งยอดคงเหลือ
+    const mixAvail      = hasOverride ? rawRemainder : remaining;
+    return { ...l, fullBoxes, maxFullBoxes, hasOverride, rawRemainder, usedInMix, unassigned, remaining, mixAvail };
   });
   return { packSize, mixBoxes: state.mixBoxes, lots };
 }
@@ -15036,12 +15047,19 @@ function dlvbillRenderPacking() {
 
     const calcRows = calc.lots.map(l => `
       <tr><td>Lot.${l.lotLabel}</td><td class="text-end">${l.qty.toLocaleString()}</td>
-        <td class="text-end">${calc.packSize ? l.fullBoxes.toLocaleString()+' กล่อง' : '—'}</td>
-        <td class="text-end">${calc.packSize ? l.rawRemainder.toLocaleString() : '—'}</td>
-        <td class="text-end">${l.usedInMix || '—'}</td></tr>
+        <td class="text-end">${l.usedInMix ? l.usedInMix.toLocaleString() : '—'}</td>
+        <td class="text-end">${calc.packSize
+          ? `<input type="number" min="0" max="${l.maxFullBoxes}" value="${l.fullBoxes}"
+               class="form-control form-control-sm d-inline-block text-end${l.hasOverride ? ' border-primary' : ''}" style="width:80px"
+               title="เต็มได้สูงสุด ${l.maxFullBoxes} กล่อง — ลดลงเพื่อเหลือเป็นเศษไว้จัดกล่องผสม (เว้นว่าง = อัตโนมัติ)"
+               onchange="dlvbillFullBoxChange(${idx}, '${String(l.lotKey).replace(/'/g, "\\'")}', this.value)"> กล่อง
+             ${l.hasOverride ? `<div class="small text-primary">กำหนดเอง (สูงสุด ${l.maxFullBoxes})</div>` : ''}`
+          : '—'}</td>
+        <td class="text-end">${calc.packSize ? l.rawRemainder.toLocaleString() : '—'}</td></tr>
     `).join('');
 
     const openLots = calc.lots.filter(l => calc.packSize && l.unassigned > 0);
+    const mixableLots = calc.lots.filter(l => calc.packSize && l.mixAvail > 0);
     const chips = openLots.length
       ? openLots.map(l => `<span class="dlvbill-chip">เศษ Lot.${l.lotLabel}: ${l.unassigned.toLocaleString()} ${g.uom||''}</span>`).join('')
       : (calc.packSize ? '<span class="dlvbill-chip dlvbill-chip-done">ไม่มีเศษเหลือ</span>' : '');
@@ -15067,12 +15085,12 @@ function dlvbillRenderPacking() {
         <span class="small text-muted">${g.uom||''} / กล่อง${_dlvbillPackDefaults[g.code] ? ` (ค่าเริ่มต้นจากครั้งก่อน: ${_dlvbillPackDefaults[g.code]})` : ''}</span>
       </div>
       <table class="dlvbill-calctable">
-        <thead><tr><th>Lot</th><th class="text-end">จำนวนรวม</th><th class="text-end">กล่องเต็ม</th><th class="text-end">เศษ</th><th class="text-end">รวมกล่องผสมแล้ว</th></tr></thead>
+        <thead><tr><th>Lot</th><th class="text-end">จำนวนรวม</th><th class="text-end">ใส่กล่องผสม</th><th class="text-end">กล่องเต็ม (จากที่เหลือ)</th><th class="text-end">เศษ</th></tr></thead>
         <tbody>${calcRows}</tbody>
       </table>
       <div class="dlvbill-chipwrap">${chips}</div>
       <div id="dlvbill-mixform-${idx}"></div>
-      ${openLots.length >= 2 ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="dlvbillOpenMixForm(${idx})">+ รวมเศษเป็นกล่องผสม</button>` : ''}
+      ${mixableLots.length >= 2 ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="dlvbillOpenMixForm(${idx})">+ จัดกล่องผสม (เลือก Lot/จำนวนเอง)</button>` : ''}
       <div class="dlvbill-mixlist">${mixList}</div>
     </div>`;
   }).join('');
@@ -15098,46 +15116,94 @@ async function dlvbillPackSizeChange(idx, value) {
   await _dlvbillPersistPacking();
 }
 
+// กำหนดจำนวนกล่องเต็มของ Lot เองในตารางแพ็คกิ้ง — เว้นว่าง = กลับเป็นอัตโนมัติ (เต็มให้มากที่สุด)
+async function dlvbillFullBoxChange(idx, lotKey, value) {
+  const key = _dlvbillGroupOrder[idx];
+  if (!key || !_dlvbillPacking[key]) return;
+  const st = _dlvbillPacking[key];
+  if (!st.fullBoxOverride) st.fullBoxOverride = {};
+  if (value === '' || value == null) delete st.fullBoxOverride[lotKey];
+  else st.fullBoxOverride[lotKey] = Math.max(0, parseInt(value) || 0);
+  dlvbillRenderPacking();
+  dlvbillRenderPreview();
+  await _dlvbillPersistPacking();
+}
+
 function dlvbillOpenMixForm(idx) {
   const key = _dlvbillGroupOrder[idx];
   const g = _dlvbillBuildGroups(_dlvbillScopeRows()).groups[key];
   const calc = _dlvbillPackCalc(key, g);
-  const openLots = calc.lots.filter(l => calc.packSize && l.unassigned > 0);
+  // เลือกได้ทุก Lot ที่ยังมียอดเหลือ (ไม่ใช่แค่ Lot ที่มีเศษ) และใส่จำนวนได้ถึงยอดคงเหลือของ Lot นั้น —
+  // ค่าเริ่มต้นติ๊ก/ใส่เท่าเศษเดิมไว้ให้ (พฤติกรรมเดิม) แก้เองได้ทุกช่อง
+  const lots = calc.lots.filter(l => calc.packSize && l.mixAvail > 0);
   const formEl = document.getElementById(`dlvbill-mixform-${idx}`);
   if (!formEl) return;
   formEl.innerHTML = `
     <div class="dlvbill-mixform">
-      ${openLots.map(l => `
+      <div class="small text-muted mb-1">เลือก Lot และจำนวนที่จะใส่กล่องผสมนี้ — Lot ที่กำหนดจำนวนกล่องเต็มเองไว้ หยิบได้เฉพาะเศษ, Lot ที่ปล่อยอัตโนมัติ หยิบได้ทั้งยอดแล้วระบบคำนวณกล่องเต็ม/เศษใหม่ให้</div>
+      ${lots.map(l => `
         <div class="dlvbill-mixform-row">
-          <input type="checkbox" id="dlvbill-mixchk-${idx}-${l.lotKey}" checked>
-          <label for="dlvbill-mixchk-${idx}-${l.lotKey}">Lot.${l.lotLabel} — เศษเหลือ ${l.unassigned.toLocaleString()} ${g.uom||''} ใส่ในกล่องผสมนี้:</label>
-          <input type="number" min="0" max="${l.unassigned}" value="${l.unassigned}"
-            id="dlvbill-mixqty-${idx}-${l.lotKey}" class="form-control form-control-sm d-inline-block" style="width:80px">
+          <input type="checkbox" id="dlvbill-mixchk-${idx}-${l.lotKey}" ${l.unassigned > 0 ? 'checked' : ''} onchange="_dlvbillMixFormSum(${idx})">
+          <label for="dlvbill-mixchk-${idx}-${l.lotKey}">Lot.${l.lotLabel} — ใส่ได้สูงสุด ${l.mixAvail.toLocaleString()} ${g.uom||''} (เศษ ${l.unassigned.toLocaleString()}) ใส่:</label>
+          <input type="number" min="0" max="${l.mixAvail}" value="${l.unassigned > 0 ? l.unassigned : ''}"
+            id="dlvbill-mixqty-${idx}-${l.lotKey}" class="form-control form-control-sm d-inline-block" style="width:90px"
+            oninput="document.getElementById('dlvbill-mixchk-${idx}-${l.lotKey}').checked = (parseFloat(this.value)||0) > 0; _dlvbillMixFormSum(${idx})">
         </div>`).join('')}
+      <div class="small mt-1" id="dlvbill-mixsum-${idx}"></div>
       <button type="button" class="btn btn-sm btn-primary mt-1" onclick="dlvbillSaveMix(${idx})">บันทึกกล่องผสม</button>
       <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="document.getElementById('dlvbill-mixform-${idx}').innerHTML=''">ยกเลิก</button>
     </div>`;
+  _dlvbillMixFormSum(idx);
+}
+
+// อ่านค่าที่กรอกในฟอร์มกล่องผสม → { alloc, sum } (ตัดไม่ให้เกินยอดคงเหลือของแต่ละ Lot)
+function _dlvbillReadMixForm(idx) {
+  const key = _dlvbillGroupOrder[idx];
+  const g = _dlvbillBuildGroups(_dlvbillScopeRows()).groups[key];
+  const calc = _dlvbillPackCalc(key, g);
+  const alloc = {};
+  calc.lots.filter(l => calc.packSize && l.mixAvail > 0).forEach(l => {
+    const chk = document.getElementById(`dlvbill-mixchk-${idx}-${l.lotKey}`);
+    const inp = document.getElementById(`dlvbill-mixqty-${idx}-${l.lotKey}`);
+    if (chk && chk.checked && inp) {
+      const q = parseFloat(inp.value) || 0;
+      if (q > 0) alloc[l.lotKey] = Math.min(q, l.mixAvail);
+    }
+  });
+  const sum = Object.values(alloc).reduce((a, b) => a + b, 0);
+  return { alloc, sum, packSize: calc.packSize, uom: g.uom || '' };
+}
+
+function _dlvbillMixFormSum(idx) {
+  const el = document.getElementById(`dlvbill-mixsum-${idx}`);
+  if (!el) return;
+  const { sum, packSize, uom } = _dlvbillReadMixForm(idx);
+  const over = packSize && sum > packSize;
+  el.innerHTML = `รวมในกล่องนี้: <b class="${over ? 'text-danger' : ''}">${sum.toLocaleString()}</b> / ${packSize ? packSize.toLocaleString() : '—'} ${uom}` +
+    (over ? ' <span class="text-danger">(เกินจำนวนต่อกล่อง)</span>' : (packSize && sum === packSize ? ' <span class="text-success">(เต็มกล่องพอดี)</span>' : ''));
 }
 
 async function dlvbillSaveMix(idx) {
   const key = _dlvbillGroupOrder[idx];
-  const g = _dlvbillBuildGroups(_dlvbillScopeRows()).groups[key];
-  const calc = _dlvbillPackCalc(key, g);
-  const openLots = calc.lots.filter(l => calc.packSize && l.unassigned > 0);
-  const alloc = {};
-  openLots.forEach(l => {
-    const chk = document.getElementById(`dlvbill-mixchk-${idx}-${l.lotKey}`);
-    if (chk && chk.checked) {
-      const q = parseFloat(document.getElementById(`dlvbill-mixqty-${idx}-${l.lotKey}`).value) || 0;
-      if (q > 0) alloc[l.lotKey] = Math.min(q, l.unassigned);
-    }
-  });
+  const { alloc, sum, packSize } = _dlvbillReadMixForm(idx);
   if (Object.keys(alloc).length < 2) {
     Swal.fire({ toast:true, position:'top-end', icon:'warning', title:'เลือกอย่างน้อย 2 Lot เพื่อรวมเป็นกล่องผสม', showConfirmButton:false, timer:2200 });
     return;
   }
+  if (packSize && sum > packSize) {
+    const ok = await Swal.fire({
+      icon: 'warning', title: 'เกินจำนวนต่อกล่อง',
+      html: `กล่องผสมนี้รวม ${sum.toLocaleString()} เกินจำนวนต่อกล่อง (${packSize.toLocaleString()}) — ยืนยันบันทึกไหม?`,
+      showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'กลับไปแก้'
+    });
+    if (!ok.isConfirmed) return;
+  }
   if (!_dlvbillPacking[key].mixBoxes) _dlvbillPacking[key].mixBoxes = [];
-  _dlvbillMixSeq++;
+  // เลขกล่องต่อจากค่าสูงสุดที่มีอยู่จริง (กันเลขชนกับกล่องที่โหลดคืนมาจาก PackingJSON ตอนพิมพ์ซ้ำ —
+  // ถ้าชน ปุ่ม "ลบ" จะลบหลายกล่องพร้อมกัน)
+  const maxN = Object.values(_dlvbillPacking).reduce((mx, st) =>
+    Math.max(mx, ...((st && st.mixBoxes) || []).map(m => m.n || 0)), 0);
+  _dlvbillMixSeq = Math.max(_dlvbillMixSeq, maxN) + 1;
   _dlvbillPacking[key].mixBoxes.push({ n: _dlvbillMixSeq, alloc });
   const formEl = document.getElementById(`dlvbill-mixform-${idx}`);
   if (formEl) formEl.innerHTML = '';
@@ -37530,7 +37596,14 @@ async function dlvlabelOpenPrint(billNo) {
   order.forEach(key => {
     const state = packing[key];
     if (state) {
-      const fullBoxes = groups[key].lots.reduce((s, l) => s + (state.packSize ? Math.floor(l.qty / state.packSize) : 0), 0);
+      // กล่องเต็มนับจากยอดที่เหลือหลังหักส่วนที่ใส่กล่องผสม (ตรงกับ _dlvbillPackCalc)
+      const fullBoxes = groups[key].lots.reduce((s, l) => {
+        if (!state.packSize) return s;
+        const usedInMix = (state.mixBoxes || []).reduce((a, m) => a + ((m.alloc || {})[l.lotKey] || 0), 0);
+        const maxFull = Math.floor(Math.max(0, l.qty - usedInMix) / state.packSize);
+        const ov = (state.fullBoxOverride || {})[l.lotKey];
+        return s + ((ov != null && ov !== '') ? Math.max(0, Math.min(parseInt(ov) || 0, maxFull)) : maxFull);
+      }, 0);
       _dlvlabelQtyByGroup[key] = Math.max(1, fullBoxes + (state.mixBoxes || []).length);
     } else {
       _dlvlabelQtyByGroup[key] = 1;
