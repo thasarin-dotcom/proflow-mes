@@ -12956,13 +12956,25 @@ async function mrReportOnScopeChange() {
   // ต้องรวมเฉพาะแถวที่ "ยังไม่มีเลข RC No" เท่านั้น ห้ามดึงแถวเดิมที่เคยออกใบไปแล้วมาปนพิมพ์/ตีเลขทับซ้ำ
   _mrReportPrintRowIds = rows.filter(r => !r.RC_No).map(r => r._row_id);
 
+  // เคยยกเลิกใบของวันที่+ซัพพลายเออร์เดียวกันนี้ไว้ไหม — ถ้ามี เสนอเลขเดิมกลับมาใช้ใหม่แทนเลขถัดไป
+  let reuseNo = '';
+  if (!rcNos.length && _mrReportPrintRowIds.length) {
+    const { data: cRows } = await _sb.from('mr_rc_numbers').select('*').eq('ReceiveDate', dateStr);
+    const hit = (cRows || []).filter(c => c.CancelledAt && (c.Supplier || '') === (supplierFilter || ''))
+      .sort((a, b) => (b._row_id || 0) - (a._row_id || 0))[0];
+    if (hit) reuseNo = hit.RC_No;
+  }
+
   if (rcNos.length) {
     warnEl.innerHTML = `⚠️ วันที่/ซัพพลายเออร์นี้มีรายการที่เคยออกเลข <b>${rcNos.join(', ')}</b> ไปแล้ว (รายการเดิมจะไม่ถูกดึงมารวมในรายงานนี้ และไม่ถูกเปลี่ยนเลข) มีรายการรับใหม่ที่ยังไม่มีเลขอีก <b>${_mrReportPrintRowIds.length}</b> รายการ — กรุณายืนยันเลข RC No สำหรับรายการใหม่เหล่านี้`;
+    warnEl.style.display = 'block';
+  } else if (reuseNo) {
+    warnEl.innerHTML = `ℹ️ วันที่/ซัพพลายเออร์นี้เคยออกใบเลข <b>${reuseNo}</b> แล้วถูกยกเลิก — ใส่เลขเดิมให้แล้ว กด "ยืนยันเลข" เพื่อออกใบใหม่ด้วยเลขเดิม (แก้เป็นเลขอื่นได้)`;
     warnEl.style.display = 'block';
   } else {
     warnEl.style.display = 'none';
   }
-  document.getElementById('mr-rpt-rcno').value = await mrReportSuggestRcNo(dateStr);
+  document.getElementById('mr-rpt-rcno').value = reuseNo || await mrReportSuggestRcNo(dateStr);
   mrReportResetConfirmState();
 }
 
@@ -13008,16 +13020,22 @@ async function mrReportConfirmRcNo() {
   }
 
   _showLoader();
-  const { data: existing, error: checkErr } = await _sb.from('mr_rc_numbers').select('_row_id,ReceiveDate').eq('RC_No', val);
+  const { data: existing, error: checkErr } = await _sb.from('mr_rc_numbers').select('*').eq('RC_No', val);
   if (checkErr) { _hideLoader(); _err('เช็คเลข RC No ไม่ได้', checkErr.message); return; }
-  if (existing && existing.length) {
+  // เลขที่ถูก "ยกเลิกใบ" แล้ว (CancelledAt) นำกลับมาใช้ใหม่ได้ — ชนเฉพาะเลขที่ยังใช้งานอยู่
+  const activeClash = (existing || []).find(r => !r.CancelledAt);
+  if (activeClash) {
     _hideLoader();
-    errEl.textContent = `เลข RC No "${val}" ถูกใช้ไปแล้ว (บันทึกไว้สำหรับวันที่ ${_fmtDate(existing[0].ReceiveDate)}) — กรุณาแก้เลขใหม่`;
+    errEl.textContent = `เลข RC No "${val}" ถูกใช้ไปแล้ว (บันทึกไว้สำหรับวันที่ ${_fmtDate(activeClash.ReceiveDate)}) — กรุณาแก้เลขใหม่`;
     errEl.style.display = 'block';
     return;
   }
+  const cancelledRow = (existing || []).find(r => r.CancelledAt);
 
-  const { error: insErr } = await _sb.from('mr_rc_numbers').insert({ RC_No: val, ReceiveDate: dateStr, Supplier: supplierVal });
+  // ออกใบใหม่ด้วยเลขที่เคยยกเลิก = UPDATE แถวเดิมในทะเบียน (BillNo/RC_No unique — insert ซ้ำไม่ได้)
+  const { error: insErr } = cancelledRow
+    ? await _sb.from('mr_rc_numbers').update({ ReceiveDate: dateStr, Supplier: supplierVal, CancelledAt: null }).eq('_row_id', cancelledRow._row_id)
+    : await _sb.from('mr_rc_numbers').insert({ RC_No: val, ReceiveDate: dateStr, Supplier: supplierVal });
   if (insErr) {
     _hideLoader();
     // 23505 = unique_violation ระดับ DB (กันชนกันตอนกดยืนยันพร้อมกันจากหลายเบราว์เซอร์ ซึ่งเช็คฝั่ง client ข้างบนอาจตามไม่ทัน)
@@ -13058,11 +13076,48 @@ async function mrReportRenderHistory() {
   const body = document.getElementById('mr-rpt-history-body');
   if (error) { body.innerHTML = `<tr><td colspan="4" class="text-danger">โหลดประวัติไม่ได้ (${error.message})</td></tr>`; return; }
   if (!data.length) { body.innerHTML = `<tr><td colspan="4" class="text-muted">ยังไม่มีเลข RC No</td></tr>`; return; }
-  body.innerHTML = data.map(r => `
+  body.innerHTML = data.map(r => r.CancelledAt ? `
+    <tr class="text-muted">
+      <td><s>${r.RC_No}</s> <span class="badge bg-secondary" style="font-size:.65rem">ยกเลิกแล้ว</span></td>
+      <td>${_fmtDate(r.ReceiveDate)}</td><td>${r.Supplier || 'ทั้งหมด'}</td><td></td>
+    </tr>` : `
     <tr>
       <td>${r.RC_No}</td><td>${_fmtDate(r.ReceiveDate)}</td><td>${r.Supplier || 'ทั้งหมด'}</td>
-      <td><button onclick="mrReportEditRcNo(${r._row_id},'${r.RC_No}')">แก้ไข</button></td>
+      <td style="white-space:nowrap"><button onclick="mrReportEditRcNo(${r._row_id},'${r.RC_No}')">แก้ไข</button>
+        <button onclick="mrReportCancelRcNo(${r._row_id},'${r.RC_No}')" style="color:#dc2626">ยกเลิกใบ</button></td>
     </tr>`).join('');
+}
+
+// ยกเลิกใบ RC No ที่ออกไปแล้ว — ล้างเลขออกจากรายการรับวัตถุดิบทุกแถวที่ stamp ไว้ (กลับเป็น "ยังไม่มีเลข"
+// แก้ไขรายละเอียดได้) และ stamp CancelledAt ในทะเบียน (ไม่ลบแถว) — ครั้งหน้าที่ยืนยันเลขของวันที่/ซัพเดิม
+// ระบบเสนอเลขเดิมกลับมาให้ใช้ซ้ำได้ (ต้องรัน alter_mr_rc_numbers_add_cancelled.sql ก่อน)
+async function mrReportCancelRcNo(rowId, rcNo) {
+  const affected = _mrData.filter(r => r.RC_No === rcNo).length;
+  const { isConfirmed } = await Swal.fire({
+    icon: 'warning',
+    title: `ยกเลิกใบ RC No ${rcNo}?`,
+    html: `รายการรับวัตถุดิบ <b>${affected}</b> รายการจะถูกปลดเลขใบนี้ออก เพื่อแก้ไขรายละเอียดได้<br>
+           <small class="text-muted">แก้เสร็จแล้วกลับมาที่ "พิมพ์รายงาน" เลือกวันที่/ซัพพลายเออร์เดิม ระบบจะใส่เลข ${rcNo} ให้ใช้ซ้ำได้</small>`,
+    showCancelButton: true, confirmButtonText: 'ยกเลิกใบ', cancelButtonText: 'ปิด', confirmButtonColor: '#dc2626',
+  });
+  if (!isConfirmed) return;
+
+  _showLoader();
+  const { error: regErr } = await _sb.from('mr_rc_numbers').update({ CancelledAt: new Date().toISOString() }).eq('_row_id', rowId);
+  if (regErr) {
+    _hideLoader();
+    _err('ยกเลิกใบไม่สำเร็จ', /CancelledAt/.test(regErr.message) ? 'ต้องรัน alter_mr_rc_numbers_add_cancelled.sql ใน Supabase ก่อน' : regErr.message);
+    return;
+  }
+  const { error: clrErr } = await _sb.from('mr_receive').update({ RC_No: null }).eq('RC_No', rcNo);
+  _hideLoader();
+  if (clrErr) { _err('ยกเลิกในทะเบียนแล้ว แต่ปลดเลขออกจากรายการรับวัตถุดิบไม่สำเร็จ', clrErr.message); return; }
+  _mrData.forEach(r => { if (r.RC_No === rcNo) r.RC_No = null; });
+  _logAudit('CANCEL', 'mr_rc_numbers', rcNo, `ยกเลิกใบ RC No ${rcNo} (${affected} รายการ)`);
+
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:`ยกเลิกใบ ${rcNo} แล้ว`, showConfirmButton:false, timer:2000 });
+  mrReportRenderHistory();
+  mrReportOnScopeChange();
 }
 
 // แก้ไขเลข RC No ที่เคยยืนยัน/บันทึกไปแล้ว — เช็คซ้ำใหม่ทุกครั้ง (ไม่รวมแถวของตัวเอง)
