@@ -8788,6 +8788,7 @@ function _fpStartAutoRefresh() {
   _fpInterval = setInterval(() => {
     const pageEl = document.getElementById('page-floorpulse');
     if (!pageEl || !pageEl.classList.contains('active')) { clearInterval(_fpInterval); _fpInterval = null; return; }
+    if (document.hidden) return;   // ข้ามรอบเมื่อแท็บถูกซ่อน ลด log ingestion (2026-10-12)
     loadFloorPulseData();
   }, 60000);
 }
@@ -19187,7 +19188,9 @@ async function _renderPublicReport(token) {
   // ระบุมาเอง — ปรับได้ถ้าต้องการถี่/ห่างกว่านี้
   if (isFirstRender) {
     _pubReportRefreshStarted = true;
-    setInterval(() => _renderPublicReport(token), 60000);
+    // ลดภาระ Supabase log ingestion (2026-10-12): 120 วิ และข้ามรอบเมื่อแท็บถูกซ่อน — กลับมาเปิดแท็บแล้วโหลดทันที
+    setInterval(() => { if (!document.hidden) _renderPublicReport(token); }, 120000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) _renderPublicReport(token); });
   }
 }
 
@@ -38022,7 +38025,11 @@ let _realtimeChangedRows = [];
 
 function _realtimeIsBusy() {
   if (document.hidden) return true;
-  if (document.querySelector('.modal.show')) return true;
+  if (document.querySelector('.modal.show, .offcanvas.show')) return true;
+  // กำลังพิมพ์/เลือกในช่องกรอกข้อมูล (แม้ไม่ได้อยู่ใน modal) — เลื่อน refresh ไปจนกว่าจะออกจากช่อง กันข้อมูลที่กรอกค้างหาย
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable ||
+      (ae.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'submit'].includes(ae.type)))) return true;
   if (typeof Swal !== 'undefined' && Swal.isVisible && Swal.isVisible()) return true;
   if (_prodStatusDrag || _lotqDrag) return true;
   return false;
@@ -38031,7 +38038,7 @@ function _realtimeIsBusy() {
 function _realtimeScheduleRefresh() {
   if (_realtimeRefreshInFlight) { _realtimeRefreshPending = true; return; }
   if (_realtimeRefreshTimer) clearTimeout(_realtimeRefreshTimer);
-  _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 1200);
+  _realtimeRefreshTimer = setTimeout(_realtimeRunRefresh, 1200);   // badge ต้องอัปเดตเร็ว — คงที่ 1.2 วิ (ลองเพิ่มเป็น 3.5 วิแล้วผู้ใช้ไม่ต้องการ 2026-10-12)
 }
 
 // กระพริบขอบจอเบาๆ ให้รู้ว่ามีข้อมูลอัปเดตจากเครื่อง/คนอื่นแบบเรียลไทม์ — overlay เดียวใช้ร่วมกันทุกหน้า
@@ -38134,6 +38141,9 @@ function _realtimeSubscribe() {
   if (_realtimeChannel) return; // subscribe ครั้งเดียวต่อ session — logout สั่ง location.reload() เสมอ (ดู logoutUser) จึงไม่มีทาง unsubscribe ค้าง
   _realtimeChannel = _sb.channel('proflow-realtime-sync')
     .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+      // ข้ามตารางที่ไม่มีหน้า/badge ไหนพึ่ง realtime — audit_log ถูก insert ทุก action จึงกระตุ้น refresh ซ้ำโดยไม่จำเป็น,
+      // production_progress ใช้กับหน้า scan ที่ skip realtime อยู่แล้ว (ลด log ingestion 2026-10-12)
+      if (payload?.table === 'audit_log' || payload?.table === 'production_progress') return;
       if (payload?.table) _realtimeChangedRows.push(payload);
       _realtimeScheduleRefresh();
     })
