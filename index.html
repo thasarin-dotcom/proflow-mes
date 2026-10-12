@@ -3400,6 +3400,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <option value="">สถานะ: ทั้งหมด</option>
             <option value="รออนุมัติ">รออนุมัติ</option>
             <option value="อนุมัติแล้ว">อนุมัติแล้ว</option>
+            <option value="__recv_pending">อนุมัติแล้ว · ค้างรับ</option>
+            <option value="__recv_full">อนุมัติแล้ว · รับครบ</option>
             <option value="ปฏิเสธ">ปฏิเสธ</option>
             <option value="ยกเลิก">ยกเลิก</option>
           </select>
@@ -3442,6 +3444,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="kpi-card" style="border-color:#22c55e;cursor:pointer" onclick="purchasereqFilterStatus('อนุมัติแล้ว')" title="กดเพื่อกรองเฉพาะอนุมัติแล้ว">
             <div class="kpi-num text-success" id="purchasereq-kpi-approved">—</div>
             <div class="kpi-label">อนุมัติแล้ว</div>
+            <div id="purchasereq-kpi-recvpending" style="font-size:.72rem;color:#dc2626;font-weight:600;cursor:pointer"
+                 onclick="event.stopPropagation();purchasereqFilterStatus('__recv_pending')" title="กดเพื่อดูใบที่ยังรับเข้าไม่ครบ"></div>
           </div>
         </div>
         <div class="col-6 col-md-2">
@@ -11043,9 +11047,45 @@ async function purchasereqLoadData() {
   const linesByPR = {};
   (lineRes.data || []).forEach(l => { (linesByPR[l.PR_Ref] ||= []).push(l); });
   _purchasereqData = (hdrRes.data || []).map(h => ({ ...h, lines: linesByPR[h.PR_No] || [] }));
+  await _purchasereqComputeReceived();
 
   purchasereqRenderCards();
   purchasereqUpdateNavBadge(false, _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length);
+}
+
+// ── สถานะรับเข้าของใบที่ "อนุมัติแล้ว" (2026-10-12 ตามคำขอผู้ใช้) — ใบขอซื้อไม่มีลิงก์ตรงกับ mr_receive
+// เลยประมาณแบบเดียวกับ _codemandLoadApprovedPR: ต่อวัตถุดิบ เอายอดรับเข้า (mr_receive) ตั้งแต่วันอนุมัติใบแรก
+// มาตัดใบที่อนุมัติแล้วแบบ FIFO (ApprovedAt → PR_No) แล้วตั้งค่า l._received / l._left ต่อบรรทัด และ
+// pr._recvStatus = 'full' | 'partial' | 'none' ต่อใบ. ข้อจำกัด: จับคู่แค่รหัสวัตถุดิบ ไม่ดูซัพพลายเออร์/ไม่รู้ว่า
+// รับเข้าจากใบไหนจริง — ถ้ารับวัตถุดิบตัวเดียวกันจากที่อื่นที่ไม่ได้ขอซื้อ จะถูกนับตัดใบให้ด้วย
+async function _purchasereqComputeReceived() {
+  const approved = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว');
+  if (!approved.length) return;
+  const minDate = approved.map(p => p.ApprovedAt).filter(Boolean).sort()[0] || '2000-01-01';
+  const mrRes = await _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', minDate, '9999-12-31');
+  if (mrRes.error) return; // โหลดไม่ได้ → ไม่โชว์สถานะรับเข้า (ไม่บล็อกหน้า)
+  const mrByMat = {};
+  (mrRes.data || []).forEach(r => (mrByMat[r.MaterialCode] ||= []).push(r));
+
+  const byMat = {};
+  approved.forEach(p => p.lines.forEach(l => (byMat[l.MaterialCode] ||= []).push({ p, l })));
+  Object.entries(byMat).forEach(([code, items]) => {
+    items.sort((a, b) => String(a.p.ApprovedAt || '').localeCompare(String(b.p.ApprovedAt || '')) || String(a.p.PR_No).localeCompare(String(b.p.PR_No)));
+    const firstDate = items[0].p.ApprovedAt || '2000-01-01';
+    let pool = (mrByMat[code] || []).filter(r => String(r.Date || '') >= firstDate).reduce((s, r) => s + (parseFloat(r.Qty) || 0), 0);
+    items.forEach(({ l }) => {
+      const qty = parseFloat(l.RequestQty) || 0;
+      const got = Math.min(qty, pool);
+      l._received = got; l._left = qty - got; pool -= got;
+    });
+  });
+  approved.forEach(p => {
+    const total = p.lines.reduce((s, l) => s + (parseFloat(l.RequestQty) || 0), 0);
+    const got = p.lines.reduce((s, l) => s + (l._received || 0), 0);
+    const allDone = p.lines.every(l => (l._left || 0) <= 0.0001);
+    p._recvStatus = allDone ? 'full' : got > 0.0001 ? 'partial' : 'none';
+    p._recvPct = total > 0 ? Math.round(got / total * 100) : 0;
+  });
 }
 
 // เลขที่ใบขอซื้อ รูปแบบ PR-ปี(พ.ศ. 2 หลัก)/ลำดับ เช่น PR-69/001 (2026 → พ.ศ. 2569 → "69") ตามที่ผู้ใช้ยืนยัน
@@ -11910,6 +11950,12 @@ function purchasereqCardHTML(pr) {
     : pr.Status === 'อนุมัติแล้ว' ? '<span class="badge bg-success">อนุมัติแล้ว</span>'
     : pr.Status === 'ยกเลิก' ? '<span class="badge" style="background:#e2e8f0;color:#475569;border:1px solid #cbd5e1">ยกเลิก</span>'
     : '<span class="badge bg-secondary">ปฏิเสธ</span>';
+  // สถานะรับเข้า (เฉพาะใบอนุมัติแล้ว — คำนวณใน _purchasereqComputeReceived)
+  const hasRecv = pr.Status === 'อนุมัติแล้ว' && pr._recvStatus;
+  const recvBadge = !hasRecv ? ''
+    : pr._recvStatus === 'full' ? '<span class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac"><i class="fas fa-check-circle me-1"></i>รับเข้าครบแล้ว</span>'
+    : pr._recvStatus === 'partial' ? `<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d"><i class="fas fa-hourglass-half me-1"></i>รับบางส่วน ${pr._recvPct}%</span>`
+    : '<span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5"><i class="fas fa-clock me-1"></i>ค้างรับ</span>';
   const expanded  = _purchasereqExpandedSet.has(pr.PR_No);
   const canEdit   = pr.Status === 'รออนุมัติ';
   const canDelete = pr.Status !== 'อนุมัติแล้ว';
@@ -11940,6 +11986,7 @@ function purchasereqCardHTML(pr) {
         &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">฿${totalVal.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>
       </span>
       ${statusBadge}
+      ${recvBadge}
       <span class="ms-auto d-flex gap-1">
         ${canEdit ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="event.stopPropagation();purchasereqEditOpen('${pr.PR_No}')" title="แก้ไข"><i class="fas fa-pen"></i></button>` : ''}
         ${canDelete ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="event.stopPropagation();purchasereqDelete('${pr.PR_No}')" title="ลบ"><i class="fas fa-trash"></i></button>` : ''}
@@ -11950,15 +11997,18 @@ function purchasereqCardHTML(pr) {
     <div class="purchasereq-detail" style="display:${expanded ? 'block' : 'none'}">
       <div class="table-responsive">
         <table class="table table-sm mb-2">
-          <thead><tr><th>รหัส</th><th>รายการ</th><th>ซัพพลายเออร์</th><th class="text-end">คงเหลือตอนขอ</th><th class="text-end">Min</th><th class="text-end">ขอซื้อ</th><th>หน่วย</th><th class="text-end">ราคา/หน่วย</th><th class="text-end">ราคารวม</th></tr></thead>
+          <thead><tr><th>รหัส</th><th>รายการ</th><th>ซัพพลายเออร์</th><th class="text-end">คงเหลือตอนขอ</th><th class="text-end">Min</th><th class="text-end">ขอซื้อ</th>${hasRecv ? '<th class="text-end">รับแล้ว</th><th class="text-end">ค้างรับ</th>' : ''}<th>หน่วย</th><th class="text-end">ราคา/หน่วย</th><th class="text-end">ราคารวม</th></tr></thead>
           <tbody>${pr.lines.map(l => {
             const qty = parseFloat(l.RequestQty) || 0;
             const unitCost = parseFloat(l.UnitCost) || 0;
+            const left = l._left || 0;
+            const recvCells = !hasRecv ? '' : `<td class="text-end" style="color:#16a34a">${(l._received || 0).toLocaleString()}</td>
+            <td class="text-end fw-bold" style="color:${left > 0.0001 ? '#dc2626' : '#16a34a'}">${left > 0.0001 ? left.toLocaleString() : '✓'}</td>`;
             return `<tr>
             <td>${l.MaterialCode}</td><td>${l.MaterialName || ''}</td><td>${l.Supplier || '—'}</td>
             <td class="text-end">${(parseFloat(l.QtyAtRequest) || 0).toLocaleString()}</td>
             <td class="text-end">${(parseFloat(l.MinStock) || 0).toLocaleString()}</td>
-            <td class="text-end fw-bold">${qty.toLocaleString()}</td>
+            <td class="text-end fw-bold">${qty.toLocaleString()}</td>${recvCells}
             <td>${l.UOM || ''}</td>
             <td class="text-end">฿${unitCost.toLocaleString('th-TH',{maximumFractionDigits:2})}</td>
             <td class="text-end fw-semibold" style="color:#16a34a">฿${(qty*unitCost).toLocaleString('th-TH',{maximumFractionDigits:0})}</td>
@@ -11996,7 +12046,9 @@ function purchasereqRenderCards() {
   const container = document.getElementById('purchasereq-cards');
 
   const items = _purchasereqData.filter(pr => {
-    if (statusF && pr.Status !== statusF) return false;
+    if (statusF === '__recv_pending') { if (pr.Status !== 'อนุมัติแล้ว' || !pr._recvStatus || pr._recvStatus === 'full') return false; }
+    else if (statusF === '__recv_full') { if (pr.Status !== 'อนุมัติแล้ว' || pr._recvStatus !== 'full') return false; }
+    else if (statusF && pr.Status !== statusF) return false;
     const suppliers = pr.lines.map(l => l.Supplier).filter(Boolean);
     if (supF && !suppliers.includes(supF)) return false;
     if (q) {
@@ -12032,6 +12084,9 @@ function purchasereqRenderCards() {
   document.getElementById('purchasereq-kpi-all').textContent      = _purchasereqData.length.toLocaleString();
   document.getElementById('purchasereq-kpi-pending').textContent  = _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length.toLocaleString();
   document.getElementById('purchasereq-kpi-approved').textContent = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว').length.toLocaleString();
+  const recvPendingN = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว' && p._recvStatus && p._recvStatus !== 'full').length;
+  const recvEl = document.getElementById('purchasereq-kpi-recvpending');
+  if (recvEl) recvEl.innerHTML = recvPendingN ? `<i class="fas fa-clock me-1"></i>ค้างรับ ${recvPendingN} ใบ` : '';
   document.getElementById('purchasereq-kpi-cancelled').textContent = _purchasereqData.filter(p => p.Status === 'ยกเลิก').length.toLocaleString();
   const pendVal = _purchasereqData.filter(p => p.Status === 'รออนุมัติ').reduce((s, p) => s + _purchasereqLineValue(p), 0);
   document.getElementById('purchasereq-kpi-value').textContent = '฿' + pendVal.toLocaleString('th-TH', { maximumFractionDigits: 0 });
