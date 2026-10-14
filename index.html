@@ -11331,12 +11331,28 @@ async function purchasereqEditOpen(prNo) {
   document.getElementById('purchasereq-f-note').value = pr.Note || '';
   document.getElementById('purchasereq-f-prno').value = prNo;
   document.getElementById('purchasereq-f-prno').classList.remove('is-invalid');
-  document.getElementById('purchasereq-add-material-box').style.display = 'none';
+  // แก้ไขใบเดิมก็เพิ่มวัตถุดิบตัวอื่นได้ (2026-10-14 ตามคำขอผู้ใช้) — ใช้กล่องค้นหา Master ชุดเดียวกับโหมด
+  // "สร้างใบขอซื้อ" (purchasereqManualSearchMaterial/AddMaterial) จึงต้องโหลด materials/stock_balance ด้วย
+  document.getElementById('purchasereq-add-material-box').style.display = 'block';
+  document.getElementById('purchasereq-add-material-search').value = '';
+  document.getElementById('purchasereq-add-material-dropdown').style.display = 'none';
 
   _showLoader();
-  const [supplierMap, tierMap] = await Promise.all([_purchasereqBuildSupplierMap(), _pricetierFetchMap()]);
+  const [supplierMap, tierMap, matRes, stockRes] = await Promise.all([
+    _purchasereqBuildSupplierMap(), _pricetierFetchMap(),
+    _sb.from('materials').select('MaterialCode,MaterialName,UOM,MinStock'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,UnitCost,StockValue'),
+  ]);
   _purchasereqPriceTierMap = tierMap;
   _hideLoader();
+  _purchasereqManualMaterials = (matRes.data || []).sort((a, b) => (a.MaterialCode||'').localeCompare(b.MaterialCode||''));
+  _purchasereqManualStockMap = {};
+  (stockRes.data || []).forEach(r => {
+    const g = (_purchasereqManualStockMap[r.MaterialCode] ||= { qty: 0, val: 0 });
+    g.qty += parseFloat(r.QtyBalance) || 0;
+    g.val += parseFloat(r.StockValue) || 0;
+  });
+  _purchasereqManualSupplierMap = supplierMap;
 
   const rows = pr.lines.map(l => ({
     code: l.MaterialCode, name: l.MaterialName, uom: l.UOM,
