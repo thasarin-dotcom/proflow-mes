@@ -6500,6 +6500,22 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           </div>
         </div>
 
+        <div class="glass-card p-0 overflow-hidden mb-3">
+          <div class="p-2 px-3 border-bottom fw-bold small text-muted">สรุปคงเหลือตามปีที่หมดอายุ</div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead>
+                <tr>
+                  <th class="wh-col-sm">ปีที่หมดอายุ</th><th class="text-end wh-col-xs">จำนวน Lot</th>
+                  <th class="text-end wh-col-sm">ยอดคงเหลือรวม</th><th class="wh-col-xs">UOM</th>
+                  <th class="wh-col-lg">Lot</th>
+                </tr>
+              </thead>
+              <tbody id="stockcard-expyear-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="glass-card p-0 overflow-hidden">
           <div class="p-2 px-3 border-bottom fw-bold small text-muted">แยกตาม Lot</div>
           <div class="table-responsive">
@@ -35106,6 +35122,28 @@ async function stockcardRun() {
       </tr>`;
     }).join('');
   }
+
+  // สรุปคงเหลือตามปีที่หมดอายุ — นับเฉพาะ Lot ที่ยังมียอดคงเหลือ (closing > 0) จัดกลุ่มตามปีของ expDate
+  const expGroups = {};
+  allLots.forEach(l => {
+    const pl = perLot[l];
+    if (!(pl.closing > 0)) return;
+    const y = /^\d{4}/.test(pl.expDate || '') ? String(pl.expDate).slice(0, 4) : 'ไม่ระบุ';
+    (expGroups[y] = expGroups[y] || { qty: 0, lots: [] });
+    expGroups[y].qty += pl.closing;
+    expGroups[y].lots.push(`${l} (${pl.closing.toLocaleString()})`);
+  });
+  const expYears = Object.keys(expGroups).sort((a, b) => (a === 'ไม่ระบุ') - (b === 'ไม่ระบุ') || a.localeCompare(b));
+  const expUom = (txns[0] || {}).uom || '';
+  document.getElementById('stockcard-expyear-tbody').innerHTML = !expYears.length
+    ? '<tr><td colspan="5" class="text-center py-3 text-muted">ไม่มี Lot คงเหลือ</td></tr>'
+    : expYears.map(y => `<tr>
+        <td class="fw-bold">${y}</td>
+        <td class="text-end">${expGroups[y].lots.length.toLocaleString()}</td>
+        <td class="text-end fw-bold">${(Math.round(expGroups[y].qty * 1000) / 1000).toLocaleString()}</td>
+        <td>${expUom || '—'}</td>
+        <td><small class="text-muted">${expGroups[y].lots.join(', ')}</small></td>
+      </tr>`).join('');
 
   const lotTbody = document.getElementById('stockcard-lot-tbody');
   const lotColCount = mode === 'fg' ? 9 : 7;
