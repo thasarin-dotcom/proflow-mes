@@ -5708,7 +5708,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="col-md-2">
             <select id="leave-filter-type" class="form-select form-select-sm" onchange="leaveRenderTable()">
               <option value="">ทุกประเภทการลา</option><option>ลาป่วย</option><option>ลากิจ</option>
-              <option>ลาพักร้อน</option><option>ขาดงาน</option><option>มาสาย</option>
+              <option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option><option>ขาดงาน</option><option>มาสาย</option>
             </select>
           </div>
           <div class="col-md-3 text-end">
@@ -5729,7 +5729,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <table class="table table-hover mb-0">
             <thead><tr>
               <th>วันที่</th><th class="text-center" title="ไม่นับวันอาทิตย์">จำนวนวัน</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท พนง.</th><th>ประเภทการลา</th>
-              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th>บันทึกโดย / เมื่อ</th><th class="text-center" style="width:90px">จัดการ</th>
+              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th>แก้ไข/บันทึกล่าสุดโดย</th><th class="text-center" style="width:90px">จัดการ</th>
             </tr></thead>
             <tbody id="leave-tbody"><tr><td colspan="11" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
           </table>
@@ -5752,7 +5752,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <div class="mb-2"><label class="form-label small fw-bold">พนักงาน *</label><select id="leave-f-emp" class="form-select" required></select></div>
             <div class="mb-2"><label class="form-label small fw-bold">ประเภท *</label>
               <select id="leave-f-type" class="form-select" onchange="leaveOnTypeChange()">
-                <option>ลาป่วย</option><option>ลากิจ</option><option>ลาพักร้อน</option><option>ขาดงาน</option><option>มาสาย</option>
+                <option>ลาป่วย</option><option>ลากิจ</option><option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option><option>ขาดงาน</option><option>มาสาย</option>
               </select></div>
             <div class="row g-2 mb-2">
               <div class="col-6"><label class="form-label small fw-bold" id="leave-f-date-label">ตั้งแต่วันที่ *</label><input type="date" id="leave-f-date" class="form-control" required></div>
@@ -21918,7 +21918,7 @@ const LEAVE_PARTS = {
   'เช้า'   : { start: '08:30', end: '12:00', hours: 3.5 }, // ตรงกับ PLAN_SHIFTS.เช้า
   'บ่าย'   : { start: '13:00', end: '17:30', hours: 4.5 }, // ตรงกับ PLAN_SHIFTS.บ่าย
 };
-const LEAVE_TYPE_CODE = { 'ลาป่วย': 'ป', 'ลากิจ': 'ก', 'ลาพักร้อน': 'พ', 'ขาดงาน': 'ข', 'มาสาย': 'ส' };
+const LEAVE_TYPE_CODE = { 'ลาป่วย': 'ป', 'ลากิจ': 'ก', 'ลาพักร้อน': 'พ', 'ลาไม่รับค่าจ้าง': 'ม', 'ขาดงาน': 'ข', 'มาสาย': 'ส' };
 const LEAVE_EMPTYPE_LABEL = { FT: 'พนักงานประจำ (FT)', PT: 'พาร์ทไทม์ (PT)', OS: 'เอาท์ซอร์ส (OS)' };
 const LEAVE_EMPTYPE_COLOR = { FT: '#0d6efd', PT: '#198754', OS: '#8b5cf6' };
 let _leaveData = [];
@@ -22039,7 +22039,7 @@ function leaveRenderTable() {
   set('leave-kpi-people').textContent = new Set(groups.map(g => g.code)).size;
   set('leave-kpi-hours').textContent = (Math.round(groups.reduce((s, g) => s + g.hours, 0) * 100) / 100).toLocaleString();
   set('leave-kpi-upcoming').textContent = groups.filter(g => g.end >= today).length;
-  const typeBadge = { 'ลาป่วย': 'danger', 'ลากิจ': 'warning text-dark', 'ลาพักร้อน': 'info text-dark', 'ขาดงาน': 'dark', 'มาสาย': 'secondary' };
+  const typeBadge = { 'ลาป่วย': 'danger', 'ลากิจ': 'warning text-dark', 'ลาพักร้อน': 'info text-dark', 'ลาไม่รับค่าจ้าง': 'primary', 'ขาดงาน': 'dark', 'มาสาย': 'secondary' };
   set('leave-tbody').innerHTML = groups.length ? groups.map((g, gi) => {
     const r = g.first;
     const e = empMap[g.code];
@@ -22053,7 +22053,7 @@ function leaveRenderTable() {
       <td><span class="badge bg-${typeBadge[r.LeaveType] || 'secondary'}">${_lvEsc(r.LeaveType)}</span></td>
       <td>${_lvEsc(part)}</td><td class="text-end">${Math.round(g.hours * 100) / 100}</td>
       <td class="small">${_lvEsc(r.Reason || '')}</td>
-      <td class="small text-nowrap">${r.CreatedBy ? `<i class="fas fa-user-pen text-muted me-1"></i>${_lvEsc(r.CreatedBy)}` : '—'}${r.CreatedAt ? `<div class="text-muted">${_fmtDateTime(r.CreatedAt)}</div>` : ''}</td>
+      <td class="small text-nowrap">${_leaveLastEditorHTML(r)}</td>
       <td class="text-center text-nowrap">
         <button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenGroup(${gi})"><i class="fas fa-pen"></i></button>
         <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDeleteGroup(${gi})"><i class="fas fa-trash"></i></button>
@@ -22065,6 +22065,12 @@ function leaveRenderTable() {
 // "ติดกัน" = วันถัดไปตรงๆ หรือถัดไป 2 วันโดยวันคั่นกลางเป็นวันอาทิตย์ (เช่น เสาร์ 10 → จันทร์ 12 คั่นอาทิตย์ 11)
 // days/hours ไม่นับแถวที่ตกวันอาทิตย์; rows = ทุกแถวในกลุ่ม (รวมแถวอาทิตย์ — ใช้ตอนแก้ไข/ลบกลุ่มให้ล้างครบ)
 let _leaveGroupsView = [];
+// แสดงเฉพาะ "คนล่าสุดที่แตะรายการนี้" — เคยแก้ไข = ผู้แก้ไขล่าสุด, ไม่เคยแก้ = ผู้บันทึกครั้งแรก
+function _leaveLastEditorHTML(r) {
+  const who = r.UpdatedBy || r.CreatedBy, when = r.UpdatedBy ? r.UpdatedAt : r.CreatedAt;
+  if (!who) return '—';
+  return `<i class="fas fa-user-pen text-muted me-1"></i>${_lvEsc(who)}${when ? `<div class="text-muted">${_fmtDateTime(when)}</div>` : ''}`;
+}
 function _lvIsSun(ds) { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d).getDay() === 0; }
 function _lvDayDiff(a, b) { const f = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }; return Math.round((f(b) - f(a)) / 86400000); }
 function _leaveGroups(rows) {
@@ -22236,16 +22242,21 @@ async function leaveSubmit(ev) {
   };
   _showLoader();
   let error, data;
+  const meName = _currentUser?.name || _currentUser?.email || null;
+  const nowIso = new Date().toISOString();
   if (editId) {
-    ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1 }).eq('_row_id', editId).select());
+    ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1, UpdatedBy: meName, UpdatedAt: nowIso }).eq('_row_id', editId).select());
   } else {
+    // แก้ไขทั้งกลุ่ม = ลบแล้วสร้างใหม่ → ยกผู้บันทึก/เวลาบันทึกครั้งแรกของกลุ่มเดิมมาใส่ใหม่ และประทับผู้แก้ไขล่าสุด
+    const orig = editIds.length ? _leaveData.find(x => x._row_id === editIds[0]) : null;
+    if (orig) Object.assign(base, { CreatedBy: orig.CreatedBy ?? null, CreatedAt: orig.CreatedAt ?? nowIso, UpdatedBy: meName, UpdatedAt: nowIso });
     if (editIds.length) {
       const del = await _sb.from('employee_leaves').delete().in('_row_id', editIds).select();
       if (del.error || !del.data || del.data.length !== editIds.length) {
         _hideLoader(); _err('แก้ไขไม่สำเร็จ (ลบแถวเดิมไม่ครบ) — ยังไม่ได้บันทึกช่วงใหม่', del.error?.message || ''); leaveLoadData(); return;
       }
     }
-    ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ ...base, LeaveDate: d, CreatedBy: _currentUser?.name || _currentUser?.email || null }))).select());
+    ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ CreatedBy: meName, ...base, LeaveDate: d }))).select());
   }
   _hideLoader();
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
@@ -22332,7 +22343,7 @@ async function leaveRenderReport() {
       });
       body += '</tbody></table>';
     });
-    body += `<div class="lv-legend">ป = ลาป่วย · ก = ลากิจ · พ = ลาพักร้อน · ข = ขาดงาน · ส = มาสาย &nbsp;|&nbsp; ตัวเล็กหลังอักษร: ช = ครึ่งเช้า, บ = ครึ่งบ่าย, Nชม = รายชั่วโมง (ไม่มี = ทั้งวัน) · แถบแดง = วันอาทิตย์</div>`;
+    body += `<div class="lv-legend">ป = ลาป่วย · ก = ลากิจ · พ = ลาพักร้อน · ม = ลาไม่รับค่าจ้าง · ข = ขาดงาน · ส = มาสาย &nbsp;|&nbsp; ตัวเล็กหลังอักษร: ช = ครึ่งเช้า, บ = ครึ่งบ่าย, Nชม = รายชั่วโมง (ไม่มี = ทั้งวัน) · แถบแดง = วันอาทิตย์</div>`;
   } else {
     const types = Object.keys(LEAVE_TYPE_CODE);
     groups.forEach(g => {
