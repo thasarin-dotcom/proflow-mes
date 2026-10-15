@@ -5692,7 +5692,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <div class="glass-card mb-0 py-2">
         <div class="row g-2 align-items-center">
           <div class="col-md-2"><input type="month" id="leave-filter-month" class="form-control form-control-sm" onchange="leaveLoadData()"></div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <div class="input-group input-group-sm">
               <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
               <input type="text" id="leave-search" class="form-control border-start-0 search-input" placeholder="ค้นหา รหัส / ชื่อ / เหตุผล..." oninput="leaveRenderTable()">
@@ -5711,7 +5711,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option><option>ขาดงาน</option><option>มาสาย</option>
             </select>
           </div>
-          <div class="col-md-3 text-end">
+          <div class="col-md-2">
+            <select id="leave-filter-approval" class="form-select form-select-sm" onchange="leaveRenderTable()">
+              <option value="">ทุกสถานะอนุมัติ</option><option value="รออนุมัติ">รออนุมัติ</option><option value="อนุมัติแล้ว">อนุมัติแล้ว</option>
+            </select>
+          </div>
+          <div class="col-md-2 text-end">
             <button class="btn btn-sm btn-primary" onclick="leaveLoadData()"><i class="fas fa-sync-alt me-1"></i>รีเฟรช</button>
           </div>
         </div>
@@ -5729,9 +5734,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <table class="table table-hover mb-0">
             <thead><tr>
               <th>วันที่</th><th class="text-center" title="ไม่นับวันอาทิตย์">จำนวนวัน</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท พนง.</th><th>ประเภทการลา</th>
-              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th>แก้ไข/บันทึกล่าสุดโดย</th><th class="text-center" style="width:90px">จัดการ</th>
+              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th>สถานะ</th><th>แก้ไข/บันทึกล่าสุดโดย</th><th class="text-center" style="width:90px">จัดการ</th>
             </tr></thead>
-            <tbody id="leave-tbody"><tr><td colspan="11" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
+            <tbody id="leave-tbody"><tr><td colspan="12" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -22021,11 +22026,13 @@ function leaveRenderTable() {
   const q = (document.getElementById('leave-search')?.value || '').trim().toLowerCase();
   const ft = document.getElementById('leave-filter-emptype')?.value || '';
   const lt = document.getElementById('leave-filter-type')?.value || '';
+  const ap = document.getElementById('leave-filter-approval')?.value || '';
   const empMap = {}; _leaveEmployees.forEach(e => { empMap[e.EmployeeCode] = e; });
   const rows = _leaveData.filter(r => {
     const e = empMap[r.EmployeeCode];
     if (ft && (e?.EmployeeType || '') !== ft) return false;
     if (lt && r.LeaveType !== lt) return false;
+    if (ap && _lvApproval(r) !== ap) return false;
     if (q && !`${r.EmployeeCode} ${r.EmployeeName || ''} ${r.Reason || ''}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -22050,21 +22057,76 @@ function leaveRenderTable() {
       <td class="text-center"><b>${g.days}</b></td>
       <td>${_lvEsc(r.EmployeeCode)}</td><td class="text-nowrap" style="cursor:pointer" title="ดูการ์ดพนักงาน" onclick="leaveShowEmpCard('${_lvEsc(r.EmployeeCode)}')">${_lvAvatar(r.EmployeeCode, 44)}<span class="text-primary">${_lvEsc(r.EmployeeName || (e ? _lvEmpName(e) : ''))}</span></td>
       <td>${e?.EmployeeType ? `<span class="badge" style="background:${LEAVE_EMPTYPE_COLOR[e.EmployeeType] || '#64748b'}">${e.EmployeeType}</span>` : '—'}</td>
-      <td><span class="badge bg-${typeBadge[r.LeaveType] || 'secondary'}">${_lvEsc(r.LeaveType)}</span></td>
+      <td><span class="badge bg-${typeBadge[r.LeaveType] || 'secondary'}">${_lvEsc(r.LeaveType)}</span>${r.RequestedType && r.RequestedType !== r.LeaveType ? `<div class="small text-muted text-nowrap" title="ประเภทที่ผู้บันทึกขอไว้เดิม">ขอ: ${_lvEsc(r.RequestedType)}</div>` : ''}</td>
       <td>${_lvEsc(part)}</td><td class="text-end">${Math.round(g.hours * 100) / 100}</td>
       <td class="small">${_lvEsc(r.Reason || '')}</td>
+      <td class="small text-nowrap">${_lvApproval(r) === 'อนุมัติแล้ว'
+        ? `<span class="badge bg-success">อนุมัติแล้ว</span><div class="text-muted">${_lvEsc(r.ApprovedBy || '')}${r.ApprovedAt ? `<div>${_fmtDateTime(r.ApprovedAt)}</div>` : ''}</div>`
+        : '<span class="badge bg-warning text-dark">รออนุมัติ</span>'}</td>
       <td class="small text-nowrap">${_leaveLastEditorHTML(r)}</td>
-      <td class="text-center text-nowrap">
-        <button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenGroup(${gi})"><i class="fas fa-pen"></i></button>
-        <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDeleteGroup(${gi})"><i class="fas fa-trash"></i></button>
-      </td></tr>`;
-  }).join('') : '<tr><td colspan="11" class="text-center text-muted py-4">ไม่มีรายการในเดือนนี้</td></tr>';
+      <td class="text-center text-nowrap">${_leaveActionsHTML(g, gi)}</td></tr>`;
+  }).join('') : '<tr><td colspan="12" class="text-center text-muted py-4">ไม่มีรายการในเดือนนี้</td></tr>';
 }
 
 // ── รวมแถวรายวันที่ติดกันเป็นกลุ่มเดียว ──
 // "ติดกัน" = วันถัดไปตรงๆ หรือถัดไป 2 วันโดยวันคั่นกลางเป็นวันอาทิตย์ (เช่น เสาร์ 10 → จันทร์ 12 คั่นอาทิตย์ 11)
 // days/hours ไม่นับแถวที่ตกวันอาทิตย์; rows = ทุกแถวในกลุ่ม (รวมแถวอาทิตย์ — ใช้ตอนแก้ไข/ลบกลุ่มให้ล้างครบ)
 let _leaveGroupsView = [];
+// ── ระบบอนุมัติ (แอดมิน) ──
+// แถวใหม่จากหัวหน้า = 'รออนุมัติ' (หัวหน้าแก้/ลบได้ระหว่างรอ); แอดมินอนุมัติ "ตามที่ขอ" หรือ "เปลี่ยนเป็นประเภทอื่น" →
+// 'อนุมัติแล้ว' ล็อกไม่ให้หัวหน้าแก้/ลบ เหลือแค่แอดมิน — ที่ฐานข้อมูลบังคับด้วย RLS (alter_employee_leaves_add_approval.sql)
+// ส่วนการล็อกแผนผลิตมีผลทันทีตั้งแต่ยังรออนุมัติ (กันเลือกคนลงแผนซ้อนวันลาระหว่างรอ)
+// แถวเก่าก่อนมีคอลัมน์นี้ (ApprovalStatus ว่าง/undefined) นับเป็นรออนุมัติ
+function _lvApproval(r) { return r.ApprovalStatus === 'อนุมัติแล้ว' ? 'อนุมัติแล้ว' : 'รออนุมัติ'; }
+function _leaveActionsHTML(g, gi) {
+  const isAdmin = _hasRole('admin');
+  const approved = _lvApproval(g.first) === 'อนุมัติแล้ว';
+  const approveBtn = isAdmin && !approved
+    ? `<button class="btn btn-sm btn-success py-0 px-1 me-1" title="อนุมัติ / เปลี่ยนประเภทการลา" onclick="leaveApproveGroup(${gi})"><i class="fas fa-check"></i> อนุมัติ</button>` : '';
+  if (approved && !isAdmin) return '<span class="text-muted small" title="อนุมัติแล้ว — แก้ไข/ลบได้เฉพาะแอดมิน"><i class="fas fa-lock me-1"></i>ล็อก</span>';
+  return `${approveBtn}<button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenGroup(${gi})"><i class="fas fa-pen"></i></button>
+    <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDeleteGroup(${gi})"><i class="fas fa-trash"></i></button>`;
+}
+function _leaveBlockedIfLocked(rows) {
+  if (_hasRole('admin') || !rows.some(r => _lvApproval(r) === 'อนุมัติแล้ว')) return false;
+  Swal.fire({ icon: 'info', title: 'อนุมัติแล้ว', text: 'รายการที่แอดมินอนุมัติแล้ว แก้ไข/ลบได้เฉพาะแอดมิน' });
+  return true;
+}
+async function leaveApproveGroup(gi) {
+  const g = _leaveGroupsView[gi];
+  if (!g) return;
+  if (!_hasRole('admin')) { Swal.fire({ icon: 'info', title: 'เฉพาะแอดมิน', text: 'การอนุมัติทำได้เฉพาะแอดมิน' }); return; }
+  const r = g.first;
+  const types = Object.keys(LEAVE_TYPE_CODE);
+  const part = r.DayPart === 'รายชั่วโมง' ? `${r.TimeStart}–${r.TimeEnd}` : r.DayPart;
+  const res = await Swal.fire({
+    title: 'อนุมัติรายการขาด/ลา/มาสาย', icon: 'question', showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754',
+    html: `<div class="text-start small mb-2"><b>${_lvEsc(r.EmployeeName || g.code)}</b> (${_lvEsc(g.code)})<br>
+      วันที่ ${_fmtDate(g.start)}${g.start === g.end ? '' : ' – ' + _fmtDate(g.end)} · ${_lvEsc(part)} · ${g.days} วัน / ${Math.round(g.hours * 100) / 100} ชม.<br>
+      เหตุผล: ${_lvEsc(r.Reason || '—')}<br>ผู้ขอ: ${_lvEsc(r.CreatedBy || '—')} · ประเภทที่ขอ: <b>${_lvEsc(r.RequestedType || r.LeaveType)}</b></div>
+      <label class="form-label small fw-bold d-block text-start">อนุมัติเป็นประเภท</label>
+      <select id="leave-approve-type" class="form-select">${types.map(t => `<option${t === r.LeaveType ? ' selected' : ''}>${t}</option>`).join('')}</select>
+      <div class="form-text text-start">เลือกตามที่ขอ = อนุมัติตามนั้น · เลือกประเภทอื่น = แก้เป็นลาอื่นแล้วอนุมัติ</div>`,
+    preConfirm: () => document.getElementById('leave-approve-type').value,
+  });
+  if (!res.isConfirmed) return;
+  const newType = res.value;
+  const me = _currentUser?.name || _currentUser?.email || null;
+  const nowIso = new Date().toISOString();
+  const patch = { ApprovalStatus: 'อนุมัติแล้ว', ApprovedBy: me, ApprovedAt: nowIso, LeaveType: newType };
+  if (!r.RequestedType) patch.RequestedType = r.LeaveType;
+  if (newType !== r.LeaveType) { patch.UpdatedBy = me; patch.UpdatedAt = nowIso; }
+  const ids = g.rows.map(x => x._row_id);
+  _showLoader();
+  const { data, error } = await _sb.from('employee_leaves').update(patch).in('_row_id', ids).select();
+  _hideLoader();
+  if (error) { _err('อนุมัติไม่สำเร็จ (ถ้ายังไม่ได้รัน alter_employee_leaves_add_approval.sql ให้รันก่อน)', error.message); return; }
+  if (!data || data.length !== ids.length) { _err('อนุมัติได้ไม่ครบ (ไม่มีสิทธิ์บางแถว)', `ได้ ${data ? data.length : 0}/${ids.length} แถว`); }
+  _logAudit('APPROVE', 'employee_leaves', `${g.code} ${g.start}..${g.end}`, `${r.RequestedType || r.LeaveType} → ${newType}`);
+  _planLeavesLoaded = false;
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: newType === (r.RequestedType || r.LeaveType) ? 'อนุมัติแล้ว' : `อนุมัติแล้ว (เปลี่ยนเป็น ${newType})`, showConfirmButton: false, timer: 2500 });
+  leaveLoadData();
+}
 // แสดงเฉพาะ "คนล่าสุดที่แตะรายการนี้" — เคยแก้ไข = ผู้แก้ไขล่าสุด, ไม่เคยแก้ = ผู้บันทึกครั้งแรก
 function _leaveLastEditorHTML(r) {
   const who = r.UpdatedBy || r.CreatedBy, when = r.UpdatedBy ? r.UpdatedAt : r.CreatedAt;
@@ -22074,7 +22136,7 @@ function _leaveLastEditorHTML(r) {
 function _lvIsSun(ds) { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d).getDay() === 0; }
 function _lvDayDiff(a, b) { const f = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }; return Math.round((f(b) - f(a)) / 86400000); }
 function _leaveGroups(rows) {
-  const keyOf = r => [r.EmployeeCode, r.LeaveType, r.DayPart, (r.TimeStart || '').slice(0, 5), (r.TimeEnd || '').slice(0, 5), (r.Reason || '').trim()].join('|');
+  const keyOf = r => [r.EmployeeCode, r.LeaveType, r.DayPart, (r.TimeStart || '').slice(0, 5), (r.TimeEnd || '').slice(0, 5), (r.Reason || '').trim(), _lvApproval(r)].join('|');
   const sorted = rows.slice().sort((a, b) => keyOf(a).localeCompare(keyOf(b)) || a.LeaveDate.localeCompare(b.LeaveDate));
   const out = [];
   let cur = null;
@@ -22098,7 +22160,7 @@ function _lvAddDay(ds) { const [y, m, d] = ds.split('-').map(Number); return _lv
 // แก้ไขกลุ่ม: กลุ่ม 1 แถว = ฟอร์มแก้ไขเดิม; กลุ่มหลายแถว = เปิดฟอร์มเป็นช่วงวันที่ แล้วตอนบันทึกลบแถวเดิมทั้งกลุ่มและสร้างใหม่
 async function leaveOpenGroup(gi) {
   const g = _leaveGroupsView[gi];
-  if (!g) return;
+  if (!g || _leaveBlockedIfLocked(g.rows)) return;
   if (g.rows.length === 1) return leaveOpenModal(g.rows[0]._row_id);
   await leaveOpenModal(g.rows[0]._row_id);
   document.getElementById('leave-edit-id').value = '';
@@ -22112,7 +22174,7 @@ async function leaveOpenGroup(gi) {
 }
 async function leaveDeleteGroup(gi) {
   const g = _leaveGroupsView[gi];
-  if (!g) return;
+  if (!g || _leaveBlockedIfLocked(g.rows)) return;
   if (g.rows.length === 1) return leaveDelete(g.rows[0]._row_id);
   const c = await Swal.fire({ icon: 'warning', title: 'ลบทั้งช่วงนี้?', text: `${g.first.EmployeeName || g.code} — ${g.first.LeaveType} ${_fmtDate(g.start)} – ${_fmtDate(g.end)} (${g.rows.length} แถว คืนสิทธิ์เลือกลงแผนผลิต)`, showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
   if (!c.isConfirmed) return;
@@ -22130,6 +22192,7 @@ async function leaveDeleteGroup(gi) {
 async function leaveOpenModal(rowId) {
   await _leaveEnsureEmployees();
   const r = rowId ? _leaveData.find(x => x._row_id === rowId) : null;
+  if (r && _leaveBlockedIfLocked([r])) return;
   const sel = document.getElementById('leave-f-emp');
   const active = _leaveEmployees.filter(e => e.Status === 'ทำงานอยู่' || (r && e.EmployeeCode === r.EmployeeCode));
   sel.innerHTML = '<option value="">— เลือกพนักงาน —</option>' + active.map(e =>
@@ -22244,19 +22307,30 @@ async function leaveSubmit(ev) {
   let error, data;
   const meName = _currentUser?.name || _currentUser?.email || null;
   const nowIso = new Date().toISOString();
+  // แอดมินสร้างเอง = อนุมัติทันที (ไม่ต้องอนุมัติตัวเอง); หัวหน้าสร้าง = รออนุมัติ — RLS บังคับซ้ำที่ฐานข้อมูล
+  const approvalNew = _hasRole('admin')
+    ? { ApprovalStatus: 'อนุมัติแล้ว', ApprovedBy: meName, ApprovedAt: nowIso }
+    : { ApprovalStatus: 'รออนุมัติ' };
   if (editId) {
-    ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1, UpdatedBy: meName, UpdatedAt: nowIso }).eq('_row_id', editId).select());
+    // แก้ไขแถวเดียว: ไม่แตะสถานะอนุมัติ; ถ้ายังไม่อนุมัติ "ประเภทที่ขอ" ตามค่าที่แก้ใหม่ (ถ้าอนุมัติแล้ว = แอดมินแก้ ประเภทที่ขอเดิมคงไว้)
+    const o = _leaveData.find(x => x._row_id === editId);
+    const keepReq = o && _lvApproval(o) === 'อนุมัติแล้ว';
+    ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1, UpdatedBy: meName, UpdatedAt: nowIso, ...(keepReq ? {} : { RequestedType: type }) }).eq('_row_id', editId).select());
   } else {
-    // แก้ไขทั้งกลุ่ม = ลบแล้วสร้างใหม่ → ยกผู้บันทึก/เวลาบันทึกครั้งแรกของกลุ่มเดิมมาใส่ใหม่ และประทับผู้แก้ไขล่าสุด
+    // แก้ไขทั้งกลุ่ม = ลบแล้วสร้างใหม่ → ยกผู้บันทึก/เวลาบันทึกครั้งแรก + สถานะอนุมัติของกลุ่มเดิมมาใส่ใหม่ และประทับผู้แก้ไขล่าสุด
     const orig = editIds.length ? _leaveData.find(x => x._row_id === editIds[0]) : null;
-    if (orig) Object.assign(base, { CreatedBy: orig.CreatedBy ?? null, CreatedAt: orig.CreatedAt ?? nowIso, UpdatedBy: meName, UpdatedAt: nowIso });
+    if (orig) Object.assign(base, {
+      CreatedBy: orig.CreatedBy ?? null, CreatedAt: orig.CreatedAt ?? nowIso, UpdatedBy: meName, UpdatedAt: nowIso,
+      ApprovalStatus: _lvApproval(orig), ApprovedBy: orig.ApprovedBy ?? null, ApprovedAt: orig.ApprovedAt ?? null,
+      RequestedType: _lvApproval(orig) === 'อนุมัติแล้ว' ? (orig.RequestedType || orig.LeaveType) : type,
+    });
     if (editIds.length) {
       const del = await _sb.from('employee_leaves').delete().in('_row_id', editIds).select();
       if (del.error || !del.data || del.data.length !== editIds.length) {
         _hideLoader(); _err('แก้ไขไม่สำเร็จ (ลบแถวเดิมไม่ครบ) — ยังไม่ได้บันทึกช่วงใหม่', del.error?.message || ''); leaveLoadData(); return;
       }
     }
-    ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ CreatedBy: meName, ...base, LeaveDate: d }))).select());
+    ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ CreatedBy: meName, RequestedType: type, ...approvalNew, ...base, LeaveDate: d }))).select());
   }
   _hideLoader();
   if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
@@ -22270,7 +22344,7 @@ async function leaveSubmit(ev) {
 
 async function leaveDelete(rowId) {
   const r = _leaveData.find(x => x._row_id === rowId);
-  if (!r) return;
+  if (!r || _leaveBlockedIfLocked([r])) return;
   const c = await Swal.fire({ icon: 'warning', title: 'ลบรายการนี้?', text: `${r.EmployeeName || r.EmployeeCode} — ${r.LeaveType} ${_fmtDate(r.LeaveDate)} (คืนสิทธิ์เลือกลงแผนผลิตวันนั้น)`, showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
   if (!c.isConfirmed) return;
   _showLoader();
@@ -22301,7 +22375,10 @@ async function leaveRenderReport() {
   box.innerHTML = '<div class="text-center text-white py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>';
   const { data, error } = await _fetchAllPagedRange('employee_leaves', '*', 'LeaveDate', rng.start, rng.end);
   if (error) { box.innerHTML = ''; _err('โหลดข้อมูลรายงานไม่ได้', error.message); return; }
-  const recs = data || [];
+  // รายงานให้ HR นับเฉพาะรายการที่แอดมินอนุมัติแล้ว (ประเภทที่ใช้คือประเภทหลังอนุมัติ) — แจ้งจำนวนที่รออนุมัติไว้ที่หัวรายงาน
+  const allRecs = data || [];
+  const recs = allRecs.filter(r => _lvApproval(r) === 'อนุมัติแล้ว');
+  const pendingN = allRecs.length - recs.length;
   const empMap = {}; _leaveEmployees.forEach(e => { empMap[e.EmployeeCode] = e; });
   const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const title = `${MONTHS[rng.m - 1]} ${rng.y + 543}`;
@@ -22313,8 +22390,10 @@ async function leaveRenderReport() {
     return { type: t, label: t ? LEAVE_EMPTYPE_LABEL[t] : 'ไม่ระบุประเภท', color: LEAVE_EMPTYPE_COLOR[t] || '#64748b', codes, byEmp };
   }).filter(g => g.codes.length);
   const nameOf = c => recs.find(r => r.EmployeeCode === c)?.EmployeeName || (empMap[c] ? _lvEmpName(empMap[c]) : c);
-  const head = `<h2>รายงานขาด / ลา / มาสาย ประจำเดือน ${title}</h2>
-    <div class="lv-sub">WISE NOVATION CO., LTD. · พิมพ์เมื่อ ${_fmtDate(_lvLocalDate(new Date()))} · รวม ${recs.length} รายการ / ${new Set(recs.map(r => r.EmployeeCode)).size} คน</div>`;
+  // โลโก้บริษัท: ไฟล์เดียวกับ BPR/รายงานอื่น — onerror ซ่อนรูปถ้าไฟล์หาย (ไม่ให้เป็นไอคอนรูปแตกบนกระดาษ)
+  const logo = `<img src="wisenovation_LOGO%20-Cut.png" alt="" style="height:${fmt === 'cal' ? 34 : 48}px;margin-right:12px" onerror="this.style.display='none'">`;
+  const head = `<div style="display:flex;align-items:center;margin-bottom:4px">${logo}<h2 style="margin:0">รายงานขาด / ลา / มาสาย ประจำเดือน ${title}</h2></div>
+    <div class="lv-sub">WISE NOVATION CO., LTD. · พิมพ์เมื่อ ${_fmtDate(_lvLocalDate(new Date()))} · รวม ${recs.length} รายการ / ${new Set(recs.map(r => r.EmployeeCode)).size} คน (เฉพาะที่อนุมัติแล้ว${pendingN ? ` · ยังไม่รวมรออนุมัติ ${pendingN} รายการ` : ''})</div>`;
   if (!groups.length) { box.innerHTML = `<div class="leave-page${fmt === 'cal' ? ' cal' : ''}">${head}<div class="text-center" style="padding:30px;color:#64748b">ไม่มีรายการขาด/ลา/มาสายในเดือนนี้</div></div>`; return; }
   const sign = '<div class="lv-sign"><div>ผู้จัดทำ</div><div>ฝ่ายบุคคล (HR)</div><div>ผู้อนุมัติ</div></div>';
   let body = '';
@@ -28309,7 +28388,7 @@ function coLineProductSelect(seq, input) {
 
 async function loadCOData() {
   _showLoader();
-  const _cancelPlaceholder = _deferLoadingPlaceholder('co-tbody', '<tr><td colspan="12" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
+  const _cancelPlaceholder = _deferLoadingPlaceholder('co-tbody', '<tr><td colspan="11" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr>');
 
   const [coRes, fgRes, stockRes, resvRes, , reqRes] = await Promise.all([
     _sb.from('customer_orders').select('*').order('_row_id', { ascending: false }),
@@ -31351,7 +31430,7 @@ function admindashRenderPayrollUtilization(inRangeProd, months) {
       return `<tr class="text-muted">
         <td class="fw-bold">${label}</td>
         ${revCell}${profitCell}
-        <td colspan="11" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
+        <td colspan="12" class="text-center">ยังไม่ได้กรอกค่าจ้างจริงเดือนนี้</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="admindashOpenPayrollModal('${m}')" title="กรอกค่าจ้างจริง"><i class="fas fa-plus"></i></button></td>
       </tr>`;
     }
