@@ -5728,10 +5728,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead><tr>
-              <th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท พนง.</th><th>ประเภทการลา</th>
-              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th class="text-center" style="width:90px">จัดการ</th>
+              <th>วันที่</th><th class="text-center" title="ไม่นับวันอาทิตย์">จำนวนวัน</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท พนง.</th><th>ประเภทการลา</th>
+              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th>บันทึกโดย / เมื่อ</th><th class="text-center" style="width:90px">จัดการ</th>
             </tr></thead>
-            <tbody id="leave-tbody"><tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
+            <tbody id="leave-tbody"><tr><td colspan="11" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -5748,6 +5748,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         <form onsubmit="leaveSubmit(event)">
           <div class="modal-body">
             <input type="hidden" id="leave-edit-id">
+            <input type="hidden" id="leave-edit-ids">
             <div class="mb-2"><label class="form-label small fw-bold">พนักงาน *</label><select id="leave-f-emp" class="form-select" required></select></div>
             <div class="mb-2"><label class="form-label small fw-bold">ประเภท *</label>
               <select id="leave-f-type" class="form-select" onchange="leaveOnTypeChange()">
@@ -21986,13 +21987,19 @@ function leaveShowEmpCard(code) {
   const photo = url
     ? `<img src="${url}" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e2e8f0">`
     : `<div style="width:120px;height:120px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:48px;font-weight:700;line-height:120px;margin:0 auto">${_lvEsc(ch)}</div>`;
-  const mine = _leaveData.filter(r => r.EmployeeCode === code);
+  // ไม่นับรวมวันอาทิตย์ (วันหยุด) ทั้งจำนวนครั้ง/ชั่วโมง/รายการวันที่ — parse เป็น local date ไม่ใช้ new Date('yyyy-mm-dd') (UTC เลื่อนวัน)
+  const isSun = ds => { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d).getDay() === 0; };
+  const mine = _leaveData.filter(r => r.EmployeeCode === code && !isSun(r.LeaveDate));
   const month = document.getElementById('leave-filter-month')?.value || '';
   const sum = Object.keys(LEAVE_TYPE_CODE).map(t => {
-    const x = mine.filter(r => r.LeaveType === t);
+    const x = mine.filter(r => r.LeaveType === t).sort((a, b) => a.LeaveDate.localeCompare(b.LeaveDate));
     if (!x.length) return '';
     const h = Math.round(x.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
-    return `<span class="badge bg-light text-dark border me-1 mb-1">${t} ${x.length} ครั้ง / ${h} ชม.</span>`;
+    const dates = x.map(r => {
+      const part = r.DayPart === 'ทั้งวัน' ? '' : r.DayPart === 'รายชั่วโมง' ? ` (${Number(r.Hours) || 0} ชม.)` : ` (${r.DayPart})`;
+      return `${_fmtDate(r.LeaveDate).slice(0, 5)}${part}`;
+    }).join(', ');
+    return `<div class="mb-1"><span class="badge bg-light text-dark border me-1">${t} ${x.length} ครั้ง / ${h} ชม.</span><span class="text-muted">${_lvEsc(dates)}</span></div>`;
   }).join('') || '<span class="text-muted">ไม่มีรายการในเดือนนี้</span>';
   const row = (k, v) => v ? `<tr><td class="text-muted text-end pe-2" style="width:38%">${k}</td><td class="text-start">${_lvEsc(v)}</td></tr>` : '';
   Swal.fire({
@@ -22005,7 +22012,7 @@ function leaveShowEmpCard(code) {
       <table class="small w-100 mb-2"><tbody>
         ${row('ตำแหน่ง', e.Position)}${row('แผนก', e.Department)}${row('เริ่มงาน', e.StartDate ? _fmtDate(e.StartDate) : '')}${row('เบอร์โทร', e.Phone)}
       </tbody></table>
-      <div class="small fw-bold text-start mb-1">ขาด/ลา/มาสาย เดือน ${_lvEsc(month)}</div>
+      <div class="small fw-bold text-start mb-1">ขาด/ลา/มาสาย เดือน ${_lvEsc(month)} <span class="fw-normal text-muted">(ไม่นับวันอาทิตย์)</span></div>
       <div class="text-start small">${sum}</div></div>`,
   });
 }
@@ -22024,26 +22031,94 @@ function leaveRenderTable() {
   });
   const today = _lvLocalDate(new Date());
   const set = id => document.getElementById(id);
-  set('leave-kpi-count').textContent = rows.length;
-  set('leave-kpi-people').textContent = new Set(rows.map(r => r.EmployeeCode)).size;
-  set('leave-kpi-hours').textContent = (Math.round(rows.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100).toLocaleString();
-  set('leave-kpi-upcoming').textContent = rows.filter(r => r.LeaveDate >= today).length;
+  // รวมแถวรายวันที่ติดกัน (พนักงาน/ประเภท/ช่วง/เวลา/เหตุผลเหมือนกัน; วันอาทิตย์คั่นกลางได้) เป็นแถวเดียว
+  // และไม่นับวันอาทิตย์ทั้งจำนวนวันและชั่วโมง (วันอาทิตย์เป็นวันหยุด)
+  const groups = _leaveGroups(rows);
+  _leaveGroupsView = groups;
+  set('leave-kpi-count').textContent = groups.length;
+  set('leave-kpi-people').textContent = new Set(groups.map(g => g.code)).size;
+  set('leave-kpi-hours').textContent = (Math.round(groups.reduce((s, g) => s + g.hours, 0) * 100) / 100).toLocaleString();
+  set('leave-kpi-upcoming').textContent = groups.filter(g => g.end >= today).length;
   const typeBadge = { 'ลาป่วย': 'danger', 'ลากิจ': 'warning text-dark', 'ลาพักร้อน': 'info text-dark', 'ขาดงาน': 'dark', 'มาสาย': 'secondary' };
-  set('leave-tbody').innerHTML = rows.length ? rows.map(r => {
-    const e = empMap[r.EmployeeCode];
+  set('leave-tbody').innerHTML = groups.length ? groups.map((g, gi) => {
+    const r = g.first;
+    const e = empMap[g.code];
     const part = r.DayPart === 'รายชั่วโมง' ? `${r.TimeStart || ''}–${r.TimeEnd || ''}` : r.DayPart;
+    const dateTxt = g.start === g.end ? _fmtDate(g.start) : `${_fmtDate(g.start)} – ${_fmtDate(g.end)}`;
     return `<tr>
-      <td>${_fmtDate(r.LeaveDate)}${r.LeaveDate >= today ? ' <span class="badge bg-warning text-dark">ล่วงหน้า</span>' : ''}</td>
+      <td class="text-nowrap">${dateTxt}${g.end >= today ? ' <span class="badge bg-warning text-dark">ล่วงหน้า</span>' : ''}${g.hasSun ? '<div class="small text-muted">(ไม่นับวันอาทิตย์)</div>' : ''}</td>
+      <td class="text-center"><b>${g.days}</b></td>
       <td>${_lvEsc(r.EmployeeCode)}</td><td class="text-nowrap" style="cursor:pointer" title="ดูการ์ดพนักงาน" onclick="leaveShowEmpCard('${_lvEsc(r.EmployeeCode)}')">${_lvAvatar(r.EmployeeCode, 44)}<span class="text-primary">${_lvEsc(r.EmployeeName || (e ? _lvEmpName(e) : ''))}</span></td>
       <td>${e?.EmployeeType ? `<span class="badge" style="background:${LEAVE_EMPTYPE_COLOR[e.EmployeeType] || '#64748b'}">${e.EmployeeType}</span>` : '—'}</td>
       <td><span class="badge bg-${typeBadge[r.LeaveType] || 'secondary'}">${_lvEsc(r.LeaveType)}</span></td>
-      <td>${_lvEsc(part)}</td><td class="text-end">${Number(r.Hours) || 0}</td>
+      <td>${_lvEsc(part)}</td><td class="text-end">${Math.round(g.hours * 100) / 100}</td>
       <td class="small">${_lvEsc(r.Reason || '')}</td>
+      <td class="small text-nowrap">${r.CreatedBy ? `<i class="fas fa-user-pen text-muted me-1"></i>${_lvEsc(r.CreatedBy)}` : '—'}${r.CreatedAt ? `<div class="text-muted">${_fmtDateTime(r.CreatedAt)}</div>` : ''}</td>
       <td class="text-center text-nowrap">
-        <button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenModal(${r._row_id})"><i class="fas fa-pen"></i></button>
-        <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDelete(${r._row_id})"><i class="fas fa-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenGroup(${gi})"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDeleteGroup(${gi})"><i class="fas fa-trash"></i></button>
       </td></tr>`;
-  }).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">ไม่มีรายการในเดือนนี้</td></tr>';
+  }).join('') : '<tr><td colspan="11" class="text-center text-muted py-4">ไม่มีรายการในเดือนนี้</td></tr>';
+}
+
+// ── รวมแถวรายวันที่ติดกันเป็นกลุ่มเดียว ──
+// "ติดกัน" = วันถัดไปตรงๆ หรือถัดไป 2 วันโดยวันคั่นกลางเป็นวันอาทิตย์ (เช่น เสาร์ 10 → จันทร์ 12 คั่นอาทิตย์ 11)
+// days/hours ไม่นับแถวที่ตกวันอาทิตย์; rows = ทุกแถวในกลุ่ม (รวมแถวอาทิตย์ — ใช้ตอนแก้ไข/ลบกลุ่มให้ล้างครบ)
+let _leaveGroupsView = [];
+function _lvIsSun(ds) { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d).getDay() === 0; }
+function _lvDayDiff(a, b) { const f = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }; return Math.round((f(b) - f(a)) / 86400000); }
+function _leaveGroups(rows) {
+  const keyOf = r => [r.EmployeeCode, r.LeaveType, r.DayPart, (r.TimeStart || '').slice(0, 5), (r.TimeEnd || '').slice(0, 5), (r.Reason || '').trim()].join('|');
+  const sorted = rows.slice().sort((a, b) => keyOf(a).localeCompare(keyOf(b)) || a.LeaveDate.localeCompare(b.LeaveDate));
+  const out = [];
+  let cur = null;
+  sorted.forEach(r => {
+    const last = cur && cur.rows[cur.rows.length - 1];
+    const diff = last ? _lvDayDiff(last.LeaveDate, r.LeaveDate) : 0;
+    const adjacent = last && keyOf(last) === keyOf(r) && (diff === 1 || (diff === 2 && _lvIsSun(_lvAddDay(last.LeaveDate))));
+    if (!adjacent) { cur = { code: r.EmployeeCode, first: r, rows: [] }; out.push(cur); }
+    cur.rows.push(r);
+  });
+  out.forEach(g => {
+    const work = g.rows.filter(r => !_lvIsSun(r.LeaveDate));
+    g.start = g.rows[0].LeaveDate; g.end = g.rows[g.rows.length - 1].LeaveDate;
+    g.days = work.length; g.hours = work.reduce((s, r) => s + (Number(r.Hours) || 0), 0);
+    g.hasSun = g.rows.length > work.length;
+  });
+  return out.sort((a, b) => b.start.localeCompare(a.start) || a.code.localeCompare(b.code));
+}
+function _lvAddDay(ds) { const [y, m, d] = ds.split('-').map(Number); return _lvLocalDate(new Date(y, m - 1, d + 1)); }
+
+// แก้ไขกลุ่ม: กลุ่ม 1 แถว = ฟอร์มแก้ไขเดิม; กลุ่มหลายแถว = เปิดฟอร์มเป็นช่วงวันที่ แล้วตอนบันทึกลบแถวเดิมทั้งกลุ่มและสร้างใหม่
+async function leaveOpenGroup(gi) {
+  const g = _leaveGroupsView[gi];
+  if (!g) return;
+  if (g.rows.length === 1) return leaveOpenModal(g.rows[0]._row_id);
+  await leaveOpenModal(g.rows[0]._row_id);
+  document.getElementById('leave-edit-id').value = '';
+  document.getElementById('leave-edit-ids').value = g.rows.map(r => r._row_id).join(',');
+  document.getElementById('leave-f-date').value = g.start;
+  document.getElementById('leave-f-dateto').value = g.end;
+  document.getElementById('leave-f-dateto-wrap').style.display = '';
+  document.getElementById('leave-f-skipsun-wrap').style.display = '';
+  document.getElementById('leave-f-date-label').textContent = 'ตั้งแต่วันที่ *';
+  document.getElementById('leaveModalTitle').innerHTML = '<i class="fas fa-calendar-xmark me-2"></i>แก้ไขรายการ (ช่วงวันที่)';
+}
+async function leaveDeleteGroup(gi) {
+  const g = _leaveGroupsView[gi];
+  if (!g) return;
+  if (g.rows.length === 1) return leaveDelete(g.rows[0]._row_id);
+  const c = await Swal.fire({ icon: 'warning', title: 'ลบทั้งช่วงนี้?', text: `${g.first.EmployeeName || g.code} — ${g.first.LeaveType} ${_fmtDate(g.start)} – ${_fmtDate(g.end)} (${g.rows.length} แถว คืนสิทธิ์เลือกลงแผนผลิต)`, showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!c.isConfirmed) return;
+  const ids = g.rows.map(r => r._row_id);
+  _showLoader();
+  const { data, error } = await _sb.from('employee_leaves').delete().in('_row_id', ids).select();
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || data.length !== ids.length) _err('ลบได้ไม่ครบ (ไม่มีสิทธิ์บางแถว)', `ลบได้ ${data ? data.length : 0}/${ids.length} แถว`);
+  _logAudit('DELETE', 'employee_leaves', `${g.code} ${g.start}..${g.end}`, `${g.first.LeaveType} ${g.first.DayPart} × ${ids.length} แถว`);
+  _planLeavesLoaded = false;
+  leaveLoadData();
 }
 
 async function leaveOpenModal(rowId) {
@@ -22055,11 +22130,13 @@ async function leaveOpenModal(rowId) {
     `<option value="${_lvEsc(e.EmployeeCode)}">${_lvEsc(e.EmployeeCode)} — ${_lvEsc(_lvEmpName(e))}${e.NickName ? ` (${_lvEsc(e.NickName)})` : ''} [${e.EmployeeType || ''}]</option>`).join('');
   const set = (id, v) => { document.getElementById(id).value = v; };
   document.getElementById('leave-edit-id').value = r ? r._row_id : '';
+  document.getElementById('leave-edit-ids').value = '';
   document.getElementById('leaveModalTitle').innerHTML = `<i class="fas fa-calendar-xmark me-2"></i>${r ? 'แก้ไข' : 'เพิ่ม'}รายการขาด/ลา/มาสาย`;
   set('leave-f-emp', r ? r.EmployeeCode : '');
   set('leave-f-type', r ? r.LeaveType : 'ลาป่วย');
   set('leave-f-date', r ? r.LeaveDate : _lvLocalDate(new Date()));
   set('leave-f-dateto', '');
+  document.getElementById('leave-f-skipsun').checked = true; // ค่าเริ่มต้น "ข้ามวันอาทิตย์" ทุกครั้งที่เปิดฟอร์ม (กันค้างค่าที่เคยติ๊กออก)
   set('leave-f-reason', r ? (r.Reason || '') : '');
   set('leave-f-tstart', r && r.DayPart === 'รายชั่วโมง' ? r.TimeStart : '');
   set('leave-f-tend', r && r.DayPart === 'รายชั่วโมง' ? r.TimeEnd : '');
@@ -22104,6 +22181,8 @@ function leaveUpdateHours() {
 async function leaveSubmit(ev) {
   ev.preventDefault();
   const editId = parseInt(document.getElementById('leave-edit-id').value) || null;
+  // แก้ไขทั้งกลุ่ม (หลายแถวติดกัน): ลบแถวเดิมทั้งหมดแล้วสร้างใหม่จากช่วงวันที่ — ตรวจซ้ำต้องไม่นับแถวเดิมของกลุ่มเอง
+  const editIds = (document.getElementById('leave-edit-ids').value || '').split(',').map(Number).filter(Boolean);
   const code = document.getElementById('leave-f-emp').value;
   const emp = _leaveEmployees.find(e => e.EmployeeCode === code);
   const type = document.getElementById('leave-f-type').value;
@@ -22134,7 +22213,7 @@ async function leaveSubmit(ev) {
   ]);
   _hideLoader();
   if (exRes.error) { _err('ตรวจรายการซ้ำไม่ได้', exRes.error.message); return; }
-  const dup = (exRes.data || []).filter(x => x._row_id !== editId && overlap(t.start, t.end, (x.TimeStart || '').slice(0, 5), (x.TimeEnd || '').slice(0, 5)));
+  const dup = (exRes.data || []).filter(x => x._row_id !== editId && !editIds.includes(x._row_id) && overlap(t.start, t.end, (x.TimeStart || '').slice(0, 5), (x.TimeEnd || '').slice(0, 5)));
   if (dup.length) {
     _err('พนักงานคนนี้มีรายการขาด/ลา/มาสายซ้อนกันอยู่แล้ว', dup.map(x => `${_fmtDate(x.LeaveDate)} ${x.LeaveType} (${x.DayPart})`).join('<br>'));
     return;
@@ -22160,6 +22239,12 @@ async function leaveSubmit(ev) {
   if (editId) {
     ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1 }).eq('_row_id', editId).select());
   } else {
+    if (editIds.length) {
+      const del = await _sb.from('employee_leaves').delete().in('_row_id', editIds).select();
+      if (del.error || !del.data || del.data.length !== editIds.length) {
+        _hideLoader(); _err('แก้ไขไม่สำเร็จ (ลบแถวเดิมไม่ครบ) — ยังไม่ได้บันทึกช่วงใหม่', del.error?.message || ''); leaveLoadData(); return;
+      }
+    }
     ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ ...base, LeaveDate: d, CreatedBy: _currentUser?.name || _currentUser?.email || null }))).select());
   }
   _hideLoader();
