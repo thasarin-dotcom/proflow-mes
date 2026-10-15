@@ -5656,12 +5656,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <th style="width:56px">รูป</th>
                 <th class="wh-col-sm">รหัส</th><th class="wh-col-lg">ชื่อ-นามสกุล</th><th class="wh-col-xs">ประเภท</th>
                 <th class="wh-col-md">ตำแหน่ง</th><th class="wh-col-md">แผนก</th><th class="wh-col-xs">สถานะ</th>
-                <th class="wh-hide-remark">เบอร์โทร</th>
+                <th class="wh-hide-remark">เบอร์โทร</th><th class="wh-hide-remark">บันทึก/แก้ไขล่าสุด</th>
                 <th class="text-center" style="width:70px">จัดการ</th>
               </tr>
             </thead>
             <tbody id="employee-tbody">
-              <tr><td colspan="9" class="text-center text-muted py-4">
+              <tr><td colspan="10" class="text-center text-muted py-4">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -5754,13 +5754,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="modal-body">
             <input type="hidden" id="leave-edit-id">
             <input type="hidden" id="leave-edit-ids">
-            <div class="mb-2"><label class="form-label small fw-bold">พนักงาน *</label><select id="leave-f-emp" class="form-select" required></select></div>
+            <div class="mb-2"><label class="form-label small fw-bold">พนักงาน *</label><select id="leave-f-emp" class="form-select" required onchange="leaveUpdateQuotaHint()"></select></div>
             <div class="mb-2"><label class="form-label small fw-bold">ประเภท *</label>
               <select id="leave-f-type" class="form-select" onchange="leaveOnTypeChange()">
                 <option>ลาป่วย</option><option>ลากิจ</option><option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option><option>ขาดงาน</option><option>มาสาย</option>
-              </select></div>
+              </select>
+              <div id="leave-f-quota-hint" class="small mt-1"></div></div>
             <div class="row g-2 mb-2">
-              <div class="col-6"><label class="form-label small fw-bold" id="leave-f-date-label">ตั้งแต่วันที่ *</label><input type="date" id="leave-f-date" class="form-control" required></div>
+              <div class="col-6"><label class="form-label small fw-bold" id="leave-f-date-label">ตั้งแต่วันที่ *</label><input type="date" id="leave-f-date" class="form-control" required onchange="leaveUpdateQuotaHint()"></div>
               <div class="col-6" id="leave-f-dateto-wrap"><label class="form-label small fw-bold">ถึงวันที่</label><input type="date" id="leave-f-dateto" class="form-control"></div>
             </div>
             <div class="form-check mb-2" id="leave-f-skipsun-wrap"><input class="form-check-input" type="checkbox" id="leave-f-skipsun" checked><label class="form-check-label small" for="leave-f-skipsun">ข้ามวันอาทิตย์ (วันหยุด)</label></div>
@@ -5886,10 +5887,23 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <label class="form-label">หมายเหตุ</label>
                 <input type="text" id="employee-f-note" class="form-control">
               </div>
+              <div class="col-12" id="employee-quota-wrap" style="display:none">
+                <label class="form-label fw-bold"><i class="fas fa-calendar-check me-1"></i>สิทธิ์ลาประจำปี <span class="fw-normal text-muted small">(นับตามปีปฏิทิน · 1 วัน = 8 ชม. · เว้นว่างทั้งแถว = ไม่จำกัด · ใส่ 0 = ไม่มีสิทธิ์ · ใช้หมดแล้วเพิ่มรายการขาด/ลา/มาสายของหมวดนั้นไม่ได้)</span></label>
+                <table class="table table-sm align-middle mb-0" style="max-width:480px">
+                  <thead><tr class="small text-muted"><th></th><th>วัน</th><th>ชั่วโมง</th><th>นาที</th></tr></thead>
+                  <tbody>
+                    <tr><td class="text-nowrap">ลาป่วย</td><td><input type="number" min="0" id="employee-q-sick-d" class="form-control form-control-sm"></td><td><input type="number" min="0" id="employee-q-sick-h" class="form-control form-control-sm"></td><td><input type="number" min="0" max="59" id="employee-q-sick-m" class="form-control form-control-sm"></td></tr>
+                    <tr><td class="text-nowrap">ลากิจ</td><td><input type="number" min="0" id="employee-q-personal-d" class="form-control form-control-sm"></td><td><input type="number" min="0" id="employee-q-personal-h" class="form-control form-control-sm"></td><td><input type="number" min="0" max="59" id="employee-q-personal-m" class="form-control form-control-sm"></td></tr>
+                    <tr><td class="text-nowrap">ลาพักร้อน</td><td><input type="number" min="0" id="employee-q-vacation-d" class="form-control form-control-sm"></td><td><input type="number" min="0" id="employee-q-vacation-h" class="form-control form-control-sm"></td><td><input type="number" min="0" max="59" id="employee-q-vacation-m" class="form-control form-control-sm"></td></tr>
+                  </tbody>
+                </table>
+                <div id="employee-quota-lastedit" class="small text-muted mt-1"></div>
+              </div>
               </div></div>
             </div>
           </div>
           <div class="modal-footer">
+            <div id="employee-lastedit" class="small text-muted me-auto"></div>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
             <button type="submit" class="btn btn-primary" id="employee-save-btn">
               <i class="fas fa-save me-1"></i>บันทึก
@@ -21946,9 +21960,53 @@ function _lvHoursBetween(s, e) {
   return Math.round((b - a - lunch) / 60 * 100) / 100;
 }
 function _lvEmpName(r) { return `${r.FirstName || ''} ${r.LastName && r.LastName !== '-' ? r.LastName : ''}`.trim() || r.NickName || r.EmployeeCode; }
+// ── สิทธิ์ลาประจำปี (ตั้งที่หน้า "พนักงาน": employees.QuotaSickMin/QuotaPersonalMin/QuotaVacationMin หน่วยนาที, 1 วัน=480 นาที) ──
+// นับตามปีปฏิทินของ LeaveDate; ใช้ไปแล้ว = Σ Hours×60 ของรายการประเภทเดียวกัน (รอ/อนุมัติแล้ว นับทั้งคู่ กันจองเกิน) ไม่นับแถวตกวันอาทิตย์
+// ไม่ได้กำหนดสิทธิ์ (null) = ไม่จำกัด ไม่ตรวจ; ประเภทที่ไม่มีโควตา (ลาไม่รับค่าจ้าง/ขาดงาน/มาสาย) ไม่ตรวจเสมอ
+const LEAVE_QUOTA_COL = { 'ลาป่วย': 'QuotaSickMin', 'ลากิจ': 'QuotaPersonalMin', 'ลาพักร้อน': 'QuotaVacationMin' };
+function _lvQuotaMin(emp, type) { const c = LEAVE_QUOTA_COL[type]; const v = c && emp ? emp[c] : null; return v == null ? null : Number(v); }
+function _lvFmtMin(min) {
+  min = Math.round(min);
+  if (min <= 0) return '0';
+  const d = Math.floor(min / 480), h = Math.floor((min % 480) / 60), m = min % 60;
+  return [d ? `${d} วัน` : '', h ? `${h} ชม.` : '', m ? `${m} นาที` : ''].filter(Boolean).join(' ');
+}
+// ใช้ไปแล้วต่อ (ปี → นาที) ของพนักงาน+ประเภท ในช่วงปี yFrom..yTo (ยกเว้นแถวที่กำลังแก้/อนุมัติ)
+async function _leaveUsedByYear(code, type, yFrom, yTo, excludeIds = []) {
+  const { data, error } = await _sb.from('employee_leaves').select('_row_id,LeaveDate,Hours')
+    .eq('EmployeeCode', code).eq('LeaveType', type).gte('LeaveDate', `${yFrom}-01-01`).lte('LeaveDate', `${yTo}-12-31`);
+  if (error) return { error };
+  const used = {};
+  (data || []).forEach(r => {
+    if (excludeIds.includes(r._row_id) || _lvIsSun(r.LeaveDate)) return;
+    const y = r.LeaveDate.slice(0, 4);
+    used[y] = (used[y] || 0) + (Number(r.Hours) || 0) * 60;
+  });
+  return { used };
+}
+// items = [{date, minutes}] ที่จะเพิ่ม/ย้ายเข้าประเภทนี้ — คืนข้อความ error ถ้าเกินสิทธิ์ ('' = ผ่าน)
+async function _leaveQuotaCheck(code, type, items, excludeIds = []) {
+  const emp = _leaveEmployees.find(e => e.EmployeeCode === code);
+  const quota = _lvQuotaMin(emp, type);
+  if (quota == null) return '';
+  const want = {};
+  items.forEach(it => { if (_lvIsSun(it.date)) return; const y = it.date.slice(0, 4); want[y] = (want[y] || 0) + it.minutes; });
+  const years = Object.keys(want).sort();
+  if (!years.length) return '';
+  const res = await _leaveUsedByYear(code, type, years[0], years[years.length - 1], excludeIds);
+  if (res.error) return `ตรวจสิทธิ์ลาไม่ได้: ${res.error.message}`;
+  const lines = [];
+  years.forEach(y => {
+    const used = res.used[y] || 0;
+    if (used + want[y] > quota) lines.push(`ปี ${+y + 543}: สิทธิ์ ${_lvFmtMin(quota)} · ใช้ไปแล้ว ${_lvFmtMin(used)} · เหลือ ${_lvFmtMin(Math.max(0, quota - used))} แต่ขอเพิ่ม ${_lvFmtMin(want[y])}`);
+  });
+  if (!lines.length) return '';
+  // ตัวเลขสิทธิ์/คงเหลือ เห็นได้เฉพาะแอดมิน — คนอื่นได้แค่ข้อความว่าไม่พอ
+  return _hasRole('admin') ? `สิทธิ์ ${type} ไม่พอ<br>${lines.join('<br>')}` : `สิทธิ์${type}หมดหรือไม่พอสำหรับรายการนี้ — กรุณาติดต่อแอดมิน`;
+}
 async function _leaveEnsureEmployees(force = false) {
   if (_leaveEmployees.length && !force) return;
-  const { data, error } = await _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType,Status,PhotoPath,Position,Department,StartDate,Phone').order('EmployeeCode');
+  const { data, error } = await _sb.from('employees').select('*').order('EmployeeCode');
   if (error) { _err('โหลดรายชื่อพนักงานไม่ได้', error.message); return; }
   _leaveEmployees = data || [];
   // รูปพนักงาน: signed URL ชุดเดียวกับหน้า "พนักงาน" (_employeePhotoUrls) — ขอเฉพาะรูปที่ยังไม่มี; พังก็ข้าม (โชว์ตัวอักษรย่อแทน)
@@ -21984,7 +22042,22 @@ async function leaveLoadData() {
 }
 
 // การ์ดพนักงาน (กดที่ชื่อในตาราง) — รูป + ข้อมูลพื้นฐาน + สรุปขาด/ลา/มาสายของเดือนที่โหลดอยู่
-function leaveShowEmpCard(code) {
+// ตารางสิทธิ์ลาประจำปี (สิทธิ์/ใช้ไป/คงเหลือ) สำหรับการ์ดพนักงาน — ไม่มีโควตาสักประเภท = ไม่แสดง; ตรวจไม่ได้ก็ข้าม (ไม่ให้การ์ดพัง)
+async function _leaveQuotaCardHTML(emp, year) {
+  if (!_hasRole('admin')) return '';
+  const types = Object.keys(LEAVE_QUOTA_COL).filter(t => _lvQuotaMin(emp, t) != null);
+  if (!types.length) return '';
+  const rows = [];
+  for (const t of types) {
+    const res = await _leaveUsedByYear(emp.EmployeeCode, t, year, year);
+    if (res.error) return '';
+    const quota = _lvQuotaMin(emp, t), used = res.used[year] || 0, left = quota - used;
+    rows.push(`<tr><td class="text-start">${t}</td><td>${_lvFmtMin(quota)}</td><td>${_lvFmtMin(used)}</td><td class="${left <= 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">${left > 0 ? _lvFmtMin(left) : 'หมด'}</td></tr>`);
+  }
+  return `<div class="small fw-bold text-start mb-1">สิทธิ์ลาประจำปี ${+year + 543}</div>
+    <table class="table table-sm small text-center mb-2"><thead><tr class="text-muted"><th></th><th>สิทธิ์</th><th>ใช้ไป</th><th>คงเหลือ</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+async function leaveShowEmpCard(code) {
   const e = _leaveEmployees.find(x => x.EmployeeCode === code);
   if (!e) return;
   const url = e.PhotoPath && _employeePhotoUrls[e.PhotoPath];
@@ -22007,6 +22080,7 @@ function leaveShowEmpCard(code) {
     return `<div class="mb-1"><span class="badge bg-light text-dark border me-1">${t} ${x.length} ครั้ง / ${h} ชม.</span><span class="text-muted">${_lvEsc(dates)}</span></div>`;
   }).join('') || '<span class="text-muted">ไม่มีรายการในเดือนนี้</span>';
   const row = (k, v) => v ? `<tr><td class="text-muted text-end pe-2" style="width:38%">${k}</td><td class="text-start">${_lvEsc(v)}</td></tr>` : '';
+  const quotaHTML = await _leaveQuotaCardHTML(e, (month || _lvLocalDate(new Date())).slice(0, 4));
   Swal.fire({
     width: 420, showCloseButton: true, confirmButtonText: 'ปิด',
     html: `<div class="text-center">${photo}
@@ -22017,6 +22091,7 @@ function leaveShowEmpCard(code) {
       <table class="small w-100 mb-2"><tbody>
         ${row('ตำแหน่ง', e.Position)}${row('แผนก', e.Department)}${row('เริ่มงาน', e.StartDate ? _fmtDate(e.StartDate) : '')}${row('เบอร์โทร', e.Phone)}
       </tbody></table>
+      ${quotaHTML}
       <div class="small fw-bold text-start mb-1">ขาด/ลา/มาสาย เดือน ${_lvEsc(month)} <span class="fw-normal text-muted">(ไม่นับวันอาทิตย์)</span></div>
       <div class="text-start small">${sum}</div></div>`,
   });
@@ -22111,6 +22186,11 @@ async function leaveApproveGroup(gi) {
   });
   if (!res.isConfirmed) return;
   const newType = res.value;
+  // เปลี่ยนเป็นประเภทที่มีโควตา → ต้องมีสิทธิ์เหลือพอด้วย (ประเภทเดิมถูกนับตอนบันทึกแล้ว)
+  if (newType !== r.LeaveType) {
+    const qe = await _leaveQuotaCheck(g.code, newType, g.rows.map(x => ({ date: x.LeaveDate, minutes: (Number(x.Hours) || 0) * 60 })), g.rows.map(x => x._row_id));
+    if (qe) { _err('เปลี่ยนประเภทไม่ได้ — สิทธิ์ลาไม่พอ', qe); return; }
+  }
   const me = _currentUser?.name || _currentUser?.email || null;
   const nowIso = new Date().toISOString();
   const patch = { ApprovalStatus: 'อนุมัติแล้ว', ApprovedBy: me, ApprovedAt: nowIso, LeaveType: newType };
@@ -22171,6 +22251,7 @@ async function leaveOpenGroup(gi) {
   document.getElementById('leave-f-skipsun-wrap').style.display = '';
   document.getElementById('leave-f-date-label').textContent = 'ตั้งแต่วันที่ *';
   document.getElementById('leaveModalTitle').innerHTML = '<i class="fas fa-calendar-xmark me-2"></i>แก้ไขรายการ (ช่วงวันที่)';
+  leaveUpdateQuotaHint();
 }
 async function leaveDeleteGroup(gi) {
   const g = _leaveGroupsView[gi];
@@ -22216,11 +22297,32 @@ async function leaveOpenModal(rowId) {
   document.getElementById('leave-f-skipsun-wrap').style.display = r ? 'none' : '';
   document.getElementById('leave-f-date-label').textContent = r ? 'วันที่ *' : 'ตั้งแต่วันที่ *';
   leaveOnPartChange();
+  leaveUpdateQuotaHint();
   if (!_leaveModal) _leaveModal = new bootstrap.Modal(document.getElementById('leaveModal'));
   _leaveModal.show();
 }
 function _leaveCurrentPart() { return document.querySelector('input[name="leave-f-part"]:checked')?.value || 'ทั้งวัน'; }
+// แสดงสิทธิ์ลาคงเหลือของพนักงาน+ประเภท+ปี (จากวันที่เริ่ม) ใต้ช่องประเภท — เปลี่ยนพนักงาน/ประเภท/วันที่ แล้วคำนวณใหม่
+let _leaveHintSeq = 0;
+async function leaveUpdateQuotaHint() {
+  const el = document.getElementById('leave-f-quota-hint');
+  if (!el) return;
+  const code = document.getElementById('leave-f-emp').value, type = document.getElementById('leave-f-type').value;
+  const date = document.getElementById('leave-f-date').value;
+  const emp = _leaveEmployees.find(e => e.EmployeeCode === code);
+  const quota = _lvQuotaMin(emp, type);
+  if (!_hasRole('admin') || !emp || !date || !LEAVE_QUOTA_COL[type]) { el.innerHTML = ''; return; }
+  if (quota == null) { el.innerHTML = `<span class="text-muted">${type}: ยังไม่ได้กำหนดสิทธิ์ (ไม่จำกัด)</span>`; return; }
+  const mySeq = ++_leaveHintSeq;
+  const y = date.slice(0, 4);
+  const editIds = [parseInt(document.getElementById('leave-edit-id').value) || 0, ...(document.getElementById('leave-edit-ids').value || '').split(',').map(Number)].filter(Boolean);
+  const res = await _leaveUsedByYear(code, type, y, y, editIds);
+  if (mySeq !== _leaveHintSeq || res.error) return;
+  const used = res.used[y] || 0, left = quota - used;
+  el.innerHTML = `<span class="${left <= 0 ? 'text-danger fw-bold' : 'text-success'}"><i class="fas fa-ticket me-1"></i>${type} ปี ${+y + 543}: สิทธิ์ ${_lvFmtMin(quota)} · ใช้ไป ${_lvFmtMin(used)} · <b>เหลือ ${left > 0 ? _lvFmtMin(left) : '0 (หมดสิทธิ์ เพิ่มรายการไม่ได้)'}</b></span>`;
+}
 function leaveOnTypeChange() {
+  leaveUpdateQuotaHint();
   if (document.getElementById('leave-f-type').value === 'มาสาย') {
     document.getElementById('leave-part-hr').checked = true;
     if (!document.getElementById('leave-f-tstart').value) document.getElementById('leave-f-tstart').value = '08:30';
@@ -22287,6 +22389,9 @@ async function leaveSubmit(ev) {
     _err('พนักงานคนนี้มีรายการขาด/ลา/มาสายซ้อนกันอยู่แล้ว', dup.map(x => `${_fmtDate(x.LeaveDate)} ${x.LeaveType} (${x.DayPart})`).join('<br>'));
     return;
   }
+  // สิทธิ์ลาประจำปีหมด/ไม่พอ → เพิ่มรายการหมวดนี้ไม่ได้ (บล็อกจริง — ตามคำขอผู้ใช้ 2026-10-15)
+  const quotaErr = await _leaveQuotaCheck(code, type, dates.map(d => ({ date: d, minutes: t.hours * 60 })), editId ? [editId] : editIds);
+  if (quotaErr) { _err('เพิ่มรายการไม่ได้ — สิทธิ์ลาไม่พอ', quotaErr); return; }
   // เตือน (ไม่บล็อก) ถ้าพนักงานคนนี้ถูกลงแผนผลิตไว้แล้วในช่วงที่ลา — ต้องไปแก้แผนเอง ระบบไม่ถอดชื่อให้เอง
   const planHits = (planRes.data || []).filter(p =>
     (p.WorkerCodes || '').split(',').map(x => x.trim()).includes(code) &&
@@ -22536,7 +22641,7 @@ function employeeRenderTable() {
   });
 
   const tbody = document.getElementById('employee-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">ไม่พบข้อมูล</td></tr>'; return; }
 
   const typeBadge = { 'FT': 'background:#0d6efd', 'PT': 'background:#198754', 'OS': 'background:#8b5cf6' };
   const typeLabel = { 'FT': 'ประจำ (FT)', 'PT': 'พาร์ทไทม์ (PT)', 'OS': 'เอาท์ซอร์ส (OS)' };
@@ -22549,12 +22654,25 @@ function employeeRenderTable() {
     <td>${r.Department || '—'}</td>
     <td><span class="badge ${r.Status === 'ลาออก' ? 'bg-secondary' : 'bg-success'}">${r.Status || 'ทำงานอยู่'}</span></td>
     <td class="wh-hide-remark">${r.Phone || '—'}</td>
+    <td class="wh-hide-remark small text-nowrap">${r.UpdatedAt ? `${r.UpdatedBy ? `<i class="fas fa-user-pen text-muted me-1"></i>${_lvEsc(r.UpdatedBy)}` : ""}<div class="text-muted">${_fmtDateTime(r.UpdatedAt)}</div>` : "—"}</td>
     <td class="text-center">
       <button class="btn btn-outline-primary btn-sm py-0 px-2" onclick="employeeOpenModal(${r._row_id})" title="แก้ไข">
         <i class="fas fa-edit"></i>
       </button>
     </td>
   </tr>`).join('');
+}
+
+// สิทธิ์ลาประจำปี: เก็บเป็น "นาที" (1 วัน = 480 นาที) — ช่องว่างทั้ง 3 = null (ไม่จำกัด), มีค่าอย่างน้อย 1 ช่อง = รวมเป็นนาที (0 ก็คือไม่มีสิทธิ์)
+function _empFillQuota(key, min) {
+  const set = (s, v) => { document.getElementById(`employee-q-${key}-${s}`).value = v; };
+  if (min == null) { set('d', ''); set('h', ''); set('m', ''); return; }
+  set('d', Math.floor(min / 480)); set('h', Math.floor((min % 480) / 60)); set('m', min % 60);
+}
+function _empReadQuota(key) {
+  const v = s => document.getElementById(`employee-q-${key}-${s}`).value.trim();
+  if (v('d') === '' && v('h') === '' && v('m') === '') return null;
+  return Math.max(0, Math.round((parseFloat(v('d')) || 0) * 480 + (parseFloat(v('h')) || 0) * 60 + (parseFloat(v('m')) || 0)));
 }
 
 function employeeOpenModal(rowId = null) {
@@ -22566,6 +22684,12 @@ function employeeOpenModal(rowId = null) {
   _employeePhotoRemove = false;
   document.getElementById('employee-photo-file').value = '';
 
+  document.getElementById('employee-quota-wrap').style.display = _hasRole('admin') ? '' : 'none'; // สิทธิ์ลา: แอดมินเท่านั้นที่เห็น/แก้
+  // ผู้บันทึก/แก้ไขล่าสุด (ทั้งแถว มุมซ้ายล่างของโมดัล, และเฉพาะสิทธิ์ลาใต้ตาราง) — แถวที่ยังไม่เคยบันทึกหลังมีคอลัมน์ = ไม่แสดง
+  const _lastTxt = (by, at) => at ? `${by ? _lvEsc(by) + ' · ' : ''}${_fmtDateTime(at)}` : '';
+  const _rr = rowId ? _employeeData.find(d => d._row_id === rowId) : null;
+  document.getElementById('employee-lastedit').innerHTML = _rr && _rr.UpdatedAt ? `<i class="fas fa-clock-rotate-left me-1"></i>บันทึก/แก้ไขล่าสุด: ${_lastTxt(_rr.UpdatedBy, _rr.UpdatedAt)}` : '';
+  document.getElementById('employee-quota-lastedit').innerHTML = _rr && _rr.QuotaUpdatedAt ? `<i class="fas fa-clock-rotate-left me-1"></i>แก้ไขสิทธิ์ลาล่าสุด: ${_lastTxt(_rr.QuotaUpdatedBy, _rr.QuotaUpdatedAt)}` : '';
   const title = document.getElementById('employeeModalTitle');
   if (rowId) {
     const r = _employeeData.find(d => d._row_id === rowId);
@@ -22585,6 +22709,7 @@ function employeeOpenModal(rowId = null) {
     document.getElementById('employee-f-phone').value      = r.Phone || '';
     document.getElementById('employee-f-status').value     = r.Status || 'ทำงานอยู่';
     document.getElementById('employee-f-note').value       = r.Note || '';
+    _empFillQuota('sick', r.QuotaSickMin); _empFillQuota('personal', r.QuotaPersonalMin); _empFillQuota('vacation', r.QuotaVacationMin);
   } else {
     title.innerHTML = '<i class="fas fa-plus-circle me-2"></i>เพิ่มพนักงานใหม่';
     _empSetPreview(null);
@@ -22617,6 +22742,24 @@ async function employeeSubmit(e) {
     Status:       document.getElementById('employee-f-status').value || 'ทำงานอยู่',
     Note:         document.getElementById('employee-f-note').value || null,
   };
+  // ผู้บันทึก/แก้ไขล่าสุด + เวลา — ส่งเฉพาะเมื่อมีคอลัมน์แล้ว (ตรวจจากแถวที่โหลดมา) กันพังก่อนรัน alter_employees_add_updated.sql
+  if (_employeeData.length && 'UpdatedAt' in _employeeData[0]) {
+    payload.UpdatedBy = _currentUser?.name || _currentUser?.email || null;
+    payload.UpdatedAt = new Date().toISOString();
+  }
+  // สิทธิ์ลา: ส่งเฉพาะเมื่อมีค่า หรือแถวเดิมมีคอลัมน์นี้อยู่แล้ว — กันบันทึกพนักงานพังถ้ายังไม่ได้รัน alter_employees_add_leave_quota.sql
+  const _q0 = isEdit ? _employeeData.find(d => d._row_id === parseInt(editId)) : null;
+  let _quotaChanged = false;
+  if (_hasRole('admin')) [['QuotaSickMin', 'sick'], ['QuotaPersonalMin', 'personal'], ['QuotaVacationMin', 'vacation']].forEach(([col, key]) => {
+    const v = _empReadQuota(key);
+    if (v !== null || (_q0 && col in _q0)) payload[col] = v;
+    if ((v ?? null) !== ((_q0 && _q0[col]) ?? null)) _quotaChanged = true;
+  });
+  // ประทับผู้แก้ไข/เวลา "เฉพาะสิทธิ์ลา" ก็ต่อเมื่อค่าสิทธิ์เปลี่ยนจริง (และมีคอลัมน์แล้ว)
+  if (_quotaChanged && _employeeData.length && 'QuotaUpdatedAt' in _employeeData[0]) {
+    payload.QuotaUpdatedBy = _currentUser?.name || _currentUser?.email || null;
+    payload.QuotaUpdatedAt = new Date().toISOString();
+  }
 
   const saveBtn = document.getElementById('employee-save-btn');
   saveBtn.disabled = true;
