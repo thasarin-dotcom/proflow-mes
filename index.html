@@ -845,7 +845,7 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
 .plan-chip-more{font-size:.66rem;color:#3b82f6;font-weight:600}
 
 /* ── Print Templates (BPR + Stock Card + MR Report + Delivery Bill + รายงานผลิต/ต้นทุน + รายงานรายสัปดาห์) — ใช้ body class เลือกว่า root ไหนจะโชว์ตอนพิมพ์ กันหลาย print root ชนกัน ── */
-#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root, #purchasereq-print-root, #holdstockreport-print-root{display:none}
+#bpr-print-root, #stockcard-print-root, #mr-print-root, #deliverybill-print-root, #pcost-print-root, #weeklyreport-print-root, #mo-released-print-root, #lotlabel-print-root, #lotscan-print-root, #dlvlabel-print-root, #miscslip-print-root, #admindash-report-print-root, #planweek-print-root, #purchasereq-print-root, #holdstockreport-print-root, #leave-print-root{display:none}
 @media print{
   /* body ถูกตั้ง display:flex/overflow:hidden/height:100vh + พื้นหลังไล่สีน้ำเงิน ไว้สำหรับ layout หน้าจอ
      (sidebar + main-content) เท่านั้น — ไม่เคยมีการ reset ค่าพวกนี้สำหรับตอนพิมพ์มาก่อนเลยตั้งแต่สร้าง print
@@ -856,7 +856,7 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
      บั๊กจริงที่ผู้ใช้เจอ 2026-08-26 บนใบส่งสินค้า FG (เห็นแถบพื้นหลังสีน้ำเงินปนบนกระดาษที่พิมพ์จริง) ต้อง reset
      ให้ผืนกระดาษเป็นพื้นขาวล้วนและไม่ยึด flex layout เดิมของหน้าจอ ก่อน selector อื่นด้านล่างเสมอ */
   html, body{background:#fff !important;display:block !important;height:auto !important;min-height:0 !important;overflow:visible !important}
-  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root):not(#purchasereq-print-root):not(#holdstockreport-print-root){display:none !important}
+  body > *:not(#bpr-print-root):not(#stockcard-print-root):not(#mr-print-root):not(#deliverybill-print-root):not(#pcost-print-root):not(#weeklyreport-print-root):not(#mo-released-print-root):not(#lotlabel-print-root):not(#lotscan-print-root):not(#dlvlabel-print-root):not(#miscslip-print-root):not(#admindash-report-print-root):not(#planweek-print-root):not(#purchasereq-print-root):not(#holdstockreport-print-root):not(#leave-print-root){display:none !important}
   #bpr-print-root{display:none !important}
   #stockcard-print-root{display:none !important}
   #mr-print-root{display:none !important}
@@ -872,6 +872,8 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
   #planweek-print-root{display:none !important}
   #purchasereq-print-root{display:none !important}
   #holdstockreport-print-root{display:none !important}
+  #leave-print-root{display:none !important}
+  body.print-mode-leave #leave-print-root{display:block !important}
   body.print-mode-bpr #bpr-print-root{display:block !important}
   body.print-mode-stockcard #stockcard-print-root{display:block !important}
   body.print-mode-mr #mr-print-root{display:block !important}
@@ -950,6 +952,11 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
      ผูกกับ .planweek-page ผ่าน "page:" แทน — ห้ามตั้ง margin ที่นี่ ให้ .planweek-page คุม padding เองที่เดียว) */
   @page planweek{size:A3 landscape;margin:0}
   .planweek-page{page:planweek}
+  /* รายงานขาด/ลา/มาสาย แบบปฏิทิน = A4 แนวนอน (named page — ห้ามประกาศ @page ธรรมดาซ้ำ จะไปทับ root อื่น),
+     แบบสรุป = แนวตั้ง A4 ใช้ @page ปกติ; margin:0 เสมอ ให้ padding ของ .leave-page คุมเอง */
+  @page leavecal{size:A4 landscape;margin:0}
+  .leave-page.cal{page:leavecal}
+  #leave-print-root .leave-page{box-shadow:none !important;margin:0 !important}
   #planweek-print-root .planweek-page{box-shadow:none !important;margin:0 !important}
   .planweek-entry{page-break-inside:avoid;break-inside:avoid}
   table.bpr-table{page-break-inside:avoid;break-inside:avoid}
@@ -1379,6 +1386,21 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 /* หน้ารายงาน (แนวนอน A4 — ผูก @page ชื่อ mrreport ไว้ในบล็อก @media print ข้างบนแล้ว)
    display:flex column ให้ .mrrpt-footer (margin-top:auto) จมอยู่ด้านล่างสุดของกระดาษเสมอเมื่อเนื้อหาพอดี 1 หน้า —
    ถ้ารายการยาวเกิน 1 หน้า จะไหลไปหน้าถัดไปตามปกติ ไม่ได้บังคับอยู่หน้าเดียวเสมอ */
+/* รายงานขาด/ลา/มาสาย (nav-leave) — สรุป = A4 แนวตั้ง, ปฏิทิน = A4 แนวนอน */
+.leave-page{font-family:Sarabun,sans-serif;font-size:11px;color:#1e293b;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);width:210mm;min-height:297mm}
+.leave-page.cal{width:297mm;min-height:210mm;padding:8mm;font-size:9px}
+.leave-page h2{font-size:16px;margin:0 0 2px;font-weight:700}
+.leave-page .lv-sub{color:#64748b;margin-bottom:8px}
+.leave-page h3{font-size:12.5px;margin:10px 0 4px;padding:3px 8px;border-radius:4px;color:#fff;display:inline-block}
+.leave-page table{width:100%;border-collapse:collapse;margin-bottom:6px}
+.leave-page th,.leave-page td{border:1px solid #94a3b8;padding:2px 4px;text-align:center}
+.leave-page th{background:#e2e8f0}
+.leave-page td.l{text-align:left}
+.leave-page.cal th,.leave-page.cal td{padding:1px 0;font-size:8.5px}
+.leave-page .sun{background:#fee2e2}
+.leave-page .lv-legend{font-size:10px;color:#475569;margin:4px 0}
+.leave-page .lv-sign{display:flex;gap:30px;margin-top:22px}
+.leave-page .lv-sign div{flex:1;text-align:center;border-top:1px solid #334155;padding-top:3px}
 .mrrpt-page{
   font-family:Sarabun,sans-serif;font-size:12px;color:#1e293b;
   width:297mm;min-height:210mm;box-sizing:border-box;padding:15mm;
@@ -1939,6 +1961,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <div class="nav-group-body" id="navgroup-body-employee">
     <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
       <i class="fas fa-users me-2"></i><span>พนักงาน</span>
+    </a>
+    <!-- ขาด/ลา/มาสาย (added 2026-10-15) — หัวหน้างานขึ้นไป (_hasRole('supervisor')) toggle ใน _renderCurrentUserBadge -->
+    <a href="#" class="nav-link mb-1" id="nav-leave" onclick="showPage('leave',this)" title="ขาด / ลา / มาสาย" style="display:none">
+      <i class="fas fa-calendar-xmark me-2"></i><span>ขาด / ลา / มาสาย</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน" style="display:none">
       <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
@@ -5645,6 +5671,139 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     </div>
   </div>
 
+  <!-- ════════════ ขาด/ลา/มาสาย (nav-leave) ════════════ -->
+  <div class="page-view" id="page-leave">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white">
+          <i class="fas fa-calendar-xmark me-2"></i>ขาด / ลา / มาสาย
+        </h4>
+        <div class="d-flex gap-2">
+          <button class="btn btn-warning fw-bold shadow-sm" onclick="leaveOpenReportModal()">
+            <i class="fas fa-print me-2"></i>พิมพ์รายงานรายเดือน
+          </button>
+          <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="leaveOpenModal()">
+            <i class="fas fa-plus-circle me-2"></i>เพิ่มรายการ
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="sticky-toolbar py-2">
+      <div class="glass-card mb-0 py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-2"><input type="month" id="leave-filter-month" class="form-control form-control-sm" onchange="leaveLoadData()"></div>
+          <div class="col-md-3">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="leave-search" class="form-control border-start-0 search-input" placeholder="ค้นหา รหัส / ชื่อ / เหตุผล..." oninput="leaveRenderTable()">
+              <button type="button" class="btn btn-outline-secondary border-start-0 search-clear-btn" onclick="_clearSearchInput(this)" title="ล้างคำค้นหา" tabindex="-1"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <select id="leave-filter-emptype" class="form-select form-select-sm" onchange="leaveRenderTable()">
+              <option value="">ทุกประเภทพนักงาน</option><option value="FT">พนักงานประจำ (FT)</option>
+              <option value="PT">พาร์ทไทม์ (PT)</option><option value="OS">เอาท์ซอร์ส (OS)</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select id="leave-filter-type" class="form-select form-select-sm" onchange="leaveRenderTable()">
+              <option value="">ทุกประเภทการลา</option><option>ลาป่วย</option><option>ลากิจ</option>
+              <option>ลาพักร้อน</option><option>ขาดงาน</option><option>มาสาย</option>
+            </select>
+          </div>
+          <div class="col-md-3 text-end">
+            <button class="btn btn-sm btn-primary" onclick="leaveLoadData()"><i class="fas fa-sync-alt me-1"></i>รีเฟรช</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-num" id="leave-kpi-count">—</div><div class="kpi-label">รายการในเดือนนี้</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card" style="border-color:#0d6efd"><div class="kpi-num text-primary" id="leave-kpi-people">—</div><div class="kpi-label">จำนวนคนที่ลา/ขาด/สาย</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card" style="border-color:#198754"><div class="kpi-num text-success" id="leave-kpi-hours">—</div><div class="kpi-label">ชั่วโมงรวม</div></div></div>
+        <div class="col-6 col-md-3"><div class="kpi-card" style="border-color:#f59e0b"><div class="kpi-num" style="color:#d97706" id="leave-kpi-upcoming">—</div><div class="kpi-label">ยังไม่ถึงวัน (ล่วงหน้า)</div></div></div>
+      </div>
+      <div class="glass-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr>
+              <th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท พนง.</th><th>ประเภทการลา</th>
+              <th>ช่วง</th><th class="text-end">ชม.</th><th>เหตุผล</th><th class="text-center" style="width:90px">จัดการ</th>
+            </tr></thead>
+            <tbody id="leave-tbody"><tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="leaveModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#1e3a8a;color:white">
+          <h5 class="modal-title" id="leaveModalTitle"><i class="fas fa-calendar-xmark me-2"></i>เพิ่มรายการขาด/ลา/มาสาย</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form onsubmit="leaveSubmit(event)">
+          <div class="modal-body">
+            <input type="hidden" id="leave-edit-id">
+            <div class="mb-2"><label class="form-label small fw-bold">พนักงาน *</label><select id="leave-f-emp" class="form-select" required></select></div>
+            <div class="mb-2"><label class="form-label small fw-bold">ประเภท *</label>
+              <select id="leave-f-type" class="form-select" onchange="leaveOnTypeChange()">
+                <option>ลาป่วย</option><option>ลากิจ</option><option>ลาพักร้อน</option><option>ขาดงาน</option><option>มาสาย</option>
+              </select></div>
+            <div class="row g-2 mb-2">
+              <div class="col-6"><label class="form-label small fw-bold" id="leave-f-date-label">ตั้งแต่วันที่ *</label><input type="date" id="leave-f-date" class="form-control" required></div>
+              <div class="col-6" id="leave-f-dateto-wrap"><label class="form-label small fw-bold">ถึงวันที่</label><input type="date" id="leave-f-dateto" class="form-control"></div>
+            </div>
+            <div class="form-check mb-2" id="leave-f-skipsun-wrap"><input class="form-check-input" type="checkbox" id="leave-f-skipsun" checked><label class="form-check-label small" for="leave-f-skipsun">ข้ามวันอาทิตย์ (วันหยุด)</label></div>
+            <div class="mb-2"><label class="form-label small fw-bold d-block">ช่วงเวลา *</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="leave-f-part" id="leave-part-day" value="ทั้งวัน" checked onchange="leaveOnPartChange()"><label class="btn btn-outline-primary btn-sm" for="leave-part-day">ทั้งวัน</label>
+                <input type="radio" class="btn-check" name="leave-f-part" id="leave-part-am" value="เช้า" onchange="leaveOnPartChange()"><label class="btn btn-outline-primary btn-sm" for="leave-part-am">เช้า</label>
+                <input type="radio" class="btn-check" name="leave-f-part" id="leave-part-pm" value="บ่าย" onchange="leaveOnPartChange()"><label class="btn btn-outline-primary btn-sm" for="leave-part-pm">บ่าย</label>
+                <input type="radio" class="btn-check" name="leave-f-part" id="leave-part-hr" value="รายชั่วโมง" onchange="leaveOnPartChange()"><label class="btn btn-outline-primary btn-sm" for="leave-part-hr">รายชั่วโมง</label>
+              </div></div>
+            <div class="row g-2 mb-2" id="leave-f-time-wrap" style="display:none">
+              <div class="col-6"><label class="form-label small fw-bold">เริ่ม</label><input type="time" id="leave-f-tstart" class="form-control" step="300" oninput="leaveUpdateHours()"></div>
+              <div class="col-6"><label class="form-label small fw-bold">ถึง</label><input type="time" id="leave-f-tend" class="form-control" step="300" oninput="leaveUpdateHours()"></div>
+            </div>
+            <div class="small text-muted mb-2" id="leave-f-hours-hint"></div>
+            <div class="mb-2"><label class="form-label small fw-bold">เหตุผล / หมายเหตุ</label><textarea id="leave-f-reason" class="form-control" rows="2"></textarea></div>
+            <div class="alert alert-info small py-2 mb-0"><i class="fas fa-lock me-1"></i>วัน/ช่วงเวลาที่บันทึกไว้ จะถูกล็อกไม่ให้เลือกพนักงานคนนี้ลงแผนผลิตในช่วงนั้น</div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button><button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>บันทึก</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="leaveReportModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold"><i class="fas fa-print me-2"></i>รายงานขาด/ลา/มาสาย รายเดือน</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="background:#525659;max-height:80vh;overflow:auto">
+          <div class="d-flex gap-2 flex-wrap mb-3 bg-white p-2 rounded">
+            <input type="month" id="leave-rpt-month" class="form-control form-control-sm" style="width:auto" onchange="leaveRenderReport()">
+            <select id="leave-rpt-format" class="form-select form-select-sm" style="width:auto" onchange="leaveRenderReport()">
+              <option value="sum">แบบสรุปรายคน + รายการ (แนวตั้ง)</option>
+              <option value="cal">แบบปฏิทินรายเดือน (แนวนอน)</option>
+            </select>
+            <span class="small text-muted align-self-center">แยกกลุ่มตามประเภทพนักงาน FT / PT / OS</span>
+          </div>
+          <div id="leave-rpt-preview" style="overflow:auto"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+          <button type="button" class="btn btn-primary" onclick="leavePrintReport()"><i class="fas fa-print me-1"></i>พิมพ์ / บันทึกเป็น PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- ════════════ Employee: Add/Edit Modal ════════════ -->
   <div class="modal fade" id="employeeModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -7632,6 +7791,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   </div>
 </div>
 <div id="lotscan-print-root"></div>
+<div id="leave-print-root"></div>
 
 <!-- ════════════ MR Receive: Print Report Modal (เลือกวันที่/ซัพพลายเออร์ → ยืนยันเลข RC No → พิมพ์) ════════════ -->
 <div class="modal fade" id="mrReportModal" tabindex="-1">
@@ -9547,6 +9707,7 @@ const _PAGE_LOADERS = {
   'material' : loadMaterialData,
   'pricetier' : pricetierLoadData,
   'employee' : loadEmployeeData,
+  'leave'    : leaveLoadData,
   'skillmatrix': loadSkillMatrixData,
   'laborutil' : loadLaborUtilData,
   'prodrecord': prodrecordLoadData,
@@ -15792,7 +15953,23 @@ let _planSkills = [];
 let _planSkillLevels = {}; // key `${EmployeeCode}|${SkillCode}` -> Level
 let _planSkillDataLoaded = false;
 
+// ใบขาด/ลา/มาสาย (employee_leaves) — ใช้ล็อกคนไม่ให้เลือกลงแผนผลิตในวัน/กะที่ลา (ผ่าน _planFindWorkerConflicts)
+// โหลดย้อนหลัง 60 วันถึงอนาคตทั้งหมด (แก้แผนเก่าได้) — ตารางยังไม่ถูกสร้าง/โหลดพัง = [] ไม่บล็อกการวางแผน
+// (เหมือน graceful-degrade ของข้อมูลสกิลด้านล่าง: ชั้นเสริมห้ามทำให้วางแผนไม่ได้)
+let _planLeaves = [];
+let _planLeavesLoaded = false;
+async function _planLoadLeaves(force = false) {
+  if (_planLeavesLoaded && !force) return;
+  try {
+    const start = _planWeekLocalDateStr(new Date(Date.now() - 60 * 86400000));
+    const { data, error } = await _fetchAllPagedRange('employee_leaves', '_row_id,EmployeeCode,LeaveDate,LeaveType,DayPart,TimeStart,TimeEnd', 'LeaveDate', start, '2999-12-31');
+    _planLeaves = error ? [] : (data || []);
+  } catch (e) { _planLeaves = []; }
+  _planLeavesLoaded = true;
+}
+
 async function _planLoadSkillData(force = false) {
+  await _planLoadLeaves();
   if (_planSkillDataLoaded && !force) return;
   const [empRes, skillRes, levelRes] = await Promise.all([
     _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
@@ -16081,11 +16258,13 @@ function _planRenderWorkersPool(b, selectedCodes, pool) {
     const isSelected = selectedCodes.includes(e.EmployeeCode);
     const conflictRow = conflictMap.get(e.EmployeeCode);
     const isBlocked = !!conflictRow && !isSelected;
-    const conflictTitle = conflictRow ? `ไม่ว่าง — ชนกับ "${conflictRow.ProductName || ''}" ไลน์ "${conflictRow.Line || ''}" (MO ยังไม่ปิด)` : '';
+    const conflictTitle = conflictRow ? (conflictRow._leave
+      ? `ลา/ขาด/มาสาย — ${conflictRow.ProductName || ''}`
+      : `ไม่ว่าง — ชนกับ "${conflictRow.ProductName || ''}" ไลน์ "${conflictRow.Line || ''}" (MO ยังไม่ปิด)`) : '';
     return `<div class="form-check mb-1"${isBlocked ? ` title="${conflictTitle}"` : ''}>
       <input class="form-check-input plan-worker-chk" type="checkbox" value="${e.EmployeeCode}" data-block="${b}" data-blocked="${isBlocked ? '1' : '0'}" id="${id}"
         ${isSelected ? 'checked' : ''}${isBlocked ? ' disabled' : ''} onchange="planCheckSkillCoverage('${b}')">
-      <label class="form-check-label small${isBlocked ? ' text-muted' : ''}" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span>${isBlocked ? ' <span class="text-danger">(ไม่ว่าง)</span>' : ''}</label>
+      <label class="form-check-label small${isBlocked ? ' text-muted' : ''}" for="${id}">${name} — ${e.EmployeeCode} <span class="text-muted">[${typeLabel[e.EmployeeType] || e.EmployeeType || ''}]</span>${isBlocked ? ` <span class="text-danger">(${conflictRow._leave ? 'ลา' : 'ไม่ว่าง'})</span>` : ''}</label>
     </div>`;
   }).join('') : '<div class="small text-muted py-1">ไม่มีพนักงานที่ตรงเงื่อนไข</div>';
   _planUpdateWorkersSelectedCount(b);
@@ -17641,6 +17820,14 @@ function _planFindWorkerConflicts(date, timeStart, timeEnd, workerCodes, exclude
     workerCodes.forEach(code => {
       if (rowCodes.includes(code)) conflicts.push({ code, row: r });
     });
+  });
+  // ใบขาด/ลา/มาสาย — ล็อกตามกะที่ซ้อนกันจริง (ทั้งวัน=ทุกกะ, เช้า/บ่าย/รายชั่วโมง=เฉพาะกะที่เวลาทับ) ไม่สนใจ rows ที่ส่งมา
+  // (ใบลาไม่ใช่แถวแผน — drag-move/ตรวจสลับคนก็ต้องเจอ) คืนเป็น pseudo-row เพื่อให้ผู้เรียกทุกจุดโชว์ข้อความเดิมได้
+  _planLeaves.forEach(l => {
+    if (l.LeaveDate !== date || !workerCodes.includes(l.EmployeeCode)) return;
+    const ls = (l.TimeStart || '00:00').slice(0, 5), le = (l.TimeEnd || '23:59').slice(0, 5);
+    if (!(ls < timeEnd && timeStart < le)) return;
+    conflicts.push({ code: l.EmployeeCode, row: { _row_id: `leave-${l._row_id}`, _leave: true, ProductName: `${l.LeaveType} (${l.DayPart})`, Line: 'ใบขาด/ลา/มาสาย', Shift: '' } });
   });
   return conflicts;
 }
@@ -21720,6 +21907,384 @@ async function loadEmployeeData() {
   employeeUpdateKPIs();
   employeeRenderTable();
 }
+// ══════════════════════════════════════════════
+//  ขาด / ลา / มาสาย (nav-leave, table employee_leaves) — added 2026-10-15
+//  1 แถว = 1 พนักงาน × 1 วัน ลาหลายวันถูกแตกเป็นหลายแถวตอนบันทึก (เช็คชนแผนผลิต/รายงานง่าย)
+//  TimeStart/TimeEnd ใช้ตัดสินว่าชนกะไหนของแผนผลิต (ดู _planFindWorkerConflicts — ต่อ _planLeaves เข้าไปที่นั่น)
+// ══════════════════════════════════════════════
+const LEAVE_PARTS = {
+  'ทั้งวัน': { start: '00:00', end: '23:59', hours: 8 },   // 00:00-23:59 = ชนทุกกะรวมโอที
+  'เช้า'   : { start: '08:30', end: '12:00', hours: 3.5 }, // ตรงกับ PLAN_SHIFTS.เช้า
+  'บ่าย'   : { start: '13:00', end: '17:30', hours: 4.5 }, // ตรงกับ PLAN_SHIFTS.บ่าย
+};
+const LEAVE_TYPE_CODE = { 'ลาป่วย': 'ป', 'ลากิจ': 'ก', 'ลาพักร้อน': 'พ', 'ขาดงาน': 'ข', 'มาสาย': 'ส' };
+const LEAVE_EMPTYPE_LABEL = { FT: 'พนักงานประจำ (FT)', PT: 'พาร์ทไทม์ (PT)', OS: 'เอาท์ซอร์ส (OS)' };
+const LEAVE_EMPTYPE_COLOR = { FT: '#0d6efd', PT: '#198754', OS: '#8b5cf6' };
+let _leaveData = [];
+let _leaveEmployees = [];   // พนักงานทุกสถานะ (ลาออกแล้วยังต้องโชว์ในรายงานย้อนหลัง)
+let _leaveModal = null, _leaveRptModal = null;
+
+function _lvEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function _lvLocalDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function _lvMonthRange(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return { start: `${ym}-01`, end: _lvLocalDate(new Date(y, m, 0)), days: new Date(y, m, 0).getDate(), y, m };
+}
+// ชั่วโมงระหว่างเวลา (หักพักเที่ยง 12:00-13:00 เฉพาะส่วนที่ทับ — กติกาเดียวกับ _prodrecordCalcHoursFromTime)
+function _lvHoursBetween(s, e) {
+  if (!s || !e) return 0;
+  const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const a = toMin(s), b = toMin(e);
+  if (b <= a) return 0;
+  const lunch = Math.max(0, Math.min(b, 780) - Math.max(a, 720));
+  return Math.round((b - a - lunch) / 60 * 100) / 100;
+}
+function _lvEmpName(r) { return `${r.FirstName || ''} ${r.LastName && r.LastName !== '-' ? r.LastName : ''}`.trim() || r.NickName || r.EmployeeCode; }
+async function _leaveEnsureEmployees(force = false) {
+  if (_leaveEmployees.length && !force) return;
+  const { data, error } = await _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType,Status,PhotoPath,Position,Department,StartDate,Phone').order('EmployeeCode');
+  if (error) { _err('โหลดรายชื่อพนักงานไม่ได้', error.message); return; }
+  _leaveEmployees = data || [];
+  // รูปพนักงาน: signed URL ชุดเดียวกับหน้า "พนักงาน" (_employeePhotoUrls) — ขอเฉพาะรูปที่ยังไม่มี; พังก็ข้าม (โชว์ตัวอักษรย่อแทน)
+  try {
+    const need = _leaveEmployees.map(e => e.PhotoPath).filter(p => p && !_employeePhotoUrls[p]);
+    if (need.length) {
+      const { data: urls } = await _sb.storage.from(EMP_PHOTO_BUCKET).createSignedUrls(need, 3600);
+      (urls || []).forEach(u => { if (u.signedUrl) _employeePhotoUrls[u.path] = u.signedUrl; });
+    }
+  } catch (e) { /* ไม่มีรูปก็ไม่เป็นไร */ }
+}
+// รูปวงกลมเล็ก (inline style ล้วน เพื่อให้ติดไปกับรายงานพิมพ์ด้วย) — ไม่มีรูป = ตัวอักษรแรกของชื่อ
+function _lvAvatar(code, size = 26) {
+  const e = _leaveEmployees.find(x => x.EmployeeCode === code);
+  const url = e?.PhotoPath && _employeePhotoUrls[e.PhotoPath];
+  const base = `width:${size}px;height:${size}px;border-radius:50%;vertical-align:middle;margin-right:4px;display:inline-block;`;
+  if (url) return `<img src="${url}" alt="" style="${base}object-fit:cover">`;
+  const ch = ((e?.NickName || e?.FirstName || code || '?').trim().charAt(0) || '?').toUpperCase();
+  return `<span style="${base}background:#e2e8f0;color:#475569;text-align:center;line-height:${size}px;font-size:${Math.round(size * .5)}px;font-weight:700">${_lvEsc(ch)}</span>`;
+}
+
+async function leaveLoadData() {
+  const mEl = document.getElementById('leave-filter-month');
+  if (!mEl.value) mEl.value = _lvLocalDate(new Date()).slice(0, 7);
+  const rng = _lvMonthRange(mEl.value);
+  _showLoader();
+  await _leaveEnsureEmployees(true);
+  const { data, error } = await _fetchAllPagedRange('employee_leaves', '*', 'LeaveDate', rng.start, rng.end);
+  _hideLoader();
+  if (error) { _err('โหลดข้อมูลขาด/ลา/มาสายไม่ได้ (ถ้ายังไม่ได้รัน create_employee_leaves.sql ให้รันก่อน)', error.message); return; }
+  _leaveData = (data || []).sort((a, b) => (b.LeaveDate || '').localeCompare(a.LeaveDate || '') || (a.EmployeeCode || '').localeCompare(b.EmployeeCode || ''));
+  leaveRenderTable();
+}
+
+// การ์ดพนักงาน (กดที่ชื่อในตาราง) — รูป + ข้อมูลพื้นฐาน + สรุปขาด/ลา/มาสายของเดือนที่โหลดอยู่
+function leaveShowEmpCard(code) {
+  const e = _leaveEmployees.find(x => x.EmployeeCode === code);
+  if (!e) return;
+  const url = e.PhotoPath && _employeePhotoUrls[e.PhotoPath];
+  const ch = ((e.NickName || e.FirstName || '?').trim().charAt(0) || '?').toUpperCase();
+  const photo = url
+    ? `<img src="${url}" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e2e8f0">`
+    : `<div style="width:120px;height:120px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:48px;font-weight:700;line-height:120px;margin:0 auto">${_lvEsc(ch)}</div>`;
+  const mine = _leaveData.filter(r => r.EmployeeCode === code);
+  const month = document.getElementById('leave-filter-month')?.value || '';
+  const sum = Object.keys(LEAVE_TYPE_CODE).map(t => {
+    const x = mine.filter(r => r.LeaveType === t);
+    if (!x.length) return '';
+    const h = Math.round(x.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
+    return `<span class="badge bg-light text-dark border me-1 mb-1">${t} ${x.length} ครั้ง / ${h} ชม.</span>`;
+  }).join('') || '<span class="text-muted">ไม่มีรายการในเดือนนี้</span>';
+  const row = (k, v) => v ? `<tr><td class="text-muted text-end pe-2" style="width:38%">${k}</td><td class="text-start">${_lvEsc(v)}</td></tr>` : '';
+  Swal.fire({
+    width: 420, showCloseButton: true, confirmButtonText: 'ปิด',
+    html: `<div class="text-center">${photo}
+      <h5 class="mt-2 mb-0 fw-bold">${_lvEsc(_lvEmpName(e))}</h5>
+      <div class="text-muted mb-2">${e.NickName ? `(${_lvEsc(e.NickName)}) · ` : ''}${_lvEsc(e.EmployeeCode)}
+        ${e.EmployeeType ? `<span class="badge ms-1" style="background:${LEAVE_EMPTYPE_COLOR[e.EmployeeType] || '#64748b'}">${e.EmployeeType}</span>` : ''}
+        ${e.Status === 'ลาออก' ? '<span class="badge bg-secondary ms-1">ลาออก</span>' : ''}</div>
+      <table class="small w-100 mb-2"><tbody>
+        ${row('ตำแหน่ง', e.Position)}${row('แผนก', e.Department)}${row('เริ่มงาน', e.StartDate ? _fmtDate(e.StartDate) : '')}${row('เบอร์โทร', e.Phone)}
+      </tbody></table>
+      <div class="small fw-bold text-start mb-1">ขาด/ลา/มาสาย เดือน ${_lvEsc(month)}</div>
+      <div class="text-start small">${sum}</div></div>`,
+  });
+}
+
+function leaveRenderTable() {
+  const q = (document.getElementById('leave-search')?.value || '').trim().toLowerCase();
+  const ft = document.getElementById('leave-filter-emptype')?.value || '';
+  const lt = document.getElementById('leave-filter-type')?.value || '';
+  const empMap = {}; _leaveEmployees.forEach(e => { empMap[e.EmployeeCode] = e; });
+  const rows = _leaveData.filter(r => {
+    const e = empMap[r.EmployeeCode];
+    if (ft && (e?.EmployeeType || '') !== ft) return false;
+    if (lt && r.LeaveType !== lt) return false;
+    if (q && !`${r.EmployeeCode} ${r.EmployeeName || ''} ${r.Reason || ''}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const today = _lvLocalDate(new Date());
+  const set = id => document.getElementById(id);
+  set('leave-kpi-count').textContent = rows.length;
+  set('leave-kpi-people').textContent = new Set(rows.map(r => r.EmployeeCode)).size;
+  set('leave-kpi-hours').textContent = (Math.round(rows.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100).toLocaleString();
+  set('leave-kpi-upcoming').textContent = rows.filter(r => r.LeaveDate >= today).length;
+  const typeBadge = { 'ลาป่วย': 'danger', 'ลากิจ': 'warning text-dark', 'ลาพักร้อน': 'info text-dark', 'ขาดงาน': 'dark', 'มาสาย': 'secondary' };
+  set('leave-tbody').innerHTML = rows.length ? rows.map(r => {
+    const e = empMap[r.EmployeeCode];
+    const part = r.DayPart === 'รายชั่วโมง' ? `${r.TimeStart || ''}–${r.TimeEnd || ''}` : r.DayPart;
+    return `<tr>
+      <td>${_fmtDate(r.LeaveDate)}${r.LeaveDate >= today ? ' <span class="badge bg-warning text-dark">ล่วงหน้า</span>' : ''}</td>
+      <td>${_lvEsc(r.EmployeeCode)}</td><td class="text-nowrap" style="cursor:pointer" title="ดูการ์ดพนักงาน" onclick="leaveShowEmpCard('${_lvEsc(r.EmployeeCode)}')">${_lvAvatar(r.EmployeeCode, 44)}<span class="text-primary">${_lvEsc(r.EmployeeName || (e ? _lvEmpName(e) : ''))}</span></td>
+      <td>${e?.EmployeeType ? `<span class="badge" style="background:${LEAVE_EMPTYPE_COLOR[e.EmployeeType] || '#64748b'}">${e.EmployeeType}</span>` : '—'}</td>
+      <td><span class="badge bg-${typeBadge[r.LeaveType] || 'secondary'}">${_lvEsc(r.LeaveType)}</span></td>
+      <td>${_lvEsc(part)}</td><td class="text-end">${Number(r.Hours) || 0}</td>
+      <td class="small">${_lvEsc(r.Reason || '')}</td>
+      <td class="text-center text-nowrap">
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" title="แก้ไข" onclick="leaveOpenModal(${r._row_id})"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" title="ลบ" onclick="leaveDelete(${r._row_id})"><i class="fas fa-trash"></i></button>
+      </td></tr>`;
+  }).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">ไม่มีรายการในเดือนนี้</td></tr>';
+}
+
+async function leaveOpenModal(rowId) {
+  await _leaveEnsureEmployees();
+  const r = rowId ? _leaveData.find(x => x._row_id === rowId) : null;
+  const sel = document.getElementById('leave-f-emp');
+  const active = _leaveEmployees.filter(e => e.Status === 'ทำงานอยู่' || (r && e.EmployeeCode === r.EmployeeCode));
+  sel.innerHTML = '<option value="">— เลือกพนักงาน —</option>' + active.map(e =>
+    `<option value="${_lvEsc(e.EmployeeCode)}">${_lvEsc(e.EmployeeCode)} — ${_lvEsc(_lvEmpName(e))}${e.NickName ? ` (${_lvEsc(e.NickName)})` : ''} [${e.EmployeeType || ''}]</option>`).join('');
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  document.getElementById('leave-edit-id').value = r ? r._row_id : '';
+  document.getElementById('leaveModalTitle').innerHTML = `<i class="fas fa-calendar-xmark me-2"></i>${r ? 'แก้ไข' : 'เพิ่ม'}รายการขาด/ลา/มาสาย`;
+  set('leave-f-emp', r ? r.EmployeeCode : '');
+  set('leave-f-type', r ? r.LeaveType : 'ลาป่วย');
+  set('leave-f-date', r ? r.LeaveDate : _lvLocalDate(new Date()));
+  set('leave-f-dateto', '');
+  set('leave-f-reason', r ? (r.Reason || '') : '');
+  set('leave-f-tstart', r && r.DayPart === 'รายชั่วโมง' ? r.TimeStart : '');
+  set('leave-f-tend', r && r.DayPart === 'รายชั่วโมง' ? r.TimeEnd : '');
+  const partId = { 'ทั้งวัน': 'leave-part-day', 'เช้า': 'leave-part-am', 'บ่าย': 'leave-part-pm', 'รายชั่วโมง': 'leave-part-hr' }[r ? r.DayPart : 'ทั้งวัน'];
+  document.getElementById(partId).checked = true;
+  // แก้ไข = แก้ทีละแถว (1 วัน) ไม่มีช่วงวันที่ — เหมือน pattern CO/BOM "เพิ่มหลายแถว แก้ไขทีละแถว"
+  document.getElementById('leave-f-dateto-wrap').style.display = r ? 'none' : '';
+  document.getElementById('leave-f-skipsun-wrap').style.display = r ? 'none' : '';
+  document.getElementById('leave-f-date-label').textContent = r ? 'วันที่ *' : 'ตั้งแต่วันที่ *';
+  leaveOnPartChange();
+  if (!_leaveModal) _leaveModal = new bootstrap.Modal(document.getElementById('leaveModal'));
+  _leaveModal.show();
+}
+function _leaveCurrentPart() { return document.querySelector('input[name="leave-f-part"]:checked')?.value || 'ทั้งวัน'; }
+function leaveOnTypeChange() {
+  if (document.getElementById('leave-f-type').value === 'มาสาย') {
+    document.getElementById('leave-part-hr').checked = true;
+    if (!document.getElementById('leave-f-tstart').value) document.getElementById('leave-f-tstart').value = '08:30';
+    leaveOnPartChange();
+  }
+}
+function leaveOnPartChange() {
+  document.getElementById('leave-f-time-wrap').style.display = _leaveCurrentPart() === 'รายชั่วโมง' ? '' : 'none';
+  leaveUpdateHours();
+}
+function _leaveResolveTimes() {
+  const part = _leaveCurrentPart();
+  if (part === 'รายชั่วโมง') {
+    const s = document.getElementById('leave-f-tstart').value, e = document.getElementById('leave-f-tend').value;
+    return { part, start: s, end: e, hours: _lvHoursBetween(s, e) };
+  }
+  const p = LEAVE_PARTS[part];
+  return { part, start: p.start, end: p.end, hours: p.hours };
+}
+function leaveUpdateHours() {
+  const t = _leaveResolveTimes();
+  const el = document.getElementById('leave-f-hours-hint');
+  el.textContent = t.part === 'รายชั่วโมง' && !t.hours ? 'ระบุเวลาเริ่ม–ถึง (หักพักเที่ยง 12:00–13:00 ให้อัตโนมัติ)'
+    : `= ${t.hours} ชม./วัน · ล็อกแผนผลิตช่วง ${t.start}–${t.end}`;
+}
+
+async function leaveSubmit(ev) {
+  ev.preventDefault();
+  const editId = parseInt(document.getElementById('leave-edit-id').value) || null;
+  const code = document.getElementById('leave-f-emp').value;
+  const emp = _leaveEmployees.find(e => e.EmployeeCode === code);
+  const type = document.getElementById('leave-f-type').value;
+  const d1 = document.getElementById('leave-f-date').value;
+  const d2 = (!editId && document.getElementById('leave-f-dateto').value) || d1;
+  const reason = document.getElementById('leave-f-reason').value.trim();
+  const t = _leaveResolveTimes();
+  if (!emp || !d1) { _err('กรุณาเลือกพนักงานและวันที่'); return; }
+  if (d2 < d1) { _err('"ถึงวันที่" ต้องไม่น้อยกว่า "ตั้งแต่วันที่"'); return; }
+  if (t.part === 'รายชั่วโมง' && (!t.start || !t.end || t.hours <= 0)) { _err('รายชั่วโมง: กรุณาระบุเวลาเริ่มและเวลาสิ้นสุดให้ถูกต้อง'); return; }
+  // แตกช่วงวันที่เป็นรายวัน (ข้ามวันอาทิตย์ได้เมื่อเป็นช่วงหลายวัน — วันอาทิตย์เป็นวันหยุดของปฏิทินแผนผลิต)
+  const dates = [];
+  if (editId) dates.push(d1);
+  else {
+    const skipSun = document.getElementById('leave-f-skipsun').checked && d2 !== d1;
+    const [y, m, dd] = d1.split('-').map(Number);
+    for (let d = new Date(y, m - 1, dd), n = 0; _lvLocalDate(d) <= d2 && n < 62; d.setDate(d.getDate() + 1), n++) {
+      if (skipSun && d.getDay() === 0) continue;
+      dates.push(_lvLocalDate(d));
+    }
+  }
+  if (!dates.length) { _err('ไม่มีวันที่ให้บันทึก (ช่วงที่เลือกเป็นวันอาทิตย์ล้วน)'); return; }
+  const overlap = (a1, a2, b1, b2) => (a1 || '00:00') < (b2 || '23:59') && (b1 || '00:00') < (a2 || '23:59');
+  _showLoader();
+  const [exRes, planRes] = await Promise.all([
+    _sb.from('employee_leaves').select('_row_id,LeaveDate,LeaveType,DayPart,TimeStart,TimeEnd').eq('EmployeeCode', code).in('LeaveDate', dates),
+    _sb.from('production_plan').select('PlanDate,Line,ProductName,Shift,TimeStart,TimeEnd,WorkerCodes,MO_Ref').in('PlanDate', dates),
+  ]);
+  _hideLoader();
+  if (exRes.error) { _err('ตรวจรายการซ้ำไม่ได้', exRes.error.message); return; }
+  const dup = (exRes.data || []).filter(x => x._row_id !== editId && overlap(t.start, t.end, (x.TimeStart || '').slice(0, 5), (x.TimeEnd || '').slice(0, 5)));
+  if (dup.length) {
+    _err('พนักงานคนนี้มีรายการขาด/ลา/มาสายซ้อนกันอยู่แล้ว', dup.map(x => `${_fmtDate(x.LeaveDate)} ${x.LeaveType} (${x.DayPart})`).join('<br>'));
+    return;
+  }
+  // เตือน (ไม่บล็อก) ถ้าพนักงานคนนี้ถูกลงแผนผลิตไว้แล้วในช่วงที่ลา — ต้องไปแก้แผนเอง ระบบไม่ถอดชื่อให้เอง
+  const planHits = (planRes.data || []).filter(p =>
+    (p.WorkerCodes || '').split(',').map(x => x.trim()).includes(code) &&
+    overlap(t.start, t.end, (p.TimeStart || '').slice(0, 5), (p.TimeEnd || '').slice(0, 5)));
+  if (planHits.length) {
+    const r = await Swal.fire({
+      icon: 'warning', title: 'พนักงานคนนี้ถูกลงแผนผลิตไว้แล้วในช่วงที่ลา',
+      html: `<div class="text-start small">${planHits.map(p => `${_fmtDate(p.PlanDate)} — ${_lvEsc(p.ProductName || '')} (${_lvEsc(p.Line || '')} ${_lvEsc(p.Shift || '')})`).join('<br>')}<br><br>ระบบจะบันทึกใบลา แต่ <b>ไม่ถอดชื่อออกจากแผนให้</b> — กรุณาไปแก้แผนผลิตเอง</div>`,
+      showCancelButton: true, confirmButtonText: 'บันทึกต่อ', cancelButtonText: 'ยกเลิก',
+    });
+    if (!r.isConfirmed) return;
+  }
+  const base = {
+    EmployeeCode: code, EmployeeName: _lvEmpName(emp), LeaveType: type, DayPart: t.part,
+    TimeStart: t.start, TimeEnd: t.end, Hours: t.hours, Reason: reason || null,
+  };
+  _showLoader();
+  let error, data;
+  if (editId) {
+    ({ data, error } = await _sb.from('employee_leaves').update({ ...base, LeaveDate: d1 }).eq('_row_id', editId).select());
+  } else {
+    ({ data, error } = await _sb.from('employee_leaves').insert(dates.map(d => ({ ...base, LeaveDate: d, CreatedBy: _currentUser?.name || _currentUser?.email || null }))).select());
+  }
+  _hideLoader();
+  if (error) { _err('บันทึกไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('บันทึกไม่สำเร็จ (ไม่มีสิทธิ์หรือไม่พบแถว)'); return; }
+  _logAudit(editId ? 'EDIT' : 'CREATE', 'employee_leaves', `${code} ${dates[0]}${dates.length > 1 ? '..' + dates[dates.length - 1] : ''}`, `${type} ${t.part} ${t.hours}ชม. × ${dates.length} วัน`);
+  _planLeavesLoaded = false;
+  _leaveModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: editId ? 'แก้ไขแล้ว' : `บันทึกแล้ว ${dates.length} วัน`, showConfirmButton: false, timer: 2000 });
+  leaveLoadData();
+}
+
+async function leaveDelete(rowId) {
+  const r = _leaveData.find(x => x._row_id === rowId);
+  if (!r) return;
+  const c = await Swal.fire({ icon: 'warning', title: 'ลบรายการนี้?', text: `${r.EmployeeName || r.EmployeeCode} — ${r.LeaveType} ${_fmtDate(r.LeaveDate)} (คืนสิทธิ์เลือกลงแผนผลิตวันนั้น)`, showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!c.isConfirmed) return;
+  _showLoader();
+  const { data, error } = await _sb.from('employee_leaves').delete().eq('_row_id', rowId).select();
+  _hideLoader();
+  if (error) { _err('ลบไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { _err('ลบไม่สำเร็จ (ไม่มีสิทธิ์หรือไม่พบแถว)'); return; }
+  _logAudit('DELETE', 'employee_leaves', `${r.EmployeeCode} ${r.LeaveDate}`, `${r.LeaveType} ${r.DayPart}`);
+  _planLeavesLoaded = false;
+  leaveLoadData();
+}
+
+// ── รายงานรายเดือน (แยกกลุ่ม FT/PT/OS) ──
+async function leaveOpenReportModal() {
+  await _leaveEnsureEmployees();
+  const m = document.getElementById('leave-filter-month').value || _lvLocalDate(new Date()).slice(0, 7);
+  document.getElementById('leave-rpt-month').value = m;
+  if (!_leaveRptModal) _leaveRptModal = new bootstrap.Modal(document.getElementById('leaveReportModal'));
+  _leaveRptModal.show();
+  leaveRenderReport();
+}
+async function leaveRenderReport() {
+  const ym = document.getElementById('leave-rpt-month').value;
+  const fmt = document.getElementById('leave-rpt-format').value;
+  const box = document.getElementById('leave-rpt-preview');
+  if (!ym) { box.innerHTML = ''; return; }
+  const rng = _lvMonthRange(ym);
+  box.innerHTML = '<div class="text-center text-white py-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>';
+  const { data, error } = await _fetchAllPagedRange('employee_leaves', '*', 'LeaveDate', rng.start, rng.end);
+  if (error) { box.innerHTML = ''; _err('โหลดข้อมูลรายงานไม่ได้', error.message); return; }
+  const recs = data || [];
+  const empMap = {}; _leaveEmployees.forEach(e => { empMap[e.EmployeeCode] = e; });
+  const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const title = `${MONTHS[rng.m - 1]} ${rng.y + 543}`;
+  // จัดกลุ่มตามประเภทพนักงาน → รายคน (เฉพาะคนที่มีรายการในเดือนนี้)
+  const groups = ['FT', 'PT', 'OS', ''].map(t => {
+    const byEmp = {};
+    recs.filter(r => (empMap[r.EmployeeCode]?.EmployeeType || '') === t).forEach(r => { (byEmp[r.EmployeeCode] ||= []).push(r); });
+    const codes = Object.keys(byEmp).sort();
+    return { type: t, label: t ? LEAVE_EMPTYPE_LABEL[t] : 'ไม่ระบุประเภท', color: LEAVE_EMPTYPE_COLOR[t] || '#64748b', codes, byEmp };
+  }).filter(g => g.codes.length);
+  const nameOf = c => recs.find(r => r.EmployeeCode === c)?.EmployeeName || (empMap[c] ? _lvEmpName(empMap[c]) : c);
+  const head = `<h2>รายงานขาด / ลา / มาสาย ประจำเดือน ${title}</h2>
+    <div class="lv-sub">WISE NOVATION CO., LTD. · พิมพ์เมื่อ ${_fmtDate(_lvLocalDate(new Date()))} · รวม ${recs.length} รายการ / ${new Set(recs.map(r => r.EmployeeCode)).size} คน</div>`;
+  if (!groups.length) { box.innerHTML = `<div class="leave-page${fmt === 'cal' ? ' cal' : ''}">${head}<div class="text-center" style="padding:30px;color:#64748b">ไม่มีรายการขาด/ลา/มาสายในเดือนนี้</div></div>`; return; }
+  const sign = '<div class="lv-sign"><div>ผู้จัดทำ</div><div>ฝ่ายบุคคล (HR)</div><div>ผู้อนุมัติ</div></div>';
+  let body = '';
+  if (fmt === 'cal') {
+    const dayHead = Array.from({ length: rng.days }, (_, i) => {
+      const dow = new Date(rng.y, rng.m - 1, i + 1).getDay();
+      return `<th${dow === 0 ? ' class="sun"' : ''}>${i + 1}</th>`;
+    }).join('');
+    groups.forEach(g => {
+      body += `<h3 style="background:${g.color}">${g.label} — ${g.codes.length} คน</h3>
+        <table><thead><tr><th style="width:18mm">รหัส</th><th style="width:38mm">ชื่อ</th>${dayHead}<th style="width:11mm">ชม.รวม</th></tr></thead><tbody>`;
+      g.codes.forEach(c => {
+        const list = g.byEmp[c];
+        const cells = Array.from({ length: rng.days }, (_, i) => {
+          const ds = `${ym}-${String(i + 1).padStart(2, '0')}`;
+          const dow = new Date(rng.y, rng.m - 1, i + 1).getDay();
+          const hits = list.filter(r => r.LeaveDate === ds);
+          const txt = hits.map(r => {
+            const sub = r.DayPart === 'ทั้งวัน' ? '' : r.DayPart === 'เช้า' ? 'ช' : r.DayPart === 'บ่าย' ? 'บ' : `${Number(r.Hours) || 0}ชม`;
+            return `${LEAVE_TYPE_CODE[r.LeaveType] || '?'}${sub ? `<span style="font-size:6.5px">${sub}</span>` : ''}`;
+          }).join(',');
+          return `<td${dow === 0 ? ' class="sun"' : ''}>${txt}</td>`;
+        }).join('');
+        const hrs = Math.round(list.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
+        body += `<tr><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvAvatar(c, 20)}${_lvEsc(nameOf(c))}</td>${cells}<td><b>${hrs}</b></td></tr>`;
+      });
+      body += '</tbody></table>';
+    });
+    body += `<div class="lv-legend">ป = ลาป่วย · ก = ลากิจ · พ = ลาพักร้อน · ข = ขาดงาน · ส = มาสาย &nbsp;|&nbsp; ตัวเล็กหลังอักษร: ช = ครึ่งเช้า, บ = ครึ่งบ่าย, Nชม = รายชั่วโมง (ไม่มี = ทั้งวัน) · แถบแดง = วันอาทิตย์</div>`;
+  } else {
+    const types = Object.keys(LEAVE_TYPE_CODE);
+    groups.forEach(g => {
+      body += `<h3 style="background:${g.color}">${g.label} — ${g.codes.length} คน</h3>
+        <table><thead><tr><th style="width:8mm">ที่</th><th>รหัส</th><th>ชื่อ-สกุล</th>${types.map(t => `<th>${t}<br><span style="font-weight:400;font-size:9px">ครั้ง / ชม.</span></th>`).join('')}<th>รวม ชม.</th><th>≈ วัน</th></tr></thead><tbody>`;
+      const tot = {}; types.forEach(t => { tot[t] = { n: 0, h: 0 }; });
+      let totH = 0;
+      g.codes.forEach((c, i) => {
+        const list = g.byEmp[c];
+        const cells = types.map(t => {
+          const x = list.filter(r => r.LeaveType === t);
+          const h = Math.round(x.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
+          tot[t].n += x.length; tot[t].h += h;
+          return `<td>${x.length ? `${x.length} / ${h}` : '–'}</td>`;
+        }).join('');
+        const h = Math.round(list.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
+        totH += h;
+        body += `<tr><td>${i + 1}</td><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvAvatar(c, 32)}${_lvEsc(nameOf(c))}</td>${cells}<td><b>${h}</b></td><td>${Math.round(h / 8 * 100) / 100}</td></tr>`;
+      });
+      body += `<tr style="background:#f1f5f9;font-weight:700"><td colspan="3" class="l">รวมกลุ่ม ${g.type || ''}</td>${types.map(t => `<td>${tot[t].n} / ${Math.round(tot[t].h * 100) / 100}</td>`).join('')}<td>${Math.round(totH * 100) / 100}</td><td>${Math.round(totH / 8 * 100) / 100}</td></tr></tbody></table>`;
+      // รายการละเอียดรายวันของกลุ่มนี้
+      const detail = g.codes.flatMap(c => g.byEmp[c]).sort((a, b) => a.LeaveDate.localeCompare(b.LeaveDate) || a.EmployeeCode.localeCompare(b.EmployeeCode));
+      body += `<table style="font-size:10px"><thead><tr><th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>ประเภท</th><th>ช่วง</th><th>ชม.</th><th>เหตุผล</th></tr></thead><tbody>${detail.map(r =>
+        `<tr><td>${_fmtDate(r.LeaveDate)}</td><td>${_lvEsc(r.EmployeeCode)}</td><td class="l">${_lvEsc(nameOf(r.EmployeeCode))}</td><td>${_lvEsc(r.LeaveType)}</td><td>${r.DayPart === 'รายชั่วโมง' ? `${_lvEsc(r.TimeStart)}–${_lvEsc(r.TimeEnd)}` : _lvEsc(r.DayPart)}</td><td>${Number(r.Hours) || 0}</td><td class="l">${_lvEsc(r.Reason || '')}</td></tr>`).join('')}</tbody></table>`;
+    });
+    body += '<div class="lv-legend">1 วันทำงาน = 8 ชม. (≈ วัน = ชม.รวม ÷ 8) · รายชั่วโมงหักพักเที่ยง 12:00–13:00</div>';
+  }
+  box.innerHTML = `<div class="leave-page${fmt === 'cal' ? ' cal' : ''}">${head}${body}${sign}</div>`;
+}
+function leavePrintReport() {
+  const html = document.getElementById('leave-rpt-preview').innerHTML;
+  if (!html || !html.includes('leave-page')) return;
+  document.getElementById('leave-print-root').innerHTML = html;
+  _printSetMode('leave');
+  window.print();
+}
+
 function _empInitials(r) { return ((r.NickName || r.FirstName || '?').trim().charAt(0) || '?').toUpperCase(); }
 function _empAvatar(r) {
   const url = r.PhotoPath && _employeePhotoUrls[r.PhotoPath];
@@ -38157,6 +38722,9 @@ function _renderCurrentUserBadge() {
   // ปกติ (ใช้ _hasRole('supervisor') ไม่ใช่ isAdmin เพราะเป็น 2 ระดับ ไม่ใช่ admin-only เหมือนแมททริกสกิล) —
   // ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม (production_records ยังเปิด authenticated_full_access
   // เหมือนเดิม เผื่อพนักงานเข้าตรงๆ ผ่าน console ก็ยังทำงานได้ ไม่ error)
+  // "ขาด/ลา/มาสาย" — หัวหน้างานขึ้นไป (คำตอบผู้ใช้ 2026-10-15) ซ่อนแค่ระดับ UI
+  const navLeave = document.getElementById('nav-leave');
+  if (navLeave) navLeave.style.display = _hasRole('supervisor') ? '' : 'none';
   const navProdrecord = document.getElementById('nav-prodrecord');
   if (navProdrecord) navProdrecord.style.display = _hasRole('supervisor') ? '' : 'none';
   // "อัตราการทำงานพนักงาน" — admin หรือหัวหน้างานเท่านั้น (2026-09-25)
