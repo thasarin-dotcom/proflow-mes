@@ -1924,6 +1924,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <a href="#" class="nav-link mb-1" id="nav-pricetier" onclick="showPage('pricetier',this)" title="ราคาซื้อ Bulk">
       <i class="fas fa-tags me-2"></i><span>ราคาซื้อ Bulk</span>
     </a>
+    <!-- ต้นทุนการผลิต (added 2026-10-15) — admin เท่านั้น เปิดกลับใน _renderCurrentUserBadge เหมือน nav-skillmatrix -->
+    <a href="#" class="nav-link mb-1" id="nav-costpage" onclick="showPage('costpage',this)" title="ต้นทุนการผลิต" style="display:none">
+      <i class="fas fa-coins me-2"></i><span>ต้นทุนการผลิต</span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
     </a>
@@ -5048,11 +5052,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="row g-2">
             <div class="col-md-6">
               <label class="form-label small mb-0">ชื่อบริษัทลูกค้า</label>
-              <input type="text" id="holdstockreport-customer-name" class="form-control form-control-sm">
+              <input type="text" id="holdstockreport-customer-name" class="form-control form-control-sm" list="holdstockreport-customer-datalist" autocomplete="off" oninput="holdstockReportCustomerInput(this.value)">
+              <datalist id="holdstockreport-customer-datalist"></datalist>
             </div>
             <div class="col-md-6">
               <label class="form-label small mb-0">ที่อยู่</label>
-              <input type="text" id="holdstockreport-customer-address" class="form-control form-control-sm">
+              <input type="text" id="holdstockreport-customer-address" class="form-control form-control-sm" oninput="holdstockReportRenderPreview()">
             </div>
           </div>
         </div>
@@ -5578,6 +5583,61 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: ต้นทุนการผลิต (Master, admin เท่านั้น) — ข้อมูลรายเดือนอยู่ใน admindash_payroll_actual ══════════ -->
+  <div class="page-view" id="page-costpage">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-coins me-2"></i>ต้นทุนการผลิต</h4>
+        <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="costpageAddMonth()">
+          <i class="fas fa-plus-circle me-2"></i>เพิ่มเดือน
+        </button>
+      </div>
+    </div>
+    <div class="scroll-content">
+      <div class="glass-card mb-3 small text-muted">
+        กรอกยอดที่จ่ายจริงของแต่ละเดือน แล้วใส่ <b>% บวกเพิ่ม</b> (กำไรแฝง) ระบบจะได้ <b>ยอดสุทธิ</b> = จ่ายจริง + % ไว้เป็นฐานต้นทุนจริงของการผลิต —
+        เดือนที่เคยกรอกไว้ในแดชบอร์ดต้นทุนจะแสดงเป็นการ์ดให้อัตโนมัติ
+      </div>
+      <div class="glass-card mb-3" id="costpage-vol"></div>
+      <div class="row g-3" id="costpage-cards"></div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="costpageModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-coins me-2"></i>ต้นทุนการผลิตรายเดือน</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <label class="fw-bold small mb-0">เดือน</label>
+            <input type="month" id="costpage-modal-month" class="form-control form-control-sm" style="max-width:180px" onchange="costpageOnMonthChange()">
+          </div>
+          <div id="costpage-note" class="mb-2"></div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead><tr><th>รายการ</th><th class="text-end" style="width:160px">จ่ายจริง (฿)</th><th class="text-end" style="width:100px">บวกเพิ่ม (%)</th><th class="text-end" style="width:130px">กำไรแฝง (฿)</th><th class="text-end" style="width:140px">ยอดสุทธิ (฿)</th></tr></thead>
+              <tbody id="costpage-tbody"></tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-sm btn-outline-success" onclick="costpageApplyRecommended()" title="เติม % บวกเพิ่มจากการวิเคราะห์ความผันผวน (แก้เองได้ก่อนบันทึก)">
+              <i class="fas fa-wand-magic-sparkles me-1"></i>ใช้ % แนะนำ
+            </button>
+          </div>
+          <div class="p-2 rounded" style="background:#f1f5f9" id="costpage-summary"></div>
+          <div class="small text-muted mt-2">Overhead ฿/วัน = ยอดสุทธิ (สาธารณูปโภค + รปภ. + อื่นๆ) ÷ 26 วัน ไม่รวมแรงงาน เพราะค่าแรงคิดแยกจากชั่วโมงทำงานจริงตอนอนุมัติต้นทุนอยู่แล้ว — ค่านี้จะถูกเติมเป็นค่าเริ่มต้นในหน้าอนุมัติต้นทุน</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="costpageSave()"><i class="fas fa-save me-1"></i>บันทึก</button>
+        </div>
       </div>
     </div>
   </div>
@@ -9727,7 +9787,8 @@ const _PAGE_LOADERS = {
   'material' : loadMaterialData,
   'pricetier' : pricetierLoadData,
   'employee' : loadEmployeeData,
-  'leave'    : leaveLoadData,
+  'costpage' : costpageLoad,
+  'leave'   : leaveLoadData,
   'skillmatrix': loadSkillMatrixData,
   'laborutil' : loadLaborUtilData,
   'prodrecord': prodrecordLoadData,
@@ -26331,13 +26392,17 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   if (!_prodrecordApproveModal) _prodrecordApproveModal = new bootstrap.Modal(document.getElementById('prodrecordApproveModal'));
 
   _showLoader();
-  const [detailsRes, lastApprovedRes, bomRes, allRecsRes] = await Promise.all([
+  const costMonth = String(r.Date_End || r.Date_Start || '').slice(0, 7);
+  const [detailsRes, lastApprovedRes, bomRes, allRecsRes, costPageRes] = await Promise.all([
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
     _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility,RentPerDay')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
     _sb.from('bom').select('SellingPrice,SellingPrice2,SellingPrice2_CustomerName').eq('ProductCode', r.ProductCode).limit(1),
     _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
+    // ยอดจริงรายเดือนจากหน้า "ต้นทุนการผลิต" — ใช้เป็นค่าเริ่มต้น Overhead/ค่าเช่า (error/ไม่มีเดือนนี้ = ข้าม)
+    costMonth ? _sb.from('admindash_payroll_actual').select('*').eq('Month', costMonth).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const costDefault = costPageRes.error ? null : _costpageDefaultsFor(costPageRes.data, _prodrecordBuildDateJobCount(allRecsRes.data || []), costMonth);
   // จำนวนงานที่ทำงานในแต่ละวัน — ใช้หารค่าเช่า
   window._prodrecordApproveDateJobCount = _prodrecordBuildDateJobCount(allRecsRes.data || []);
 
@@ -26369,8 +26434,9 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   // (ต่างจาก FT/PT ที่ไม่มีอัตรามาตรฐานตายตัวแบบนี้ จึงยังปล่อยว่างเป็นค่าเริ่มต้นเหมือนเดิม)
   document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? 91.09;
   document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
-  document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? last.OverheadUtility ?? '';
-  document.getElementById('prodrecord-ap-rent').value = r.RentPerDay ?? last.RentPerDay ?? _PRODRECORD_RENT_DEFAULT_PER_DAY;
+  // ลำดับค่าเริ่มต้น: ค่าที่บันทึกไว้แล้วของใบนี้ → คำนวณจากหน้า "ต้นทุนการผลิต" ของเดือนนั้น → ค่าจากใบล่าสุดที่อนุมัติ
+  document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? costDefault?.util ?? last.OverheadUtility ?? '';
+  document.getElementById('prodrecord-ap-rent').value = r.RentPerDay ?? costDefault?.rent ?? last.RentPerDay ?? _PRODRECORD_RENT_DEFAULT_PER_DAY;
 
   document.getElementById('prodrecord-ap-info').innerHTML =
     `<span class="badge bg-secondary me-1">${r.ProdRecord_ID}</span><b>${r.ProductName||''}</b>` +
@@ -35425,11 +35491,35 @@ function holdstockRenderPendingReportBox() {
         <td><input type="checkbox" class="holdstock-pending-check" value="${m._row_id}" onchange="holdstockPendingUpdateBtn()"></td>
         <td>${_fmtDate(m.MoveDate)}</td><td>${m.ItemCode || ''}</td><td>${m.ItemName || ''}</td><td>${m.Lot || ''}</td>
         <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td>
-        <td>${m.DisposalMethod || '—'}</td><td>${m.Reason || ''}</td>
+        <td>${_hasRole('supervisor')
+          ? `<select class="form-select form-select-sm" style="min-width:110px" onchange="holdstockPendingChangeMethod(${m._row_id}, this)">
+              ${['ทำลาย','คืนลูกค้า','อื่นๆ'].concat(m.DisposalMethod && !['ทำลาย','คืนลูกค้า','อื่นๆ'].includes(m.DisposalMethod) ? [m.DisposalMethod] : [])
+                .map(o => `<option value="${o}" ${o === m.DisposalMethod ? 'selected' : ''}>${o}</option>`).join('')}
+            </select>`
+          : (m.DisposalMethod || '—')}</td><td>${m.Reason || ''}</td>
       </tr>`).join('')
     : `<tr><td colspan="8" class="text-center text-muted py-3">ไม่มีรายการรอออกรายงาน</td></tr>`;
   document.getElementById('holdstock-pending-check-all').checked = false;
   holdstockPendingUpdateBtn();
+}
+
+// แก้วิธีจัดการของรายการที่ยังไม่ได้ออกเอกสาร (ReportNo IS NULL เท่านั้น — ลิสต์นี้มีแต่รายการแบบนี้อยู่แล้ว)
+// ออกเอกสารแล้วต้องยกเลิกใบก่อนถึงจะแก้ได้ ตามกติกาเดิมของ ReportNo
+async function holdstockPendingChangeMethod(moveId, sel) {
+  const m = _holdstockPendingReportMoves.find(x => x._row_id === moveId);
+  if (!m) return;
+  const oldV = m.DisposalMethod, newV = sel.value;
+  if (oldV === newV) return;
+  const { data, error } = await _sb.from('hold_stock_moves').update({ DisposalMethod: newV })
+    .eq('_row_id', moveId).is('ReportNo', null).select('_row_id');
+  if (error || !data || !data.length) {
+    sel.value = oldV || '';
+    _err('แก้ไขวิธีจัดการไม่สำเร็จ', error ? error.message : 'รายการนี้อาจออกเอกสารไปแล้ว');
+    return;
+  }
+  m.DisposalMethod = newV;
+  _logAudit('EDIT', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `เปลี่ยนวิธีจัดการ ${oldV || '—'} → ${newV}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'แก้ไขวิธีจัดการแล้ว', showConfirmButton:false, timer:1200 });
 }
 
 function holdstockPendingToggleAll(cb) {
@@ -35469,8 +35559,48 @@ function holdstockReportOpenModal(explicitIds) {
   _holdstockReportModal.show();
 }
 
+// move/hold_stock บางรายการ UOM ว่าง (บันทึกตอนย้ายเข้า) — ดึงหน่วยจาก Master (materials / stock_fg) มาเติมตอนออกเอกสาร
+// เก็บใน cache เท่านั้น ไม่เขียนทับข้อมูลเดิมในฐานข้อมูล
+const _holdstockUomCache = {};
+
+// รายชื่อลูกค้าที่เคยใช้ — รวมจากเอกสารใบส่งคืน Defect ที่เคยออก (ReportCustomerName), customer_orders และลูกค้าที่เคยแท็ก
+// ในเบิกเบ็ดเตล็ด (ล่าสุดก่อน, ชื่อซ้ำเอาอันแรก) ใช้เป็น datalist ในช่องชื่อลูกค้าของใบส่งคืน
+let _holdstockCustomerHistory = [];
+async function _holdstockLoadCustomerHistory() {
+  const [rptRes, coRes, miscRes] = await Promise.all([
+    _sb.from('hold_stock_moves').select('ReportCustomerName,ReportCustomerAddress').not('ReportCustomerName', 'is', null).order('_row_id', { ascending: false }).limit(300),
+    _sb.from('customer_orders').select('CustomerName,CustomerAddress').order('_row_id', { ascending: false }).limit(500),
+    _sb.from('issue_misc').select('CustomerName,CustomerAddress').not('CustomerName', 'is', null).order('_row_id', { ascending: false }).limit(300),
+  ]);
+  const fromReports = (rptRes.data || []).map(r => ({ CustomerName: r.ReportCustomerName, CustomerAddress: r.ReportCustomerAddress || '' }));
+  _holdstockCustomerHistory = _miscDedupeCustomers([...fromReports, ...(coRes.data || []), ...(miscRes.data || [])]);
+  const dl = document.getElementById('holdstockreport-customer-datalist');
+  if (dl) dl.innerHTML = _holdstockCustomerHistory.map(c => `<option value="${String(c.CustomerName).replace(/"/g, '&quot;')}"></option>`).join('');
+}
+
+function holdstockReportCustomerInput(val) {
+  // ชื่อตรงกับลูกค้าเดิม (เลือกจากรายการ) → เติมที่อยู่ให้ ยังแก้เองได้
+  const hit = _holdstockCustomerHistory.find(c => c.CustomerName === val);
+  if (hit && hit.CustomerAddress) document.getElementById('holdstockreport-customer-address').value = hit.CustomerAddress;
+  holdstockReportRenderPreview();
+}
+async function _holdstockFillMissingUom(rows) {
+  const need = rows.filter(r => !r.UOM && r.ItemCode && !_holdstockUomCache[r.ItemCode]);
+  if (!need.length) return;
+  const fgCodes = [...new Set(need.filter(r => r.ItemType === 'FG').map(r => r.ItemCode))];
+  const matCodes = [...new Set(need.filter(r => r.ItemType !== 'FG').map(r => r.ItemCode))];
+  const [mRes, fRes] = await Promise.all([
+    matCodes.length ? _sb.from('materials').select('MaterialCode,UOM').in('MaterialCode', matCodes) : Promise.resolve({ data: [] }),
+    fgCodes.length ? _sb.from('stock_fg').select('ProductCode,UOM').in('ProductCode', fgCodes) : Promise.resolve({ data: [] }),
+  ]);
+  (mRes.data || []).forEach(x => { if (x.UOM) _holdstockUomCache[x.MaterialCode] = x.UOM; });
+  (fRes.data || []).forEach(x => { if (x.UOM && !_holdstockUomCache[x.ProductCode]) _holdstockUomCache[x.ProductCode] = x.UOM; });
+}
+
 function holdstockReportOnScopeChange() {
   const rows = _holdstockReportScopeRows();
+  _holdstockFillMissingUom(rows).then(() => holdstockReportRenderPreview());
+  if (!_holdstockCustomerHistory.length) _holdstockLoadCustomerHistory();
   document.getElementById('holdstockreport-selected-summary').innerHTML = rows.map(r =>
     `<div>${_fmtDate(r.MoveDate) || ''} — ${r.ItemName || ''} (Lot ${r.Lot || '—'}) — ${(parseFloat(r.Qty) || 0).toLocaleString()} ${r.UOM || ''}</div>`
   ).join('') || '<div>ไม่พบรายการที่เลือก</div>';
@@ -35703,7 +35833,7 @@ function _holdstockReportBuildGroups(rows) {
   const order = [];
   rows.forEach(r => {
     const key = `${r.ItemCode}|${r.ItemName}`;
-    if (!groups[key]) { groups[key] = { code: r.ItemCode, name: r.ItemName, uom: r.UOM, lots: [] }; order.push(key); }
+    if (!groups[key]) { groups[key] = { code: r.ItemCode, name: r.ItemName, uom: r.UOM || _holdstockUomCache[r.ItemCode] || '', lots: [] }; order.push(key); }
     groups[key].lots.push({ lotLabel: r.Lot || '—', qty: parseFloat(r.Qty) || 0, reason: r.Reason || '' });
   });
   return { groups, order };
@@ -35802,6 +35932,375 @@ function holdstockReportRenderPreview() {
     overlay.innerHTML = '<div class="box">🔒 กรุณายืนยันเลขที่เอกสารก่อน<br>จึงจะพิมพ์ได้ (ดูตัวอย่างข้อมูลได้ตามปกติ)</div>';
     wrap.appendChild(overlay);
   }
+}
+
+// ══════════════════════════════════════════════
+// PAGE: ต้นทุนการผลิต (Master, admin) — ยอดจ่ายจริงรายเดือน + % ที่นำไปบวกเป็นต้นทุนผลิต
+// เก็บใน admindash_payroll_actual (ตารางเดียวกับหน้าแดชบอร์ดต้นทุน & กำไร, SQL: alter_..._add_cost_page.sql)
+// % = บวกเพิ่มจากยอดจ่ายจริง (กำไรแฝง) ยอดสุทธิ = จ่ายจริง×(1+%) เป็นฐานต้นทุน; Overhead ฿/วัน = ยอดสุทธิ(สาธารณูปโภค+รปภ.+อื่นๆ) ÷ 26 วันต่อเดือน (_COSTPAGE_DAYS_PER_MONTH) — ไม่รวมแรงงาน เพราะค่าแรงถูกคิดแยก
+// จากชั่วโมงทำงานจริงตอนอนุมัติต้นทุนอยู่แล้ว (รวมเข้าไปจะนับซ้ำ) ค่าเช่า ฿/วัน คำนวณแยกด้วยวิธีเดียวกัน
+// ══════════════════════════════════════════════
+const _COSTPAGE_ROWS = [
+  { key: 'ft',  grp: 'แรงงานที่จ่ายจริง', label: 'พนักงานประจำ (FT) เงินเดือน', col: 'FT_TotalCost', labor: true },
+  { key: 'ftot', label: 'FT โอที', col: 'FT_OTCost', labor: true },
+  { key: 'pt',  label: 'Part Time (PT) ค่าจ้าง', col: 'PT_TotalCost', labor: true },
+  { key: 'ptot', label: 'PT โอที', col: 'PT_OTCost', labor: true },
+  { key: 'os',  label: 'Outsource (OS) ค่าจ้าง', col: 'OS_TotalCost', labor: true },
+  { key: 'osot', label: 'OS โอที', col: 'OS_OTCost', labor: true },
+  { key: 'water',    grp: 'สาธารณูปโภค', label: 'ค่าน้ำ', col: 'Water_Cost' },
+  { key: 'electric', label: 'ค่าไฟ', col: 'Electric_Cost' },
+  { key: 'utilold',  label: 'สาธารณูปโภครวม (ข้อมูลเดิมที่เคยกรอกไว้ ยังไม่แยกน้ำ/ไฟ)', col: 'Utility_Cost', legacyUtil: true },
+  { key: 'rent',     grp: 'ค่าคงที่ (ทุกเดือน)', label: 'ค่าเช่า', col: 'Rent_Cost', rent: true },
+  { key: 'security', label: 'ค่ารักษาความปลอดภัย', col: 'Security_Cost' },
+];
+const _COSTPAGE_DAYS_PER_MONTH = 26;   // ตัวหารคงที่ทั้งหน้านี้และค่าเริ่มต้นตอนอนุมัติต้นทุน (คำตอบผู้ใช้ 2026-10-16)
+let _costpageAll = [];        // แถวทั้งหมดของ admindash_payroll_actual (Month ล่าสุดก่อน)
+let _costpageDateCount = {};  // วันที่ → จำนวนบันทึกผลิตที่ทำงานจริงวันนั้น (ใช้นับวันผลิตจริงของเดือน)
+let _costpageModal = null;
+let _costpageEditMonth = '';
+
+function _costpageMonthDays(month, dateCount) {
+  return Object.keys(dateCount || {}).filter(d => String(d).startsWith(month + '-')).length;
+}
+
+// % = ส่วนที่บวกเพิ่มจากยอดจ่ายจริง (กำไรแฝง) ไม่มี % = 0 → ยอดสุทธิ = จ่ายจริง × (1 + %/100) ใช้เป็นฐานต้นทุนจริง
+// ถ้าเดือนนั้นกรอกค่าน้ำ/ค่าไฟแล้ว จะไม่นับ Utility_Cost เดิมซ้ำ
+function _costpageItems(p) {
+  p = p || {};
+  const pct = p.Pct_Json || {};
+  const num = v => parseFloat(v) || 0;
+  const hasSplit = p.Water_Cost != null || p.Electric_Cost != null;
+  const items = [];
+  _COSTPAGE_ROWS.forEach(r => {
+    if (r.legacyUtil && hasSplit) return;
+    const a = num(p[r.col]);
+    if (!a && p[r.col] == null) return;
+    const pc = parseFloat(pct[r.key]) || 0;
+    items.push({ key: r.key, label: r.label, kind: r.labor ? 'labor' : (r.rent ? 'rent' : 'util'), paid: a, pct: pc, markup: a * pc / 100, net: a * (1 + pc / 100) });
+  });
+  (Array.isArray(p.Other_Items) ? p.Other_Items : []).forEach(o => {
+    const a = num(o.amount); if (!a && o.amount == null) return;
+    const pc = parseFloat(o.pct) || 0;
+    items.push({ key: 'other', label: o.name || 'อื่นๆ', kind: 'util', paid: a, pct: pc, markup: a * pc / 100, net: a * (1 + pc / 100) });
+  });
+  return items;
+}
+
+function _costpageCompute(p, prodDays) {
+  const items = _costpageItems(p);
+  const sum = (f, k) => items.filter(i => !k || i.kind === k).reduce((s, i) => s + i[f], 0);
+  const util = sum('net', 'util'), rent = sum('net', 'rent');
+  return { items, paid: sum('paid'), markup: sum('markup'), net: sum('net'), labor: sum('net', 'labor'), util, rent, prodDays,
+    utilPerDay: util / _COSTPAGE_DAYS_PER_MONTH, rentPerDay: rent / _COSTPAGE_DAYS_PER_MONTH };
+}
+
+function _costpageFmt(v) { return '฿' + (v || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 }); }
+
+async function costpageLoad() {
+  if (!_currentUser?.isAdmin) return;
+  _showLoader();
+  const [payRes, recRes] = await Promise.all([
+    _sb.from('admindash_payroll_actual').select('*').order('Month', { ascending: false }),
+    _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
+  ]);
+  _hideLoader();
+  if (payRes.error) { _err('โหลดข้อมูลต้นทุนไม่สำเร็จ', payRes.error.message + ' (ถ้ายังไม่เคยรัน ให้รัน create_admindash_payroll_actual.sql และ alter_admindash_payroll_actual_add_cost_page.sql)'); return; }
+  _costpageAll = payRes.data || [];
+  _costpageDateCount = _prodrecordBuildDateJobCount(recRes.data || []);
+  costpageRenderCards();
+}
+
+// การ์ดรายเดือน: เดือนที่เคยกรอกไว้ทั้งหมด (รวมข้อมูลเดิมจากแดชบอร์ด) + เดือนที่มีการผลิตจริงแต่ยังไม่เคยกรอก
+// ── วิเคราะห์ความผันผวน → % บวกเพิ่มแนะนำ ──
+// วัดจาก "ยอดจ่ายจริง ÷ 26 วัน" ของแต่ละเดือน (ตรงกับวิธีคิด Overhead ฿/วัน ตอนอนุมัติต้นทุน) — หารวันคงที่ จึงวัดแค่ราคาที่ขึ้นลงจริง ไม่ปนกับจำนวนวันผลิต
+// ข้อมูล < 6 เดือน: % = (ค่าสูงสุดที่เคยเจอ − ค่าเฉลี่ย) ÷ ค่าเฉลี่ย
+// ข้อมูล ≥ 6 เดือน: % = 1.65 × ส่วนเบี่ยงเบนมาตรฐาน ÷ ค่าเฉลี่ย (เผื่อได้ ~95% ของเดือน)
+// ปัดขึ้นทีละ 5% — ค่าเช่า/ค่า รปภ. เป็นค่าคงที่ ไม่นำมาวิเคราะห์
+const _COSTPAGE_VOL_GROUPS = [
+  { key: 'salary',   label: 'ค่าแรง (เงินเดือน/ค่าจ้าง)', rowKeys: ['ft', 'pt', 'os'] },
+  { key: 'ot',       label: 'ค่าแรงโอที',                  rowKeys: ['ftot', 'ptot', 'osot'] },
+  { key: 'water',    label: 'ค่าน้ำ',                      rowKeys: ['water'] },
+  { key: 'electric', label: 'ค่าไฟ',                       rowKeys: ['electric'] },
+];
+
+let _costpageVolOverride = {};   // month → true/false ที่ผู้ใช้ติ๊กเอง (ทับกติกาเริ่มต้น)
+
+function _costpageVolMonths() {
+  const d = new Date();
+  const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return _costpageAll.map(p => {
+    const days = _costpageMonthDays(p.Month, _costpageDateCount);
+    let reason = '';
+    if (p.Month >= thisMonth) reason = 'เดือนยังไม่จบ';
+    const ov = _costpageVolOverride[p.Month];
+    return { month: p.Month, p, days, reason, included: ov != null ? ov : !reason };
+  }).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+function _costpageVolatility() {
+  const months = _costpageVolMonths();
+  const groups = _COSTPAGE_VOL_GROUPS.map(g => {
+    const cols = g.rowKeys.map(k => _COSTPAGE_ROWS.find(r => r.key === k).col);
+    const vals = {};
+    months.forEach(m => {
+      const has = cols.some(c => m.p[c] != null);
+      if (!has) return;
+      const amt = cols.reduce((s, c) => s + (parseFloat(m.p[c]) || 0), 0);
+      // โอทีเดือนที่ไม่มีเลยนับเป็น 0 ได้ (เป็นข้อมูลจริง) ส่วนรายการอื่นยอด 0 = ยังไม่ได้กรอก ไม่นับ
+      if (amt <= 0 && g.key !== 'ot') return;
+      vals[m.month] = amt / _COSTPAGE_DAYS_PER_MONTH;
+    });
+    const used = months.filter(m => m.included && vals[m.month] != null).map(m => vals[m.month]);
+    const n = used.length;
+    let avg = null, max = null, rec = null, method = '';
+    if (n >= 2) {
+      avg = used.reduce((s, v) => s + v, 0) / n;
+      max = Math.max(...used);
+      if (avg > 0) {
+        let raw;
+        if (n >= 6) {
+          const sd = Math.sqrt(used.reduce((s, v) => s + (v - avg) ** 2, 0) / (n - 1));
+          raw = 1.65 * sd / avg * 100; method = 'สถิติ (95%)';
+        } else {
+          raw = (max - avg) / avg * 100; method = 'ค่าสูงสุดที่เคยเจอ';
+        }
+        rec = Math.ceil(raw / 5) * 5;
+      }
+    }
+    return { ...g, vals, n, avg, max, rec, method };
+  });
+  return { months, groups };
+}
+
+function costpageToggleVolMonth(month, checked) {
+  _costpageVolOverride[month] = checked;
+  costpageRenderVolatility();
+}
+
+function costpageRenderVolatility() {
+  const box = document.getElementById('costpage-vol');
+  if (!box) return;
+  const { months, groups } = _costpageVolatility();
+  if (!months.length) { box.innerHTML = ''; return; }
+  const f0 = v => v == null ? '—' : '฿' + Math.round(v).toLocaleString('th-TH');
+  const usedCount = months.filter(m => m.included).length;
+  const head = months.map(m => `<th class="text-end" style="min-width:90px">
+      <label class="d-inline-flex align-items-center gap-1 mb-0" title="${m.reason || 'นับรวมในการวิเคราะห์'}">
+        <input type="checkbox" ${m.included ? 'checked' : ''} onchange="costpageToggleVolMonth('${m.month}', this.checked)">${m.month}
+      </label><div class="fw-normal text-muted" style="font-size:.7rem">ผลิต ${m.days} วัน${m.reason && !m.included ? ' · ไม่นับ' : ''}</div></th>`).join('');
+  const body = groups.map(g => `<tr>
+      <td class="fw-bold">${g.label}</td>
+      ${months.map(m => {
+        const v = g.vals[m.month];
+        const hi = g.n >= 2 && m.included && v != null && v === g.max;
+        return `<td class="text-end ${m.included ? '' : 'text-muted text-decoration-line-through'} ${hi ? 'text-danger fw-bold' : ''}">${f0(v)}</td>`;
+      }).join('')}
+      <td class="text-end">${f0(g.avg)}</td>
+      <td class="text-end">${g.avg ? ((g.max - g.avg) / g.avg * 100).toFixed(1) + '%' : '—'}</td>
+      <td class="text-end">${g.rec == null ? '<span class="text-muted small">ข้อมูลไม่พอ</span>' : `<span class="badge bg-success" style="font-size:.85rem">+${g.rec}%</span><div class="text-muted" style="font-size:.65rem">${g.method}</div>`}</td>
+    </tr>`).join('');
+  box.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="fw-bold"><i class="fas fa-chart-line me-1"></i>ความผันผวนต่อวัน (หาร 26 วัน) & % บวกเพิ่มแนะนำ</div>
+      <div class="small text-muted">นับ ${usedCount} เดือน · ติ๊กหัวคอลัมน์เพื่อเลือกเดือนที่นำมาคิด</div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm mb-2 align-middle">
+      <thead><tr><th>รายการ (ยอดจ่ายจริง ÷ 26 วัน)</th>${head}<th class="text-end">เฉลี่ย/วัน</th><th class="text-end">สูงกว่าเฉลี่ยสุด</th><th class="text-end">% แนะนำ</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+    <div class="small text-muted">${usedCount < 6
+      ? `<i class="fas fa-triangle-exclamation text-warning me-1"></i>มีข้อมูล ${usedCount} เดือน — ใช้สูตร "ค่าสูงสุดที่เคยเจอเทียบค่าเฉลี่ย" ไปก่อน ค่าแนะนำจะแม่นขึ้นเมื่อครบ 6 เดือน (เปลี่ยนเป็นสูตรสถิติเผื่อ ~95% ให้อัตโนมัติ)`
+      : 'ใช้สูตรสถิติ: 1.65 × ส่วนเบี่ยงเบนมาตรฐาน ÷ ค่าเฉลี่ย (เผื่อความผันผวนได้ ~95% ของเดือน)'}
+      · ตัวแดง = เดือนที่สูงที่สุด · ไม่รวมเดือนที่ยังไม่จบ (ติ๊กเพื่อนับเองได้) · เดือนที่ผลิตไม่ถึง 26 วัน ส่วนต่างคือต้นทุนวันว่างที่ไม่ได้คิดเข้าสินค้า · ค่าเช่า/ค่า รปภ. เป็นค่าคงที่ ไม่วิเคราะห์</div>`;
+}
+
+function costpageApplyRecommended() {
+  const { groups } = _costpageVolatility();
+  const applied = [];
+  groups.forEach(g => {
+    if (g.rec == null) return;
+    g.rowKeys.forEach(k => { const el = document.getElementById('cp-p-' + k); if (el) el.value = g.rec; });
+    applied.push(`${g.label} +${g.rec}%`);
+  });
+  if (!applied.length) { _err('ยังไม่มี % แนะนำ', 'ต้องมีข้อมูลที่นับได้อย่างน้อย 2 เดือนก่อน'); return; }
+  costpageRecalc();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เติม % แนะนำแล้ว — ตรวจสอบแล้วกดบันทึก', text: applied.join(' · '), showConfirmButton: false, timer: 3000 });
+}
+
+function costpageRenderCards() {
+  costpageRenderVolatility();
+  const saved = new Set(_costpageAll.map(x => x.Month));
+  const prodMonths = [...new Set(Object.keys(_costpageDateCount).map(d => String(d).slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)))];
+  const months = [...new Set([...saved, ...prodMonths])].sort().reverse();
+  const box = document.getElementById('costpage-cards');
+  if (!months.length) { box.innerHTML = '<div class="glass-card text-center text-muted py-4">ยังไม่มีข้อมูล กด "+ เพิ่มเดือน" เพื่อเริ่มกรอก</div>'; return; }
+  box.innerHTML = months.map(m => {
+    const p = _costpageAll.find(x => x.Month === m);
+    const days = _costpageMonthDays(m, _costpageDateCount);
+    if (!p) return `<div class="col-12 col-md-6 col-xl-4"><div class="glass-card h-100" style="border:2px dashed #cbd5e1">
+      <div class="d-flex justify-content-between align-items-center"><b>${m}</b><span class="badge bg-secondary">ยังไม่ได้กรอก</span></div>
+      <div class="small text-muted my-2">มีการผลิตจริง ${days} วัน</div>
+      <button class="btn btn-sm btn-outline-primary" onclick="costpageOpen('${m}')"><i class="fas fa-plus me-1"></i>กรอกเดือนนี้</button></div></div>`;
+    const c = _costpageCompute(p, days);
+    const rows = c.items.map(i => `<div class="d-flex justify-content-between small"><span>${i.label}${i.pct ? ` <span class="text-success">+${i.pct}%</span>` : ''}</span><span>${_costpageFmt(i.net)}</span></div>`).join('')
+      || '<div class="small text-muted">ยังไม่มียอด</div>';
+    return `<div class="col-12 col-md-6 col-xl-4"><div class="glass-card h-100">
+      <div class="d-flex justify-content-between align-items-center mb-2"><b style="font-size:1.1rem">${m}</b>
+        <button class="btn btn-sm btn-outline-secondary" onclick="costpageOpen('${m}')" title="แก้ไข"><i class="fas fa-pen"></i></button></div>
+      <div class="row g-1 mb-2 text-center">
+        <div class="col-4"><div class="text-muted" style="font-size:.7rem">จ่ายจริง</div><b>${_costpageFmt(c.paid)}</b></div>
+        <div class="col-4"><div class="text-muted" style="font-size:.7rem">กำไรแฝง</div><b class="text-success">${_costpageFmt(c.markup)}</b></div>
+        <div class="col-4"><div class="text-muted" style="font-size:.7rem">ยอดสุทธิ (ฐานต้นทุน)</div><b class="text-primary">${_costpageFmt(c.net)}</b></div>
+      </div>
+      <div class="border-top pt-2 mb-2">${rows}</div>
+      <div class="small text-muted border-top pt-2">Overhead ${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}/วัน · ค่าเช่า ${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}/วัน · ผลิตจริง ${days} วัน</div>
+    </div></div>`;
+  }).join('');
+}
+
+function costpageAddMonth() {
+  const d = new Date();
+  const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  costpageOpen(m);
+}
+
+function costpageOpen(month) {
+  _costpageEditMonth = month;
+  const cur = _costpageAll.find(x => x.Month === month);
+  let p, copiedFrom = null;
+  if (cur) p = cur;
+  else {
+    // เดือนใหม่ — ยกค่าเช่า/ค่า รปภ./% /รายการอื่นๆ จากเดือนก่อนหน้าล่าสุดมาให้ ส่วนยอดผันแปรเว้นว่าง
+    const prev = _costpageAll.filter(x => x.Month < month)[0];
+    p = prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items } : {};
+    copiedFrom = prev ? prev.Month : null;
+  }
+  document.getElementById('costpage-modal-month').value = month;
+  costpageRender(p, copiedFrom);
+  if (!_costpageModal) _costpageModal = new bootstrap.Modal(document.getElementById('costpageModal'));
+  _costpageModal.show();
+}
+
+function costpageOnMonthChange() {
+  const m = document.getElementById('costpage-modal-month').value;
+  if (!m) return;
+  costpageOpenData(m);
+}
+function costpageOpenData(month) {
+  _costpageEditMonth = month;
+  const cur = _costpageAll.find(x => x.Month === month);
+  const prev = cur ? null : _costpageAll.filter(x => x.Month < month)[0];
+  costpageRender(cur || (prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items } : {}), prev ? prev.Month : null);
+}
+
+function _costpageNum(v) { return v == null || v === '' ? '' : v; }
+
+function costpageRender(p, copiedFrom) {
+  const pct = p.Pct_Json || {};
+  const pcv = k => (pct[k] == null ? 0 : pct[k]);
+  const others = Array.isArray(p.Other_Items) ? p.Other_Items : [];
+  const hasSplit = p.Water_Cost != null || p.Electric_Cost != null;
+  let html = '', lastGrp = '';
+  _COSTPAGE_ROWS.forEach(r => {
+    if (r.legacyUtil && (hasSplit || p.Utility_Cost == null)) return;   // แสดงเฉพาะเดือนที่มีข้อมูลสาธารณูปโภครวมแบบเดิม
+    if (r.grp && r.grp !== lastGrp) { html += `<tr class="table-light"><td colspan="5" class="fw-bold small text-muted">${r.grp}</td></tr>`; lastGrp = r.grp; }
+    html += `<tr>
+      <td>${r.label}</td>
+      <td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end" id="cp-v-${r.key}" value="${_costpageNum(p[r.col])}" oninput="costpageRecalc()"></td>
+      <td><input type="number" min="0" step="0.1" class="form-control form-control-sm text-end" id="cp-p-${r.key}" value="${pcv(r.key)}" oninput="costpageRecalc()"></td>
+      <td class="text-end text-success" id="cp-m-${r.key}">—</td>
+      <td class="text-end fw-bold" id="cp-i-${r.key}">—</td></tr>`;
+  });
+  html += `<tr class="table-light"><td colspan="5" class="fw-bold small text-muted d-flex justify-content-between">
+      <span>รายการอื่นๆ</span><a href="#" onclick="costpageAddOther();return false">+ เพิ่มรายการ</a></td></tr>`;
+  others.forEach((o, i) => {
+    html += `<tr>
+      <td class="d-flex gap-1"><input type="text" class="form-control form-control-sm" id="cp-on-${i}" value="${String(o.name || '').replace(/"/g, '&quot;')}" placeholder="ชื่อรายการ" oninput="costpageRecalc()">
+        <button class="btn btn-sm btn-outline-danger" onclick="costpageRemoveOther(${i})" title="ลบ"><i class="fas fa-times"></i></button></td>
+      <td><input type="number" min="0" step="0.01" class="form-control form-control-sm text-end" id="cp-ov-${i}" value="${_costpageNum(o.amount)}" oninput="costpageRecalc()"></td>
+      <td><input type="number" min="0" step="0.1" class="form-control form-control-sm text-end" id="cp-op-${i}" value="${o.pct == null ? 0 : o.pct}" oninput="costpageRecalc()"></td>
+      <td class="text-end text-success" id="cp-om-${i}">—</td>
+      <td class="text-end fw-bold" id="cp-oi-${i}">—</td></tr>`;
+  });
+  document.getElementById('costpage-tbody').innerHTML = html;
+  document.getElementById('costpage-note').innerHTML = copiedFrom
+    ? `<span class="text-muted small"><i class="fas fa-info-circle me-1"></i>เดือนนี้ยังไม่เคยบันทึก — ยกค่าเช่า/ค่า รปภ./% มาจากเดือน ${copiedFrom} ให้แล้ว ตรวจสอบแล้วกดบันทึก</span>` : '';
+  costpageRecalc();
+}
+
+function _costpageReadForm() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value : null; };
+  const p = { Pct_Json: {} };
+  _COSTPAGE_ROWS.forEach(r => {
+    const raw = g('cp-v-' + r.key);
+    if (raw === null) { p[r.col] = undefined; return; }   // แถวที่ไม่ได้แสดง (ข้อมูลเดิม) — ไม่แตะค่า
+    const v = parseFloat(raw);
+    p[r.col] = isNaN(v) ? null : v;
+    const pc = parseFloat(g('cp-p-' + r.key));
+    p.Pct_Json[r.key] = isNaN(pc) ? 0 : Math.max(0, pc);
+  });
+  const others = [];
+  for (let i = 0; document.getElementById('cp-on-' + i); i++) {
+    const a = parseFloat(g('cp-ov-' + i)), pc = parseFloat(g('cp-op-' + i));
+    others.push({ name: g('cp-on-' + i).trim(), amount: isNaN(a) ? null : a, pct: isNaN(pc) ? 0 : Math.max(0, pc) });
+  }
+  p.Other_Items = others;
+  return p;
+}
+
+function costpageAddOther() { const p = _costpageReadForm(); p.Other_Items.push({ name: '', amount: null, pct: 0 }); costpageRender(p, null); }
+function costpageRemoveOther(i) { const p = _costpageReadForm(); p.Other_Items.splice(i, 1); costpageRender(p, null); }
+
+function costpageRecalc() {
+  const month = document.getElementById('costpage-modal-month').value;
+  const p = _costpageReadForm();
+  const cur = _costpageAll.find(x => x.Month === month) || {};
+  const view = Object.assign({}, cur, Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)));
+  const c = _costpageCompute(view, _costpageMonthDays(month, _costpageDateCount));
+  _COSTPAGE_ROWS.forEach(r => {
+    const m = document.getElementById('cp-m-' + r.key), n = document.getElementById('cp-i-' + r.key);
+    if (!m) return;
+    const a = p[r.col], pc = p.Pct_Json[r.key] || 0;
+    m.textContent = a == null ? '—' : _costpageFmt(a * pc / 100);
+    n.textContent = a == null ? '—' : _costpageFmt(a * (1 + pc / 100));
+  });
+  p.Other_Items.forEach((o, i) => {
+    document.getElementById('cp-om-' + i).textContent = o.amount == null ? '—' : _costpageFmt(o.amount * o.pct / 100);
+    document.getElementById('cp-oi-' + i).textContent = o.amount == null ? '—' : _costpageFmt(o.amount * (1 + o.pct / 100));
+  });
+  document.getElementById('costpage-summary').innerHTML =
+    `จ่ายจริง <b>${_costpageFmt(c.paid)}</b> · กำไรแฝง <b class="text-success">${_costpageFmt(c.markup)}</b> · ยอดสุทธิ <b class="text-primary">${_costpageFmt(c.net)}</b>` +
+    ` · Overhead <b>${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}</b>/วัน · ค่าเช่า <b>${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}</b>/วัน (หาร 26 วัน · เดือนนี้ผลิตจริง ${c.prodDays} วัน)`;
+}
+
+async function costpageSave() {
+  const month = document.getElementById('costpage-modal-month').value;
+  if (!month) { _err('กรุณาเลือกเดือน', ''); return; }
+  const f = _costpageReadForm();
+  const payload = { Month: month, Pct_Json: f.Pct_Json, Other_Items: f.Other_Items.filter(o => o.name || o.amount != null) };
+  _COSTPAGE_ROWS.forEach(r => { if (f[r.col] !== undefined && !r.legacyUtil) payload[r.col] = f[r.col]; });
+  // Utility_Cost (ช่องเดิมที่แดชบอร์ดอ่านอยู่) = ค่าน้ำ+ค่าไฟ ถ้ากรอกแล้ว ไม่งั้นคงค่าสาธารณูปโภครวมเดิมไว้
+  if (f.Water_Cost != null || f.Electric_Cost != null) payload.Utility_Cost = (f.Water_Cost || 0) + (f.Electric_Cost || 0);
+  else if (f.Utility_Cost !== undefined) payload.Utility_Cost = f.Utility_Cost;
+  _showLoader();
+  const { error } = await _sb.from('admindash_payroll_actual').upsert(payload, { onConflict: 'Month' });
+  _hideLoader();
+  if (error) {
+    _err('บันทึกไม่สำเร็จ', /column .* does not exist|schema cache/.test(error.message)
+      ? 'ยังไม่ได้รัน alter_admindash_payroll_actual_add_cost_page.sql ใน Supabase SQL Editor' : error.message);
+    return;
+  }
+  _logAudit('EDIT', 'admindash_payroll_actual', month, 'บันทึกต้นทุนการผลิตรายเดือน (หน้าต้นทุนการผลิต)');
+  _costpageModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `บันทึกเดือน ${month} แล้ว`, showConfirmButton: false, timer: 1500 });
+  await costpageLoad();
+}
+
+// ค่าเริ่มต้น Overhead/ค่าเช่า ฿/วัน สำหรับหน้าอนุมัติต้นทุน (ใช้ยอดสุทธิรวม % แล้ว) — หาร 26 วันคงที่ (null ถ้าเดือนนั้นยังไม่มีข้อมูล)
+function _costpageDefaultsFor(payrollRow, dateJobCount, month) {
+  if (!payrollRow) return null;
+  const c = _costpageCompute(payrollRow, _costpageMonthDays(month, dateJobCount));
+  if (c.utilPerDay == null) return null;
+  return { util: Math.round(c.utilPerDay * 100) / 100, rent: Math.round(c.rentPerDay * 100) / 100 };
 }
 
 // ══════════════════════════════════════════════
@@ -39031,6 +39530,8 @@ function _renderCurrentUserBadge() {
   if (dedupeBtn) dedupeBtn.style.display = _currentUser.isAdmin ? '' : 'none';
   // "แมททริกสกิล" (แมททริกสกิลพนักงาน) — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-10) พนักงาน/หัวหน้างานไม่ต้อง
   // เห็นเลย เหมือน nav-weeklyreport/nav-admindash: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
+  const navCostpage = document.getElementById('nav-costpage');
+  if (navCostpage) navCostpage.style.display = _currentUser.isAdmin ? '' : 'none';
   const navSkillmatrix = document.getElementById('nav-skillmatrix');
   if (navSkillmatrix) navSkillmatrix.style.display = _currentUser.isAdmin ? '' : 'none';
   // "สแกนบันทึกเวลาแรงงาน" — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-13) เหมือน nav-skillmatrix ทุกประการ
