@@ -192,6 +192,28 @@ body.wh-desktop-mode .planweek-day-card { min-width: 90px; padding: .55rem .4rem
   cursor: pointer; font-size: 1.15rem; color: #1e3a8a;
 }
 #editreq-bell:hover { box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+/* เว้นที่ขวาของหัวหน้าทุกหน้าตอนกระดิ่งแสดงอยู่ กันกระดิ่งบังปุ่มมุมขวาบน (body.has-editreq-bell ตั้งใน
+   _editreqUpdateNavBadge พร้อมกับโชว์/ซ่อนกระดิ่ง) — 18px ระยะขอบ + 44px กระดิ่ง + ช่องว่าง ≈ 76px */
+body.has-editreq-bell .page-header { padding-right: 76px !important; }
+/* หน้า คำนวณต้นทุนสินค้าใหม่ — จัดแบบกะทัดรัดให้พอดีจอ ไม่ต้องเลื่อนทั้งหน้า */
+#page-newcost .glass-card { padding: 12px 16px; margin-bottom: 0; }
+#page-newcost .kpi-card { padding: 8px 12px; }
+#page-newcost .table th, #page-newcost .table td { padding: 3px 4px; font-size: .8rem; }
+#page-newcost .nc-scrollbox { overflow: auto; }
+/* จอกว้าง (≥1200px): ยืดทั้ง 2 คอลัมน์ให้เต็มความสูงจอ — ตารางวัตถุดิบ (ซ้าย) และรายการสินค้าใกล้เคียง (กลุ่ม 2)
+   สูงตามพื้นที่ที่เหลือ เลื่อนเฉพาะในกล่อง ทั้งหน้าไม่เลื่อน (คำขอผู้ใช้ 2026-10-16 "ขยายลงมาอีก พื้นที่ข้างล่างเหลือ") */
+@media (min-width: 1200px) {
+  #page-newcost .scroll-content { display: flex; flex-direction: column; }
+  #page-newcost #nc-main-row { flex: 1 1 auto; min-height: 0; }
+  #page-newcost #nc-main-row > [class*="col-xl"] { height: 100%; min-height: 0; }
+  #page-newcost #nc-main-row > .col-xl-6 > .glass-card.h-100 { min-height: 0; }
+  #page-newcost .nc-grow-card { flex: 1 1 auto; min-height: 0; }
+  #page-newcost .nc-grow { flex: 1 1 auto; min-height: 0; max-height: none; }
+}
+#page-newcost #nc-lines .form-control, #page-newcost #nc-lines .form-select { padding-left: .35rem; padding-right: .35rem; font-size: .8rem; }
+#page-newcost #nc-lines .form-select { padding-right: 1.3rem; background-position: right .3rem center; }
+#page-newcost .nc-scrollbox thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+
 #editreq-bell .badge {
   position: absolute; top: -4px; right: -4px; font-size: .62rem;
 }
@@ -1927,6 +1949,10 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
     <!-- ต้นทุนการผลิต (added 2026-10-15) — admin เท่านั้น เปิดกลับใน _renderCurrentUserBadge เหมือน nav-skillmatrix -->
     <a href="#" class="nav-link mb-1" id="nav-costpage" onclick="showPage('costpage',this)" title="ต้นทุนการผลิต" style="display:none">
       <i class="fas fa-coins me-2"></i><span>ต้นทุนการผลิต</span>
+    </a>
+    <!-- คำนวณต้นทุนสินค้าใหม่ (added 2026-10-16) — admin เท่านั้น เครื่องคิดเลข ไม่บันทึกข้อมูล -->
+    <a href="#" class="nav-link mb-1" id="nav-newcost" onclick="showPage('newcost',this)" title="คำนวณต้นทุนสินค้าใหม่" style="display:none">
+      <i class="fas fa-calculator me-2"></i><span>คำนวณต้นทุนสินค้าใหม่</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
@@ -5602,8 +5628,44 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
         กรอกยอดที่จ่ายจริงของแต่ละเดือน แล้วใส่ <b>% บวกเพิ่ม</b> (กำไรแฝง) ระบบจะได้ <b>ยอดสุทธิ</b> = จ่ายจริง + % ไว้เป็นฐานต้นทุนจริงของการผลิต —
         เดือนที่เคยกรอกไว้ในแดชบอร์ดต้นทุนจะแสดงเป็นการ์ดให้อัตโนมัติ
       </div>
+      <div class="glass-card mb-3" id="costpage-std"></div>
+      <div class="glass-card mb-3" id="costpage-avg"></div>
       <div class="glass-card mb-3" id="costpage-vol"></div>
       <div class="row g-3" id="costpage-cards"></div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="costpageStdModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-lock me-2"></i>ต้นทุนมาตรฐาน</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="coststd-rowid">
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small mb-0">ใช้ตั้งแต่เดือน</label><input type="month" id="coststd-start" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="form-label small mb-0">ถึงเดือน (รวมเดือนนี้)</label><input type="month" id="coststd-end" class="form-control form-control-sm"></div>
+          </div>
+          <div class="fw-bold small text-muted mb-1">ค่าโสหุ้ย ฿/วัน (ดึงค่าเฉลี่ยยอดสุทธิ 6 เดือนมาให้ แก้ได้)</div>
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small mb-0">ค่าน้ำ + ค่าไฟ (฿/วัน)</label><input type="number" step="0.01" id="coststd-util" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="form-label small mb-0">ค่าเช่า + รปภ. (฿/วัน)</label><input type="number" step="0.01" id="coststd-rent" class="form-control form-control-sm"></div>
+          </div>
+          <div class="fw-bold small text-muted mb-1">เรทค่าแรง ฿/ชม. = เรทฐาน × (1 + % กำไรแฝงค่าแรงจากหน้าต้นทุน) — แก้ได้ทุกช่อง</div>
+          <div class="row g-2 mb-3" id="coststd-rates"></div>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label small mb-0">ที่มาของตัวเลข</label><input type="text" id="coststd-basedon" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="form-label small mb-0">หมายเหตุ</label><input type="text" id="coststd-note" class="form-control form-control-sm"></div>
+          </div>
+          <div class="small text-muted mt-2">ใบบันทึกผลิตที่ผลิตเสร็จในช่วงนี้ จะได้ตัวเลขชุดนี้เป็นค่าเริ่มต้นตอนอนุมัติต้นทุน (แก้รายใบได้) · ใบที่อนุมัติไปแล้วไม่ถูกแก้ย้อนหลัง</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="costpageStdSave()"><i class="fas fa-lock me-1"></i>บันทึก / ประกาศใช้</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -5620,6 +5682,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <input type="month" id="costpage-modal-month" class="form-control form-control-sm" style="max-width:180px" onchange="costpageOnMonthChange()">
           </div>
           <div id="costpage-note" class="mb-2"></div>
+          <div class="row g-2 mb-2 p-2 rounded" style="background:#f8fafc">
+            <div class="col-12 small fw-bold text-muted">ข้อมูลใช้คำนวณเรทค่าแรง ฿/ชม. ตอนประกาศต้นทุนมาตรฐาน (ยกจากเดือนก่อนให้อัตโนมัติ)</div>
+            <div class="col-4"><label class="form-label small mb-0">จำนวนคน FT</label><input type="number" min="0" step="1" id="costpage-ft-hc" class="form-control form-control-sm"></div>
+            <div class="col-4"><label class="form-label small mb-0">จำนวนคน OS</label><input type="number" min="0" step="1" id="costpage-os-hc" class="form-control form-control-sm"></div>
+            <div class="col-4"><label class="form-label small mb-0">PT ค่าจ้าง/คน/วัน (฿)</label><input type="number" min="0" step="0.01" id="costpage-pt-dayrate" class="form-control form-control-sm"></div>
+          </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle">
               <thead><tr><th>รายการ</th><th class="text-end" style="width:160px">จ่ายจริง (฿)</th><th class="text-end" style="width:100px">บวกเพิ่ม (%)</th><th class="text-end" style="width:130px">กำไรแฝง (฿)</th><th class="text-end" style="width:140px">ยอดสุทธิ (฿)</th></tr></thead>
@@ -5632,11 +5700,124 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             </button>
           </div>
           <div class="p-2 rounded" style="background:#f1f5f9" id="costpage-summary"></div>
-          <div class="small text-muted mt-2">Overhead ฿/วัน = ยอดสุทธิ (สาธารณูปโภค + รปภ. + อื่นๆ) ÷ 26 วัน ไม่รวมแรงงาน เพราะค่าแรงคิดแยกจากชั่วโมงทำงานจริงตอนอนุมัติต้นทุนอยู่แล้ว — ค่านี้จะถูกเติมเป็นค่าเริ่มต้นในหน้าอนุมัติต้นทุน</div>
+          <div class="small text-muted mt-2">ค่าน้ำไฟ ฿/วัน = ยอดสุทธิ (ค่าน้ำ + ค่าไฟ) ÷ 26 วัน · ค่าเช่า+รปภ. ฿/วัน = ยอดสุทธิ (ค่าเช่า + รปภ. + อื่นๆ) ÷ 26 วัน · ไม่รวมแรงงาน เพราะค่าแรงคิดแยกจากชั่วโมงทำงานจริงตอนอนุมัติต้นทุนอยู่แล้ว — ค่านี้จะถูกเติมเป็นค่าเริ่มต้นในหน้าอนุมัติต้นทุน</div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
           <button class="btn btn-primary" onclick="costpageSave()"><i class="fas fa-save me-1"></i>บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: คำนวณต้นทุนสินค้าใหม่ (Master, admin) — เครื่องคิดเลข ไม่บันทึก ══════════ -->
+  <div class="page-view" id="page-newcost">
+    <div class="page-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-calculator me-2"></i>คำนวณต้นทุนสินค้าใหม่</h4>
+        <div class="d-flex gap-2">
+          <button class="btn btn-light fw-bold text-success shadow-sm" onclick="newcostExportImage()"><i class="fas fa-image me-2"></i>ส่งออกรูปภาพ</button>
+          <button class="btn btn-light fw-bold text-primary shadow-sm" onclick="newcostReset()"><i class="fas fa-eraser me-2"></i>เริ่มใหม่</button>
+        </div>
+      </div>
+    </div>
+    <!-- จัดหน้าแบบ 2 คอลัมน์ให้พอดีจอ ไม่ต้องเลื่อนทั้งหน้า (คำขอผู้ใช้ 2026-10-16): ซ้าย = กลุ่ม 1 วัตถุดิบ,
+         ขวา = กลุ่ม 2-4 — ตารางที่ยาวได้ (วัตถุดิบ/สินค้าใกล้เคียง) เลื่อนเฉพาะในกล่องของมันเอง -->
+    <div class="scroll-content">
+      <datalist id="nc-fg-datalist"></datalist>
+      <datalist id="nc-mat-datalist"></datalist>
+
+      <div class="row g-2 mb-2" id="nc-summary"></div>
+
+      <div class="row g-2" id="nc-main-row">
+        <!-- ซ้าย: กลุ่ม 1 -->
+        <div class="col-xl-6">
+          <div class="glass-card h-100 d-flex flex-column">
+            <div class="row g-2 mb-2">
+              <div class="col-md-6"><label class="form-label small mb-0 fw-bold">ชื่อสินค้าใหม่ (หัวรูปภาพ)</label>
+                <input class="form-control form-control-sm" id="nc-newname" placeholder="เช่น LRL Brown Harvest Body Oil 10 ml." oninput="this.dataset.auto='';newcostRecalc()"></div>
+              <div class="col-md-6"><label class="form-label small mb-0">หมายเหตุ (แสดงในรูปภาพ)</label>
+                <input class="form-control form-control-sm" id="nc-note" placeholder="เช่น สำหรับลูกค้า ABC / MOQ 3,000 ชิ้น"></div>
+            </div>
+            <div class="fw-bold mb-1"><span class="badge bg-primary me-1">1</span>วัตถุดิบต่อชิ้น</div>
+            <div class="d-flex gap-2 align-items-center mb-2">
+              <input class="form-control form-control-sm" id="nc-fg" list="nc-fg-datalist" placeholder="ตั้งต้นจาก BOM ของ FG ที่ใกล้เคียง (พิมพ์รหัส/ชื่อ)" style="max-width:340px">
+              <button class="btn btn-sm btn-outline-primary text-nowrap" onclick="newcostLoadFromFG()"><i class="fas fa-download me-1"></i>ดึง BOM มา</button>
+              <span class="small text-muted text-truncate" id="nc-fg-name"></span>
+            </div>
+            <div class="table-responsive nc-scrollbox nc-grow" style="min-height:180px">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th style="width:86px">รหัส</th><th>ชื่อวัตถุดิบ</th><th style="width:76px">ประเภท</th><th class="text-end" style="width:80px" title="รวม Scrap">ใช้/ชิ้น</th><th style="width:78px">หน่วย</th><th class="text-end" style="width:88px">ราคา/หน่วย</th><th class="text-end" style="width:80px">ต้นทุน/ชิ้น</th><th style="width:34px"></th></tr></thead>
+                <tbody id="nc-lines"></tbody></table>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+              <button class="btn btn-sm btn-outline-secondary" onclick="newcostAddLine()"><i class="fas fa-plus me-1"></i>เพิ่มวัตถุดิบ</button>
+              <span class="small fw-bold text-muted ms-auto">บวกเพิ่ม</span>
+              <div class="input-group input-group-sm" style="width:150px"><span class="input-group-text">Bulk</span>
+                <input type="number" step="0.1" min="0" class="form-control" id="nc-mk-bulk" value="3" oninput="newcostRecalc()"><span class="input-group-text">%</span></div>
+              <div class="input-group input-group-sm" style="width:150px"><span class="input-group-text">Pac</span>
+                <input type="number" step="0.1" min="0" class="form-control" id="nc-mk-pac" value="0" oninput="newcostRecalc()"><span class="input-group-text">%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ขวา: กลุ่ม 2-4 -->
+        <div class="col-xl-6 d-flex flex-column gap-2">
+          <div class="glass-card nc-grow-card d-flex flex-column">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+              <div class="fw-bold me-auto"><span class="badge bg-primary me-1">2</span>กำลังผลิตต่อวัน <span class="small text-muted fw-normal">(จากสินค้าที่ใกล้เคียง)</span></div>
+              <div class="input-group input-group-sm" style="width:150px"><input type="number" class="form-control" id="nc-size" placeholder="ขนาด" oninput="newcostFindSimilar()">
+                <select class="form-select" id="nc-size-unit" style="max-width:62px" onchange="newcostFindSimilar()"><option value="ml">ml</option><option value="g">g</option></select></div>
+              <select class="form-select form-select-sm" id="nc-type" style="width:150px" onchange="newcostFindSimilar()"></select>
+            </div>
+            <div class="table-responsive nc-scrollbox nc-grow" style="min-height:132px">
+              <table class="table table-sm align-middle mb-1">
+                <thead><tr><th style="width:26px"></th><th>สินค้า</th><th>ขนาด · ประเภท</th><th class="text-end">Lot</th><th class="text-end">ชิ้น/วัน</th><th class="text-end">ชม.คน/วัน</th></tr></thead>
+                <tbody id="nc-similar"></tbody></table>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-1"><button class="btn btn-sm btn-outline-primary py-0" onclick="newcostApplySimilar()"><i class="fas fa-calculator me-1"></i>เฉลี่ยจากที่ติ๊ก</button>
+              <span class="small text-muted text-truncate" id="nc-sim-note"></span></div>
+            <div class="row g-1">
+              <div class="col"><label class="form-label small mb-0 fw-bold">ชิ้น/วัน</label><input type="number" class="form-control form-control-sm fw-bold" id="nc-upd" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0" title="ชั่วโมงคนต่อวัน">FT ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-mh-ftN" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">FT โอที</label><input type="number" class="form-control form-control-sm" id="nc-mh-ftO" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">PT ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-mh-ptN" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">PT โอที</label><input type="number" class="form-control form-control-sm" id="nc-mh-ptO" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">OS ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-mh-osN" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">OS โอที</label><input type="number" class="form-control form-control-sm" id="nc-mh-osO" oninput="newcostRecalc()"></div>
+            </div>
+            <div class="text-muted" style="font-size:.7rem">ช่อง FT/PT/OS = ชั่วโมงคนต่อวัน (เช่น 6 คน × 8 ชม. = 48)</div>
+          </div>
+
+          <div class="glass-card">
+            <div class="d-flex flex-wrap gap-2 align-items-baseline mb-1">
+              <div class="fw-bold"><span class="badge bg-primary me-1">3</span>เรทค่าแรงและโสหุ้ย</div>
+              <div class="small text-muted text-truncate" id="nc-rate-src"></div>
+            </div>
+            <div class="row g-1">
+              <div class="col"><label class="form-label small mb-0">FT ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-rate-FT_LaborRate" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">FT โอที</label><input type="number" class="form-control form-control-sm" id="nc-rate-FT_OT_Rate" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">PT ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-rate-PT_LaborRate" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">PT โอที</label><input type="number" class="form-control form-control-sm" id="nc-rate-PT_OT_Rate" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">OS ปกติ</label><input type="number" class="form-control form-control-sm" id="nc-rate-OS_LaborRate" oninput="newcostRecalc()"></div>
+              <div class="col"><label class="form-label small mb-0">OS โอที</label><input type="number" class="form-control form-control-sm" id="nc-rate-OS_OT_Rate" oninput="newcostRecalc()"></div>
+            </div>
+            <div class="row g-1 mt-1">
+              <div class="col-6"><label class="form-label small mb-0">ค่าน้ำ + ค่าไฟ ฿/วัน</label><input type="number" class="form-control form-control-sm" id="nc-rate-util" oninput="newcostRecalc()"></div>
+              <div class="col-6"><label class="form-label small mb-0">ค่าเช่า + รปภ. ฿/วัน</label><input type="number" class="form-control form-control-sm" id="nc-rate-rent" oninput="newcostRecalc()"></div>
+            </div>
+            <div class="text-muted" style="font-size:.7rem">เรทค่าแรงหน่วย ฿/ชม.</div>
+          </div>
+
+          <div class="glass-card">
+            <div class="fw-bold mb-1"><span class="badge bg-primary me-1">4</span>ตั้งราคาขาย</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-3"><label class="form-label small mb-0">ราคาขาย/ชิ้น (฿)</label><input type="number" class="form-control form-control-sm" id="nc-sell" oninput="newcostRecalc()"></div>
+              <div class="col-3"><label class="form-label small mb-0">กำไรที่ต้องการ (%)</label><input type="number" class="form-control form-control-sm" id="nc-target" oninput="newcostRecalc()"></div>
+              <div class="col-6 small" id="nc-price-result"></div>
+            </div>
+            <div class="text-muted mt-1" style="font-size:.7rem">ประมาณการเท่านั้น ไม่บันทึกลงระบบ · % กำไรคิดจากราคาขาย</div>
+          </div>
         </div>
       </div>
     </div>
@@ -6368,12 +6549,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <input type="number" id="prodrecord-ap-os-ot" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Overhead ค่าสาธารณูปโภค (฿/วัน)</label>
+              <label class="form-label">Overhead ค่าน้ำ + ค่าไฟ (฿/วัน)</label>
               <input type="number" id="prodrecord-ap-oh-util" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
               <small class="text-muted" id="prodrecord-ap-oh-hourly">= ฿0.00/ชม. (1 วัน = 8 ชม.ปกติ — ถ้ามี OT คิดเพิ่มตามชั่วโมงจริง)</small>
             </div>
             <div class="col-md-6">
-              <label class="form-label">ค่าเช่า (฿/วัน)</label>
+              <label class="form-label">ค่าเช่า + รปภ. (฿/วัน)</label>
               <input type="number" id="prodrecord-ap-rent" class="form-control" min="0" step="0.01" oninput="_prodrecordRecalcApprove()">
               <small class="text-muted" id="prodrecord-ap-rent-hint">ค่าเริ่มต้น 45,814 ÷ 26 วัน — หารตามจำนวนงานที่ทำวันเดียวกัน</small>
             </div>
@@ -9788,6 +9969,7 @@ const _PAGE_LOADERS = {
   'pricetier' : pricetierLoadData,
   'employee' : loadEmployeeData,
   'costpage' : costpageLoad,
+  'newcost'  : newcostLoad,
   'leave'   : leaveLoadData,
   'skillmatrix': loadSkillMatrixData,
   'laborutil' : loadLaborUtilData,
@@ -26393,16 +26575,20 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
 
   _showLoader();
   const costMonth = String(r.Date_End || r.Date_Start || '').slice(0, 7);
-  const [detailsRes, lastApprovedRes, bomRes, allRecsRes, costPageRes] = await Promise.all([
+  const [detailsRes, lastApprovedRes, bomRes, allRecsRes, costPageRes, stdRes] = await Promise.all([
     _sb.from('production_record_details').select('*').eq('ProdRecord_ID', r.ProdRecord_ID),
     _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility,RentPerDay')
       .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
     _sb.from('bom').select('SellingPrice,SellingPrice2,SellingPrice2_CustomerName').eq('ProductCode', r.ProductCode).limit(1),
     _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
-    // ยอดจริงรายเดือนจากหน้า "ต้นทุนการผลิต" — ใช้เป็นค่าเริ่มต้น Overhead/ค่าเช่า (error/ไม่มีเดือนนี้ = ข้าม)
-    costMonth ? _sb.from('admindash_payroll_actual').select('*').eq('Month', costMonth).maybeSingle() : Promise.resolve({ data: null }),
+    // ยอดจริงรายเดือนจากหน้า "ต้นทุนการผลิต" — เฉลี่ย 6 เดือนล่าสุด ณ เดือนของบันทึก ใช้เป็นค่าเริ่มต้น Overhead/ค่าเช่า (error = ข้าม)
+    _sb.from('admindash_payroll_actual').select('*'),
+    // ต้นทุนมาตรฐานที่ล็อกเป็นช่วงเดือน (หน้า "ต้นทุนการผลิต") — มาก่อนค่าเฉลี่ย 6 เดือน (error/ยังไม่สร้างตาราง = ข้าม)
+    _sb.from('cost_standards').select('*'),
   ]);
-  const costDefault = costPageRes.error ? null : _costpageDefaultsFor(costPageRes.data, _prodrecordBuildDateJobCount(allRecsRes.data || []), costMonth);
+  const costDefault = costPageRes.error ? null : _costpageDefaultsFor(costPageRes.data || [], costMonth);
+  const stdHit = stdRes.error ? null : _costStdFor(stdRes.data || [], costMonth);
+  const std = stdHit ? stdHit.std : {};
   // จำนวนงานที่ทำงานในแต่ละวัน — ใช้หารค่าเช่า
   window._prodrecordApproveDateJobCount = _prodrecordBuildDateJobCount(allRecsRes.data || []);
 
@@ -26425,22 +26611,30 @@ async function prodrecordOpenApproveModal(gi, viewOnly = false) {
   window._prodrecordApproveCustomerName = customerName;
   const last = (lastApprovedRes.data || [])[0] || {};
 
-  document.getElementById('prodrecord-ap-ft-rate').value = r.FT_LaborRate ?? last.FT_LaborRate ?? '';
-  document.getElementById('prodrecord-ap-ft-ot').value   = r.FT_OT_Rate ?? last.FT_OT_Rate ?? '';
-  document.getElementById('prodrecord-ap-pt-rate').value = r.PT_LaborRate ?? last.PT_LaborRate ?? '';
-  document.getElementById('prodrecord-ap-pt-ot').value   = r.PT_OT_Rate ?? last.PT_OT_Rate ?? '';
+  // ลำดับค่าเริ่มต้นทุกช่อง: ค่าที่บันทึกไว้แล้วของใบนี้ → ต้นทุนมาตรฐานที่ครอบคลุมเดือนของใบ (std) → อื่นๆ ตามเดิม
+  document.getElementById('prodrecord-ap-ft-rate').value = r.FT_LaborRate ?? std.FT_LaborRate ?? last.FT_LaborRate ?? '';
+  document.getElementById('prodrecord-ap-ft-ot').value   = r.FT_OT_Rate ?? std.FT_OT_Rate ?? last.FT_OT_Rate ?? '';
+  document.getElementById('prodrecord-ap-pt-rate').value = r.PT_LaborRate ?? std.PT_LaborRate ?? last.PT_LaborRate ?? '';
+  document.getElementById('prodrecord-ap-pt-ot').value   = r.PT_OT_Rate ?? std.PT_OT_Rate ?? last.PT_OT_Rate ?? '';
   // ค่าเริ่มต้น ฿91.09/ชม. (2026-08-27 ตามคำขอผู้ใช้) — อัตราจริงที่จ้าง Out Source ประจำ 3 คน/เดือน คนละ
   // 9.5 ชม./วัน ใช้เป็นค่า fallback สุดท้ายเมื่อบันทึกนี้ไม่มีค่าเดิม และไม่มีบันทึกก่อนหน้าที่อนุมัติไปแล้วให้ดึง
   // (ต่างจาก FT/PT ที่ไม่มีอัตรามาตรฐานตายตัวแบบนี้ จึงยังปล่อยว่างเป็นค่าเริ่มต้นเหมือนเดิม)
-  document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? last.OS_LaborRate ?? 91.09;
-  document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
-  // ลำดับค่าเริ่มต้น: ค่าที่บันทึกไว้แล้วของใบนี้ → คำนวณจากหน้า "ต้นทุนการผลิต" ของเดือนนั้น → ค่าจากใบล่าสุดที่อนุมัติ
-  document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? costDefault?.util ?? last.OverheadUtility ?? '';
-  document.getElementById('prodrecord-ap-rent').value = r.RentPerDay ?? costDefault?.rent ?? last.RentPerDay ?? _PRODRECORD_RENT_DEFAULT_PER_DAY;
+  document.getElementById('prodrecord-ap-os-rate').value = r.OS_LaborRate ?? std.OS_LaborRate ?? last.OS_LaborRate ?? 91.09;
+  document.getElementById('prodrecord-ap-os-ot').value   = r.OS_OT_Rate ?? std.OS_OT_Rate ?? last.OS_OT_Rate ?? '';
+  // โสหุ้ย: ค่าของใบนี้ → ต้นทุนมาตรฐาน → ค่าเฉลี่ย 6 เดือนจากหน้า "ต้นทุนการผลิต" → ใบล่าสุดที่อนุมัติ
+  document.getElementById('prodrecord-ap-oh-util').value = r.OverheadUtility ?? std.UtilPerDay ?? costDefault?.util ?? last.OverheadUtility ?? '';
+  document.getElementById('prodrecord-ap-rent').value = r.RentPerDay ?? std.RentPerDay ?? costDefault?.rent ?? last.RentPerDay ?? _PRODRECORD_RENT_DEFAULT_PER_DAY;
 
+  // บอกที่มาของค่าเริ่มต้น — ชุดมาตรฐานที่ใช้ / หมดช่วงแล้ว (ใช้ชุดเดิมต่อ) / ยังไม่มีมาตรฐาน
+  const stdNote = !stdHit
+    ? `<div class="small text-warning mt-1"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่มีต้นทุนมาตรฐานสำหรับเดือน ${costMonth || '—'} — ใช้ค่าเฉลี่ย 6 เดือน/ใบล่าสุดแทน</div>`
+    : stdHit.expired
+      ? `<div class="small text-danger mt-1"><i class="fas fa-clock me-1"></i>ต้นทุนมาตรฐานหมดช่วงแล้ว (${stdHit.std.StartMonth}–${stdHit.std.EndMonth}) — ใช้ชุดเดิมต่อ กรุณาประกาศชุดใหม่ที่หน้า "ต้นทุนการผลิต"</div>`
+      : `<div class="small text-success mt-1"><i class="fas fa-lock me-1"></i>ใช้ต้นทุนมาตรฐาน ${stdHit.std.StartMonth}–${stdHit.std.EndMonth}</div>`;
   document.getElementById('prodrecord-ap-info').innerHTML =
     `<span class="badge bg-secondary me-1">${r.ProdRecord_ID}</span><b>${r.ProductName||''}</b>` +
-    ` <span class="text-muted">· FG จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()} ${r.UOM||''} · ต้นทุนวัตถุดิบ ฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>`;
+    ` <span class="text-muted">· FG จริง ${(parseFloat(r.FG_Actual)||0).toLocaleString()} ${r.UOM||''} · ต้นทุนวัตถุดิบ ฿${(parseFloat(r.MaterialCost)||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>` +
+    (viewOnly ? '' : stdNote);
 
   const rateInputIds = ['prodrecord-ap-ft-rate','prodrecord-ap-ft-ot','prodrecord-ap-pt-rate','prodrecord-ap-pt-ot',
     'prodrecord-ap-os-rate','prodrecord-ap-os-ot','prodrecord-ap-oh-util','prodrecord-ap-rent'];
@@ -35937,7 +36131,7 @@ function holdstockReportRenderPreview() {
 // ══════════════════════════════════════════════
 // PAGE: ต้นทุนการผลิต (Master, admin) — ยอดจ่ายจริงรายเดือน + % ที่นำไปบวกเป็นต้นทุนผลิต
 // เก็บใน admindash_payroll_actual (ตารางเดียวกับหน้าแดชบอร์ดต้นทุน & กำไร, SQL: alter_..._add_cost_page.sql)
-// % = บวกเพิ่มจากยอดจ่ายจริง (กำไรแฝง) ยอดสุทธิ = จ่ายจริง×(1+%) เป็นฐานต้นทุน; Overhead ฿/วัน = ยอดสุทธิ(สาธารณูปโภค+รปภ.+อื่นๆ) ÷ 26 วันต่อเดือน (_COSTPAGE_DAYS_PER_MONTH) — ไม่รวมแรงงาน เพราะค่าแรงถูกคิดแยก
+// % = บวกเพิ่มจากยอดจ่ายจริง (กำไรแฝง) ยอดสุทธิ = จ่ายจริง×(1+%) เป็นฐานต้นทุน; ค่าน้ำไฟ ฿/วัน = ยอดสุทธิ(น้ำ+ไฟ) ÷ 26, ค่าเช่า+รปภ. ฿/วัน = ยอดสุทธิ(เช่า+รปภ.+อื่นๆ) ÷ 26 วันต่อเดือน (_COSTPAGE_DAYS_PER_MONTH) — ไม่รวมแรงงาน เพราะค่าแรงถูกคิดแยก
 // จากชั่วโมงทำงานจริงตอนอนุมัติต้นทุนอยู่แล้ว (รวมเข้าไปจะนับซ้ำ) ค่าเช่า ฿/วัน คำนวณแยกด้วยวิธีเดียวกัน
 // ══════════════════════════════════════════════
 const _COSTPAGE_ROWS = [
@@ -35951,7 +36145,7 @@ const _COSTPAGE_ROWS = [
   { key: 'electric', label: 'ค่าไฟ', col: 'Electric_Cost' },
   { key: 'utilold',  label: 'สาธารณูปโภครวม (ข้อมูลเดิมที่เคยกรอกไว้ ยังไม่แยกน้ำ/ไฟ)', col: 'Utility_Cost', legacyUtil: true },
   { key: 'rent',     grp: 'ค่าคงที่ (ทุกเดือน)', label: 'ค่าเช่า', col: 'Rent_Cost', rent: true },
-  { key: 'security', label: 'ค่ารักษาความปลอดภัย', col: 'Security_Cost' },
+  { key: 'security', label: 'ค่ารักษาความปลอดภัย', col: 'Security_Cost', rent: true },
 ];
 const _COSTPAGE_DAYS_PER_MONTH = 26;   // ตัวหารคงที่ทั้งหน้านี้และค่าเริ่มต้นตอนอนุมัติต้นทุน (คำตอบผู้ใช้ 2026-10-16)
 let _costpageAll = [];        // แถวทั้งหมดของ admindash_payroll_actual (Month ล่าสุดก่อน)
@@ -35981,7 +36175,7 @@ function _costpageItems(p) {
   (Array.isArray(p.Other_Items) ? p.Other_Items : []).forEach(o => {
     const a = num(o.amount); if (!a && o.amount == null) return;
     const pc = parseFloat(o.pct) || 0;
-    items.push({ key: 'other', label: o.name || 'อื่นๆ', kind: 'util', paid: a, pct: pc, markup: a * pc / 100, net: a * (1 + pc / 100) });
+    items.push({ key: 'other', label: o.name || 'อื่นๆ', kind: 'rent', paid: a, pct: pc, markup: a * pc / 100, net: a * (1 + pc / 100) });
   });
   return items;
 }
@@ -35999,12 +36193,17 @@ function _costpageFmt(v) { return '฿' + (v || 0).toLocaleString('th-TH', { max
 async function costpageLoad() {
   if (!_currentUser?.isAdmin) return;
   _showLoader();
-  const [payRes, recRes] = await Promise.all([
+  const [payRes, recRes, stdRes, lastRes] = await Promise.all([
     _sb.from('admindash_payroll_actual').select('*').order('Month', { ascending: false }),
     _fetchAllPaged('production_records', 'ProdRecord_ID,StationsData,Date_Start,Date_End'),
+    _sb.from('cost_standards').select('*').order('StartMonth', { ascending: false }),
+    _sb.from('production_records').select(_COSTSTD_RATE_FIELDS.map(r => r[0]).join(','))
+      .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
   ]);
   _hideLoader();
   if (payRes.error) { _err('โหลดข้อมูลต้นทุนไม่สำเร็จ', payRes.error.message + ' (ถ้ายังไม่เคยรัน ให้รัน create_admindash_payroll_actual.sql และ alter_admindash_payroll_actual_add_cost_page.sql)'); return; }
+  _costpageStandards = stdRes.error ? [] : (stdRes.data || []);   // ยังไม่รัน create_cost_standards.sql = ว่าง
+  _costpageLastRates = (lastRes.data || [])[0] || {};
   _costpageAll = payRes.data || [];
   _costpageDateCount = _prodrecordBuildDateJobCount(recRes.data || []);
   costpageRenderCards();
@@ -36025,10 +36224,15 @@ const _COSTPAGE_VOL_GROUPS = [
 
 let _costpageVolOverride = {};   // month → true/false ที่ผู้ใช้ติ๊กเอง (ทับกติกาเริ่มต้น)
 
+const _COSTPAGE_VOL_WINDOW = 12;   // จำนวนเดือนย้อนหลังที่ใช้คิด % แนะนำ
 function _costpageVolMonths() {
   const d = new Date();
   const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  return _costpageAll.map(p => {
+  // ดูย้อนหลังแค่ 12 เดือนที่จบแล้ว (ครอบคลุมทุกฤดู แต่ไม่ถูกข้อมูลราคาเก่าที่ไม่สะท้อนปัจจุบันดึง — คำตอบผู้ใช้ 2026-10-16)
+  // เดือนที่เก่ากว่านั้นไม่แสดงในตารางเลย (การ์ดรายเดือนด้านล่างยังแสดงครบ)
+  const s = new Date(d.getFullYear(), d.getMonth() - _COSTPAGE_VOL_WINDOW, 1);
+  const windowStart = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`;
+  return _costpageAll.filter(p => p.Month >= windowStart).map(p => {
     const days = _costpageMonthDays(p.Month, _costpageDateCount);
     let reason = '';
     if (p.Month >= thisMonth) reason = 'เดือนยังไม่จบ';
@@ -36075,6 +36279,7 @@ function _costpageVolatility() {
 function costpageToggleVolMonth(month, checked) {
   _costpageVolOverride[month] = checked;
   costpageRenderVolatility();
+  costpageRenderAvg();
 }
 
 function costpageRenderVolatility() {
@@ -36110,6 +36315,7 @@ function costpageRenderVolatility() {
     <div class="small text-muted">${usedCount < 6
       ? `<i class="fas fa-triangle-exclamation text-warning me-1"></i>มีข้อมูล ${usedCount} เดือน — ใช้สูตร "ค่าสูงสุดที่เคยเจอเทียบค่าเฉลี่ย" ไปก่อน ค่าแนะนำจะแม่นขึ้นเมื่อครบ 6 เดือน (เปลี่ยนเป็นสูตรสถิติเผื่อ ~95% ให้อัตโนมัติ)`
       : 'ใช้สูตรสถิติ: 1.65 × ส่วนเบี่ยงเบนมาตรฐาน ÷ ค่าเฉลี่ย (เผื่อความผันผวนได้ ~95% ของเดือน)'}
+      · ดูย้อนหลัง ${_COSTPAGE_VOL_WINDOW} เดือน
       · ตัวแดง = เดือนที่สูงที่สุด · ไม่รวมเดือนที่ยังไม่จบ (ติ๊กเพื่อนับเองได้) · เดือนที่ผลิตไม่ถึง 26 วัน ส่วนต่างคือต้นทุนวันว่างที่ไม่ได้คิดเข้าสินค้า · ค่าเช่า/ค่า รปภ. เป็นค่าคงที่ ไม่วิเคราะห์</div>`;
 }
 
@@ -36127,7 +36333,9 @@ function costpageApplyRecommended() {
 }
 
 function costpageRenderCards() {
+  costpageRenderStd();
   costpageRenderVolatility();
+  costpageRenderAvg();
   const saved = new Set(_costpageAll.map(x => x.Month));
   const prodMonths = [...new Set(Object.keys(_costpageDateCount).map(d => String(d).slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)))];
   const months = [...new Set([...saved, ...prodMonths])].sort().reverse();
@@ -36152,7 +36360,8 @@ function costpageRenderCards() {
         <div class="col-4"><div class="text-muted" style="font-size:.7rem">ยอดสุทธิ (ฐานต้นทุน)</div><b class="text-primary">${_costpageFmt(c.net)}</b></div>
       </div>
       <div class="border-top pt-2 mb-2">${rows}</div>
-      <div class="small text-muted border-top pt-2">Overhead ${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}/วัน · ค่าเช่า ${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}/วัน · ผลิตจริง ${days} วัน</div>
+      <div class="small text-muted border-top pt-2">ค่าน้ำไฟ ${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}/วัน · ค่าเช่า+รปภ. ${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}/วัน · ผลิตจริง ${days} วัน</div>
+      ${_costpageStdCompareHTML(m, c)}
     </div></div>`;
   }).join('');
 }
@@ -36171,7 +36380,8 @@ function costpageOpen(month) {
   else {
     // เดือนใหม่ — ยกค่าเช่า/ค่า รปภ./% /รายการอื่นๆ จากเดือนก่อนหน้าล่าสุดมาให้ ส่วนยอดผันแปรเว้นว่าง
     const prev = _costpageAll.filter(x => x.Month < month)[0];
-    p = prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items } : {};
+    p = prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items,
+      FT_Headcount: prev.FT_Headcount, OS_Headcount: prev.OS_Headcount, PT_DayRate: prev.PT_DayRate } : {};
     copiedFrom = prev ? prev.Month : null;
   }
   document.getElementById('costpage-modal-month').value = month;
@@ -36189,12 +36399,16 @@ function costpageOpenData(month) {
   _costpageEditMonth = month;
   const cur = _costpageAll.find(x => x.Month === month);
   const prev = cur ? null : _costpageAll.filter(x => x.Month < month)[0];
-  costpageRender(cur || (prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items } : {}), prev ? prev.Month : null);
+  costpageRender(cur || (prev ? { Rent_Cost: prev.Rent_Cost, Security_Cost: prev.Security_Cost, Pct_Json: prev.Pct_Json, Other_Items: prev.Other_Items,
+    FT_Headcount: prev.FT_Headcount, OS_Headcount: prev.OS_Headcount, PT_DayRate: prev.PT_DayRate } : {}), prev ? prev.Month : null);
 }
 
 function _costpageNum(v) { return v == null || v === '' ? '' : v; }
 
 function costpageRender(p, copiedFrom) {
+  document.getElementById('costpage-ft-hc').value = p.FT_Headcount ?? '';
+  document.getElementById('costpage-os-hc').value = p.OS_Headcount ?? '';
+  document.getElementById('costpage-pt-dayrate').value = p.PT_DayRate ?? '';
   const pct = p.Pct_Json || {};
   const pcv = k => (pct[k] == null ? 0 : pct[k]);
   const others = Array.isArray(p.Other_Items) ? p.Other_Items : [];
@@ -36269,7 +36483,7 @@ function costpageRecalc() {
   });
   document.getElementById('costpage-summary').innerHTML =
     `จ่ายจริง <b>${_costpageFmt(c.paid)}</b> · กำไรแฝง <b class="text-success">${_costpageFmt(c.markup)}</b> · ยอดสุทธิ <b class="text-primary">${_costpageFmt(c.net)}</b>` +
-    ` · Overhead <b>${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}</b>/วัน · ค่าเช่า <b>${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}</b>/วัน (หาร 26 วัน · เดือนนี้ผลิตจริง ${c.prodDays} วัน)`;
+    ` · ค่าน้ำไฟ <b>${c.utilPerDay == null ? '—' : _costpageFmt(c.utilPerDay)}</b>/วัน · ค่าเช่า+รปภ. <b>${c.rentPerDay == null ? '—' : _costpageFmt(c.rentPerDay)}</b>/วัน (หาร 26 วัน · เดือนนี้ผลิตจริง ${c.prodDays} วัน)`;
 }
 
 async function costpageSave() {
@@ -36277,6 +36491,10 @@ async function costpageSave() {
   if (!month) { _err('กรุณาเลือกเดือน', ''); return; }
   const f = _costpageReadForm();
   const payload = { Month: month, Pct_Json: f.Pct_Json, Other_Items: f.Other_Items.filter(o => o.name || o.amount != null) };
+  const metaNum = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
+  payload.FT_Headcount = metaNum('costpage-ft-hc');
+  payload.OS_Headcount = metaNum('costpage-os-hc');
+  payload.PT_DayRate = metaNum('costpage-pt-dayrate');
   _COSTPAGE_ROWS.forEach(r => { if (f[r.col] !== undefined && !r.legacyUtil) payload[r.col] = f[r.col]; });
   // Utility_Cost (ช่องเดิมที่แดชบอร์ดอ่านอยู่) = ค่าน้ำ+ค่าไฟ ถ้ากรอกแล้ว ไม่งั้นคงค่าสาธารณูปโภครวมเดิมไว้
   if (f.Water_Cost != null || f.Electric_Cost != null) payload.Utility_Cost = (f.Water_Cost || 0) + (f.Electric_Cost || 0);
@@ -36295,12 +36513,708 @@ async function costpageSave() {
   await costpageLoad();
 }
 
-// ค่าเริ่มต้น Overhead/ค่าเช่า ฿/วัน สำหรับหน้าอนุมัติต้นทุน (ใช้ยอดสุทธิรวม % แล้ว) — หาร 26 วันคงที่ (null ถ้าเดือนนั้นยังไม่มีข้อมูล)
-function _costpageDefaultsFor(payrollRow, dateJobCount, month) {
-  if (!payrollRow) return null;
-  const c = _costpageCompute(payrollRow, _costpageMonthDays(month, dateJobCount));
-  if (c.utilPerDay == null) return null;
-  return { util: Math.round(c.utilPerDay * 100) / 100, rent: Math.round(c.rentPerDay * 100) / 100 };
+// ── ฐานต้นทุนเฉลี่ย 6 เดือน (ยอดสุทธิรวม % แล้ว) — ใช้เป็นค่าเริ่มต้น Overhead/ค่าเช่า ฿/วัน ตอนอนุมัติต้นทุน ──
+// เลือกเดือนที่ ≤ เดือนของบันทึก และไม่ใช่เดือนที่ยังไม่จบ เอาล่าสุด 6 เดือน แล้วเฉลี่ย "แยกกลุ่ม":
+// แต่ละกลุ่มนับเฉพาะเดือนที่มีข้อมูลกลุ่มนั้นจริง (เช่น ก.ค. ไม่ได้กรอกค่าน้ำ/ไฟ → ไม่ดึงค่าเฉลี่ยสาธารณูปโภคลง)
+// excluded = Set ของเดือนที่ผู้ใช้ติ๊กไม่นับในตารางความผันผวน (ใช้เฉพาะบนหน้านี้)
+const _COSTPAGE_AVG_MONTHS = 6;
+function _costpageAvg6(rows, uptoMonth, excluded) {
+  const d = new Date();
+  const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const cand = (rows || []).filter(p => p.Month < thisMonth && (!uptoMonth || p.Month <= uptoMonth) && !(excluded && excluded.has(p.Month)))
+    .sort((a, b) => b.Month.localeCompare(a.Month)).slice(0, _COSTPAGE_AVG_MONTHS);
+  const has = (p, cols) => cols.some(c => p[c] != null);
+  const buckets = {
+    labor: { cols: ['FT_TotalCost', 'FT_OTCost', 'PT_TotalCost', 'PT_OTCost', 'OS_TotalCost', 'OS_OTCost'] },
+    util:  { cols: ['Water_Cost', 'Electric_Cost', 'Utility_Cost'] },
+    rent:  { cols: ['Rent_Cost', 'Security_Cost'] },
+  };
+  const out = { months: cand.map(p => p.Month) };
+  Object.entries(buckets).forEach(([k, b]) => {
+    const used = cand.filter(p => has(p, b.cols));
+    const vals = used.map(p => _costpageCompute(p, 0)[k]);
+    out[k] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    out[k + 'Months'] = used.map(p => p.Month);
+  });
+  out.total = (out.labor || 0) + (out.util || 0) + (out.rent || 0);
+  out.utilPerDay = out.util == null ? null : out.util / _COSTPAGE_DAYS_PER_MONTH;
+  out.rentPerDay = out.rent == null ? null : out.rent / _COSTPAGE_DAYS_PER_MONTH;
+  return out;
+}
+
+function costpageRenderAvg() {
+  const box = document.getElementById('costpage-avg');
+  if (!box) return;
+  const excluded = new Set(_costpageVolMonths().filter(m => !m.included).map(m => m.month));
+  const a = _costpageAvg6(_costpageAll, null, excluded);
+  if (!a.months.length) { box.innerHTML = ''; return; }
+  const f = v => v == null ? '—' : _costpageFmt(v);
+  const tile = (label, val, sub, color) => `<div class="col-6 col-md-3"><div class="text-muted" style="font-size:.75rem">${label}</div>
+    <div class="fw-bold" style="font-size:1.15rem;color:${color}">${val}</div><div class="text-muted" style="font-size:.7rem">${sub}</div></div>`;
+  const span = ms => ms.length ? `${ms.length} เดือน (${[...ms].sort().join(', ')})` : 'ไม่มีข้อมูล';
+  box.innerHTML = `
+    <div class="fw-bold mb-2"><i class="fas fa-scale-balanced me-1"></i>ฐานต้นทุนเฉลี่ย ${_COSTPAGE_AVG_MONTHS} เดือนล่าสุด (ยอดสุทธิ) — ใช้อ้างอิงตอนประกาศต้นทุนมาตรฐาน</div>
+    <div class="row g-3 mb-2">
+      ${tile('ค่าแรง เฉลี่ย/เดือน (ดูอย่างเดียว)', f(a.labor), span(a.laborMonths), '#1e3a8a')}
+      ${tile('ค่าน้ำ + ค่าไฟ เฉลี่ย/เดือน', f(a.util), span(a.utilMonths), '#f59e0b')}
+      ${tile('ค่าเช่า + รปภ. + อื่นๆ เฉลี่ย/เดือน', f(a.rent), span(a.rentMonths), '#8b5cf6')}
+      ${tile('รวมเฉลี่ย/เดือน', f(a.total), '', '#198754')}
+    </div>
+    <div class="p-2 rounded small" style="background:#f1f5f9">
+      ค่าแนะนำตอนประกาศต้นทุนมาตรฐาน: <b>ค่าน้ำไฟ ${f(a.utilPerDay)}/วัน</b> · <b>ค่าเช่า+รปภ. ${f(a.rentPerDay)}/วัน</b> (เฉลี่ยต่อเดือน ÷ ${_COSTPAGE_DAYS_PER_MONTH} วัน)
+      <div class="text-muted mt-1">หน้าอนุมัติต้นทุนใช้ชุดต้นทุนมาตรฐานก่อน ตัวเลขชุดนี้ใช้แทนเฉพาะเดือนที่ยังไม่มีชุดมาตรฐาน ·
+        ค่าแรงไม่ถูกใช้ตอนอนุมัติ เพราะคิดจากชั่วโมงทำงานจริง × เรท ฿/ชม. ในชุดมาตรฐาน ·
+        ไม่นับเดือนที่ยังไม่จบและเดือนที่ติ๊กออกในตารางความผันผวน</div>
+    </div>`;
+}
+
+// ── ต้นทุนมาตรฐาน (cost_standards) — ล็อกตัวเลขเป็นช่วงเดือน ให้ต้นทุนต่อชิ้นนิ่ง ไม่เปลี่ยนทุกเดือน ──
+// ช่วงห้ามทับกัน · หาชุดที่ครอบคลุมเดือนนั้น ถ้าไม่มีแต่เคยมีชุดก่อนหน้า → ใช้ชุดล่าสุดที่หมดไปแล้วต่อ (expired:true)
+// ถ้าเดือนนั้นอยู่ก่อนชุดแรกสุด → ไม่มีมาตรฐาน (null) ให้ fallback ไปค่าเฉลี่ย 6 เดือน
+const _COSTSTD_RATE_FIELDS = [
+  ['FT_LaborRate', 'FT ปกติ ฿/ชม.'], ['FT_OT_Rate', 'FT โอที ฿/ชม.'],
+  ['PT_LaborRate', 'PT ปกติ ฿/ชม.'], ['PT_OT_Rate', 'PT โอที ฿/ชม.'],
+  ['OS_LaborRate', 'OS ปกติ ฿/ชม.'], ['OS_OT_Rate', 'OS โอที ฿/ชม.'],
+];
+const _COSTSTD_PCT_KEY = { FT_LaborRate: 'ft', FT_OT_Rate: 'ftot', PT_LaborRate: 'pt', PT_OT_Rate: 'ptot', OS_LaborRate: 'os', OS_OT_Rate: 'osot' };
+let _costpageStandards = [];
+let _costpageLastRates = {};
+
+// เรทค่าแรงปกติ ฿/ชม. ย้อนจากเงินเดือนที่จ่ายจริง (ยอดจ่ายจริง ก่อนบวก % — % บวกทีหลังในหน้าประกาศ)
+//  FT = FT_TotalCost ÷ (FT_Headcount × 26 × 8) · OS = OS_TotalCost ÷ (OS_Headcount × 26 × 9.5) · PT = PT_DayRate ÷ 8
+//  เฉลี่ยจากเดือนเดียวกับฐานเฉลี่ย 6 เดือน (จบแล้ว, ไม่ติ๊กออก) เฉพาะเดือนที่มีทั้งยอดและจำนวนคน
+//  เรทโอทีไม่คำนวณ (ผู้ใช้เลือกคงเรทเดิม 2026-10-16)
+const _COSTSTD_HOURS_PER_DAY = { FT: 8, PT: 8, OS: 9.5 };
+function _costpageDeriveLaborRates() {
+  const excluded = new Set(_costpageVolMonths().filter(m => !m.included).map(m => m.month));
+  const months = _costpageAvg6(_costpageAll, null, excluded).months;
+  const rows = _costpageAll.filter(p => months.includes(p.Month));
+  const D = _COSTPAGE_DAYS_PER_MONTH, H = _COSTSTD_HOURS_PER_DAY;
+  const out = {};
+  const avg = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+  const money = v => '฿' + Math.round(v).toLocaleString('th-TH');
+  [['FT_LaborRate', 'FT_TotalCost', 'FT_Headcount', H.FT], ['OS_LaborRate', 'OS_TotalCost', 'OS_Headcount', H.OS]].forEach(([col, costCol, hcCol, h]) => {
+    const use = rows.filter(p => parseFloat(p[costCol]) > 0 && parseFloat(p[hcCol]) > 0);
+    if (!use.length) return;
+    const pay = avg(use.map(p => parseFloat(p[costCol])));
+    const hc = avg(use.map(p => parseFloat(p[hcCol])));
+    const rate = avg(use.map(p => parseFloat(p[costCol]) / (parseFloat(p[hcCol]) * D * h)));
+    out[col] = { rate: Math.round(rate * 100) / 100,
+      detail: `เงินเดือนเฉลี่ย ${money(pay)} ÷ (${+hc.toFixed(1)} คน × ${D} วัน × ${h} ชม.) · ${use.length} เดือน` };
+  });
+  const pt = rows.filter(p => parseFloat(p.PT_DayRate) > 0);
+  if (pt.length) {
+    const day = avg(pt.map(p => parseFloat(p.PT_DayRate)));
+    out.PT_LaborRate = { rate: Math.round(day / H.PT * 100) / 100, detail: `ค่าจ้าง ${money(day)}/วัน ÷ ${H.PT} ชม. · ${pt.length} เดือน` };
+  }
+  return out;
+}
+
+function costpageStdRateRecalc(col) {
+  const b = parseFloat(document.getElementById('coststd-base-' + col).value);
+  const p = parseFloat(document.getElementById('coststd-pct-' + col).value) || 0;
+  document.getElementById('coststd-' + col).value = isNaN(b) ? '' : Math.round(b * (1 + p / 100) * 100) / 100;
+}
+let _costpageStdModal = null;
+
+function _costStdFor(stds, month) {
+  if (!month || !Array.isArray(stds) || !stds.length) return null;
+  const cover = stds.find(s => s.StartMonth <= month && month <= s.EndMonth);
+  if (cover) return { std: cover, expired: false };
+  const past = stds.filter(s => s.EndMonth < month).sort((a, b) => b.EndMonth.localeCompare(a.EndMonth))[0];
+  return past ? { std: past, expired: true } : null;
+}
+
+function _costpageThisMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function costpageRenderStd() {
+  const box = document.getElementById('costpage-std');
+  if (!box) return;
+  const f = v => v == null ? '—' : _costpageFmt(parseFloat(v));
+  const cur = _costStdFor(_costpageStandards, _costpageThisMonth());
+  let head;
+  if (!cur) {
+    head = `<div class="alert alert-warning py-2 mb-2"><i class="fas fa-triangle-exclamation me-1"></i>ยังไม่มีต้นทุนมาตรฐานสำหรับเดือนนี้ — หน้าอนุมัติต้นทุนจะใช้ค่าเฉลี่ย 6 เดือนล่าสุดแทน (ตัวเลขเปลี่ยนทุกเดือน)</div>`;
+  } else {
+    const s = cur.std;
+    head = `${cur.expired ? `<div class="alert alert-danger py-2 mb-2"><i class="fas fa-clock me-1"></i>ต้นทุนมาตรฐานหมดช่วงแล้ว (สิ้นสุด ${s.EndMonth}) — ระบบใช้ชุดเดิมต่อไปก่อน กรุณาประกาศชุดใหม่</div>` : ''}
+      <div class="row g-2 mb-2">
+        <div class="col-6 col-md-3"><div class="text-muted" style="font-size:.75rem">ช่วงที่ใช้</div><div class="fw-bold">${s.StartMonth} ถึง ${s.EndMonth}</div><div class="text-muted" style="font-size:.7rem">${s.BasedOn || ''}</div></div>
+        <div class="col-6 col-md-3"><div class="text-muted" style="font-size:.75rem">ค่าน้ำ + ค่าไฟ</div><div class="fw-bold" style="color:#f59e0b">${f(s.UtilPerDay)}/วัน</div></div>
+        <div class="col-6 col-md-3"><div class="text-muted" style="font-size:.75rem">ค่าเช่า + รปภ.</div><div class="fw-bold" style="color:#8b5cf6">${f(s.RentPerDay)}/วัน</div></div>
+        <div class="col-6 col-md-3"><div class="text-muted" style="font-size:.75rem">เรทค่าแรง ฿/ชม. (ปกติ / โอที)</div><div class="small">FT ${f(s.FT_LaborRate)} / ${f(s.FT_OT_Rate)} · PT ${f(s.PT_LaborRate)} / ${f(s.PT_OT_Rate)} · OS ${f(s.OS_LaborRate)} / ${f(s.OS_OT_Rate)}</div></div>
+      </div>`;
+  }
+  const hist = [..._costpageStandards].sort((a, b) => b.StartMonth.localeCompare(a.StartMonth)).map(s => `<tr>
+      <td>${s.StartMonth} – ${s.EndMonth}</td><td class="text-end">${f(s.UtilPerDay)}</td><td class="text-end">${f(s.RentPerDay)}</td>
+      <td class="small">FT ${f(s.FT_LaborRate)}/${f(s.FT_OT_Rate)} · PT ${f(s.PT_LaborRate)}/${f(s.PT_OT_Rate)} · OS ${f(s.OS_LaborRate)}/${f(s.OS_OT_Rate)}</td>
+      <td class="small text-muted">${s.BasedOn || ''}${s.Note ? ' · ' + s.Note : ''}</td>
+      <td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-secondary" onclick="costpageStdOpen(${s._row_id})" title="แก้ไข"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="costpageStdDelete(${s._row_id})" title="ลบ"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+  box.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="fw-bold"><i class="fas fa-lock me-1"></i>ต้นทุนมาตรฐาน (ล็อกตัวเลขเป็นช่วงเดือน) — ใช้เป็นค่าเริ่มต้นตอนอนุมัติต้นทุน</div>
+      <button class="btn btn-sm btn-primary" onclick="costpageStdOpen(null)"><i class="fas fa-plus me-1"></i>ประกาศชุดใหม่</button>
+    </div>
+    ${head}
+    ${hist ? `<details><summary class="small text-muted">ประวัติชุดมาตรฐาน (${_costpageStandards.length})</summary>
+      <div class="table-responsive mt-2"><table class="table table-sm mb-0 align-middle">
+        <thead><tr><th>ช่วง</th><th class="text-end">น้ำ+ไฟ/วัน</th><th class="text-end">เช่า+รปภ./วัน</th><th>เรทค่าแรง ปกติ/โอที</th><th>ที่มา</th><th></th></tr></thead>
+        <tbody>${hist}</tbody></table></div></details>` : ''}`;
+}
+
+function _costpageAddMonths(month, n) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function costpageStdOpen(rowId) {
+  const s = rowId ? _costpageStandards.find(x => x._row_id === rowId) : null;
+  const g = id => document.getElementById(id);
+  g('coststd-rowid').value = s ? s._row_id : '';
+  let start, end, util, rent, basedOn, rates;
+  if (s) {
+    start = s.StartMonth; end = s.EndMonth; util = s.UtilPerDay; rent = s.RentPerDay; basedOn = s.BasedOn || '';
+    rates = s;
+  } else {
+    // ชุดใหม่: เริ่มเดือนถัดจากชุดล่าสุด (หรือเดือนนี้) ยาว 6 เดือน · ตัวเลขจากค่าเฉลี่ย 6 เดือน · เรทค่าแรงจากชุดล่าสุด/ใบที่อนุมัติล่าสุด
+    const latest = [..._costpageStandards].sort((a, b) => b.EndMonth.localeCompare(a.EndMonth))[0];
+    start = latest && latest.EndMonth >= _costpageThisMonth() ? _costpageAddMonths(latest.EndMonth, 1) : _costpageThisMonth();
+    end = _costpageAddMonths(start, 5);
+    const excluded = new Set(_costpageVolMonths().filter(m => !m.included).map(m => m.month));
+    const a = _costpageAvg6(_costpageAll, null, excluded);
+    util = a.utilPerDay == null ? '' : Math.round(a.utilPerDay * 100) / 100;
+    rent = a.rentPerDay == null ? '' : Math.round(a.rentPerDay * 100) / 100;
+    const ms = [...a.months].sort();
+    basedOn = ms.length ? `เฉลี่ย ${ms[0]}..${ms[ms.length - 1]} (${ms.length} เดือน)` : '';
+    rates = latest || _costpageLastRates || {};
+  }
+  g('coststd-start').value = start; g('coststd-end').value = end;
+  g('coststd-util').value = util ?? ''; g('coststd-rent').value = rent ?? '';
+  g('coststd-basedon').value = basedOn; g('coststd-note').value = s ? (s.Note || '') : '';
+
+  // เรทค่าแรง: ฐาน × (1 + %) — ฐานต้องเป็นเรทก่อนบวก % เสมอ ไม่งั้น % จะทบซ้ำทุกครั้งที่ประกาศชุดใหม่
+  //  ชุดใหม่: ฐาน = LaborRateBase.base ของชุดล่าสุด → เรทของชุดล่าสุด (ชุดเก่าที่ยังไม่มีฐาน ถือว่ายังไม่บวก %) → ใบที่อนุมัติล่าสุด
+  //           % = Pct_Json ของเดือนล่าสุดที่บันทึกในหน้าต้นทุน (ft/ftot/pt/ptot/os/osot)
+  //  แก้ชุดเดิม: ใช้ฐาน/% ที่เก็บไว้ในชุดนั้น และเรทใช้จริงตามที่บันทึกไว้ (ไม่คำนวณทับ)
+  const base = {}, pct = {}, fin = {};
+  if (s) {
+    const lb = s.LaborRateBase || {};
+    _COSTSTD_RATE_FIELDS.forEach(([col]) => {
+      base[col] = lb.base?.[col] ?? s[col] ?? null; pct[col] = lb.pct?.[col] ?? 0; fin[col] = s[col] ?? null;
+    });
+  } else {
+    // % ค่าแรง = เฉลี่ย % ของแต่ละเดือน จากเดือนชุดเดียวกับฐานเฉลี่ย 6 เดือน (เหมือนค่าน้ำไฟที่ใช้ % ของแต่ละเดือน
+    // แล้วเฉลี่ย — คำตอบผู้ใช้ 2026-10-16) เดือนที่ไม่ได้ตั้ง % ไว้นับเป็น 0%
+    const pctMonths = _costpageAll.filter(p => _costpageAvg6(_costpageAll, null,
+      new Set(_costpageVolMonths().filter(m => !m.included).map(m => m.month))).months.includes(p.Month));
+    const pj = {};
+    if (pctMonths.length) Object.values(_COSTSTD_PCT_KEY).forEach(k => {
+      pj[k] = Math.round(pctMonths.reduce((s, p) => s + (parseFloat((p.Pct_Json || {})[k]) || 0), 0) / pctMonths.length * 100) / 100;
+    });
+    const lbBase = rates.LaborRateBase?.base || {};
+    const derived = _costpageDeriveLaborRates();
+    _COSTSTD_RATE_FIELDS.forEach(([col]) => {
+      // เรทปกติ: คำนวณจากเงินเดือนจริงก่อน (ถ้ามีข้อมูลจำนวนคน/ค่าจ้าง) — เรทโอทีคงค่าเดิมตามที่ผู้ใช้เลือก
+      base[col] = derived[col]?.rate ?? lbBase[col] ?? rates[col] ?? null;
+      pct[col] = parseFloat(pj[_COSTSTD_PCT_KEY[col]]) || 0;
+      fin[col] = base[col] == null ? null : Math.round(base[col] * (1 + pct[col] / 100) * 100) / 100;
+    });
+  }
+  const derivedInfo = s ? {} : _costpageDeriveLaborRates();
+  g('coststd-rates').innerHTML = _COSTSTD_RATE_FIELDS.map(([col, label]) => `
+    <div class="col-6 col-md-4"><div class="border rounded p-2 h-100">
+      <div class="small fw-bold mb-1">${label}</div>
+      ${derivedInfo[col] ? `<div class="text-muted mb-1" style="font-size:.68rem"><i class="fas fa-calculator me-1"></i>${derivedInfo[col].detail}</div>` : ''}
+      <div class="input-group input-group-sm mb-1">
+        <span class="input-group-text">ฐาน</span>
+        <input type="number" step="0.01" id="coststd-base-${col}" class="form-control" value="${base[col] ?? ''}" oninput="costpageStdRateRecalc('${col}')">
+        <span class="input-group-text">+</span>
+        <input type="number" step="0.1" id="coststd-pct-${col}" class="form-control" style="max-width:62px" value="${pct[col]}" oninput="costpageStdRateRecalc('${col}')">
+        <span class="input-group-text">%</span>
+      </div>
+      <div class="input-group input-group-sm"><span class="input-group-text">ใช้จริง</span>
+        <input type="number" step="0.01" id="coststd-${col}" class="form-control fw-bold" value="${fin[col] ?? ''}"></div>
+    </div></div>`).join('');
+  if (!_costpageStdModal) _costpageStdModal = new bootstrap.Modal(document.getElementById('costpageStdModal'));
+  _costpageStdModal.show();
+}
+
+async function costpageStdSave() {
+  const g = id => document.getElementById(id);
+  const rowId = parseInt(g('coststd-rowid').value) || null;
+  const start = g('coststd-start').value, end = g('coststd-end').value;
+  if (!start || !end) { _err('กรุณาเลือกช่วงเดือน', ''); return; }
+  if (end < start) { _err('ช่วงเดือนไม่ถูกต้อง', 'เดือนสิ้นสุดต้องไม่ก่อนเดือนเริ่ม'); return; }
+  const clash = _costpageStandards.find(s => s._row_id !== rowId && s.StartMonth <= end && start <= s.EndMonth);
+  if (clash) { _err('ช่วงเดือนทับกับชุดเดิม', `ทับกับชุด ${clash.StartMonth} – ${clash.EndMonth} — แก้ช่วงของชุดเดิมก่อน หรือเลือกช่วงใหม่`); return; }
+  const num = id => { const v = parseFloat(g(id).value); return isNaN(v) ? null : v; };
+  const payload = {
+    StartMonth: start, EndMonth: end, UtilPerDay: num('coststd-util'), RentPerDay: num('coststd-rent'),
+    BasedOn: g('coststd-basedon').value || null, Note: g('coststd-note').value || null,
+    UpdatedAt: new Date().toISOString(),
+  };
+  _COSTSTD_RATE_FIELDS.forEach(([col]) => { payload[col] = num('coststd-' + col); });
+  payload.LaborRateBase = { base: {}, pct: {} };
+  _COSTSTD_RATE_FIELDS.forEach(([col]) => {
+    payload.LaborRateBase.base[col] = num('coststd-base-' + col);
+    payload.LaborRateBase.pct[col] = num('coststd-pct-' + col) || 0;
+  });
+  if (!rowId) payload.CreatedBy = _currentUser?.email || null;
+  _showLoader();
+  const { error } = rowId
+    ? await _sb.from('cost_standards').update(payload).eq('_row_id', rowId)
+    : await _sb.from('cost_standards').insert(payload);
+  _hideLoader();
+  if (error) {
+    _err('บันทึกต้นทุนมาตรฐานไม่สำเร็จ', /LaborRateBase/.test(error.message)
+      ? 'ยังไม่ได้รัน alter_cost_standards_add_labor_base.sql ใน Supabase SQL Editor'
+      : /relation .* does not exist|schema cache/.test(error.message)
+        ? 'ยังไม่ได้รัน create_cost_standards.sql ใน Supabase SQL Editor' : error.message);
+    return;
+  }
+  _logAudit(rowId ? 'EDIT' : 'CREATE', 'cost_standards', `${start}..${end}`, `ต้นทุนมาตรฐาน น้ำไฟ ${payload.UtilPerDay}/วัน เช่า+รปภ. ${payload.RentPerDay}/วัน`);
+  _costpageStdModal.hide();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกต้นทุนมาตรฐานแล้ว', showConfirmButton: false, timer: 1500 });
+  await costpageLoad();
+}
+
+async function costpageStdDelete(rowId) {
+  const s = _costpageStandards.find(x => x._row_id === rowId);
+  if (!s) return;
+  const res = await Swal.fire({ icon: 'warning', title: `ลบชุดมาตรฐาน ${s.StartMonth} – ${s.EndMonth}?`, text: 'ใบที่อนุมัติไปแล้วไม่เปลี่ยน แต่ใบที่อนุมัติหลังจากนี้ในช่วงนั้นจะไม่มีค่ามาตรฐานให้',
+    showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  const { data, error } = await _sb.from('cost_standards').delete().eq('_row_id', rowId).select();
+  _hideLoader();
+  if (error || !data || !data.length) { _err('ลบไม่สำเร็จ', error ? error.message : 'ไม่มีสิทธิ์ลบ'); return; }
+  _logAudit('DELETE', 'cost_standards', `${s.StartMonth}..${s.EndMonth}`, 'ลบต้นทุนมาตรฐาน');
+  await costpageLoad();
+}
+
+// ใช้ในการ์ดรายเดือน: เทียบยอดจริงของเดือนกับมาตรฐานที่ใช้ในเดือนนั้น
+function _costpageStdCompareHTML(month, c) {
+  const st = _costStdFor(_costpageStandards, month);
+  if (!st || st.expired) return '';
+  const s = st.std, f = v => _costpageFmt(v);
+  const line = (label, actual, std) => {
+    if (std == null || actual == null) return '';
+    const over = actual > parseFloat(std);
+    return `<div class="${over ? 'text-danger fw-bold' : 'text-success'}">${label}: จริง ${f(actual)} / มาตรฐาน ${f(parseFloat(std))} ${over ? '⚠ เกินมาตรฐาน' : '✓'}</div>`;
+  };
+  return `<div class="small border-top pt-2 mt-2">${line('น้ำ+ไฟ/วัน', c.utilPerDay, s.UtilPerDay)}${line('เช่า+รปภ./วัน', c.rentPerDay, s.RentPerDay)}</div>`;
+}
+
+// ค่าเริ่มต้น Overhead/ค่าเช่า ฿/วัน สำหรับหน้าอนุมัติต้นทุน = ค่าเฉลี่ย 6 เดือนล่าสุด ณ เดือนของบันทึก (null ถ้ายังไม่มีข้อมูล)
+function _costpageDefaultsFor(rows, month) {
+  const a = _costpageAvg6(rows, month, null);
+  if (a.utilPerDay == null && a.rentPerDay == null) return null;
+  const r2 = v => v == null ? null : Math.round(v * 100) / 100;
+  return { util: r2(a.utilPerDay), rent: r2(a.rentPerDay) };
+}
+
+// ══════════════════════════════════════════════
+// PAGE: คำนวณต้นทุนสินค้าใหม่ (Master, admin) — เครื่องคิดเลขล้วน ไม่บันทึกลงฐานข้อมูล (คำตอบผู้ใช้ 2026-10-16)
+//  1) วัตถุดิบ: ตั้งต้นจาก BOM ของ FG ที่ใกล้เคียง แก้/เพิ่ม/ลบได้ (เลือกจาก Master หรือพิมพ์วัตถุดิบใหม่เอง)
+//     ราคา = เฉลี่ยถ่วงน้ำหนักจาก stock_balance (แบบเดียวกับหน้า BOM) → ราคารับเข้าล่าสุด mr_receive → กรอกเอง
+//     ปริมาณใช้ต่อชิ้นใช้ QtyWithScrap (รวม Scrap) ถ้ามี
+//  2) กำลังผลิต: จากประวัติผลิตจริง (production_records อนุมัติแล้ว) ของสินค้าที่ปริมาณบรรจุ + ประเภทใกล้เคียง
+//     ชิ้น/วัน = Σ FG_Actual ÷ Σ วันที่ทำงานจริง · ชม.คน/วัน ต่อประเภท = Σ ชม. ÷ Σ วันทำงาน
+//  3) เรท: ชุดต้นทุนมาตรฐานของเดือนนี้ (cost_standards) → ค่าเฉลี่ย 6 เดือน/ใบล่าสุดที่อนุมัติ
+//  ต้นทุน/ชิ้น = วัตถุดิบ + Σ(ชม.คน/วัน × เรท) ÷ ชิ้น/วัน + (ค่าน้ำไฟ/วัน + ค่าเช่ารปภ./วัน) ÷ ชิ้น/วัน
+// ══════════════════════════════════════════════
+let _ncBom = [];          // แถว bom ทั้งหมด
+let _ncMaterials = [];    // materials master
+let _ncPriceMap = {};     // MaterialCode → { price, src }
+let _ncHistory = [];      // [{code, name, size, sizeUnit, type, lots, fg, days, hrs:{ftN,ftO,ptN,ptO,osN,osO}}]
+let _ncRates = {};        // FT_LaborRate.. + UtilPerDay + RentPerDay + src
+let _ncLineSeq = 0;
+
+function _ncParseSize(name) {
+  const m = String(name || '').match(/(\d+(?:[.,]\d+)?)\s*(ml|มล|l|ลิตร|kg|g|gm|กรัม)\b\.?/i);
+  if (!m) return null;
+  let v = parseFloat(m[1].replace(',', '.')), u = m[2].toLowerCase();
+  if (u === 'l' || u === 'ลิตร') { v *= 1000; u = 'ml'; }
+  else if (u === 'kg') { v *= 1000; u = 'g'; }
+  else if (u === 'มล') u = 'ml';
+  else if (u === 'gm' || u === 'กรัม') u = 'g';
+  return { v, u };
+}
+
+async function newcostLoad() {
+  if (!_currentUser?.isAdmin) return;
+  _showLoader();
+  const thisM = _costpageThisMonth();
+  const [bomRows, matRes, stockRes, mrRes, recRes, stdRes, payRes, lastRes, prlRes, tierRes] = await Promise.all([
+    _bomFetchAllRows(),
+    _sb.from('materials').select('MaterialCode,MaterialName,UOM,TYPE'),
+    _fetchAllPaged('stock_balance', 'MaterialCode,QtyBalance,StockValue,UnitCost'),
+    _fetchAllPaged('mr_receive', 'MaterialCode,UnitCost,_row_id'),
+    _fetchAllPagedEq('production_records', 'ProductCode,ProductName,FG_Actual,StationsData,Date_Start,Date_End', 'Status', 'อนุมัติแล้ว'),
+    _sb.from('cost_standards').select('*'),
+    _sb.from('admindash_payroll_actual').select('*'),
+    _sb.from('production_records').select('FT_LaborRate,FT_OT_Rate,PT_LaborRate,PT_OT_Rate,OS_LaborRate,OS_OT_Rate,OverheadUtility,RentPerDay')
+      .eq('Status', 'อนุมัติแล้ว').not('FT_LaborRate', 'is', null).order('_row_id', { ascending: false }).limit(1),
+    // แหล่งราคาสำรองสำหรับวัตถุดิบที่ยังไม่เคยรับเข้า (สินค้าใหม่) — error = ข้ามเงียบๆ
+    _fetchAllPaged('purchase_request_lines', 'MaterialCode,UnitCost,_row_id'),
+    _sb.from('material_price_tiers').select('MaterialCode,MinQty,Price'),
+  ]);
+  _hideLoader();
+  if (bomRows.error) { _err('โหลด BOM ไม่สำเร็จ', bomRows.error.message); return; }
+  _ncBom = bomRows.data || [];
+  _ncMaterials = (matRes.data || []).filter(m => m.MaterialCode);
+
+  // ราคา: สต็อกคงเหลือถ่วงน้ำหนัก → ราคารับเข้าล่าสุด
+  _ncPriceMap = {};
+  const agg = {};
+  (stockRes.data || []).forEach(r => {
+    const q = parseFloat(r.QtyBalance) || 0; if (q <= 0 || !r.MaterialCode) return;
+    (agg[r.MaterialCode] = agg[r.MaterialCode] || { q: 0, v: 0 });
+    agg[r.MaterialCode].q += q; agg[r.MaterialCode].v += parseFloat(r.StockValue) || 0;
+  });
+  Object.entries(agg).forEach(([c, a]) => { if (a.q > 0 && a.v > 0) _ncPriceMap[c] = { price: a.v / a.q, src: 'สต็อกเฉลี่ย' }; });
+  [...(mrRes.data || [])].sort((a, b) => (b._row_id || 0) - (a._row_id || 0)).forEach(r => {
+    const p = parseFloat(r.UnitCost) || 0;
+    if (p > 0 && r.MaterialCode && !_ncPriceMap[r.MaterialCode]) _ncPriceMap[r.MaterialCode] = { price: p, src: 'รับเข้าล่าสุด' };
+  });
+  // → ราคาในใบขอซื้อล่าสุด → ราคาขั้นบันได Bulk (ขั้นที่ซื้อน้อยสุด = ราคาแพงสุด เผื่อไว้)
+  [...(prlRes.data || [])].sort((a, b) => (b._row_id || 0) - (a._row_id || 0)).forEach(r => {
+    const p = parseFloat(r.UnitCost) || 0;
+    if (p > 0 && r.MaterialCode && !_ncPriceMap[r.MaterialCode]) _ncPriceMap[r.MaterialCode] = { price: p, src: 'ใบขอซื้อล่าสุด' };
+  });
+  [...(tierRes.error ? [] : (tierRes.data || []))].sort((a, b) => (parseFloat(a.MinQty) || 0) - (parseFloat(b.MinQty) || 0)).forEach(r => {
+    const p = parseFloat(r.Price) || 0;
+    if (p > 0 && r.MaterialCode && !_ncPriceMap[r.MaterialCode]) _ncPriceMap[r.MaterialCode] = { price: p, src: 'ราคาขั้นบันได Bulk' };
+  });
+
+  // ประวัติผลิตจริงต่อสินค้า
+  const byCode = {};
+  (recRes.data || []).forEach(r => {
+    const fg = parseFloat(r.FG_Actual) || 0; if (fg <= 0 || !r.ProductCode) return;
+    const stations = _prodrecordParseStations(r);
+    const dates = Object.entries(_prodrecordOhHoursByDate(r, stations)).filter(([k, h]) => k && h > 0).length;
+    const days = dates || _prodrecordWorkDays(r) || 1;
+    const t = _admindashLaborByType(r);
+    const h = (byCode[r.ProductCode] = byCode[r.ProductCode] ||
+      { code: r.ProductCode, name: r.ProductName, lots: 0, fg: 0, days: 0, hrs: { ftN: 0, ftO: 0, ptN: 0, ptO: 0, osN: 0, osO: 0 } });
+    h.lots++; h.fg += fg; h.days += days;
+    h.hrs.ftN += t.ftNormalHours; h.hrs.ftO += t.ftOtHours; h.hrs.ptN += t.ptNormalHours;
+    h.hrs.ptO += t.ptOtHours; h.hrs.osN += t.osNormalHours; h.hrs.osO += t.osOtHours;
+  });
+  _ncHistory = Object.values(byCode).map(h => {
+    const s = _ncParseSize(h.name);
+    return { ...h, size: s?.v ?? null, sizeUnit: s?.u ?? '', type: _fgParseNameParts(h.name).type };
+  });
+
+  // เรท: ต้นทุนมาตรฐานเดือนนี้ → เฉลี่ย 6 เดือน (น้ำไฟ/เช่า) + ใบล่าสุด (ค่าแรง)
+  const stdHit = stdRes.error ? null : _costStdFor(stdRes.data || [], thisM);
+  const last = (lastRes.data || [])[0] || {};
+  const avg = payRes.error ? null : _costpageDefaultsFor(payRes.data || [], thisM);
+  const s = stdHit ? stdHit.std : {};
+  _ncRates = { src: stdHit ? `ต้นทุนมาตรฐาน ${s.StartMonth}–${s.EndMonth}${stdHit.expired ? ' (หมดช่วงแล้ว)' : ''}` : 'ยังไม่มีต้นทุนมาตรฐาน — ใช้ค่าเฉลี่ย 6 เดือน/ใบล่าสุดที่อนุมัติ' };
+  _COSTSTD_RATE_FIELDS.forEach(([col]) => { _ncRates[col] = s[col] ?? last[col] ?? null; });
+  _ncRates.UtilPerDay = s.UtilPerDay ?? avg?.util ?? last.OverheadUtility ?? null;
+  _ncRates.RentPerDay = s.RentPerDay ?? avg?.rent ?? last.RentPerDay ?? null;
+
+  // datalists
+  const products = [...new Map(_ncBom.map(b => [b.ProductCode, b.ProductName])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  document.getElementById('nc-fg-datalist').innerHTML = products.map(([c, n]) => `<option value="${_ncEsc(c)}">${_ncEsc(n)}</option>`).join('');
+  document.getElementById('nc-mat-datalist').innerHTML = _ncMaterials.map(m => `<option value="${_ncEsc(m.MaterialCode)}">${_ncEsc(m.MaterialName)}</option>`).join('');
+  const types = [...new Set(_ncHistory.map(h => h.type))].sort();
+  const tSel = document.getElementById('nc-type');
+  const keep = tSel.value;
+  tSel.innerHTML = '<option value="">— ทุกประเภท —</option>' + types.map(t => `<option value="${_ncEsc(t)}">${_ncEsc(t)}</option>`).join('');
+  tSel.value = keep;
+  _ncRenderRates();
+  if (!document.querySelectorAll('#nc-lines tr').length) newcostAddLine();
+  newcostFindSimilar();
+}
+
+function _ncEsc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function _ncNum(id) { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? 0 : v; }
+function _ncFmt(v, d = 2) { return '฿' + (v || 0).toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+
+// ── 1) วัตถุดิบ ──
+function newcostLoadFromFG() {
+  const code = document.getElementById('nc-fg').value.trim();
+  const lines = _ncBom.filter(b => b.ProductCode === code);
+  if (!lines.length) { _err('ไม่พบ BOM ของสินค้านี้', 'เลือกรหัส FG จากรายการ'); return; }
+  document.getElementById('nc-lines').innerHTML = '';
+  // ซ้ำ MaterialCode+Remark (ข้อมูลซ้ำเก่า) เอาแถวเดียว
+  const seen = new Set();
+  lines.forEach(b => {
+    const k = `${b.MaterialCode}|${(b.Remark || '').toLowerCase()}`; if (seen.has(k)) return; seen.add(k);
+    newcostAddLine({ code: b.MaterialCode, name: b.MaterialName, kind: (b.Remark || '').toLowerCase() === 'pac' ? 'Pac' : 'Bulk',
+      qty: parseFloat(b.QtyWithScrap) || parseFloat(b.QtyPerBase) || 0, uom: b.UOM });
+  });
+  // ตั้งขนาด/ประเภทตามสินค้าต้นแบบ แล้วหาสินค้าใกล้เคียงให้
+  const name = lines[0].ProductName;
+  const sz = _ncParseSize(name);
+  if (sz) { document.getElementById('nc-size').value = sz.v; document.getElementById('nc-size-unit').value = sz.u; }
+  const t = _fgParseNameParts(name).type;
+  const tSel = document.getElementById('nc-type');
+  if ([...tSel.options].some(o => o.value === t)) tSel.value = t;
+  document.getElementById('nc-fg-name').textContent = name || '';
+  // ชื่อสินค้าในรูปสรุป: เติมจาก FG ที่เลือกให้ (แก้เป็นชื่อสินค้าใหม่ได้) — ไม่ทับถ้าพิมพ์ชื่อไว้แล้ว
+  const nn = document.getElementById('nc-newname');
+  if (!nn.value.trim() || nn.dataset.auto === '1') { nn.value = name || ''; nn.dataset.auto = '1'; }
+  newcostFindSimilar();
+}
+
+function newcostAddLine(d = {}) {
+  const seq = ++_ncLineSeq;
+  const p = d.code ? _ncPriceMap[d.code] : null;
+  const tr = document.createElement('tr');
+  tr.dataset.seq = seq;
+  tr.innerHTML = `
+    <td><input class="form-control form-control-sm" list="nc-mat-datalist" id="nc-code-${seq}" value="${_ncEsc(d.code)}" placeholder="รหัส (เว้นได้ถ้าเป็นของใหม่)" onchange="newcostPickMat(${seq})"></td>
+    <td><input class="form-control form-control-sm" id="nc-name-${seq}" value="${_ncEsc(d.name)}" placeholder="ชื่อวัตถุดิบ"></td>
+    <td><select class="form-select form-select-sm" id="nc-kind-${seq}" onchange="newcostRecalc()"><option ${d.kind === 'Pac' ? '' : 'selected'}>Bulk</option><option ${d.kind === 'Pac' ? 'selected' : ''}>Pac</option></select></td>
+    <td><input type="number" step="0.0001" min="0" class="form-control form-control-sm text-end" id="nc-qty-${seq}" value="${d.qty ?? ''}" oninput="newcostRecalc()"></td>
+    <td><input class="form-control form-control-sm" id="nc-uom-${seq}" value="${_ncEsc(d.uom)}"></td>
+    <td><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" id="nc-price-${seq}" value="${p ? Math.round(p.price * 10000) / 10000 : ''}" oninput="newcostRecalc()" title="${p ? p.src : 'ไม่มีราคาในระบบ — กรอกเอง'}">
+      <div class="text-muted" style="font-size:.65rem" id="nc-src-${seq}">${p ? p.src : '<span class="text-danger">กรอกราคาเอง</span>'}</div></td>
+    <td class="text-end fw-bold" id="nc-line-${seq}">—</td>
+    <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();newcostRecalc()"><i class="fas fa-times"></i></button></td>`;
+  document.getElementById('nc-lines').appendChild(tr);
+  newcostRecalc();
+}
+
+function newcostPickMat(seq) {
+  const code = document.getElementById('nc-code-' + seq).value.trim();
+  const m = _ncMaterials.find(x => x.MaterialCode === code);
+  if (!m) return;
+  document.getElementById('nc-name-' + seq).value = m.MaterialName || '';
+  document.getElementById('nc-uom-' + seq).value = m.UOM || '';
+  document.getElementById('nc-kind-' + seq).value = String(m.TYPE || '').toUpperCase() === 'PAC' ? 'Pac' : 'Bulk';
+  const p = _ncPriceMap[code];
+  document.getElementById('nc-price-' + seq).value = p ? Math.round(p.price * 10000) / 10000 : '';
+  document.getElementById('nc-src-' + seq).innerHTML = p ? p.src : '<span class="text-danger">กรอกราคาเอง</span>';
+  newcostRecalc();
+}
+
+// ── 2) สินค้าใกล้เคียง ──
+function newcostFindSimilar() {
+  const size = parseFloat(document.getElementById('nc-size').value);
+  const unit = document.getElementById('nc-size-unit').value;
+  const type = document.getElementById('nc-type').value;
+  const scored = _ncHistory.map(h => {
+    let score = 0;
+    if (type) score += h.type === type ? 0 : 10;
+    if (!isNaN(size) && size > 0) score += (h.size && h.sizeUnit === unit) ? Math.abs(Math.log(h.size / size)) : 5;
+    return { h, score };
+  }).sort((a, b) => a.score - b.score).slice(0, 12);
+  document.getElementById('nc-similar').innerHTML = scored.length ? scored.map(({ h, score }, i) => {
+    const upd = h.fg / h.days;
+    const checked = i < 3 && score < 1;   // เลือกให้อัตโนมัติ 3 ตัวแรกที่ประเภทตรงและขนาดต่างไม่เกิน ~2.7 เท่า
+    return `<tr>
+      <td><input type="checkbox" class="nc-sim" value="${_ncEsc(h.code)}" ${checked ? 'checked' : ''} onchange="newcostRecalc()"></td>
+      <td><span class="badge bg-secondary">${_ncEsc(h.code)}</span> ${_ncEsc(h.name)}</td>
+      <td class="small">${h.size ? `${h.size} ${h.sizeUnit}` : '—'} · ${_ncEsc(h.type)}</td>
+      <td class="text-end">${h.lots}</td>
+      <td class="text-end">${Math.round(upd).toLocaleString()}</td>
+      <td class="text-end small">${((h.hrs.ftN + h.hrs.ftO + h.hrs.ptN + h.hrs.ptO + h.hrs.osN + h.hrs.osO) / h.days).toFixed(1)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="text-center text-muted">ยังไม่มีประวัติผลิตที่อนุมัติต้นทุนแล้ว</td></tr>';
+  newcostApplySimilar();
+}
+
+// เฉลี่ยจากสินค้าที่ติ๊ก (ถ่วงน้ำหนักตามจำนวนผลิตจริง) แล้วเติมลงช่องกำลังผลิต (แก้เองได้)
+function newcostApplySimilar() {
+  const codes = [...document.querySelectorAll('.nc-sim:checked')].map(c => c.value);
+  const sel = _ncHistory.filter(h => codes.includes(h.code));
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  if (!sel.length) { newcostRecalc(); return; }
+  const fg = sel.reduce((s, h) => s + h.fg, 0), days = sel.reduce((s, h) => s + h.days, 0);
+  const sum = k => sel.reduce((s, h) => s + h.hrs[k], 0) / days;
+  set('nc-upd', Math.round(fg / days));
+  ['ftN', 'ftO', 'ptN', 'ptO', 'osN', 'osO'].forEach(k => set('nc-mh-' + k, Math.round(sum(k) * 10) / 10));
+  document.getElementById('nc-sim-note').textContent = `เฉลี่ยจาก ${sel.length} สินค้า · ${sel.reduce((s, h) => s + h.lots, 0)} Lot · ผลิตจริงรวม ${fg.toLocaleString()} ชิ้นใน ${days} วัน`;
+  newcostRecalc();
+}
+
+// ── 3) เรท ──
+function _ncRenderRates() {
+  const set = (id, v) => { document.getElementById(id).value = v ?? ''; };
+  _COSTSTD_RATE_FIELDS.forEach(([col]) => set('nc-rate-' + col, _ncRates[col]));
+  set('nc-rate-util', _ncRates.UtilPerDay); set('nc-rate-rent', _ncRates.RentPerDay);
+  document.getElementById('nc-rate-src').textContent = _ncRates.src || '';
+}
+
+// ── 4) สรุป ──
+function newcostRecalc() {
+  let mat = 0, bulk = 0, pac = 0, missing = 0;
+  document.querySelectorAll('#nc-lines tr').forEach(tr => {
+    const s = tr.dataset.seq;
+    const qty = _ncNum('nc-qty-' + s), price = parseFloat(document.getElementById('nc-price-' + s).value);
+    const cell = document.getElementById('nc-line-' + s);
+    if (isNaN(price)) { cell.textContent = '—'; if (qty) missing++; return; }
+    const c = qty * price; mat += c;
+    if (document.getElementById('nc-kind-' + s).value === 'Pac') pac += c; else bulk += c;
+    cell.textContent = _ncFmt(c, 4);
+  });
+  // บวกเพิ่ม (กำไรแฝง) แยก Bulk/บรรจุภัณฑ์ — ค่าเริ่มต้น Bulk 3% (คำขอผู้ใช้ 2026-10-16) ราคาต่อรายการในตารางยังเป็นราคาจริง
+  const mkBulk = _ncNum('nc-mk-bulk'), mkPac = _ncNum('nc-mk-pac');
+  const bulkRaw = bulk, pacRaw = pac;
+  bulk = bulkRaw * (1 + mkBulk / 100); pac = pacRaw * (1 + mkPac / 100); mat = bulk + pac;
+  const upd = _ncNum('nc-upd');
+  const r = col => _ncNum('nc-rate-' + col);
+  const laborDay = _ncNum('nc-mh-ftN') * r('FT_LaborRate') + _ncNum('nc-mh-ftO') * r('FT_OT_Rate')
+    + _ncNum('nc-mh-ptN') * r('PT_LaborRate') + _ncNum('nc-mh-ptO') * r('PT_OT_Rate')
+    + _ncNum('nc-mh-osN') * r('OS_LaborRate') + _ncNum('nc-mh-osO') * r('OS_OT_Rate');
+  const ohDay = _ncNum('nc-rate-util') + _ncNum('nc-rate-rent');
+  const labor = upd > 0 ? laborDay / upd : 0;
+  const oh = upd > 0 ? ohDay / upd : 0;
+  const total = mat + labor + oh;
+  const price = _ncNum('nc-sell');
+  const target = _ncNum('nc-target');
+  const suggest = target > 0 && target < 100 ? total / (1 - target / 100) : null;
+  const tile = (label, val, color, sub = '') => `<div class="col-6 col-md"><div class="kpi-card" style="border-color:${color}">
+    <div class="kpi-num" style="color:${color};font-size:1.2rem">${val}</div><div class="kpi-label">${label}</div>${sub ? `<div class="small text-muted">${sub}</div>` : ''}</div></div>`;
+  document.getElementById('nc-summary').innerHTML =
+    tile('วัตถุดิบ (Bulk)/ชิ้น', _ncFmt(bulk), '#1e3a8a', `ราคาจริง ${_ncFmt(bulkRaw)}${mkBulk ? ` +${mkBulk}%` : ''}`) +
+    tile('บรรจุภัณฑ์ (Pac)/ชิ้น', _ncFmt(pac), '#7c3aed', `ราคาจริง ${_ncFmt(pacRaw)}${mkPac ? ` +${mkPac}%` : ''}${missing ? ` · <span class="text-danger">ไม่มีราคา ${missing} รายการ</span>` : ''}`) +
+    tile('ค่าแรง/ชิ้น', upd > 0 ? _ncFmt(labor) : '—', '#0d6efd', `${_ncFmt(laborDay, 0)}/วัน ÷ ${upd.toLocaleString()} ชิ้น`) +
+    tile('โสหุ้ย/ชิ้น', upd > 0 ? _ncFmt(oh) : '—', '#f59e0b', `น้ำไฟ+เช่า+รปภ. ${_ncFmt(ohDay, 0)}/วัน`) +
+    tile('ต้นทุนรวม/ชิ้น', _ncFmt(total), '#198754');
+  const profit = price > 0 ? price - total : null;
+  _ncLast = { mat, bulk, pac, bulkRaw, pacRaw, mkBulk, mkPac, missing, labor, laborDay, oh, ohDay, total, upd, price, profit, target, suggest };
+  document.getElementById('nc-price-result').innerHTML =
+    (profit != null ? `<div class="${profit >= 0 ? 'text-success' : 'text-danger'} fw-bold">ราคาขาย ${_ncFmt(price)} → กำไร ${_ncFmt(profit)}/ชิ้น (${(profit / price * 100).toFixed(1)}% ของราคาขาย)</div>` : '') +
+    (suggest != null ? `<div class="fw-bold text-primary">ต้องการกำไร ${target}% ของราคาขาย → ควรตั้งราคาอย่างน้อย ${_ncFmt(suggest)}</div>` : '');
+}
+
+// ── ส่งออกรูปภาพสรุป (PNG) — สร้างการ์ดนอกจอ แล้วถ่ายด้วย html2canvas (โหลดจาก CDN ตอนกดครั้งแรกเท่านั้น) ──
+// โลโก้ฝังเป็น data URL (ย่อเหลือสูง 96px ~15KB) — ห้ามใช้ไฟล์รูปภายนอกในการ์ดส่งออก เพราะถ้าเบราว์เซอร์มองว่ารูปมาจาก
+// ต่างแหล่ง (เปิดจากไฟล์ในเครื่อง/โฮสต์ต่างโดเมน) canvas จะถูก tainted แล้ว toDataURL() ใช้ไม่ได้ (บั๊กจริง 2026-10-16)
+const _NC_LOGO_DATA = 'data:image/png;base64,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';
+let _ncLast = null;
+function _ncLoadHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('โหลดตัวสร้างรูปภาพไม่สำเร็จ (ต้องต่ออินเทอร์เน็ต)'));
+    document.head.appendChild(s);
+  });
+}
+
+async function newcostExportImage() {
+  newcostRecalc();
+  const L = _ncLast;
+  if (!L || L.total <= 0) { _err('ยังไม่มีข้อมูลให้สรุป', 'ใส่วัตถุดิบและกำลังผลิตก่อน'); return; }
+  const name = document.getElementById('nc-newname').value.trim() || document.getElementById('nc-fg-name').textContent.trim() || 'สินค้าใหม่';
+  const note = document.getElementById('nc-note').value.trim();
+  const size = document.getElementById('nc-size').value, unit = document.getElementById('nc-size-unit').value;
+  const type = document.getElementById('nc-type').value;
+  const f2 = v => '฿' + (v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const lines = [...document.querySelectorAll('#nc-lines tr')].map(tr => {
+    const s = tr.dataset.seq, g = id => document.getElementById(id + s).value;
+    const qty = parseFloat(g('nc-qty-')) || 0, pr = parseFloat(g('nc-price-'));
+    return { name: g('nc-name-') || g('nc-code-') || '—', kind: g('nc-kind-'), qty, uom: g('nc-uom-'), cost: isNaN(pr) ? null : qty * pr };
+  }).filter(l => l.qty);
+  const pct = v => L.total > 0 ? (v / L.total * 100).toFixed(1) + '%' : '';
+  const bar = (v, color) => `<div style="height:6px;border-radius:3px;background:#e2e8f0;margin-top:4px"><div style="height:6px;border-radius:3px;width:${L.total > 0 ? Math.min(100, v / L.total * 100) : 0}%;background:${color}"></div></div>`;
+  const row = (label, sub, v, color) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f1f5f9">
+      <div style="flex:1"><div style="font-weight:600;color:#1e293b">${label}</div>${sub ? `<div style="font-size:12px;color:#64748b">${sub}</div>` : ''}${bar(v, color)}</div>
+      <div style="text-align:right;min-width:150px"><div style="font-weight:700;font-size:17px;color:${color}">${f2(v)}</div><div style="font-size:12px;color:#94a3b8">${pct(v)}</div></div></div>`;
+  const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const card = document.createElement('div');
+  card.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;padding:24px;background:#eef2f7;font-family:Sarabun,"Noto Sans Thai",sans-serif';
+  card.innerHTML = `
+    <div style="background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.12);border:1px solid #e2e8f0">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:22px 28px;color:#fff;display:flex;gap:18px;align-items:center">
+        <div style="background:#fff;border-radius:12px;padding:8px 12px;flex-shrink:0"><img src="${_NC_LOGO_DATA}" style="height:40px;display:block"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;opacity:.85;letter-spacing:.5px">สรุปประมาณการต้นทุนสินค้าใหม่</div>
+          <div class="nc-exp-name" style="font-size:24px;font-weight:700;margin-top:2px;white-space:nowrap">${_ncEsc(name)}</div>
+          <div style="font-size:13px;opacity:.85;margin-top:4px">${size ? `${size} ${unit}` : ''}${size && type ? ' · ' : ''}${_ncEsc(type)}${(size || type) ? ' · ' : ''}${today}</div>
+        </div>
+      </div>
+      <div style="padding:24px 28px">
+        <div style="display:flex;gap:16px;margin-bottom:18px">
+          <div style="flex:1;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:16px 18px">
+            <div style="font-size:13px;color:#15803d">ต้นทุนรวมต่อชิ้น</div>
+            <div style="font-size:34px;font-weight:800;color:#15803d;line-height:1.2">${f2(L.total)}</div>
+          </div>
+          ${L.price > 0 ? `<div style="flex:1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px 18px">
+            <div style="font-size:13px;color:#1d4ed8">ราคาขาย / กำไรต่อชิ้น</div>
+            <div style="font-size:26px;font-weight:800;color:#1d4ed8;line-height:1.3">${f2(L.price)}</div>
+            <div style="font-size:14px;font-weight:600;color:${L.profit >= 0 ? '#15803d' : '#dc2626'}">กำไร ${f2(L.profit)} (${(L.profit / L.price * 100).toFixed(1)}%)</div>
+          </div>` : ''}
+          ${L.suggest != null ? `<div style="flex:1;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:16px 18px">
+            <div style="font-size:13px;color:#b45309">ราคาแนะนำ (กำไร ${L.target}%)</div>
+            <div style="font-size:26px;font-weight:800;color:#b45309;line-height:1.3">${f2(L.suggest)}</div>
+          </div>` : ''}
+        </div>
+        ${row('วัตถุดิบ (Bulk)', `ราคาจริง ${f2(L.bulkRaw)}${L.mkBulk ? ` + บวกเพิ่ม ${L.mkBulk}%` : ''}`, L.bulk, '#1e3a8a')}
+        ${row('บรรจุภัณฑ์ (Packaging)', `ราคาจริง ${f2(L.pacRaw)}${L.mkPac ? ` + บวกเพิ่ม ${L.mkPac}%` : ''}${L.missing ? ` · ยังไม่มีราคา ${L.missing} รายการ` : ''}`, L.pac, '#7c3aed')}
+        ${row('ค่าแรง', '', L.labor, '#2563eb')}
+        ${row('โสหุ้ย (น้ำไฟ + ค่าเช่า + รปภ.)', '', L.oh, '#f59e0b')}
+        <div style="margin-top:18px;font-weight:700;color:#1e293b;font-size:14px">ส่วนประกอบต่อ 1 ชิ้น</div>
+        ${['Bulk', 'Pac'].map(k => {
+          const items = lines.filter(l => l.kind === k);
+          if (!items.length) return '';
+          return `<div style="margin-top:8px"><div style="font-size:12px;color:#64748b;margin-bottom:4px">${k === 'Bulk' ? 'วัตถุดิบ (Bulk)' : 'บรรจุภัณฑ์ (Packaging)'}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(l => `<span style="background:${k === 'Bulk' ? '#eff6ff' : '#f5f3ff'};color:${k === 'Bulk' ? '#1e3a8a' : '#6d28d9'};border-radius:999px;padding:4px 12px;font-size:13px">${_ncEsc(l.name)}</span>`).join('')}</div></div>`;
+        }).join('')}
+        ${note ? `<div style="margin-top:14px;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:#475569">หมายเหตุ: ${_ncEsc(note)}</div>` : ''}
+        <div style="margin-top:16px;font-size:11px;color:#94a3b8">ตัวเลขประมาณการจากประวัติผลิตจริงของสินค้าใกล้เคียงและต้นทุนมาตรฐาน — ต้นทุนจริงอาจต่างไปเมื่อผลิตจริง · ProFlow MES</div>
+      </div>
+    </div>`;
+  document.body.appendChild(card);
+  // ชื่อสินค้าบรรทัดเดียวเสมอ — ชื่อยาวเกินพื้นที่ให้ลดขนาดตัวอักษรลงจนพอดี (ต่ำสุด 14px)
+  const nameEl = card.querySelector('.nc-exp-name');
+  // เผื่อที่ 8% เพราะ html2canvas วาดตัวอักษรกว้างกว่าที่หน้าเว็บวัดได้เล็กน้อย (ไม่เผื่อ = ท้ายชื่อโดนตัด)
+  nameEl.style.display = 'inline-block';
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;   // วัดหลังฟอนต์โหลดครบ ไม่งั้นวัดด้วยฟอนต์สำรองที่แคบกว่า
+  const maxW = nameEl.parentElement.clientWidth * 0.88;
+  for (let fs = 24; fs > 14 && nameEl.scrollWidth > maxW; fs--) nameEl.style.fontSize = fs - 1 + 'px';
+  _showLoader();
+  try {
+    await _ncLoadHtml2Canvas();
+    const img = card.querySelector('img');
+    if (img && !img.complete) await new Promise(r => { img.onload = img.onerror = r; });
+    const canvas = await html2canvas(card, { scale: 2, backgroundColor: '#eef2f7', useCORS: true });
+    const dataUrl = canvas.toDataURL('image/png');
+    _hideLoader();
+    card.remove();
+    // พรีวิวก่อน แล้วค่อยเลือกดาวน์โหลด/ยกเลิก (คำขอผู้ใช้ 2026-10-16)
+    const res = await Swal.fire({
+      title: 'ตัวอย่างรูปภาพสรุป',
+      html: `<div style="border-radius:10px;background:#eef2f7;text-align:center"><img src="${dataUrl}" style="max-width:100%;max-height:72vh;width:auto;height:auto;display:inline-block"></div>`,
+      width: 980, showCancelButton: true, focusConfirm: true,
+      confirmButtonText: '<i class="fas fa-download me-1"></i>ดาวน์โหลด', cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#198754',
+    });
+    if (!res.isConfirmed) return;
+    const a = document.createElement('a');
+    a.download = `ต้นทุน_${name.replace(/[\\/:*?"<>|]/g, '_')}_${_planWeekLocalDateStr(new Date())}.png`;
+    a.href = dataUrl;
+    a.click();
+  } catch (e) {
+    _err('ส่งออกรูปภาพไม่สำเร็จ', e.message);
+  } finally {
+    _hideLoader();
+    card.remove();
+  }
+}
+
+function newcostReset() {
+  document.getElementById('nc-lines').innerHTML = '';
+  ['nc-fg', 'nc-size', 'nc-sell', 'nc-target', 'nc-newname', 'nc-note'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('nc-newname').dataset.auto = '';
+  document.getElementById('nc-mk-bulk').value = 3; document.getElementById('nc-mk-pac').value = 0;
+  document.getElementById('nc-fg-name').textContent = '';
+  newcostAddLine();
+  _ncRenderRates();
+  newcostFindSimilar();
 }
 
 // ══════════════════════════════════════════════
@@ -38237,6 +39151,7 @@ async function _editreqUpdateNavBadge(notifyIfPending = false) {
   if (!_currentUser?.isAdmin) {
     if (badge) badge.style.display = 'none';
     if (bell) bell.style.display = 'none';
+    document.body.classList.remove('has-editreq-bell');
     return;
   }
   const mySeq = ++_editreqBadgeSeq;
@@ -38255,7 +39170,7 @@ async function _editreqUpdateNavBadge(notifyIfPending = false) {
     else badge.style.display = 'none';
   }
   // กระดิ่งลอยขวาบน — แสดงตลอด (admin อยู่แล้วตาม guard ด้านบน) ตัวเลขขึ้นเฉพาะมีคำขอค้างจริง
-  if (bell) bell.style.display = 'flex';
+  if (bell) { bell.style.display = 'flex'; document.body.classList.add('has-editreq-bell'); }
   if (bellBadge) {
     if (count > 0) { bellBadge.textContent = count > 99 ? '99+' : String(count); bellBadge.style.display = 'inline-block'; }
     else bellBadge.style.display = 'none';
@@ -39532,6 +40447,8 @@ function _renderCurrentUserBadge() {
   // เห็นเลย เหมือน nav-weeklyreport/nav-admindash: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navCostpage = document.getElementById('nav-costpage');
   if (navCostpage) navCostpage.style.display = _currentUser.isAdmin ? '' : 'none';
+  const navNewcost = document.getElementById('nav-newcost');
+  if (navNewcost) navNewcost.style.display = _currentUser.isAdmin ? '' : 'none';
   const navSkillmatrix = document.getElementById('nav-skillmatrix');
   if (navSkillmatrix) navSkillmatrix.style.display = _currentUser.isAdmin ? '' : 'none';
   // "สแกนบันทึกเวลาแรงงาน" — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-13) เหมือน nav-skillmatrix ทุกประการ

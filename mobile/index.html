@@ -183,6 +183,39 @@ button, input, select { font-family: inherit; }
 .lotscan-toolbar input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; }
 .lotscan-toolbar button { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 0 14px; font-size: 1rem; color: var(--blue); }
 
+/* ปฏิทินแผนผลิต */
+.mcal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mcal-head button { border: 1px solid var(--border); background: #fff; border-radius: 10px; width: 40px; height: 36px; color: var(--blue); }
+.mcal-head .ttl { font-weight: 700; font-size: 1rem; }
+.mcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 12px; }
+.mcal-dow { text-align: center; font-size: .66rem; font-weight: 700; color: #94a3b8; padding: 2px 0; }
+.mcal-dow.sun { color: #ef4444; }
+.mcal-cell { min-height: 58px; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 3px 3px 4px; font-size: .7rem; position: relative; overflow: hidden; }
+.mcal-cell.empty { background: transparent; border-color: transparent; }
+.mcal-cell.today { border: 1.5px solid var(--blue-l); background: #eff6ff; }
+.mcal-cell.sel { box-shadow: 0 0 0 2px var(--blue); }
+.mcal-cell.sun { background: #fef2f2; }
+.mcal-cell .d { font-weight: 700; font-size: .74rem; }
+.mcal-dots { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
+.mcal-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.mcal-cell .cnt { position: absolute; right: 4px; top: 3px; font-size: .62rem; font-weight: 700; color: var(--blue); }
+.mcal-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .64rem; color: #64748b; margin-bottom: 12px; }
+.mcal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.mcal-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* รายการขออนุมัติ */
+.mreq-card { background: #fff; border: 1px solid var(--border); border-left: 4px solid #f59e0b; border-radius: 12px; padding: 11px 14px; margin-bottom: 8px; font-size: .84rem; }
+.mreq-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mreq-body { line-height: 1.5; }
+.mreq-body .old { text-decoration: line-through; color: #94a3b8; }
+.mreq-body .new { font-weight: 700; color: var(--blue); }
+.mreq-btn { flex: 1; padding: 10px; border-radius: 10px; font-weight: 600; font-size: .85rem; border: 1px solid; background: #fff; }
+.mreq-btn.ok { background: #16a34a; border-color: #16a34a; color: #fff; }
+.mreq-btn.no { border-color: #dc2626; color: #dc2626; }
+.mreq-by {font-size: .7rem; color: #94a3b8; margin-top: 6px; }
+#bottomnav button .nbadge { position: absolute; top: 3px; margin-left: 16px; background: #ef4444; color: #fff; font-size: .6rem; min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px; display: none; align-items: center; justify-content: center; }
+#bottomnav button { position: relative; }
+
 /* Camera modal — ไม่ใช้ Bootstrap modal ในแอปนี้ ทำเอง */
 #cameraModal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 500; display: none; align-items: center; justify-content: center; padding: 16px; }
 #cameraModal .box { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 380px; }
@@ -247,6 +280,27 @@ button, input, select { font-family: inherit; }
       <div id="prodstatus-mo-cards"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
     </div>
     <!-- __PAGE_PRODSTATUS__ -->
+    <div class="mpage" id="mpage-plancal">
+      <div class="mcal-head">
+        <button onclick="plancalShift(-1)"><i class="fas fa-chevron-left"></i></button>
+        <div class="ttl" id="plancal-title">—</div>
+        <button onclick="plancalShift(1)"><i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div class="mcal-legend" id="plancal-legend"></div>
+      <div class="mcal-grid" id="plancal-grid"><div class="mspinner" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div style="font-weight:700;margin-bottom:8px;padding-left:8px;border-left:4px solid #3b82f6" id="plancal-day-title">เลือกวันที่เพื่อดูรายละเอียด</div>
+      <div id="plancal-day-cards"></div>
+    </div>
+    <div class="mpage" id="mpage-approvals">
+      <div class="mtoolbar">
+        <div class="mchips" id="appr-type-chips"></div>
+      </div>
+      <div id="appr-cards"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+      <div class="mcard text-center" style="font-size:.8rem;color:#64748b">
+        อนุมัติ/ปฏิเสธได้ทุกชนิดจากหน้านี้ — ระบบปรับสต็อกให้เหมือนแอปหลักทุกประการ<br>
+        <a href="../index.html" style="color:var(--blue);font-weight:600">เปิดแอปหลัก → เมนูคำขอแก้ไข</a>
+      </div>
+    </div>
     <div class="mpage" id="mpage-stock">
       <div class="mtoolbar">
         <input type="text" id="stock-search" placeholder="ค้นหา รหัส / ชื่อ / Lot..." oninput="renderStockCards()">
@@ -311,6 +365,8 @@ button, input, select { font-family: inherit; }
 
   <div id="bottomnav">
     <button class="active" data-page="prodstatus" onclick="mShowPage('prodstatus')"><i class="fas fa-industry"></i>ผลิต</button>
+    <button data-page="plancal" onclick="mShowPage('plancal')"><i class="fas fa-calendar-days"></i>แผน</button>
+    <button data-page="approvals" id="nav-approvals" style="display:none" onclick="mShowPage('approvals')"><i class="fas fa-clipboard-check"></i>อนุมัติ<span class="nbadge" id="appr-badge">0</span></button>
     <button data-page="stock" onclick="mShowPage('stock')"><i class="fas fa-boxes-stacked"></i>วัตถุดิบ</button>
     <button data-page="fgstock" onclick="mShowPage('fgstock')"><i class="fas fa-box"></i>FG</button>
     <button data-page="lotscan" onclick="mShowPage('lotscan')"><i class="fas fa-qrcode"></i>Lot Scan</button>
@@ -391,8 +447,9 @@ async function mLogout() {
 // ══════════════════════════════════════════════
 const _mPageTitles = {
   prodstatus: 'ภาพรวมการผลิต', stock: 'สต็อกวัตถุดิบ', fgstock: 'สต็อก FG', lotscan: 'Lot Scan',
+  plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ',
 };
-const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false };
+const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false, plancal: false, approvals: false };
 function mShowPage(name) {
   document.querySelectorAll('.mpage').forEach(el => el.classList.remove('active'));
   document.getElementById('mpage-' + name).classList.add('active');
@@ -405,7 +462,9 @@ function mShowPage(name) {
     if (name === 'stock') loadStockData();
     if (name === 'fgstock') loadFGStockData();
     if (name === 'lotscan') lotscanInit();
-  }
+    if (name === 'plancal') plancalLoad();
+    if (name === 'approvals') apprLoad();
+  } else if (name === 'approvals') apprLoad(); // รายการขออนุมัติเปลี่ยนบ่อย โหลดใหม่ทุกครั้งที่เข้า
 }
 
 // ══════════════════════════════════════════════
@@ -735,8 +794,10 @@ function renderFGStockTable() {
 // PAGE: ภาพรวมการผลิต — เฉพาะมุมมองสัปดาห์ (ตามคำขอผู้ใช้เน้นมุมมองนี้บนมือถือ) ไม่มี Gantt/ลิงก์ไปหน้า
 // แผนผลิตเต็ม (หน้านั้นไม่ได้อยู่ในขอบเขตแอปนี้) — read-only ทั้งหมด
 // ══════════════════════════════════════════════
-const PLAN_LINES = ['ห้องผสมใหญ่', 'ห้องบรรจุครีมโลชั่น', 'ห้องบรรจุแชมพูครีมอาบน้ำ', 'ห้องบรรจุน้ำมัน Aroma'];
-const PLAN_LINE_COLORS = ['#3b82f6', '#f59e0b', '#a855f7', '#14b8a6'];
+// ต้องตรงกับ PLAN_LINES ของแอปหลัก (9 ไลน์ ณ 2026-09-05) — เดิมมือถือมีแค่ 4 ไลน์ ทำให้แผนห้องแพ็ค/ยิง Lot ไม่ขึ้น
+const PLAN_LINES = ['ห้องผสมใหญ่', 'ห้องบรรจุครีมโลชั่น', 'ห้องบรรจุแชมพูครีมอาบน้ำ', 'ห้องบรรจุน้ำมัน Aroma',
+  'ห้องแพ็ค (ห้องผสมใหญ่)', 'ห้องแพ็ค (ห้องบรรจุครีมโลชั่น)', 'ห้องแพ็ค (ห้องบรรจุแชมพูครีมอาบน้ำ)', 'ห้องแพ็ค (ห้องบรรจุน้ำมัน Aroma)', 'ยิง Lot'];
+const PLAN_LINE_COLORS = ['#3b82f6', '#f59e0b', '#a855f7', '#14b8a6', '#ec4899', '#84cc16', '#06b6d4', '#f97316', '#6366f1'];
 function _planLineColor(line) { const idx = PLAN_LINES.indexOf(line); return idx >= 0 ? PLAN_LINE_COLORS[idx] : '#94a3b8'; }
 function _planShiftTimeLabel(r) {
   const start = (r.TimeStart||'').slice(0,5), end = (r.TimeEnd||'').slice(0,5);
@@ -902,6 +963,496 @@ function prodStatusRenderMOCards() {
       <div class="mmo-row"><span class="l">แผนผลิต</span><span>${planCell}</span></div>
     </div>`;
   }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PAGE: แผนผลิต (ปฏิทินรายเดือน) — read-only, แตะวันเพื่อดูรายการของวันนั้น
+// ══════════════════════════════════════════════
+let _plancalYear, _plancalMonth, _plancalRows = [], _plancalSel = null;
+const _plancalMonthsTh = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+function plancalShift(delta) {
+  let m = _plancalMonth + delta, y = _plancalYear;
+  if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+  _plancalMonth = m; _plancalYear = y; _plancalSel = null;
+  plancalLoad();
+}
+async function plancalLoad() {
+  if (_plancalYear == null) { const n = new Date(); _plancalYear = n.getFullYear(); _plancalMonth = n.getMonth(); }
+  const first = new Date(_plancalYear, _plancalMonth, 1), last = new Date(_plancalYear, _plancalMonth + 1, 0);
+  document.getElementById('plancal-title').textContent = `${_plancalMonthsTh[_plancalMonth]} ${_plancalYear + 543}`;
+  _showLoader();
+  const { data, error } = await _sb.from('production_plan').select('*')
+    .gte('PlanDate', _planWeekLocalDateStr(first)).lte('PlanDate', _planWeekLocalDateStr(last)).order('PlanDate');
+  _hideLoader();
+  if (error) { _err('โหลดแผนผลิตไม่ได้', error.message); return; }
+  _plancalRows = data || [];
+  plancalRender();
+}
+function plancalRender() {
+  const todayStr = _planWeekLocalDateStr(new Date());
+  const byDate = {};
+  _plancalRows.forEach(r => { (byDate[r.PlanDate] ||= []).push(r); });
+  const usedLines = [...new Set(_plancalRows.map(r => r.Line).filter(Boolean))];
+  document.getElementById('plancal-legend').innerHTML = usedLines.map(l => `<span><i style="background:${_planLineColor(l)}"></i>${l}</span>`).join('');
+  const startDow = new Date(_plancalYear, _plancalMonth, 1).getDay();
+  const daysInMonth = new Date(_plancalYear, _plancalMonth + 1, 0).getDate();
+  let html = _planWeekDowThai.map((d, i) => `<div class="mcal-dow${i === 0 ? ' sun' : ''}">${d}</div>`).join('');
+  for (let i = 0; i < startDow; i++) html += '<div class="mcal-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${_plancalYear}-${String(_plancalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const items = byDate[dateStr] || [];
+    const dow = (startDow + d - 1) % 7;
+    const lines = [...new Set(items.map(r => r.Line))].slice(0, 6);
+    html += `<div class="mcal-cell${dateStr === todayStr ? ' today' : ''}${dateStr === _plancalSel ? ' sel' : ''}${dow === 0 ? ' sun' : ''}" onclick="plancalSelect('${dateStr}')">
+      <span class="d">${d}</span>${items.length ? `<span class="cnt">${items.length}</span>` : ''}
+      <div class="mcal-dots">${lines.map(l => `<i style="background:${_planLineColor(l)}"></i>`).join('')}</div></div>`;
+  }
+  document.getElementById('plancal-grid').innerHTML = html;
+  plancalRenderDay();
+}
+function plancalSelect(dateStr) { _plancalSel = dateStr; plancalRender(); }
+function plancalRenderDay() {
+  const title = document.getElementById('plancal-day-title'), box = document.getElementById('plancal-day-cards');
+  if (!_plancalSel) { title.textContent = 'แตะวันที่เพื่อดูรายละเอียด'; box.innerHTML = ''; return; }
+  title.textContent = 'แผนวันที่ ' + _fmtDate(_plancalSel);
+  const items = _plancalRows.filter(r => r.PlanDate === _plancalSel)
+    .sort((a, b) => (a.Line || '').localeCompare(b.Line || '') || (a.TimeStart || '').localeCompare(b.TimeStart || ''));
+  if (!items.length) { box.innerHTML = '<div class="mcard text-center text-muted">วันนี้ไม่มีแผนผลิต</div>'; return; }
+  const statusColor = { 'วางแผน': '#94a3b8', 'ยืนยันแล้ว': '#22c55e' };
+  box.innerHTML = items.map(r => `<div class="mitem-card" style="border-left-color:${_planLineColor(r.Line)}">
+    <div class="mitem-top"><div style="min-width:0">
+      <span class="mbadge" style="background:${_planLineColor(r.Line)};color:#fff;display:inline-block;margin-bottom:5px">${r.Line || '—'}</span>
+      <div style="font-weight:700;font-size:.92rem;line-height:1.3">${r.ProductName || '—'}</div></div>
+      <span class="mbadge" style="background:${statusColor[r.Status] || '#94a3b8'};color:#fff;flex-shrink:0">${r.Status || '—'}</span></div>
+    <div class="mitem-meta"><span><i class="fas fa-business-time me-1"></i>${r.Shift || '—'} (${_planShiftTimeLabel(r)})</span>
+      <span><i class="fas fa-cubes me-1"></i>${(parseFloat(r.PlanQty) || 0).toLocaleString()} ${r.UOM || ''}</span>
+      <span><i class="fas fa-users me-1"></i>${r.Workers || 'ไม่ระบุ'}</span>${r.MO_Ref ? `<span>MO: <b>${r.MO_Ref}</b></span>` : ''}</div>
+  </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// PAGE: รายการขออนุมัติ (เฉพาะแอดมิน) — รวมคิวคำขอรออนุมัติ 6 ชนิดของแอปหลัก (หน้า "คำขอแก้ไข") แบบอ่านอย่างเดียว
+// ไม่ได้พอร์ตตรรกะอนุมัติ (ปรับสต็อก/ตรวจสถานะ CO ฯลฯ) มาไว้บนมือถือ — กดอนุมัติที่แอปหลัก กันตรรกะ 2 ชุดหลุดจากกัน
+// ══════════════════════════════════════════════
+const APPR_TYPES = { mr: 'รับวัตถุดิบ', co: 'คำสั่งลูกค้า', issue: 'เบิกผลิต', hold: 'Defect/Retain', labor: 'เวลาแรงงาน', prodrecord: 'บันทึกผลิต (ขอลบ)' };
+let _apprRows = [], _apprFilter = '';
+const _apprNum = v => (parseFloat(v) || 0).toLocaleString();
+function _apprDiff(oldP, newP) {
+  const SKIP = new Set(['_row_id', 'UpdatedAt', 'CreatedAt']);
+  const out = [];
+  Object.keys(newP || {}).forEach(k => {
+    if (SKIP.has(k)) return;
+    const o = oldP?.[k] ?? '', n = newP[k] ?? '';
+    if (String(o) !== String(n)) out.push(`${k}: <span class="old">${o === '' ? '—' : o}</span> → <span class="new">${n === '' ? '—' : n}</span>`);
+  });
+  return out.join('<br>') || '<span class="text-muted">ไม่พบฟิลด์ที่เปลี่ยน</span>';
+}
+function _apprBuild(type, r) {
+  if (type === 'mr') {
+    const p = r.Payload || {}, o = r.OldPayload || {}, name = p.MaterialName || o.MaterialName || '', lot = p.Lot ?? o.Lot ?? '—';
+    const body = r.Action === 'EDIT'
+      ? `<b>แก้ไข</b> ${name} (Lot ${lot})<br>จำนวน <span class="old">${_apprNum(o.Qty)}</span> → <span class="new">${_apprNum(p.Qty)}</span>`
+      : `<b style="color:#dc2626">ขอลบ</b> ${name} (Lot ${lot})<br>จำนวน ${_apprNum(o.Qty)} ${o.UOM || ''}`;
+    return { at: r.RequestedAt, body, by: r.RequestedBy };
+  }
+  if (type === 'co') {
+    const o = r.OldPayload || {};
+    return { at: r.RequestedAt, body: `<b>${r.Order_ID || ''}</b> — ${o.CustomerName || ''} (${o.ProductName || ''})<br>${_apprDiff(o, r.Payload)}`, by: r.RequestedBy };
+  }
+  if (type === 'issue') {
+    const p = r.Payload || {}, o = r.OldPayload || {}, name = p.MaterialName || o.MaterialName || '', lot = p.Lot ?? o.Lot ?? '—';
+    const act = r.Action === 'EDIT' ? 'แก้ไข' : r.Action === 'ADD' ? 'เพิ่มรายการ' : 'ลบ';
+    let q;
+    if (r.Action === 'EDIT') q = `จำนวน <span class="old">${_apprNum(o.IssuedQty)}</span> → <span class="new">${_apprNum(p.IssuedQty)}</span>`;
+    else if (r.Action === 'ADD') q = `จำนวนที่ขอเพิ่ม <span class="new">${_apprNum(p.IssuedQty)} ${p.UOM || ''}</span>`;
+    else q = `จำนวนที่ขอลบ ${_apprNum(o.IssuedQty)} ${o.UOM || ''}`;
+    return { at: r.RequestedAt, body: `<b>${act}</b> ${name} (Lot ${lot})<br>${q}<br>MO: ${r.MO_ID || '—'}`, by: r.RequestedBy };
+  }
+  if (type === 'hold') {
+    const label = r.PendingAction === 'EDIT'
+      ? `แก้ไข ${r.MoveType}: จำนวนเดิม <span class="old">${_apprNum(r.Qty)}</span> → <span class="new">${_apprNum(r.PendingPayload?.Qty)}</span>`
+      : `<b style="color:#dc2626">ลบรายการ</b> ${r.MoveType} จำนวน ${_apprNum(r.Qty)}`;
+    return { at: r.PendingRequestedAt, body: `<b>${r.ItemCode || ''}</b> — ${r.ItemName || ''} · Lot ${r.Lot || '—'}<br>${label}`, by: r.PendingRequestedBy };
+  }
+  if (type === 'labor') {
+    const del = r.RequestType === 'DELETE';
+    return { at: r.CreatedAt, body: `<b>${r.EmployeeName || r.EmployeeCode}</b> · MO ${r.MO_Ref || '—'} · ${r.Line || ''} · ${_fmtDate(r.WorkDate)}<br>
+      <span class="old">${r.OldTimeIn || '—'}–${r.OldTimeOut || '—'}</span> → ${del ? '<b style="color:#dc2626">ลบรายการนี้ทิ้ง</b>' : `<span class="new">${r.NewTimeIn || '—'}–${r.NewTimeOut || '—'}</span>`}`, by: r.RequestedByName };
+  }
+  return { at: r.DeleteRequestedAt, body: `<b>${r.ProdRecord_ID || ''}</b> — ${r.ProductName || ''} · Lot FG ${r.Lot_FG ?? '—'} · MO ${r.MO_Ref || '—'}<br><b style="color:#dc2626">ขอลบทิ้ง</b> (กู้คืนไม่ได้)`, by: r.DeleteRequestedBy };
+}
+async function _apprFetch() {
+  const pend = { Status: 'รออนุมัติ' };
+  const q = (t) => _sb.from(t).select('*').eq('Status', pend.Status);
+  const [mr, co, issue, hold, labor, prod] = await Promise.all([
+    q('mr_edit_requests'), q('co_edit_requests'), q('issue_edit_requests'),
+    _sb.from('hold_stock_moves').select('*').not('PendingAction', 'is', null),
+    q('production_labor_edit_requests'),
+    _sb.from('production_records').select('*').eq('DeleteRequested', true),
+  ]);
+  const get = (res) => (res.error ? [] : (res.data || [])); // ตารางที่ยังไม่ได้สร้าง = ไม่มีคำขอ (เหมือนแอปหลัก)
+  return [['mr', get(mr)], ['co', get(co)], ['issue', get(issue)], ['hold', get(hold)], ['labor', get(labor)], ['prodrecord', get(prod)]]
+    .flatMap(([t, rows]) => rows.map(r => ({ type: t, id: r._row_id, raw: r, ..._apprBuild(t, r) })))
+    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+}
+function apprSetFilter(t) { _apprFilter = _apprFilter === t ? '' : t; apprRender(); }
+function apprRender() {
+  const counts = {};
+  _apprRows.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
+  document.getElementById('appr-type-chips').innerHTML =
+    `<div class="mchip${_apprFilter === '' ? ' on' : ''}" onclick="apprSetFilter('')">ทั้งหมด ${_apprRows.length}</div>` +
+    Object.keys(APPR_TYPES).filter(t => counts[t]).map(t => `<div class="mchip${_apprFilter === t ? ' on' : ''}" onclick="apprSetFilter('${t}')">${APPR_TYPES[t]} ${counts[t]}</div>`).join('');
+  const rows = _apprRows.filter(r => !_apprFilter || r.type === _apprFilter);
+  const box = document.getElementById('appr-cards');
+  if (!rows.length) { box.innerHTML = '<div class="mcard text-center text-muted"><i class="fas fa-circle-check fa-2x mb-2" style="display:block;color:#22c55e"></i>ไม่มีคำขอรออนุมัติ</div>'; return; }
+  box.innerHTML = rows.map(r => `<div class="mreq-card">
+    <div class="mreq-top"><span class="mbadge mb-amber">${APPR_TYPES[r.type]}</span><span style="font-size:.7rem;color:#94a3b8">${r.at ? new Date(r.at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span></div>
+    <div class="mreq-body">${r.body}</div><div class="mreq-by"><i class="fas fa-user me-1"></i>ขอโดย ${r.by || '—'}</div>${_apprActionsHTML(r)}</div>`).join('');
+}
+
+// ปุ่มบนมือถือ: ปฏิเสธได้กับ mr/co/issue/labor (แค่เปลี่ยนสถานะคำขอ ไม่แตะสต็อก), อนุมัติได้เฉพาะ labor
+// (แก้/ลบ production_labor_log ตรงๆ ไม่มีผลข้างเคียง) — ชนิดที่ต้องปรับสต็อก/สถานะ CO ให้ไปอนุมัติที่แอปหลัก
+// อนุมัติ/ปฏิเสธได้ครบทุกชนิดจากมือถือ (ตรรกะอนุมัติอยู่ถัดลงไป — สำเนาจากแอปหลัก)
+function _apprActionsHTML(r) {
+  return `<div style="display:flex;gap:8px;margin-top:10px">
+    <button class="mreq-btn ok" onclick="apprApprove('${r.type}',${r.id})"><i class="fas fa-check me-1"></i>อนุมัติ</button>
+    <button class="mreq-btn no" onclick="apprReject('${r.type}',${r.id})"><i class="fas fa-xmark me-1"></i>ปฏิเสธ</button></div>`;
+}
+async function apprReject(type, id) {
+  if (!_currentUser?.isAdmin) return;
+  const row = _apprRows.find(x => x.type === type && x.id === id);
+  if (!row) return;
+  const res = await Swal.fire({ title: 'ปฏิเสธคำขอนี้?', html: `<div style="text-align:left;font-size:.9rem">${row.body}</div>`, icon: 'warning',
+    input: 'textarea', inputLabel: 'เหตุผลที่ปฏิเสธ (จำเป็นต้องกรอก)', showCancelButton: true, confirmButtonText: 'ยืนยันปฏิเสธ',
+    cancelButtonText: 'ยกเลิก', confirmButtonColor: '#d33', inputValidator: v => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined });
+  if (!res.isConfirmed) return;
+  const reason = res.value.trim(), now = new Date().toISOString();
+  _showLoader();
+  let q;
+  if (type === 'hold') q = _sb.from('hold_stock_moves').update({ PendingAction: null, PendingPayload: null, PendingRequestedBy: null, PendingRequestedAt: null })
+    .eq('_row_id', id).not('PendingAction', 'is', null);
+  else if (type === 'prodrecord') q = _sb.from('production_records').update({ DeleteRequested: false, DeleteRequestedBy: null, DeleteRequestedAt: null })
+    .eq('_row_id', id).eq('DeleteRequested', true);
+  else q = _sb.from(_REQ_TABLE[type]).update(type === 'labor'
+    ? { Status: 'ปฏิเสธ', ReviewedAt: now, ReviewedByName: _currentUser.name || _currentUser.email }
+    : { Status: 'ปฏิเสธ', ReviewNote: reason, ReviewedBy: _currentUser.email, ReviewedAt: now }).eq('_row_id', id).eq('Status', 'รออนุมัติ');
+  const { data, error } = await q.select();
+  _hideLoader();
+  if (error) { _err('ปฏิเสธไม่สำเร็จ', error.message); return; }
+  if (!data?.length) _err('ปฏิเสธไม่สำเร็จ', 'คำขอนี้ถูกจัดการไปแล้ว หรือไม่มีสิทธิ์');
+  else {
+    _logAudit('REJECT', { mr: 'mr_receive', co: 'customer_orders', issue: 'issue_production', labor: 'production_labor_log', hold: 'hold_stock_moves', prodrecord: 'production_records' }[type], id, `${reason} (มือถือ)`);
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ปฏิเสธคำขอแล้ว', showConfirmButton: false, timer: 1500 });
+  }
+  apprLoad();
+}
+// ══════════════════════════════════════════════
+// ตรรกะอนุมัติ — พอร์ตจากแอปหลัก (index.html) เป็นสำเนา ต้องคงให้ตรงกันเสมอ ถ้าแก้ฟังก์ชันต้นฉบับต้องแก้ที่นี่ด้วย:
+//   mrUpdateStock/_mrReverseStock, issueUpdateStock/_issueRestoreStock/issueRevertMOIfEmpty/_issueSyncProdRecordDetail,
+//   _miscReverseStock/miscUpdateStock, fgUpdateStock, _deliveryCheckCOComplete/_miscCheckCOComplete,
+//   _holdstock{UpsertIn,AdjustBalance,ReverseMove}, _prodrecordReverseDetailsStockBeforeDelete
+// ต่างจากแอปหลัก 2 อย่าง: (1) "จอง" คำขอก่อน (เปลี่ยนสถานะเป็นอนุมัติแล้วแบบมีเงื่อนไข Status='รออนุมัติ') แล้วค่อยปรับสต็อก
+// กันกดซ้ำ/อนุมัติชนกับคอมพิวเตอร์แล้วสต็อกถูกปรับ 2 รอบ ถ้าปรับสต็อกพังจะคืนสถานะคำขอกลับ (2) ไม่ส่ง Realtime แจ้งผู้ขอ
+// ══════════════════════════════════════════════
+const _coDoneStatuses = ['ส่งครบ', 'ส่งสำเร็จ'];
+async function _logAudit(action, tableName, recordRef, detail) {
+  if (!_currentUser) return;
+  try {
+    await _sb.from('audit_log').insert({ UserEmail: _currentUser.email, UserName: _currentUser.name, Action: action,
+      TableName: tableName, RecordRef: recordRef != null ? String(recordRef) : null, Detail: detail || null });
+  } catch (e) { console.error('_logAudit failed', e); }
+}
+async function _stockRow(table, keyCols, cols) {
+  let q = _sb.from(table).select(cols);
+  for (const [k, v] of Object.entries(keyCols)) q = q.eq(k, v);
+  return (await q.maybeSingle()).data;
+}
+async function mrUpdateStock(matCode, lot, qty, unitCost, expDate, uom, matName) {
+  if (!matCode || !lot || qty <= 0) return;
+  const existing = await _stockRow('stock_balance', { MaterialCode: matCode, Lot: lot }, '_row_id,QtyIn,QtyBalance,TotalCost,StockValue,ExpDate');
+  if (existing) {
+    const newBal = (parseFloat(existing.QtyBalance) || 0) + qty, addCost = qty * unitCost, newVal = (parseFloat(existing.StockValue) || 0) + addCost;
+    await _sb.from('stock_balance').update({ QtyIn: (parseFloat(existing.QtyIn) || 0) + qty, QtyBalance: newBal,
+      TotalCost: (parseFloat(existing.TotalCost) || 0) + addCost, StockValue: newVal, UnitCost: newBal > 0 ? newVal / newBal : unitCost,
+      ExpDate: expDate || existing.ExpDate }).eq('_row_id', existing._row_id);
+  } else {
+    await _sb.from('stock_balance').insert({ MaterialCode: matCode, MaterialName: matName, Lot: lot, QtyIn: qty, QtyOut: 0, QtyBalance: qty,
+      UOM: uom, UnitCost: unitCost, TotalCost: qty * unitCost, StockValue: qty * unitCost, ExpDate: expDate || null });
+  }
+}
+async function _mrReverseStock(matCode, lot, qty, unitCost) {
+  if (!matCode || !lot || qty <= 0) return;
+  const e = await _stockRow('stock_balance', { MaterialCode: matCode, Lot: lot }, '_row_id,QtyIn,QtyBalance,TotalCost,StockValue');
+  if (!e) return;
+  const cost = qty * unitCost;
+  await _sb.from('stock_balance').update({ QtyIn: (parseFloat(e.QtyIn) || 0) - qty, QtyBalance: (parseFloat(e.QtyBalance) || 0) - qty,
+    TotalCost: (parseFloat(e.TotalCost) || 0) - cost, StockValue: (parseFloat(e.StockValue) || 0) - cost }).eq('_row_id', e._row_id);
+}
+// เบิกออก (issueUpdateStock = miscUpdateStock) / คืนเข้า (_issueRestoreStock = _miscReverseStock) — สูตรเดียวกันในแอปหลัก
+async function issueUpdateStock(matCode, lot, qty) {
+  if (!matCode || !lot || qty <= 0) return;
+  const e = await _stockRow('stock_balance', { MaterialCode: matCode, Lot: lot }, '_row_id,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue');
+  if (!e) return;
+  const d = qty * (parseFloat(e.UnitCost) || 0);
+  await _sb.from('stock_balance').update({ QtyOut: (parseFloat(e.QtyOut) || 0) + qty, QtyBalance: (parseFloat(e.QtyBalance) || 0) - qty,
+    TotalCost: (parseFloat(e.TotalCost) || 0) - d, StockValue: (parseFloat(e.StockValue) || 0) - d }).eq('_row_id', e._row_id);
+}
+async function _issueRestoreStock(matCode, lot, qty) {
+  if (!matCode || !lot || qty <= 0) return;
+  const e = await _stockRow('stock_balance', { MaterialCode: matCode, Lot: lot }, '_row_id,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue');
+  if (!e) return;
+  const d = qty * (parseFloat(e.UnitCost) || 0);
+  await _sb.from('stock_balance').update({ QtyOut: (parseFloat(e.QtyOut) || 0) - qty, QtyBalance: (parseFloat(e.QtyBalance) || 0) + qty,
+    TotalCost: (parseFloat(e.TotalCost) || 0) + d, StockValue: (parseFloat(e.StockValue) || 0) + d }).eq('_row_id', e._row_id);
+}
+const miscUpdateStock = issueUpdateStock, _miscReverseStock = _issueRestoreStock;
+async function fgUpdateStock(prodCode, prodName, lotFG, qty, uom, isAdd) {
+  if (!lotFG || qty <= 0) return;
+  const { data: existing, error } = await _sb.from('stock_fg').select('_row_id,FGBalance').eq('ProductCode', prodCode).eq('LotFG', lotFG).maybeSingle();
+  if (error) throw new Error(`อัปเดต Stock FG ไม่สำเร็จ ${prodCode}/${lotFG}: ${error.message}`);
+  if (existing) await _sb.from('stock_fg').update({ FGBalance: Math.max(0, (parseFloat(existing.FGBalance) || 0) + (isAdd ? qty : -qty)) }).eq('_row_id', existing._row_id);
+  else if (isAdd) await _sb.from('stock_fg').insert({ ProductCode: prodCode, ProductName: prodName, LotFG: lotFG, FGBalance: qty, UOM: uom });
+}
+async function issueRevertMOIfEmpty(moId) {
+  if (!moId) return;
+  const { count } = await _sb.from('issue_production').select('_row_id', { count: 'exact', head: true }).eq('MO_ID', moId);
+  if ((count || 0) === 0) await _sb.from('manufacturing_orders').update({ Status: 'รอเบิก' }).eq('MO_ID', moId);
+}
+async function _issueSyncProdRecordDetail(moId, matCode, lot, newIssuedQty) {
+  const res = { touched: false, blockedApproved: [] };
+  if (!moId || !matCode || !lot) return res;
+  const { data: prodRows } = await _sb.from('production_records').select('ProdRecord_ID,Status').eq('MO_Ref', moId);
+  if (!prodRows?.length) return res;
+  const { data: details } = await _sb.from('production_record_details').select('_row_id,ProdRecord_ID,ScrapQty,ReturnedQty,UnitCost_MR')
+    .in('ProdRecord_ID', prodRows.map(p => p.ProdRecord_ID)).eq('MaterialCode', matCode).eq('LotMaterial', lot);
+  const st = {}; prodRows.forEach(p => { st[p.ProdRecord_ID] = p.Status; });
+  for (const d of (details || [])) {
+    if (st[d.ProdRecord_ID] === 'อนุมัติแล้ว') { res.blockedApproved.push(d.ProdRecord_ID); continue; }
+    const used = Math.max(0, newIssuedQty - (parseFloat(d.ScrapQty) || 0) - (parseFloat(d.ReturnedQty) || 0));
+    await _sb.from('production_record_details').update({ IssuedQty: newIssuedQty, ActualUsedQty: used, TotalCost: used * (parseFloat(d.UnitCost_MR) || 0) }).eq('_row_id', d._row_id);
+    res.touched = true;
+  }
+  return res;
+}
+async function _checkCOComplete(coRef, viaMisc) {
+  if (!coRef) return;
+  const { data: cos } = await _sb.from('customer_orders').select('_row_id,OrderQty,Status').eq('Order_ID', coRef);
+  if (!cos || cos.length !== 1 || _coDoneStatuses.includes(cos[0].Status)) return; // ว่าง/ซ้ำ/ปิดไปแล้ว — ข้ามเหมือนแอปหลัก
+  const { data: rows } = viaMisc
+    ? await _sb.from('issue_misc').select('IssuedQty').eq('CO_Ref', coRef).eq('Delivered', true)
+    : await _sb.from('delivery').select('QtyDelivered').eq('CO_Ref', coRef).eq('Status', 'ส่งถึงแล้ว');
+  const total = (rows || []).reduce((s, r) => s + (parseFloat(viaMisc ? r.IssuedQty : r.QtyDelivered) || 0), 0), oq = parseFloat(cos[0].OrderQty) || 0;
+  if (oq > 0 && total >= oq) await _sb.from('customer_orders').update({ Status: 'ส่งสำเร็จ', CompletedAt: new Date().toISOString() }).eq('_row_id', cos[0]._row_id);
+}
+async function _holdstockUpsertIn(holdType, itemType, itemCode, itemName, lot, uom, qty, unitCost, retainDueDate) {
+  const cost = unitCost || 0, addCost = qty * cost;
+  const { data: ex } = await _sb.from('hold_stock').select('_row_id,QtyIn,QtyBalance,TotalCost,StockValue')
+    .eq('HoldType', holdType).eq('ItemType', itemType).eq('ItemCode', itemCode).eq('Lot', lot).maybeSingle();
+  if (ex) {
+    const p = { QtyIn: (parseFloat(ex.QtyIn) || 0) + qty, QtyBalance: (parseFloat(ex.QtyBalance) || 0) + qty,
+      TotalCost: (parseFloat(ex.TotalCost) || 0) + addCost, StockValue: (parseFloat(ex.StockValue) || 0) + addCost, UpdatedAt: new Date().toISOString() };
+    if ((parseFloat(ex.QtyBalance) || 0) <= 0) p.FirstMovedInAt = new Date().toISOString().split('T')[0];
+    if (retainDueDate) p.RetainDueDate = retainDueDate;
+    await _sb.from('hold_stock').update(p).eq('_row_id', ex._row_id);
+    return;
+  }
+  const { error } = await _sb.from('hold_stock').insert({ HoldType: holdType, ItemType: itemType, ItemCode: itemCode, ItemName: itemName, Lot: lot, UOM: uom,
+    QtyIn: qty, QtyOut: 0, QtyBalance: qty, UnitCost: unitCost ?? null, TotalCost: addCost, StockValue: addCost,
+    RetainDueDate: retainDueDate || null, FirstMovedInAt: new Date().toISOString().split('T')[0] });
+  if (error) throw new Error('บันทึกสต็อก Defect/Retain ไม่สำเร็จ: ' + error.message);
+}
+async function _holdstockAdjustBalance(holdRowId, qty, mode) { // mode: OUT | UNDO_OUT | UNDO_IN
+  if (!holdRowId) return;
+  const { data: e } = await _sb.from('hold_stock').select('QtyIn,QtyOut,QtyBalance,UnitCost,TotalCost,StockValue').eq('_row_id', holdRowId).maybeSingle();
+  if (!e) return;
+  const dc = qty * (parseFloat(e.UnitCost) || 0), qi = parseFloat(e.QtyIn) || 0, qo = parseFloat(e.QtyOut) || 0, qb = parseFloat(e.QtyBalance) || 0,
+    tc = parseFloat(e.TotalCost) || 0, sv = parseFloat(e.StockValue) || 0;
+  let p;
+  if (mode === 'OUT') p = { QtyOut: qo + qty, QtyBalance: Math.max(0, qb - qty), TotalCost: tc - dc, StockValue: sv - dc };
+  else if (mode === 'UNDO_OUT') p = { QtyOut: Math.max(0, qo - qty), QtyBalance: qb + qty, TotalCost: tc + dc, StockValue: sv + dc };
+  else p = { QtyIn: Math.max(0, qi - qty), QtyBalance: Math.max(0, qb - qty), TotalCost: tc - dc, StockValue: sv - dc };
+  p.UpdatedAt = new Date().toISOString();
+  await _sb.from('hold_stock').update(p).eq('_row_id', holdRowId);
+}
+async function _holdstockReverseMove(m) {
+  const qty = parseFloat(m.Qty) || 0;
+  if (m.MoveType === 'IN') {
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, false);
+    else await _miscReverseStock(m.ItemCode, m.Lot, qty);
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_IN');
+  } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_OUT');
+  } else if (m.MoveType === 'REWORK') {
+    await _holdstockAdjustBalance(m.RefHoldStockId, qty, 'UNDO_OUT');
+    if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, qty, m.UOM, true);
+    else await miscUpdateStock(m.ItemCode, m.Lot, qty);
+  }
+}
+async function _prodrecordReverseDetailsStockBeforeDelete(prodRecordId) {
+  const { data: details } = await _sb.from('production_record_details').select('*').eq('ProdRecord_ID', prodRecordId);
+  for (const d of (details || [])) {
+    if (!d.MaterialCode || !d.LotMaterial) continue;
+    const ret = parseFloat(d.ReturnedQty) || 0, scrap = parseFloat(d.ScrapQty) || 0;
+    if (ret > 0) await issueUpdateStock(d.MaterialCode, d.LotMaterial, ret);
+    if (ret || scrap) {
+      const e = await _stockRow('stock_balance', { MaterialCode: d.MaterialCode, Lot: d.LotMaterial }, '_row_id,ReturnQty,ScrapQty');
+      if (e) await _sb.from('stock_balance').update({ ReturnQty: (parseFloat(e.ReturnQty) || 0) - ret, ScrapQty: (parseFloat(e.ScrapQty) || 0) - scrap }).eq('_row_id', e._row_id);
+    }
+  }
+}
+
+const _REQ_TABLE = { mr: 'mr_edit_requests', co: 'co_edit_requests', issue: 'issue_edit_requests', labor: 'production_labor_edit_requests' };
+// ปรับข้อมูลจริงตามคำขอ — โยน Error ถ้าไม่สำเร็จ (ผู้เรียกคืนสถานะคำขอกลับ) คืนข้อความเตือนเพิ่มเติม (หรือ '')
+async function _apprApply(type, req) {
+  if (type === 'mr') {
+    const o = req.OldPayload || {}, p = req.Payload || {};
+    if (req.Action === 'EDIT') {
+      const { error } = await _sb.from('mr_receive').update(p).eq('_row_id', req.TargetRowId);
+      if (error) throw new Error(error.message);
+      await _mrReverseStock(o.MaterialCode, o.Lot, parseFloat(o.Qty) || 0, parseFloat(o.UnitCost) || 0);
+      await mrUpdateStock(p.MaterialCode, p.Lot, parseFloat(p.Qty) || 0, parseFloat(p.UnitCost) || 0, p.ExpDate, p.UOM, p.MaterialName);
+    } else {
+      const { data, error } = await _sb.from('mr_receive').delete().eq('_row_id', req.TargetRowId).select();
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error('ไม่มีสิทธิ์ลบ หรือรายการถูกลบไปแล้ว');
+      await _mrReverseStock(o.MaterialCode, o.Lot, parseFloat(o.Qty) || 0, parseFloat(o.UnitCost) || 0);
+    }
+    return '';
+  }
+  if (type === 'co') {
+    const { error } = await _sb.from('customer_orders').update(req.Payload).eq('_row_id', req.TargetRowId);
+    if (error) throw new Error(error.message);
+    await _checkCOComplete(req.Order_ID, req.Payload?.ItemType === 'BULK');
+    return '';
+  }
+  if (type === 'issue') {
+    const o = req.OldPayload || {}, p = req.Payload || {};
+    let sync = null;
+    if (req.Action === 'EDIT') {
+      const { error } = await _sb.from('issue_production').update(p).eq('_row_id', req.TargetRowId);
+      if (error) throw new Error(error.message);
+      if (o.MaterialCode && o.Lot) await _issueRestoreStock(o.MaterialCode, o.Lot, parseFloat(o.IssuedQty) || 0);
+      await issueUpdateStock(p.MaterialCode, p.Lot, parseFloat(p.IssuedQty) || 0);
+      sync = await _issueSyncProdRecordDetail(req.MO_ID, p.MaterialCode, p.Lot, parseFloat(p.IssuedQty) || 0);
+    } else if (req.Action === 'ADD') {
+      const { error } = await _sb.from('issue_production').insert(p);
+      if (error) throw new Error(error.message);
+      await issueUpdateStock(p.MaterialCode, p.Lot, parseFloat(p.IssuedQty) || 0);
+    } else {
+      const { data, error } = await _sb.from('issue_production').delete().eq('_row_id', req.TargetRowId).select();
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error('ไม่มีสิทธิ์ลบ หรือรายการถูกลบไปแล้ว');
+      if (o.MaterialCode && o.Lot) await _issueRestoreStock(o.MaterialCode, o.Lot, parseFloat(o.IssuedQty) || 0);
+      if (o.MO_ID) await issueRevertMOIfEmpty(o.MO_ID);
+    }
+    return sync?.blockedApproved?.length ? `ใบบันทึกผลิต ${sync.blockedApproved.join(', ')} อนุมัติต้นทุนไปแล้ว ยอด "เบิกไป" ที่บันทึกผลิตยังไม่ถูกแก้ — ต้อง "เปิดกลับ" ที่แอปหลักก่อนถ้าต้องการให้ตรงกัน` : '';
+  }
+  // labor
+  const key = q => q.eq('MO_Ref', req.MO_Ref).eq('Line', req.Line).eq('WorkDate', req.WorkDate).eq('EmployeeCode', req.EmployeeCode);
+  const { data, error } = req.RequestType === 'DELETE'
+    ? await key(_sb.from('production_labor_log').delete()).select()
+    : await key(_sb.from('production_labor_log').update({ TimeIn: req.NewTimeIn, TimeOut: req.NewTimeOut, UpdatedAt: new Date().toISOString() })).select();
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('ไม่พบหรือไม่มีสิทธิ์แก้รายการเวลาแรงงานนี้');
+  return '';
+}
+
+async function apprApprove(type, id) {
+  if (!_currentUser?.isAdmin) return;
+  const row = _apprRows.find(x => x.type === type && x.id === id);
+  if (!row) return;
+  const res = await Swal.fire({ title: 'อนุมัติคำขอนี้?', html: `<div style="text-align:left;font-size:.9rem">${row.body}</div>`, icon: 'question',
+    showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754' });
+  if (!res.isConfirmed) return;
+  _showLoader();
+  try {
+    let extra = '';
+    if (type === 'hold') extra = await _apprApproveHold(row.raw);
+    else if (type === 'prodrecord') extra = await _apprApproveProdDelete(row.raw);
+    else {
+      const table = _REQ_TABLE[type];
+      const stamp = type === 'labor' ? { ReviewedByName: _currentUser.name || _currentUser.email } : { ReviewedBy: _currentUser.email };
+      // จองคำขอก่อน: เปลี่ยนเป็นอนุมัติแล้วเฉพาะถ้ายังรออนุมัติอยู่ — ถ้าได้ 0 แถวแปลว่ามีคนจัดการไปแล้ว ห้ามปรับสต็อกซ้ำ
+      const { data: claimed, error: ce } = await _sb.from(table).update({ Status: 'อนุมัติแล้ว', ReviewedAt: new Date().toISOString(), ...stamp })
+        .eq('_row_id', id).eq('Status', 'รออนุมัติ').select();
+      if (ce) throw new Error(ce.message);
+      if (!claimed?.length) throw new Error('คำขอนี้ถูกจัดการไปแล้ว');
+      try { extra = await _apprApply(type, claimed[0]); }
+      catch (e) {
+        await _sb.from(table).update({ Status: 'รออนุมัติ', ReviewedAt: null, ...Object.fromEntries(Object.keys(stamp).map(k => [k, null])) }).eq('_row_id', id);
+        throw e;
+      }
+      _logAudit('APPROVE', { mr: 'mr_receive', co: 'customer_orders', issue: 'issue_production', labor: 'production_labor_log' }[type],
+        row.raw.Order_ID || row.raw.MO_ID || row.raw.MO_Ref || id, `อนุมัติจากมือถือ (${row.raw.Action || row.raw.RequestType || ''})`);
+    }
+    _hideLoader();
+    if (extra) await Swal.fire({ icon: 'info', title: 'อนุมัติแล้ว', text: extra });
+    else Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติแล้ว', showConfirmButton: false, timer: 1500 });
+  } catch (e) { _hideLoader(); _err('อนุมัติไม่สำเร็จ', e.message); }
+  apprLoad();
+}
+async function _apprApproveHold(m0) {
+  const { data: m } = await _sb.from('hold_stock_moves').select('*').eq('_row_id', m0._row_id).maybeSingle();
+  if (!m?.PendingAction) throw new Error('คำขอนี้ถูกจัดการไปแล้ว');
+  const clear = { PendingAction: null, PendingPayload: null, PendingRequestedBy: null, PendingRequestedAt: null };
+  const restore = { PendingAction: m.PendingAction, PendingPayload: m.PendingPayload, PendingRequestedBy: m.PendingRequestedBy, PendingRequestedAt: m.PendingRequestedAt };
+  const { data: claimed, error: ce } = await _sb.from('hold_stock_moves').update(clear).eq('_row_id', m._row_id).eq('PendingAction', m.PendingAction).select();
+  if (ce) throw new Error(ce.message);
+  if (!claimed?.length) throw new Error('คำขอนี้ถูกจัดการไปแล้ว');
+  try {
+    await _holdstockReverseMove(m);
+    if (m.PendingAction === 'EDIT') {
+      const p = m.PendingPayload || {}, q = parseFloat(p.Qty) || 0;
+      if (m.MoveType === 'IN') {
+        if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, q, m.UOM, false);
+        else await miscUpdateStock(m.ItemCode, m.Lot, q);
+        await _holdstockUpsertIn(m.HoldType, m.ItemType, m.ItemCode, m.ItemName, m.Lot, m.UOM, q, m.UnitCost, m.RetainDueDate);
+      } else if (m.MoveType === 'SCRAP' || m.MoveType === 'DISPOSE') {
+        await _holdstockAdjustBalance(m.RefHoldStockId, q, 'OUT');
+      } else if (m.MoveType === 'REWORK') {
+        await _holdstockAdjustBalance(m.RefHoldStockId, q, 'OUT');
+        if (m.ItemType === 'FG') await fgUpdateStock(m.ItemCode, m.ItemName, m.Lot, q, m.UOM, true);
+        else await _miscReverseStock(m.ItemCode, m.Lot, q);
+      }
+      const { error } = await _sb.from('hold_stock_moves').update({ MoveDate: p.MoveDate, Qty: q, Reason: p.Reason }).eq('_row_id', m._row_id);
+      if (error) throw new Error(error.message);
+      _logAudit('APPROVE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `แก้ไขรายการ ${m.MoveType}: qty ${m.Qty}→${q} (มือถือ)`);
+    } else {
+      const { data, error } = await _sb.from('hold_stock_moves').delete().eq('_row_id', m._row_id).select();
+      if (error || !data?.length) throw new Error(error?.message || 'ลบไม่สำเร็จ');
+      _logAudit('APPROVE', 'hold_stock_moves', `${m.ItemCode}/${m.Lot}`, `ลบรายการ ${m.MoveType} จำนวน ${m.Qty} (มือถือ)`);
+    }
+  } catch (e) {
+    // ย้อนสต็อกอัตโนมัติไม่ได้อย่างปลอดภัย (อาจปรับไปแล้วบางส่วน) — คืนคำขอกลับเป็นรออนุมัติ แล้วให้ตรวจสต็อก Defect/Retain ที่แอปหลัก
+    await _sb.from('hold_stock_moves').update(restore).eq('_row_id', m._row_id);
+    throw new Error(e.message + ' — โปรดตรวจยอดสต็อก Defect/Retain ที่แอปหลักก่อนอนุมัติซ้ำ');
+  }
+  return '';
+}
+async function _apprApproveProdDelete(r0) {
+  const { data: r } = await _sb.from('production_records').select('_row_id,ProdRecord_ID,DeleteRequested').eq('_row_id', r0._row_id).maybeSingle();
+  if (!r?.DeleteRequested) throw new Error('คำขอนี้ถูกจัดการไปแล้ว');
+  const { data, error } = await _sb.from('production_records').delete().eq('_row_id', r._row_id).select(); // ลบหัวก่อน = จองคำขอ
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('ไม่มีสิทธิ์ลบข้อมูลนี้ หรือแถวนี้ถูกลบไปแล้ว');
+  await _prodrecordReverseDetailsStockBeforeDelete(r.ProdRecord_ID);
+  const { error: de } = await _sb.from('production_record_details').delete().eq('ProdRecord_ID', r.ProdRecord_ID);
+  _logAudit('DELETE_ORPHAN', 'production_records', r.ProdRecord_ID, `อนุมัติคำขอลบจาก ${r0.DeleteRequestedBy || '—'} (มือถือ)`);
+  return de ? 'ลบหัวบันทึกแล้ว แต่ลบรายการวัตถุดิบไม่สำเร็จ: ' + de.message : '';
+}
+async function apprLoad() {
+  if (!_currentUser?.isAdmin) return;
+  _showLoader();
+  _apprRows = await _apprFetch();
+  _hideLoader();
+  apprUpdateBadge();
+  apprRender();
+}
+function apprUpdateBadge() {
+  const b = document.getElementById('appr-badge');
+  if (!b) return;
+  b.textContent = _apprRows.length > 99 ? '99+' : _apprRows.length;
+  b.style.display = _apprRows.length ? 'inline-flex' : 'none';
 }
 
 // ══════════════════════════════════════════════
@@ -1321,7 +1872,11 @@ document.addEventListener('DOMContentLoaded', function() {
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
-      _currentUser = { email: session.user.email, name: session.user.user_metadata?.full_name || session.user.email };
+      // isAdmin อ่านจาก app_metadata เหมือนแอปหลัก (ตั้งผ่าน Dashboard/SQL เท่านั้น ผู้ใช้แก้เองไม่ได้)
+      _currentUser = { email: session.user.email, name: session.user.user_metadata?.full_name || session.user.email,
+        isAdmin: session.user.app_metadata?.role === 'admin' };
+      document.getElementById('nav-approvals').style.display = _currentUser.isAdmin ? '' : 'none';
+      if (_currentUser.isAdmin) _apprFetch().then(rows => { _apprRows = rows; apprUpdateBadge(); }).catch(() => {});
       document.getElementById('loginGate').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       document.getElementById('mUserName').textContent = _currentUser.name;
