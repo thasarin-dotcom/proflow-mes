@@ -7659,6 +7659,11 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   </div>
 </div>
 
+<!-- ปุ่มลอย "แอปมือถือ" — โผล่เฉพาะมือถือที่เลือกเปิดแอปเต็มไว้ (ดู openMobileApp / onAuthStateChange) -->
+<button id="toMobileFab" onclick="openMobileApp()" style="display:none;position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:1030;background:#1e3a8a;color:#fff;border:none;border-radius:100px;padding:12px 18px;min-height:48px;font-size:.95rem;font-weight:600;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25)">
+  <i class="fas fa-mobile-screen-button me-2"></i>แอปมือถือ
+</button>
+
 <!-- ปุ่มลอย "กลับหน้าคลัง" — โผล่เฉพาะตอนเปิดหน้า desktop จาก tile ในเมนูคลัง (ดู _whOpenDesktopPage) -->
 <button id="whBackFab" onclick="_whBackToTablet()">
   <i class="fas fa-arrow-left me-1"></i>กลับหน้าคลัง
@@ -40524,6 +40529,19 @@ function _hasRole(minRole) {
 // ระดับ UI/UX เท่านั้น — ตัวบังคับจริงคือ RLS policy "supervisor_can_delete" (ดู
 // restrict_delete_to_supervisor.sql) ส่วนปุ่มอนุมัติ/ปิดงาน/เปิดกลับ/ยกเลิกยังไม่มีการบังคับที่ RLS
 // (เป็นข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้ — ดู SKILL.md หัวข้อ RBAC สำหรับเหตุผลเต็ม)
+// ── สลับแอปมือถือ/แอปเต็ม ──
+// มือถือ = จอสัมผัสที่ด้านสั้นของจอ < 600px (iPhone/Android) — iPad/แท็บเล็ต (ด้านสั้น ≥ 744px) ยังใช้แอปเต็มตามเดิม
+const _MOBILE_OPT_OUT_KEY = 'proflow_force_desktop';
+function _isPhoneDevice() {
+  const s = Math.min(screen.width, screen.height);
+  return s > 0 && s < 600 && window.matchMedia('(pointer: coarse)').matches;
+}
+function _mobileOptedOut() { try { return localStorage.getItem(_MOBILE_OPT_OUT_KEY) === '1'; } catch (e) { return false; } }
+function openMobileApp() {
+  try { localStorage.removeItem(_MOBILE_OPT_OUT_KEY); } catch (e) {}
+  location.href = 'mobile/index.html';
+}
+
 // ── ติดตั้งลงหน้าจอหลัก (PWA) แบบเดียวกับ BM Flow ──
 // Android/Chrome/Edge: เก็บ beforeinstallprompt ไว้ กดแล้วเด้งหน้าต่างติดตั้งของระบบ; iPhone/iPad (Safari ไม่มี API นี้):
 // บอกวิธีกดแชร์ → "เพิ่มลงในหน้าจอโฮม" — ทุกปุ่มที่มีคลาส .pwa-install-only ซ่อนเองเมื่อเปิดจากไอคอนที่ติดตั้งแล้ว
@@ -40899,6 +40917,12 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('whTabletView').style.display = 'flex';
         if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
       } else {
+        // มือถือ (จอเล็ก จอสัมผัส) — พาไปแอปมือถือ (/mobile/) ที่ออกแบบมาสำหรับจอนี้ แทนหน้าเดสก์ท็อปที่ใช้ยาก
+        // session อยู่ใน localStorage โดเมนเดียวกัน แอปมือถือจึงล็อกอินต่อได้เลยไม่ต้องกรอกใหม่ — กด "เปิดแบบเต็ม"
+        // ในแอปมือถือเพื่อกลับมาหน้านี้ได้ (ตั้งธง _MOBILE_OPT_OUT_KEY ไว้ จะไม่ถูกพาไปซ้ำ) ไม่ใช้กับบัญชีคลัง (มีโหมดแท็บเล็ตเอง)
+        if (!_bootstrapped && _isPhoneDevice() && !_mobileOptedOut()) { location.replace('mobile/index.html'); return; }
+        const toMobile = document.getElementById('toMobileFab');
+        if (toMobile) toMobile.style.display = _isPhoneDevice() ? 'inline-flex' : 'none';
         _renderCurrentUserBadge();
         if (!_bootstrapped) {
           _bootstrapped = true;

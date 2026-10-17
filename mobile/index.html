@@ -248,6 +248,7 @@ button, input, select { font-family: inherit; }
 #topbar .user-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .install-pill { flex-shrink: 0; border: none; border-radius: 999px; background: #fff; color: var(--blue); font-size: .74rem; font-weight: 700; padding: 6px 12px; min-height: 30px; }
 .install-pill:active { transform: scale(.96); }
+.install-pill.ghost { background: rgba(255,255,255,.14); color: #fff; }
 /* ช่องกรอก ≥16px — iOS Safari ซูมจอเองถ้าตัวอักษรเล็กกว่านี้ตอนแตะช่องกรอก */
 .mtoolbar input[type=text], .mtoolbar select, .lotscan-toolbar input, .login-card input { font-size: 16px; min-height: 46px; }
 .lotscan-toolbar button { min-width: 46px; min-height: 46px; }
@@ -305,7 +306,10 @@ button, input, select { font-family: inherit; }
     </div>
     <div class="user-row">
       <div class="user"><i class="fas fa-user-circle me-1"></i><span id="mUserName"></span></div>
-      <button class="install-pill" id="mInstallBtn" onclick="installApp()" style="display:none"><i class="fas fa-mobile-screen-button me-1"></i>ติดตั้งลงหน้าจอ</button>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="install-pill" id="mInstallBtn" onclick="installApp()" style="display:none"><i class="fas fa-mobile-screen-button me-1"></i>ติดตั้ง</button>
+        <button class="install-pill ghost" onclick="openFullApp()" title="เปิดแอปเต็ม (หน้าจอคอมพิวเตอร์) — ทำงานได้ทุกเมนู"><i class="fas fa-desktop me-1"></i>แอปเต็ม</button>
+      </div>
     </div>
   </div>
 
@@ -1926,6 +1930,11 @@ function _lotscanNormalizeOcrCode(raw) {
 // ติดตั้งลงหน้าจอหลัก (แบบเดียวกับ BM Flow) — Android/Chrome: ใช้ beforeinstallprompt เด้งหน้าต่างติดตั้งของระบบ,
 // iPhone/iPad: Safari ไม่มี API นี้ บอกวิธีกดแชร์ → "เพิ่มลงในหน้าจอโฮม" — ปุ่มซ่อนเองเมื่อเปิดจากไอคอนที่ติดตั้งแล้ว
 // ══════════════════════════════════════════════
+// แอปหลักพามือถือมาที่นี่อัตโนมัติหลังล็อกอิน — ปุ่ม "แอปเต็ม" ตั้งธงไว้ให้แอปหลักไม่พากลับมาอีก (จนกว่าจะกด "แอปมือถือ" ที่นั่น)
+function openFullApp() {
+  try { localStorage.setItem('proflow_force_desktop', '1'); } catch (e) {}
+  location.href = '../index.html';
+}
 let _installEv = null;
 function _isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
 function _installRefreshBtn() { const b = document.getElementById('mInstallBtn'); if (b) b.style.display = _isStandalone() ? 'none' : ''; }
