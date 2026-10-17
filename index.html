@@ -2,8 +2,17 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ProFlow Wise MES</title>
+<!-- ติดตั้งลงหน้าจอหลักได้ (PWA) แบบเดียวกับ BM Flow — ดู manifest.json / sw.js / installApp() -->
+<meta name="theme-color" content="#155092">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ProFlow MES">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="mobile/icons/apple-touch-icon.png">
+<link rel="icon" href="mobile/icons/icon-192.png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
 <!-- ใช้เฉพาะหน้า "ผังโรงงานเรียลไทม์" (#page-floorpulse) — Chakra Petch สำหรับหัวข้อ/ป้ายข้อมูลโทนไฮเทค,
@@ -7632,6 +7641,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotqueue')"><i class="fas fa-barcode"></i><span>คิวห้องยิง Lot</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotscan')"><i class="fas fa-qrcode"></i><span>Lot Scan</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('sachetcalc')"><i class="fas fa-calculator"></i><span>คำนวณซองน้ำมัน</span></button>
+          </div>
+          <div class="wh-tile-grid mb-3 pwa-install-only">
+            <button class="wh-tile" onclick="installApp()"><i class="fas fa-mobile-screen-button"></i><span>ติดตั้งลงหน้าจอ</span></button>
           </div>
         </div>
 
@@ -40512,6 +40524,22 @@ function _hasRole(minRole) {
 // ระดับ UI/UX เท่านั้น — ตัวบังคับจริงคือ RLS policy "supervisor_can_delete" (ดู
 // restrict_delete_to_supervisor.sql) ส่วนปุ่มอนุมัติ/ปิดงาน/เปิดกลับ/ยกเลิกยังไม่มีการบังคับที่ RLS
 // (เป็นข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้ — ดู SKILL.md หัวข้อ RBAC สำหรับเหตุผลเต็ม)
+// ── ติดตั้งลงหน้าจอหลัก (PWA) แบบเดียวกับ BM Flow ──
+// Android/Chrome/Edge: เก็บ beforeinstallprompt ไว้ กดแล้วเด้งหน้าต่างติดตั้งของระบบ; iPhone/iPad (Safari ไม่มี API นี้):
+// บอกวิธีกดแชร์ → "เพิ่มลงในหน้าจอโฮม" — ทุกปุ่มที่มีคลาส .pwa-install-only ซ่อนเองเมื่อเปิดจากไอคอนที่ติดตั้งแล้ว
+let _installEv = null;
+function _isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function _installRefreshBtn() { document.querySelectorAll('.pwa-install-only').forEach(el => { el.style.display = _isStandalone() ? 'none' : ''; }); }
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _installEv = e; _installRefreshBtn(); });
+window.addEventListener('appinstalled', () => { _installEv = null; document.querySelectorAll('.pwa-install-only').forEach(el => { el.style.display = 'none'; }); });
+async function installApp() {
+  if (_installEv) { _installEv.prompt(); await _installEv.userChoice; _installEv = null; return; }
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  Swal.fire({ icon: 'info', title: 'ติดตั้งลงหน้าจอ', html: ios
+    ? 'เปิดหน้านี้ใน <b>Safari</b> แล้วกดปุ่ม <b>แชร์</b> (สี่เหลี่ยมมีลูกศรขึ้น) จากนั้นเลือก <b>"เพิ่มลงในหน้าจอโฮม"</b>'
+    : 'เปิดเมนู <b>⋮</b> ของเบราว์เซอร์ (Chrome/Edge) แล้วเลือก <b>"ติดตั้งแอป"</b> หรือ <b>"เพิ่มไปยังหน้าจอหลัก"</b>' });
+}
+
 function _applyRolePermissions() {
   document.body.classList.toggle('role-operator', !_hasRole('supervisor'));
 }
@@ -40522,9 +40550,13 @@ function _renderCurrentUserBadge() {
   el.innerHTML = `
     <i class="fas fa-circle" style="color:#22c55e;font-size:.5rem"></i>
     <span title="${_currentUser.email}">${_currentUser.name}</span>
+    <a href="#" onclick="event.preventDefault(); installApp();" title="ติดตั้งลงหน้าจอ" class="ms-1 pwa-install-only">
+      <i class="fas fa-mobile-screen-button"></i>
+    </a>
     <a href="#" onclick="event.preventDefault(); logoutUser();" title="ออกจากระบบ" class="ms-1">
       <i class="fas fa-right-from-bracket"></i>
     </a>`;
+  _installRefreshBtn();
   // หน้า "คำขอสมัครใช้งาน" มีข้อมูลส่วนตัวจริงของผู้สมัครทุกคน (เบอร์โทร/รหัสพนักงาน/อีเมลจริง) — ซ่อน
   // ลิงก์นี้จาก sidebar สำหรับคนที่ไม่ใช่ admin (แค่ความสะดวก UI เฉยๆ ตัวบังคับจริงคือ RLS policy
   // admin_full_access ใน create_signup_requests.sql — คนที่ไม่ใช่ admin เข้าหน้านี้ตรงๆก็เห็นรายการเปล่า)
@@ -40826,6 +40858,8 @@ function _realtimeNotifyEditReqResolved(info) {
 // Init — เช็ค session ก่อนปล่อยเข้าแอป แล้วโหลดหน้าแรก
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  _installRefreshBtn();
   // โหมดรายงานสาธารณะ (?report=TOKEN) — ข้าม login/auth ทั้งหมด ไม่ต้องรอ session ใดๆ
   const _reportToken = new URLSearchParams(location.search).get('report');
   if (_reportToken) { _renderPublicReport(_reportToken); return; }

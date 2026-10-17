@@ -2,7 +2,7 @@ Add-Type -AssemblyName System.Drawing
 
 $logoPath = "C:\Thanpao\Wise\MESDev\ProFlow_Supabase\wisenovation_LOGO -Cut.png"
 $logo = [System.Drawing.Image]::FromFile($logoPath)
-$starRect = New-Object System.Drawing.Rectangle(1850, 60, 380, 400)
+$starRect = New-Object System.Drawing.Rectangle(1815, 60, 400, 400)
 
 function New-Icon([int]$size, [string]$path) {
   $bmp = New-Object System.Drawing.Bitmap($size, $size)
@@ -33,8 +33,27 @@ function New-Icon([int]$size, [string]$path) {
   $bmp.Dispose()
 }
 
+# ไอคอน maskable (Android ตัดขอบเป็นวงกลม/สี่เหลี่ยมมนเอง) — พื้นขาวเต็มกรอบ โลโก้อยู่ในวงปลอดภัยกลาง 50%
+function New-MaskableIcon([int]$size, [string]$path, [double]$ratio = 0.5) {
+  $bmp = New-Object System.Drawing.Bitmap($size, $size)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.Clear([System.Drawing.Color]::White)
+  $starSize = [int]($size * $ratio)
+  $off = [int](($size - $starSize) / 2)
+  $destRect = New-Object System.Drawing.Rectangle($off, $off, $starSize, $starSize)
+  $g.DrawImage($logo, $destRect, $starRect, [System.Drawing.GraphicsUnit]::Pixel)
+  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+  $g.Dispose()
+  $bmp.Dispose()
+}
+
 $dir = Join-Path $PSScriptRoot "icons"
 New-Icon -size 192 -path (Join-Path $dir "icon-192.png")
 New-Icon -size 512 -path (Join-Path $dir "icon-512.png")
+New-MaskableIcon -size 512 -path (Join-Path $dir "icon-maskable-512.png")
+# iOS เติมพื้นดำให้ส่วนโปร่งใส และตัดมุมมนเอง — ใช้พื้นขาวเต็มกรอบ
+New-MaskableIcon -size 180 -path (Join-Path $dir "apple-touch-icon.png") -ratio 0.62
 $logo.Dispose()
 Write-Output "done"

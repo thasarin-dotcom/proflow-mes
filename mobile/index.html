@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ProFlow">
 <link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="icon" href="./icons/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -245,6 +245,9 @@ button, input, select { font-family: inherit; }
 #topbar .tbtn.spinning i { animation: fa-spin 1s linear infinite; }
 #topbar .user { font-size: .72rem; color: #bfdbfe; padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #app { height: 100vh; height: 100dvh; }
+#topbar .user-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.install-pill { flex-shrink: 0; border: none; border-radius: 999px; background: #fff; color: var(--blue); font-size: .74rem; font-weight: 700; padding: 6px 12px; min-height: 30px; }
+.install-pill:active { transform: scale(.96); }
 /* ช่องกรอก ≥16px — iOS Safari ซูมจอเองถ้าตัวอักษรเล็กกว่านี้ตอนแตะช่องกรอก */
 .mtoolbar input[type=text], .mtoolbar select, .lotscan-toolbar input, .login-card input { font-size: 16px; min-height: 46px; }
 .lotscan-toolbar button { min-width: 46px; min-height: 46px; }
@@ -300,7 +303,10 @@ button, input, select { font-family: inherit; }
       <button class="tbtn" id="mRefreshBtn" onclick="mRefresh()" title="รีเฟรช" aria-label="รีเฟรช"><i class="fas fa-rotate-right"></i></button>
       <button class="tbtn" onclick="mLogout()" title="ออกจากระบบ" aria-label="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></button>
     </div>
-    <div class="user"><i class="fas fa-user-circle me-1"></i><span id="mUserName"></span></div>
+    <div class="user-row">
+      <div class="user"><i class="fas fa-user-circle me-1"></i><span id="mUserName"></span></div>
+      <button class="install-pill" id="mInstallBtn" onclick="installApp()" style="display:none"><i class="fas fa-mobile-screen-button me-1"></i>ติดตั้งลงหน้าจอ</button>
+    </div>
   </div>
 
   <div id="content">
@@ -1917,6 +1923,23 @@ function _lotscanNormalizeOcrCode(raw) {
 }
 
 // ══════════════════════════════════════════════
+// ติดตั้งลงหน้าจอหลัก (แบบเดียวกับ BM Flow) — Android/Chrome: ใช้ beforeinstallprompt เด้งหน้าต่างติดตั้งของระบบ,
+// iPhone/iPad: Safari ไม่มี API นี้ บอกวิธีกดแชร์ → "เพิ่มลงในหน้าจอโฮม" — ปุ่มซ่อนเองเมื่อเปิดจากไอคอนที่ติดตั้งแล้ว
+// ══════════════════════════════════════════════
+let _installEv = null;
+function _isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function _installRefreshBtn() { const b = document.getElementById('mInstallBtn'); if (b) b.style.display = _isStandalone() ? 'none' : ''; }
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _installEv = e; _installRefreshBtn(); });
+window.addEventListener('appinstalled', () => { _installEv = null; const b = document.getElementById('mInstallBtn'); if (b) b.style.display = 'none'; });
+async function installApp() {
+  if (_installEv) { _installEv.prompt(); await _installEv.userChoice; _installEv = null; return; }
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  Swal.fire({ icon: 'info', title: 'ติดตั้งลงหน้าจอ', html: ios
+    ? 'เปิดหน้านี้ใน <b>Safari</b> แล้วกดปุ่ม <b>แชร์</b> (สี่เหลี่ยมมีลูกศรขึ้น) จากนั้นเลือก <b>"เพิ่มลงในหน้าจอโฮม"</b>'
+    : 'เปิดเมนู <b>⋮</b> ของเบราว์เซอร์ (Chrome) แล้วเลือก <b>"ติดตั้งแอป"</b> หรือ <b>"เพิ่มไปยังหน้าจอหลัก"</b>' });
+}
+
+// ══════════════════════════════════════════════
 // Init — เช็ค session ก่อนปล่อยเข้าแอป (เหมือนแอปหลัก)
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
@@ -1939,6 +1962,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  _installRefreshBtn();
 });
 </script>
 </body>
