@@ -225,6 +225,47 @@ button, input, select { font-family: inherit; }
 #cameraModal button.capture { width: 100%; padding: 11px; border: none; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 600; }
 
 .mspinner { text-align: center; color: #94a3b8; padding: 40px 0; }
+
+/* แอปนี้ไม่ได้โหลด Bootstrap แต่โค้ด (บางส่วนยกมาจากแอปหลัก) ใช้คลาสยูทิลิตีของ Bootstrap อยู่ — เดิมไม่มีผลเลย
+   (เช่นไอคอนชิดติดตัวอักษรเพราะ me-1 ไม่ทำงาน) ประกาศเฉพาะตัวที่ใช้จริงในไฟล์นี้ */
+.me-1 { margin-right: .25rem; } .me-2 { margin-right: .5rem; } .mt-1 { margin-top: .25rem; }
+.mb-0 { margin-bottom: 0; } .mb-2 { margin-bottom: .5rem; } .mb-3 { margin-bottom: 1rem; }
+.text-muted { color: #94a3b8; } .text-center { text-align: center; } .text-start { text-align: left; } .text-end { text-align: right; }
+.text-warning { color: #d97706; } .text-nowrap { white-space: nowrap; } .small { font-size: .85em; }
+.fw-normal { font-weight: 400; } .fw-bold { font-weight: 700; } .opacity-50 { opacity: .5; }
+
+/* ── ปรับสำหรับถือใช้งาน (handheld, 2026-10-17) — วางท้ายสุดให้ทับกฎเดิมด้วย source order ── */
+#topbar { padding: max(8px, env(safe-area-inset-top)) 12px 8px; }
+#topbar .brand-row { gap: 8px; margin-bottom: 2px; }
+#topbar .logo-chip { padding: 4px 8px; border-radius: 8px; }
+#topbar .logo-chip img { height: 20px; }
+#topbar .title { flex: 1; min-width: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#topbar .tbtn { width: 40px; height: 40px; flex-shrink: 0; border: none; border-radius: 12px; background: rgba(255,255,255,.14); color: #fff; font-size: 1rem; }
+#topbar .tbtn:active { background: rgba(255,255,255,.28); }
+#topbar .tbtn.spinning i { animation: fa-spin 1s linear infinite; }
+#topbar .user { font-size: .72rem; color: #bfdbfe; padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#app { height: 100vh; height: 100dvh; }
+/* ช่องกรอก ≥16px — iOS Safari ซูมจอเองถ้าตัวอักษรเล็กกว่านี้ตอนแตะช่องกรอก */
+.mtoolbar input[type=text], .mtoolbar select, .lotscan-toolbar input, .login-card input { font-size: 16px; min-height: 46px; }
+.lotscan-toolbar button { min-width: 46px; min-height: 46px; }
+.mchip { min-height: 38px; display: inline-flex; align-items: center; font-size: .82rem; }
+/* แถบเมนูล่าง — ไฮไลท์แท็บที่เลือกเป็นแคปซูลรอบไอคอน เป้ากดสูง 58px */
+#bottomnav button { min-height: 58px; font-size: .7rem; gap: 2px; }
+#bottomnav button i { width: 46px; height: 28px; line-height: 28px; border-radius: 14px; font-size: 1.1rem; transition: background .15s; }
+#bottomnav button.active i { background: #dbeafe; }
+#bottomnav button .nbadge { top: 2px; margin-left: 22px; }
+/* ตัวอักษรเนื้อหาให้อ่านง่ายขึ้นตอนถือเครื่อง */
+.mkpi small { font-size: .74rem; }
+.mkpi b { font-size: 1.5rem; }
+.mitem-meta { font-size: .8rem; }
+.mbadge { font-size: .74rem; padding: 3px 10px; }
+.mmo-row .l, .mlot-row > span[data-label]::before { font-size: .7rem; }
+.mgroup-header { min-height: 52px; }
+.mcal-cell { min-height: 54px; }
+/* ฟีดแบ็กตอนแตะ — ให้รู้ว่ากดโดน */
+.mgroup-header:active, .mcal-cell:not(.empty):active, .mchip:active, .mkpi:active { background: #f1f5f9; }
+.mreq-btn { min-height: 46px; }
+.mreq-btn:active, .login-card button:active, #cameraModal button.capture:active { transform: scale(.97); }
 #toploader {
   position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg,#3b82f6,#06b6d4);
   width: 0; transition: width .3s; z-index: 9998;
@@ -251,17 +292,15 @@ button, input, select { font-family: inherit; }
 </div>
 
 <div id="app">
+  <!-- แถบบนแบบแถวเดียว (เดิม 2 แถว: โลโก้+ผู้ใช้ / ชื่อหน้า) ประหยัดความสูงจอให้เนื้อหา -->
   <div id="topbar">
     <div class="brand-row">
       <div class="logo-chip"><img src="../wisenovation_LOGO%20-Cut.png" alt="WISE Novation"></div>
-      <div class="user">
-        <span id="mUserName"></span>
-        <a href="#" onclick="event.preventDefault(); mLogout();" title="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></a>
-      </div>
-    </div>
-    <div class="title-row">
       <div class="title" id="mPageTitle">ภาพรวมการผลิต<small>ProFlow Mobile</small></div>
+      <button class="tbtn" id="mRefreshBtn" onclick="mRefresh()" title="รีเฟรช" aria-label="รีเฟรช"><i class="fas fa-rotate-right"></i></button>
+      <button class="tbtn" onclick="mLogout()" title="ออกจากระบบ" aria-label="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></button>
     </div>
+    <div class="user"><i class="fas fa-user-circle me-1"></i><span id="mUserName"></span></div>
   </div>
 
   <div id="content">
@@ -450,6 +489,18 @@ const _mPageTitles = {
   plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ',
 };
 const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false, plancal: false, approvals: false };
+// ปุ่มรีเฟรชบนแถบบน — โหลดข้อมูลหน้าที่เปิดอยู่ใหม่ (เดิมต้องปิดแอปเปิดใหม่ เพราะแต่ละหน้าโหลดแค่ครั้งแรกที่เข้า)
+const _mPageLoaders = {
+  prodstatus: () => loadProdStatusData(), stock: () => loadStockData(), fgstock: () => loadFGStockData(),
+  plancal: () => plancalLoad(), approvals: () => apprLoad(), lotscan: () => (typeof lotscanSearch === 'function' && document.getElementById('lotscan-f-code').value.trim() ? lotscanSearch() : null),
+};
+async function mRefresh() {
+  const btn = document.getElementById('mRefreshBtn');
+  if (btn.classList.contains('spinning')) return;
+  const page = document.querySelector('#bottomnav button.active')?.dataset.page;
+  btn.classList.add('spinning');
+  try { await (_mPageLoaders[page]?.()); } finally { btn.classList.remove('spinning'); }
+}
 function mShowPage(name) {
   document.querySelectorAll('.mpage').forEach(el => el.classList.remove('active'));
   document.getElementById('mpage-' + name).classList.add('active');

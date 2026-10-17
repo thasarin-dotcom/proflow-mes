@@ -313,6 +313,52 @@ img.emp-avatar { cursor: zoom-in; }
   .wh-tile-grid { grid-template-columns: repeat(4,1fr); }
   .wh-line-grid { grid-template-columns: repeat(3,1fr); }
 }
+/* ── ปรับสำหรับถือใช้งาน (handheld, 2026-10-17) — ทับกฎด้านบนด้วย source order ──
+   ตัวอักษรเดิมเล็กเกินไปสำหรับอ่านบนแท็บเล็ตที่ถือในมือ (.6–.7rem), ปุ่มสลับหน้าเป็นจุด 7px ไม่มีชื่อ, ใช้ 100vh
+   ที่โดนแถบที่อยู่ของเบราว์เซอร์มือถือบัง — ขยายตัวอักษร/เป้ากด ≥44px, แถบแท็บล่างมีไอคอน+ชื่อ, 100dvh */
+#whTabletView { padding: 10px; }
+.wh-frame { height: calc(100vh - 20px); height: calc(100dvh - 20px); padding: 14px 16px 0; }
+.wh-topbar { margin-bottom: 12px; }
+.wh-user-pill { font-size: .78rem; padding: 6px 12px; }
+.wh-topbtn { width: 40px; height: 40px; border-radius: 12px; border: none; background: #f1f5f9; color: #475569;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
+.wh-topbtn:active { background: #e2e8f0; }
+.wh-topbtn.spinning i { animation: fa-spin 1s linear infinite; }
+.wh-page-title { font-size: 1.3rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+.wh-page-sub { font-size: .8rem; color: #64748b; }
+.wh-section-label { font-size: .85rem; color: #475569; margin: 6px 0 10px; }
+.wh-kpi-row { gap: 8px; }
+.wh-kpi-tile { padding: 12px 6px; }
+.wh-kpi-num { font-size: 1.6rem; }
+.wh-kpi-label { font-size: .74rem; }
+.wh-linecard { padding: 13px; font-size: .9rem; }
+.wh-badge { font-size: .72rem; padding: 4px 10px; }
+.wh-sched-row { font-size: .86rem; padding: 10px 12px; min-height: 44px; }
+.wh-alert-row { font-size: .8rem; padding: 6px 10px; }
+.wh-sched-time { width: 50px; }
+.wh-tile { height: 112px; gap: 8px; border-radius: 16px; transition: transform .1s, background .1s; }
+.wh-tile i { font-size: 1.7rem; }
+.wh-tile span { font-size: .88rem; font-weight: 600; }
+.wh-tile:active { transform: scale(.96); background: #eef2f7; }
+.wh-tile-action { background: #f0fdf4; border-color: #bbf7d0; }
+.wh-tile-action:active { background: #dcfce7; }
+/* แถบแท็บล่าง — แทนจุด 3 จุดเดิม (id wh-dot-0..2 เดิมยังใช้อยู่ ให้ _whGoPage สลับ .active ได้ตามเดิม) */
+.wh-tabbar { display: flex; gap: 6px; flex-shrink: 0; border-top: 1px solid #e2e8f0; margin: 8px -16px 0;
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); background: #fff; border-radius: 0 0 20px 20px; }
+.wh-tab { flex: 1; min-height: 56px; border: none; background: none; border-radius: 12px; color: #64748b;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: .78rem; font-weight: 600; }
+.wh-tab i { font-size: 1.2rem; }
+.wh-tab.active { background: #e3ebf3; color: #155092; }
+/* จอแคบ (มือถือ/แท็บเล็ตเล็กแนวตั้ง) — ใช้เต็มจอ ไม่เว้นกรอบรอบนอก */
+@media (max-width: 600px) {
+  #whTabletView { padding: 0; }
+  .wh-frame { height: 100vh; height: 100dvh; border-radius: 0; box-shadow: none; padding: max(10px, env(safe-area-inset-top)) 12px 0; }
+  .wh-tabbar { margin: 8px -12px 0; border-radius: 0; }
+  .wh-kpi-row { grid-template-columns: repeat(2,1fr); }
+  .wh-line-grid { grid-template-columns: 1fr; }
+  .wh-tile-grid { grid-template-columns: repeat(2,1fr); }
+  #wh-forecast-cards { grid-template-columns: 1fr !important; }
+}
 #whBackFab {
   /* z-index ตั้งใจให้ต่ำกว่า Bootstrap modal-backdrop (1050) เสมอ — ตอนเปิด modal พิมพ์รายงาน (เช่น
      mrReportModal) ปุ่มนี้ต้องถูก backdrop บังไปเลย ไม่ใช่ลอยทับปุ่ม "พิมพ์"/"ปิด" ในหน้าต่างนั้น
@@ -349,10 +395,16 @@ body.wh-desktop-mode .scroll-content { padding: 0 12px 76px 12px; }
 body.wh-desktop-mode .page-header h4 { font-size: 1.35rem; }
 body.wh-desktop-mode .btn { padding: .6rem 1.1rem; font-size: .95rem; border-radius: 8px; }
 body.wh-desktop-mode .btn-sm { padding: .5rem .9rem; font-size: .88rem; }
+/* font-size 16px ขั้นต่ำ — iOS Safari ซูมจอเองทุกครั้งที่แตะช่องกรอกที่ตัวอักษรเล็กกว่า 16px (เดิม .95rem = 15.2px) */
 body.wh-desktop-mode .form-control, body.wh-desktop-mode .form-select {
-  padding: .6rem .8rem; font-size: .95rem; min-height: 46px; border-radius: 8px;
+  padding: .6rem .8rem; font-size: 16px; min-height: 48px; border-radius: 10px;
 }
-body.wh-desktop-mode .form-check-input { width: 20px; height: 20px; }
+body.wh-desktop-mode .form-check-input { width: 22px; height: 22px; }
+body.wh-desktop-mode .btn:active { transform: scale(.97); }
+/* ปุ่มลอยกลับหน้าคลัง — ใหญ่ขึ้นให้นิ้วโป้งกดง่ายตอนถือเครื่อง เว้นขอบล่างตาม safe-area (เครื่องที่มีแถบโฮม) */
+#whBackFab { min-height: 52px; padding: 12px 22px; font-size: 1rem; font-weight: 600;
+  bottom: calc(16px + env(safe-area-inset-bottom)); left: 16px; }
+#whBackFab:active { transform: scale(.96); }
 /* บีบตารางให้พอดีจอ ไม่ต้องสกอลซ้าย-ขวา — ปิด overflow-x ของ .table-responsive แล้วบังคับ
    table-layout:fixed (แบ่งความกว้างคอลัมน์ตามที่มีจริง ไม่ยืดตามเนื้อหา) + ให้ตัวอักษรตัดคำ/ขึ้นบรรทัด
    ใหม่ได้ในแต่ละเซลล์แทนการ์ดล้นออกไปข้างตาราง — คอลัมน์ที่ตั้งใจ nowrap ไว้เอง (เช่นปุ่ม "จัดการ") ยัง
@@ -7502,9 +7554,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <img src="wisenovation_LOGO -Cut.png" alt="Wise Novation" style="height:22px;width:auto">
       <div class="d-flex align-items-center gap-2">
         <span class="wh-user-pill"><i class="fas fa-warehouse me-1"></i>WH01 · คลัง</span>
-        <a href="#" onclick="event.preventDefault(); logoutUser();" title="ออกจากระบบ" style="color:#64748b">
-          <i class="fas fa-right-from-bracket"></i>
-        </a>
+        <button class="wh-topbtn" id="wh-refresh-btn" onclick="_whManualRefresh()" title="รีเฟรชข้อมูลหน้านี้" aria-label="รีเฟรช"><i class="fas fa-rotate-right"></i></button>
+        <button class="wh-topbtn" onclick="logoutUser()" title="ออกจากระบบ" aria-label="ออกจากระบบ"><i class="fas fa-right-from-bracket"></i></button>
       </div>
     </div>
 
@@ -7513,8 +7564,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 
         <!-- หน้า 0 (ซ้ายสุด): พยากรณ์การใช้ BULK ล่วงหน้า 2 เดือน — สไวป์ขวาจากหน้าภาพรวมมาที่นี่ -->
         <div class="wh-page">
-          <div style="font-size:1.1rem;font-weight:700;color:#1e293b">พยากรณ์การใช้ BULK</div>
-          <div class="text-muted mb-1" style="font-size:.75rem">2-month bulk usage forecast</div>
+          <div class="wh-page-title">พยากรณ์การใช้ BULK</div>
+          <div class="wh-page-sub mb-1">2-month bulk usage forecast</div>
           <div class="text-muted mb-3" style="font-size:.68rem">ประมาณการจากแนวโน้มย้อนหลัง — ใช้เตือนล่วงหน้าเท่านั้น ไม่ใช่ตัวเลขสั่งซื้อจริง</div>
           <div id="wh-forecast-cards" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
             <div class="text-center text-muted py-4" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...</div>
@@ -7528,8 +7579,8 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 
         <!-- หน้า 1 (กลาง, ค่าเริ่มต้น): ภาพรวมการผลิต -->
         <div class="wh-page">
-          <div style="font-size:1.1rem;font-weight:700;color:#1e293b">ภาพรวมการผลิต</div>
-          <div class="text-muted mb-2" style="font-size:.75rem">Production Overview</div>
+          <div class="wh-page-title">ภาพรวมการผลิต</div>
+          <div class="wh-page-sub mb-2">Production Overview</div>
 
           <div class="wh-kpi-row">
             <div class="wh-kpi-tile"><div class="wh-kpi-num" id="wh-kpi-mo">—</div><div class="wh-kpi-label">MO กำลังผลิต</div></div>
@@ -7561,6 +7612,16 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 
         <!-- หน้า 2 (ขวาสุด): เมนู -->
         <div class="wh-page">
+          <!-- บันทึกข้อมูล (งานหลักของคลัง) อยู่บนสุด — เดิมอยู่ใต้ "ข้อมูล" ต้องเลื่อนลงทุกครั้ง -->
+          <div class="wh-page-title mb-2">เมนู</div>
+          <div class="wh-section-label">บันทึกข้อมูล</div>
+          <div class="wh-tile-grid mb-3">
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('mr')"><i class="fas fa-truck-ramp-box"></i><span>รับวัตถุดิบ</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('issue')"><i class="fas fa-dolly"></i><span>เบิกผลิต</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fg')"><i class="fas fa-cubes"></i><span>รับ FG</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fgout')"><i class="fas fa-truck"></i><span>เบิก FG</span></button>
+            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('misc')"><i class="fas fa-box-open"></i><span>เบิกเบ็ดเตล็ด</span></button>
+          </div>
           <div class="wh-section-label">ข้อมูล (ดูอย่างเดียว)</div>
           <div class="wh-tile-grid mb-3">
             <button class="wh-tile" onclick="_whOpenDesktopPage('stock')"><i class="fas fa-boxes-stacked"></i><span>Stock วัตถุดิบ</span></button>
@@ -7572,24 +7633,17 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotscan')"><i class="fas fa-qrcode"></i><span>Lot Scan</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('sachetcalc')"><i class="fas fa-calculator"></i><span>คำนวณซองน้ำมัน</span></button>
           </div>
-          <div class="wh-section-label">บันทึกข้อมูล</div>
-          <div class="wh-tile-grid">
-            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('mr')"><i class="fas fa-truck-ramp-box"></i><span>รับวัตถุดิบ</span></button>
-            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('issue')"><i class="fas fa-dolly"></i><span>เบิกผลิต</span></button>
-            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fg')"><i class="fas fa-cubes"></i><span>รับ FG</span></button>
-            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fgout')"><i class="fas fa-truck"></i><span>เบิก FG</span></button>
-            <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('misc')"><i class="fas fa-box-open"></i><span>เบิกเบ็ดเตล็ด</span></button>
-          </div>
         </div>
 
       </div>
     </div>
 
-    <div class="wh-dots">
-      <span class="wh-dot" id="wh-dot-0" onclick="_whGoPage(0)"></span>
-      <button class="wh-dot wh-dot-home active" id="wh-dot-1" onclick="_whGoPage(1)" aria-label="หน้าโฮม"><i class="fas fa-house"></i></button>
-      <span class="wh-dot" id="wh-dot-2" onclick="_whGoPage(2)"></span>
-    </div>
+    <!-- แถบแท็บล่าง (แทนจุด 3 จุดเดิม) — ยังสไวป์สลับหน้าได้เหมือนเดิม; id wh-dot-N คงไว้ให้ _whGoPage สลับ .active -->
+    <nav class="wh-tabbar">
+      <button class="wh-tab" id="wh-dot-0" onclick="_whGoPage(0)"><i class="fas fa-chart-line"></i>พยากรณ์ BULK</button>
+      <button class="wh-tab active" id="wh-dot-1" onclick="_whGoPage(1)"><i class="fas fa-industry"></i>ภาพรวม</button>
+      <button class="wh-tab" id="wh-dot-2" onclick="_whGoPage(2)"><i class="fas fa-grip"></i>เมนู</button>
+    </nav>
   </div>
 </div>
 
@@ -8867,15 +8921,23 @@ function _whGoPage(p) {
 // ซึ่ง _whPage ก็เป็น 1 อยู่แล้วตั้งแต่ต้น ไม่ถือว่า "เปลี่ยน")
 function _whRefreshPage(p) {
   if (p === 0) {
-    _whComputeBulkForecast().then(_whRenderForecast);
+    return _whComputeBulkForecast().then(_whRenderForecast);
   } else if (p === 1) {
-    loadProdStatusData().then(() => {
+    return loadProdStatusData().then(() => {
       _whRenderKPIs();
       _whRenderLineCards();
       _whRenderSchedule();
       _whRenderUpcomingPlan();
     });
   }
+  return Promise.resolve();
+}
+// ปุ่มรีเฟรชมุมบน — โหลดข้อมูลหน้าที่เปิดอยู่ใหม่ (ไอคอนหมุนระหว่างโหลด) ไม่ต้องสลับหน้าไปกลับเพื่อรีเฟรช
+async function _whManualRefresh() {
+  const btn = document.getElementById('wh-refresh-btn');
+  if (btn?.classList.contains('spinning')) return;
+  btn?.classList.add('spinning');
+  try { await _whRefreshPage(_whPage); } finally { btn?.classList.remove('spinning'); }
 }
 
 // เดิมมีแค่ touchstart/touchend (ไม่มี touchmove เลย) แปลว่าตอนลากนิ้ว การ์ดไม่ขยับตามนิ้วเลยจนกว่าจะปล่อย
