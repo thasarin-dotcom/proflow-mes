@@ -7361,7 +7361,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
               <option value="prodrecord">บันทึกผลิต (ขอลบ)</option>
             </select>
           </div>
-          <div class="col-md-4 d-flex justify-content-end">
+          <div class="col-md-4 d-flex justify-content-end gap-2 flex-wrap">
+            <span id="editreq-bulk-bar" style="display:none" class="d-inline-flex align-items-center gap-2">
+              <small class="text-muted">เลือก <b id="editreq-sel-count">0</b></small>
+              <button class="btn btn-sm btn-success" onclick="editreqBulk('approve')"><i class="fas fa-check me-1"></i>อนุมัติที่เลือก</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="editreqBulk('reject')"><i class="fas fa-xmark me-1"></i>ปฏิเสธที่เลือก</button>
+            </span>
             <button class="btn btn-sm btn-primary" onclick="editreqLoad()" title="รีเฟรช">
               <i class="fas fa-sync-alt me-1"></i>รีเฟรช
             </button>
@@ -7375,12 +7380,13 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <table class="table table-sm table-hover mb-0">
             <thead>
               <tr>
+                <th style="width:36px"><input type="checkbox" id="editreq-chk-all" class="form-check-input" title="เลือกทั้งหมด" onchange="editreqToggleAll(this.checked)"></th>
                 <th style="width:150px">วันที่ขอ</th><th style="width:150px">ประเภท</th>
                 <th>รายละเอียด</th><th class="text-center" style="width:170px">จัดการ (<span id="editreq-count">0</span>)</th>
               </tr>
             </thead>
             <tbody id="editreq-tbody">
-              <tr><td colspan="4" class="text-center text-muted py-4">
+              <tr><td colspan="5" class="text-center text-muted py-4">
                 <i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลด...
               </td></tr>
             </tbody>
@@ -39042,6 +39048,7 @@ async function editreqLoad() {
   _holdstockHistoryMoves = _editreqHoldMoves;
   _editreqLaborRows      = laborRes.error ? [] : (laborRes.data || []);
   _editreqProdrecordDeleteRows = prodDelRes.error ? [] : (prodDelRes.data || []);
+  _editreqUpdateNavBadge(); // กระดิ่ง/ป้ายให้ตรงกับรายการที่เพิ่งโหลด
   editreqRender();
 }
 
@@ -39104,40 +39111,89 @@ async function editreqProdrecordRejectDelete(rowId) {
   editreqLoad();
 }
 
+let _editreqRows = [];   // แถวที่แสดงอยู่ตอนนี้ (หลังกรอง) — ปุ่ม/ติ๊กเลือกอ้างด้วย index ในอาร์เรย์นี้
+
 function editreqRender() {
   const filter = document.getElementById('editreq-type-filter')?.value || '';
+  const mk = (type, at, html, id, approve, reject) => ({ type, at, html, id, approve, reject });
   const rows = [
-    ..._mrEditRequests.map(r => ({ type: 'mr', at: r.RequestedAt, html: _mrRequestSummaryHTML(r),
-      approve: `mrApproveRequest(${r._row_id}).then(editreqLoad)`, reject: `mrRejectRequest(${r._row_id}).then(editreqLoad)` })),
-    ..._coEditRequests.map(r => ({ type: 'co', at: r.RequestedAt, html: _coRequestSummaryHTML(r),
-      approve: `coApproveRequest(${r._row_id}).then(editreqLoad)`, reject: `coRejectRequest(${r._row_id}).then(editreqLoad)` })),
-    ..._issueEditRequests.map(r => ({ type: 'issue', at: r.RequestedAt, html: _issueRequestSummaryHTML(r),
-      approve: `issueApproveRequest(${r._row_id}).then(editreqLoad)`, reject: `issueRejectRequest(${r._row_id}).then(editreqLoad)` })),
-    ..._editreqHoldMoves.map(m => ({ type: 'hold', at: m.PendingRequestedAt, html: _editreqHoldLabel(m),
-      approve: `editreqHoldApprove(${m._row_id})`, reject: `editreqHoldReject(${m._row_id})` })),
-    ..._editreqLaborRows.map(r => ({ type: 'labor', at: r.CreatedAt, html: _editreqLaborLabel(r),
-      approve: `scanlaborPendingApprove(${r._row_id}).then(editreqLoad)`, reject: `scanlaborPendingReject(${r._row_id}).then(editreqLoad)` })),
-    ..._editreqProdrecordDeleteRows.map(r => ({ type: 'prodrecord', at: r.DeleteRequestedAt, html: _editreqProdrecordLabel(r),
-      approve: `editreqProdrecordApproveDelete(${r._row_id})`, reject: `editreqProdrecordRejectDelete(${r._row_id})` })),
+    ..._mrEditRequests.map(r => mk('mr', r.RequestedAt, _mrRequestSummaryHTML(r), r._row_id, () => mrApproveRequest(r._row_id), () => mrRejectRequest(r._row_id))),
+    ..._coEditRequests.map(r => mk('co', r.RequestedAt, _coRequestSummaryHTML(r), r._row_id, () => coApproveRequest(r._row_id), () => coRejectRequest(r._row_id))),
+    ..._issueEditRequests.map(r => mk('issue', r.RequestedAt, _issueRequestSummaryHTML(r), r._row_id, () => issueApproveRequest(r._row_id), () => issueRejectRequest(r._row_id))),
+    ..._editreqHoldMoves.map(m => mk('hold', m.PendingRequestedAt, _editreqHoldLabel(m), m._row_id, () => editreqHoldApprove(m._row_id), () => editreqHoldReject(m._row_id))),
+    ..._editreqLaborRows.map(r => mk('labor', r.CreatedAt, _editreqLaborLabel(r), r._row_id, () => scanlaborPendingApprove(r._row_id), () => scanlaborPendingReject(r._row_id))),
+    ..._editreqProdrecordDeleteRows.map(r => mk('prodrecord', r.DeleteRequestedAt, _editreqProdrecordLabel(r), r._row_id, () => editreqProdrecordApproveDelete(r._row_id), () => editreqProdrecordRejectDelete(r._row_id))),
   ].filter(r => !filter || r.type === filter)
    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+  _editreqRows = rows;
 
   document.getElementById('editreq-count').textContent = rows.length;
   const tbody = document.getElementById('editreq-tbody');
+  const all = document.getElementById('editreq-chk-all'); if (all) all.checked = false;
+  editreqUpdateSelCount();
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">ไม่มีคำขอรออนุมัติ</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">ไม่มีคำขอรออนุมัติ</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(r => `
+  tbody.innerHTML = rows.map((r, i) => `
     <tr>
+      <td><input type="checkbox" class="form-check-input editreq-chk" data-idx="${i}" onchange="editreqUpdateSelCount()"></td>
       <td class="text-nowrap">${_fmtDateTime(r.at)}</td>
       <td><span class="badge bg-${EDITREQ_TYPE_BADGE[r.type]}">${EDITREQ_TYPE_LABELS[r.type]}</span></td>
       <td>${r.html}</td>
       <td class="text-center text-nowrap">
-        <button class="btn btn-sm btn-success me-1" onclick="${r.approve}"><i class="fas fa-check"></i> อนุมัติ</button>
-        <button class="btn btn-sm btn-outline-danger" onclick="${r.reject}"><i class="fas fa-xmark"></i> ปฏิเสธ</button>
+        <button class="btn btn-sm btn-success me-1" onclick="editreqRunOne(${i},'approve')"><i class="fas fa-check"></i> อนุมัติ</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="editreqRunOne(${i},'reject')"><i class="fas fa-xmark"></i> ปฏิเสธ</button>
       </td>
     </tr>`).join('');
+}
+async function editreqRunOne(idx, action) {
+  const r = _editreqRows[idx]; if (!r) return;
+  await r[action]();
+  await editreqLoad();
+}
+function editreqToggleAll(on) { document.querySelectorAll('.editreq-chk').forEach(c => { c.checked = on; }); editreqUpdateSelCount(); }
+function editreqUpdateSelCount() {
+  const n = document.querySelectorAll('.editreq-chk:checked').length;
+  const bar = document.getElementById('editreq-bulk-bar'), el = document.getElementById('editreq-sel-count');
+  if (el) el.textContent = n;
+  if (bar) bar.style.display = n ? 'inline-flex' : 'none';
+}
+// อนุมัติ/ปฏิเสธหลายรายการ — ยืนยันครั้งเดียว แล้ววนเรียกฟังก์ชันอนุมัติ/ปฏิเสธเดิมของแต่ละหน้าทีละรายการ (ตรรกะปรับสต็อกชุดเดียวกัน
+// ไม่เขียนซ้ำ) ระหว่างวนจะดัก Swal.fire/_err ชั่วคราว: กล่องยืนยัน/ใส่เหตุผลของแต่ละรายการตอบรับอัตโนมัติ, toast ถูกกลืน,
+// error ถูกเก็บไปสรุปทีเดียวตอนจบ — คืน Swal.fire/_err เดิมเสมอใน finally
+async function editreqBulk(action) {
+  if (!_currentUser?.isAdmin) return;
+  const picked = Array.from(document.querySelectorAll('.editreq-chk:checked')).map(c => _editreqRows[parseInt(c.dataset.idx)]).filter(Boolean);
+  if (!picked.length) return;
+  const isApprove = action === 'approve';
+  const res = await Swal.fire({
+    icon: isApprove ? 'question' : 'warning', title: `${isApprove ? 'อนุมัติ' : 'ปฏิเสธ'} ${picked.length} รายการ?`,
+    text: isApprove ? 'ข้อมูลจริงและสต็อกที่เกี่ยวข้องจะถูกแก้ทันทีทุกรายการที่เลือก' : '',
+    input: isApprove ? undefined : 'textarea', inputLabel: isApprove ? undefined : 'เหตุผลที่ปฏิเสธ (ใช้กับทุกรายการที่เลือก)',
+    inputValidator: isApprove ? undefined : (v => !v?.trim() ? 'กรุณากรอกเหตุผล' : undefined),
+    showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก', confirmButtonColor: isApprove ? '#198754' : '#d33',
+  });
+  if (!res.isConfirmed) return;
+  const reason = isApprove ? '' : res.value.trim();
+  const origFire = Swal.fire, origErr = _err, errors = [];
+  Swal.fire = function (o) {
+    if (o && typeof o === 'object') {
+      if (o.toast) return Promise.resolve({});
+      if (o.showCancelButton) return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false, value: reason });
+    }
+    return origFire.apply(Swal, arguments);
+  };
+  _err = (msg, detail) => { errors.push(`${msg}${detail ? ' — ' + String(detail).replace(/<[^>]+>/g, '') : ''}`); };
+  _showLoader();
+  try {
+    for (const r of picked) {
+      try { await r[action](); } catch (e) { errors.push(String(e?.message || e)); }
+    }
+  } finally { Swal.fire = origFire; _err = origErr; _hideLoader(); }
+  await editreqLoad();
+  if (errors.length) Swal.fire({ icon: 'warning', title: `สำเร็จบางส่วน — มี ${errors.length} ข้อผิดพลาด`, html: `<div class="text-start small">${errors.slice(0, 8).map(e => `• ${e}`).join('<br>')}</div>` });
+  else Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${isApprove ? 'อนุมัติ' : 'ปฏิเสธ'} ${picked.length} รายการแล้ว`, showConfirmButton: false, timer: 2000 });
 }
 
 // ป้ายแจ้งเตือนสีแดงรวมที่ nav-editreq — รวมนับจากทั้ง 5 คิว ด้วย count-only query (เบากว่า editreqLoad ที่ดึง
@@ -40605,6 +40661,7 @@ async function _realtimeRunRefresh() {
     _laborutilUpdateNavBadge();
     purchasereqUpdateNavBadge();
     _coUpdateNavBadge();
+    _editreqUpdateNavBadge();
 
     const activeEl = document.querySelector('.page-view.active');
     if (!activeEl) return;
