@@ -1804,6 +1804,47 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 }
 #page-floorpulse .fp-floor-tilt { position: relative; width: 100%; height: 100%; }
 #page-floorpulse svg.fp-svg { width: 100%; height: 100%; display: block; }
+/* สลับมุมมอง 2D/3D (เพิ่ม 2026-10-17) — มุมมอง 3D ใช้ three.js โหลดตอนกดครั้งแรกเท่านั้น ดู _fp3dUpdate */
+#page-floorpulse .fp-view-toggle {
+  position: absolute; top: 10px; right: 10px; z-index: 3; display: inline-flex; gap: 2px;
+  background: var(--fp-surface-2); border: 1px solid var(--fp-wall-soft); border-radius: 8px; padding: 2px;
+}
+#page-floorpulse .fp-view-toggle button {
+  border: 0; background: transparent; color: var(--fp-text-dim); cursor: pointer;
+  font: 600 11.5px 'IBM Plex Mono', monospace; padding: 4px 11px; border-radius: 6px;
+}
+#page-floorpulse .fp-view-toggle button.active { background: var(--fp-surface); color: var(--fp-accent); box-shadow: 0 1px 2px #0f172a1f; }
+#page-floorpulse .fp-view-toggle button:focus-visible { outline: 2px solid var(--fp-accent); outline-offset: 1px; }
+#page-floorpulse .fp-3d { position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; }
+#page-floorpulse .fp-3d canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#page-floorpulse .fp-3d-msg {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; font-size: 13px; color: var(--fp-text-dim);
+}
+/* หุ่นพนักงานในผัง 2D (2026-10-18) — ชั้นนอก = ตำแหน่ง (attribute transform), ชั้นกลาง = เดินซ้าย-ขวาช้าๆ,
+   ชั้นใน = โยกตัวทำงาน แยกชั้นเพราะ CSS transform จะทับ attribute transform ถ้าอยู่ element เดียวกัน */
+#page-floorpulse .fp-person { pointer-events: none; }
+#page-floorpulse .fp-person-walk { animation: fpPersonWalk 6s ease-in-out infinite alternate; }
+#page-floorpulse .fp-person-bob { animation: fpPersonBob 1.1s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes fpPersonWalk { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
+@keyframes fpPersonBob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-1px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #page-floorpulse .fp-person-walk, #page-floorpulse .fp-person-bob { animation: none; }
+}
+#page-floorpulse .fp-3d-hint { position: absolute; left: 10px; bottom: 8px; font-size: 10.5px; color: var(--fp-text-faint); pointer-events: none; }
+/* คำอธิบายเส้นโฟลงาน (3D) มุมซ้ายบน — ปุ่มเปิด/ปิด + สีของแต่ละสายงาน */
+#page-floorpulse .fp-flow-legend {
+  position: absolute; top: 10px; left: 10px; z-index: 2; background: #ffffffeb; border: 1px solid var(--fp-wall-soft);
+  border-radius: 8px; padding: 7px 10px; font-size: 11px; color: var(--fp-text); max-width: 220px;
+}
+#page-floorpulse .fp-flow-legend button {
+  border: 1px solid var(--fp-wall-soft); background: var(--fp-surface-2); border-radius: 6px; cursor: pointer;
+  font: 600 11px 'Sarabun', sans-serif; color: var(--fp-text); padding: 2px 8px; margin-bottom: 4px;
+}
+#page-floorpulse .fp-flow-legend button:focus-visible { outline: 2px solid var(--fp-accent); outline-offset: 1px; }
+#page-floorpulse .fp-flow-legend .fp-flow-row { display: flex; align-items: center; gap: 6px; line-height: 1.6; }
+#page-floorpulse .fp-flow-legend .fp-flow-sw { width: 14px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+#page-floorpulse .fp-flow-legend .fp-flow-note { color: var(--fp-text-faint); font-size: 10px; margin-top: 2px; }
 #page-floorpulse .fp-zone rect.fp-room {
   stroke-width: 1.4; cursor: pointer; transition: filter .15s ease;
 }
@@ -6163,6 +6204,14 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
                 <input type="text" id="employee-f-nickname" class="form-control">
               </div>
               <div class="col-md-4">
+                <label class="form-label">เพศ</label>
+                <select id="employee-f-gender" class="form-select">
+                  <option value="">ไม่ระบุ</option>
+                  <option value="F">หญิง</option>
+                  <option value="M">ชาย</option>
+                </select>
+              </div>
+              <div class="col-md-4">
                 <label class="form-label">ตำแหน่ง</label>
                 <input type="text" id="employee-f-position" class="form-control">
               </div>
@@ -9169,35 +9218,78 @@ const FP_ROOM_NOTE = {
   locker:  'พื้นที่เปลี่ยนชุด/ล็อกเกอร์พนักงานก่อนเข้าสายผลิต',
   qc:      'ตรวจสอบคุณภาพ (COA) ของล็อตผลิต — ยังไม่ผูกกับข้อมูลไลน์ผลิตในเดโมนี้',
   samples: 'อ้างอิง/เก็บกันตัวอย่างเครื่องสำอาง แยกจากห้องทดสอบคุณภาพ',
+  wash:    'ล้างและเก็บอุปกรณ์การผลิต — เข้าทางช่องทางเดินระหว่างห้อง QC กับห้องเก็บตัวอย่าง',
 };
 
-// พิกัดห้อง (px, scale ~34px/ม. จากระยะจริงในแปลน) — viewBox "0 0 800 580"
-// แต่ละแถวยืดให้เต็มความกว้างพื้นที่จริง (x:40 ถึง x:760 เท่ากันทุกแถว) แทนที่จะปล่อยเป็นสัดส่วนเมตรดิบๆ
-// ซึ่งบางแถวสั้นกว่าความกว้างเต็มจนเหลือพื้นที่ว่างด้านขวา (คำขอผู้ใช้ 2026-09-14 "ขยายออกข้างให้เต็ม
-// พื้นที่") — สัดส่วนห้องต่อห้อง "ภายในแถวเดียวกัน" ยังคงอิงระยะจริงจากแปลนเหมือนเดิม แค่สเกล px/ม. ของ
-// แต่ละแถวไม่เท่ากันแล้ว (แถวไหนห้องรวมกันสั้นกว่าจริง จะขยายสเกลนั้นมากกว่า) เพราะเราไม่มีตัวเลขระยะจริง
-// ครบทุกห้อง (โดยเฉพาะ locker/qc/samples/fillsh/filllotion/fgstore เป็นค่าประมาณอยู่แล้วตั้งแต่แรก)
+// พิกัดห้องวัดจากแบบแปลนสถาปนิกจริง (ชั้น 3 โซนเครื่องสำอาง) ทั้งหมด 2026-10-17 — สเกลเดียวทั้งผัง
+// ~32.4 px/ม. (ไม่ยืดรายแถวแบบเดิมอีกแล้ว เพราะความกว้างจริงของโซนพอดีกรอบอยู่แล้ว) ตัวเลขความกว้าง/ลึก
+// ตรงกับเลขบอกระยะในแบบ (เช่น ชั่งสาร 2.00, Bulk 2.50, หีบห่อ 4.53, ทางเดินหลัก 2.00, แถวล่าง 7.13/4.00/
+// 11.36 ม.) — ผังจริงมี "ทางเดินหลัก" คั่นกลางระหว่างแถวบนกับแถวกลาง ห้องแถวบนทุกห้องเปิดประตูลงทางเดินนี้
+// ส่วนห้องบรรจุแชมพู/ครีม และห้องผสมรวม เข้าออกผ่านช่องทางเดินย่อยระหว่างห้องบรรจุ 2 ห้อง (ดู FP_WALKWAYS/
+// FP_DOORS) ทิศทาง: ซ้าย = ฝั่งลิฟต์/บันได (ตะวันตก), ขวาสุด = ผนังติดโซนลูกประคบ (ไม่มีประตูทะลุ)
+const FP_VIEW = { w: 800, h: 460 };
 const FP_GEOM = {
-  prep:       { x:40,  y:40,  w:158, h:190 },
-  weigh:      { x:206, y:40,  w:69,  h:190 },
-  bulk:       { x:283, y:40,  w:87,  h:190 },
-  packbox:    { x:378, y:40,  w:157, h:190 },  // แบ่ง 5 สถานีข้างใน (FP_PACK_SUBLINES)
-  mixoil:     { x:543, y:40,  w:105, h:190 },  // ไม่ผูกไลน์ (ดู FP_ROOM_NOTE)
-  filloil:    { x:656, y:40,  w:104, h:190 },
-  locker:     { x:40,  y:255, w:106, h:150 },
-  qc:         { x:154, y:255, w:174, h:150 },
-  samples:    { x:336, y:255, w:128, h:150 },
-  fillsh:     { x:472, y:255, w:128, h:150 },
-  filllotion: { x:608, y:255, w:152, h:150 },
-  fgstore:    { x:40,  y:430, w:218, h:110 },
-  mixall:     { x:266, y:430, w:494, h:110 },
+  prep:       { x:125, y:40,  w:146, h:123 },
+  weigh:      { x:271, y:40,  w:67,  h:123 },
+  bulk:       { x:338, y:40,  w:81,  h:123 },
+  packbox:    { x:419, y:40,  w:147, h:123 },  // แบ่ง 5 สถานีข้างใน (FP_PACK_SUBLINES)
+  mixoil:     { x:566, y:40,  w:98,  h:123 },  // ไม่ผูกไลน์ (ดู FP_ROOM_NOTE)
+  filloil:    { x:664, y:40,  w:96,  h:123 },
+  locker:     { x:125, y:228, w:146, h:114 },
+  qc:         { x:271, y:228, w:78,  h:89 },
+  samples:    { x:401, y:228, w:67,  h:89 },
+  fillsh:     { x:468, y:228, w:120, h:89 },
+  filllotion: { x:653, y:228, w:107, h:89 },
+  fgstore:    { x:40,  y:342, w:231, h:77 },
+  wash:       { x:271, y:317, w:130, h:102 },
+  mixall:     { x:401, y:317, w:359, h:102 },
 };
+
+// ทางเดิน/โถง (ไม่ใช่ห้อง คลิกไม่ได้ ไม่ผูกไลน์) — ใช้วาดทั้ง 2D และ 3D
+const FP_WALKWAYS = [
+  { key: 'hall',     x:40,  y:163, w:85,  h:179, label: 'โถงลิฟต์/บันได', ly: 229 },  // ly: ป้ายไม่ทับลูกศรทางเข้า
+  { key: 'al',       x:125, y:163, w:106, h:65,  label: 'A/L สินค้าเข้า' },
+  { key: 'corridor', x:231, y:163, w:529, h:65,  label: 'ทางเดินหลัก' },
+  { key: 'washpass', x:349, y:228, w:52,  h:89,  label: 'ทางเข้าห้องล้าง', vertical: true },
+  { key: 'fillpass', x:588, y:228, w:65,  h:89,  label: 'ทางเดินบรรจุ/ผสม', vertical: true },
+];
+
+// ประตู: จุดกึ่งกลางบนแนวผนัง (x,y) + แนวผนัง ('h' = ผนังแนวนอน, 'v' = ผนังแนวตั้ง) + ความกว้างช่องประตู (px)
+// ตำแหน่งอ่านจากสัญลักษณ์บานเปิด/ลูกศรในแบบแปลนจริง
+const FP_DOORS = [
+  { x:151, y:163, o:'h', w:28 },  // เตรียมวัตถุดิบ ↔ A/L สินค้าเข้า
+  { x:246, y:163, o:'h', w:28 },  // เตรียมวัตถุดิบ ↔ ทางเดินหลัก
+  { x:296, y:163, o:'h', w:28 },  // ชั่งสาร
+  { x:363, y:163, o:'h', w:28 },  // เก็บ Bulk
+  { x:445, y:163, o:'h', w:28 },  // บรรจุหีบห่อ
+  { x:591, y:163, o:'h', w:28 },  // ผสมน้ำมัน
+  { x:689, y:163, o:'h', w:28 },  // บรรจุน้ำมัน
+  { x:127, y:196, o:'v', w:50 },  // A/L ประตูคู่ฝั่งลิฟต์ขนของ (ทางสินค้าเข้า)
+  { x:231, y:196, o:'v', w:50 },  // A/L ประตูคู่ ↔ ทางเดินหลัก
+  { x:218, y:228, o:'h', w:28 },  // Locker → ทางเดินหลัก (ทางออกหลังเปลี่ยนชุด)
+  { x:125, y:314, o:'v', w:28 },  // Locker ← โถงลิฟต์ (ทางพนักงานเข้า)
+  { x:326, y:228, o:'h', w:28 },  // ทดสอบคุณภาพ
+  { x:425, y:228, o:'h', w:28 },  // เก็บตัวอย่าง
+  { x:356, y:317, o:'h', w:28 },  // ห้องล้าง/เก็บอุปกรณ์ ↔ ช่องทางเดิน
+  { x:612, y:228, o:'h', w:28 },  // ทางเดินบรรจุ/ผสม ↔ ทางเดินหลัก
+  { x:588, y:290, o:'v', w:28 },  // บรรจุแชมพู ↔ ทางเดินบรรจุ/ผสม
+  { x:653, y:253, o:'v', w:28 },  // บรรจุครีม/โลชั่น ↔ ทางเดินบรรจุ/ผสม
+  { x:627, y:317, o:'h', w:28 },  // ผสมรวม ↔ ทางเดินบรรจุ/ผสม
+  { x:98,  y:342, o:'h', w:34 },  // คลังสำเร็จรูป ↔ โถงลิฟต์ (FG ออก)
+];
+
+// ทางเข้า-ออกของโซน (ลูกศรบนผัง) — dx/dy = ทิศลูกศร
+const FP_ENTRANCES = [
+  { x:62, y:196, dx:1,  dy:0, label: 'สินค้าเข้า' },
+  { x:62, y:262, dx:-1, dy:0, label: 'FG ออก' },     // ออกจากคลังสำเร็จรูปขึ้นโถง แล้วไปลิฟต์ขนของ
+  { x:96, y:314, dx:1,  dy:0, label: 'พนักงานเข้า' },
+];
 
 const FP_ROOM_LABEL = {
   prep: 'เตรียมวัตถุดิบ', weigh: 'ห้องชั่งสาร', bulk: 'เก็บ Bulk', packbox: 'บรรจุหีบห่อ',
   mixoil: 'ผสมน้ำมัน (อโรม่า)', filloil: 'บรรจุน้ำมัน (อโรม่า)', locker: 'Locker',
   qc: 'ทดสอบคุณภาพ', samples: 'เก็บตัวอย่าง', fillsh: 'บรรจุแชมพู', filllotion: 'บรรจุครีม/โลชั่น',
-  fgstore: 'คลังสำเร็จรูป', mixall: 'ผสมรวม',
+  fgstore: 'คลังสำเร็จรูป', wash: 'ห้องล้าง/อุปกรณ์', mixall: 'ผสมรวม',
 };
 const FP_ROOM_FULL = {
   prep: 'ห้องเก็บสินค้าสำหรับเตรียมการผลิต (FG/RM/PM)', weigh: 'ห้องชั่งสาร',
@@ -9206,8 +9298,56 @@ const FP_ROOM_FULL = {
   locker: 'ห้องสวมชุดปฏิบัติงาน / Locker', qc: 'ห้องทดสอบคุณภาพ (QC)',
   samples: 'ห้องเก็บตัวอย่างเครื่องสำอาง', fillsh: 'ห้องบรรจุแชมพู/ครีมนวด/เจลอาบน้ำ',
   filllotion: 'ห้องบรรจุครีม/โลชั่น/สครับขัดผิว', fgstore: 'ห้องเก็บเครื่องสำอางสำเร็จรูป',
+  wash: 'ห้องล้าง/เก็บอุปกรณ์',
   mixall: 'ห้องผสมแชมพู/ผสมครีม/โลชั่น/ครีมนวด/เจลอาบน้ำ/สครับขัดผิว',
 };
+
+// ห้องที่ใช้ทำงานแพ็คได้จริง (2026-10-18 คำขอผู้ใช้ "Qr ที่สแกน งานแพ็คทุกงาน ให้เลือกก่อนได้ว่า ใช้จริงห้อง
+// ไหน มีห้อง ห้องชั่งสาร ห้องเก็บ Bulk ห้องผสมน้ำมัน") — ตอนสแกนอัปเดตยอดไลน์แพ็ค คนสแกนเลือกห้อง แล้วเก็บลง
+// production_progress.Room (ดู alter_production_progress_add_room.sql) ผังเรียลไทม์จะย้ายงานนั้นไปแสดงในห้อง
+// ที่เลือก (_fpHostedLine) — id ต้องตรงกับ FP_GEOM และ PACK_ROOMS ใน supabase_functions/scan-progress
+const FP_PACK_ROOM_OPTIONS = [
+  { id: 'packbox', label: 'ห้องบรรจุหีบห่อ (ปกติ)' },
+  { id: 'weigh',   label: 'ห้องชั่งสาร' },
+  { id: 'bulk',    label: 'ห้องเก็บ Bulk' },
+  { id: 'mixoil',  label: 'ห้องผสมน้ำมัน' },
+];
+function _fpIsPackLine(line) { return _planLineCategoryOf(line) === 'pack'; }
+function _fpPackRoomLabel(id) { return (FP_PACK_ROOM_OPTIONS.find(o => o.id === id) || FP_PACK_ROOM_OPTIONS[0]).label; }
+function _fpRoomPickerHTML(name, selected) {
+  const sel = FP_PACK_ROOM_OPTIONS.some(o => o.id === selected) ? selected : 'packbox';
+  return `<label class="form-label small fw-bold mt-3">ใช้ห้องไหนแพ็คจริง</label>
+    <div class="d-grid gap-2 mb-1" style="grid-template-columns:1fr 1fr" role="radiogroup" aria-label="ห้องที่ใช้แพ็คจริง">
+      ${FP_PACK_ROOM_OPTIONS.map(o => `
+        <input type="radio" class="btn-check" name="${name}" id="${name}-${o.id}" value="${o.id}"${o.id === sel ? ' checked' : ''}>
+        <label class="btn btn-outline-primary btn-sm py-2" for="${name}-${o.id}">${o.label}</label>`).join('')}
+    </div>`;
+}
+function _fpPickedRoom(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
+}
+
+// ห้องที่ไลน์แพ็คนี้ใช้จริงตอนนี้ (จาก Room ของแถวสแกนล่าสุดของงานปัจจุบัน) — null = ห้องปกติ (สถานีในห้อง
+// บรรจุหีบห่อ) ใช้ทั้งผัง 2D/3D, แผงรายละเอียด และเส้นโฟลงาน
+function _fpPackRoomFor(line, moRef) {
+  if (!moRef || !_fpIsPackLine(line)) return null;
+  const prog = _prodStatusProgressData[`${moRef}|${line}`];
+  const room = prog && prog.Room;
+  return room && room !== 'packbox' && FP_GEOM[room] ? room : null;
+}
+function _fpPackLineRoom(line) {
+  const r = _fpData[line];
+  if (!r || r.status === 'idle' || !r.item) return null;
+  return _fpPackRoomFor(line, r.item.MO_Ref);
+}
+// ไลน์แพ็คที่ย้ายมาใช้ห้องนี้ (ชั่งสาร/Bulk/ผสมน้ำมัน) — หลายไลน์มาห้องเดียวกัน เอาไลน์ที่กำลังทำก่อน
+function _fpHostedLine(roomId) {
+  if (FP_ROOM_LINE[roomId]) return null;
+  const lines = FP_PACK_SUBLINES.map(s => s.line).filter(l => _fpPackLineRoom(l) === roomId);
+  return lines.find(l => ['running', 'behind'].includes(_fpData[l].status)) || lines[0] || null;
+}
+function _fpPackSubLabel(line) { return (FP_PACK_SUBLINES.find(s => s.line === line) || {}).label || line; }
 
 let _fpData = {};       // line name (PLAN_LINES) -> _whLineStatus() + .roster
 let _fpHoldStock = [];  // hold_stock rows (DEFECT+RETAIN, QtyBalance>0) โชว์ในห้องเก็บตัวอย่าง (ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าเอาทั้ง 2 ประเภทมารวมกัน)
@@ -9235,7 +9375,8 @@ function _fpBuildRoster(line, planItem, laborRowsByLine) {
     const emp = _planEmployees.find(e => e.EmployeeCode === code);
     const row = laborByCode.get(code);
     const confirmed = !!(row && row.TimeIn && !row.TimeOut); // สแกนเข้าแล้วและยังไม่สแกนออก = อยู่จริงตอนนี้
-    return { code, name: emp ? (emp.NickName || emp.FirstName || code) : code, confirmed };
+    return { code, name: emp ? (emp.NickName || emp.FirstName || code) : code, confirmed,
+      gender: emp && (emp.Gender === 'F' || emp.Gender === 'M') ? emp.Gender : null };
   });
 }
 
@@ -9324,8 +9465,14 @@ function _fpRender() {
       <div class="fp-main">
         <aside class="fp-staff-panel" id="fp-staff-panel"></aside>
         <div class="fp-floor-wrap">
+          <div class="fp-view-toggle" role="group" aria-label="มุมมองผัง">
+            <button type="button" class="${_fpViewMode === '2d' ? 'active' : ''}" aria-pressed="${_fpViewMode === '2d'}" onclick="_fpSetViewMode('2d')">2D</button>
+            <button type="button" class="${_fpViewMode === '3d' ? 'active' : ''}" aria-pressed="${_fpViewMode === '3d'}" onclick="_fpSetViewMode('3d')">3D</button>
+          </div>
           <div class="fp-floor-tilt">
-            <svg class="fp-svg" viewBox="0 0 800 580" xmlns="http://www.w3.org/2000/svg" id="fp-svg"></svg>
+            ${_fpViewMode === '3d'
+              ? '<div class="fp-3d" id="fp-3d"></div>'
+              : `<svg class="fp-svg" viewBox="0 0 ${FP_VIEW.w} ${FP_VIEW.h}" xmlns="http://www.w3.org/2000/svg" id="fp-svg"></svg>`}
           </div>
         </div>
         <aside class="fp-drawer" id="fp-drawer"></aside>
@@ -9379,40 +9526,62 @@ function _fpSvgEl(tag, attrs) {
 
 // ตัดชื่อห้องให้ไม่ยาวเกินพื้นที่ที่มี (กันจุดสถานะที่มุมขวาบนทับตัวหนังสือ — วัดความกว้าง SVG text จริง
 // ไม่ได้เพราะ element ยังไม่ถูก attach เข้า DOM ตอนสร้าง เลยประมาณจากความกว้างเฉลี่ยตัวอักษรแทน)
-function _fpFitLabel(text, maxPx, fontPx) {
-  const maxChars = Math.max(3, Math.floor(maxPx / (fontPx * 0.62)));
-  return text.length <= maxChars ? text : text.slice(0, maxChars - 1) + '…';
+// นับ/ตัดตาม "กลุ่มตัวอักษร" (grapheme) ไม่ใช่ code unit — สระบน/ล่าง/วรรณยุกต์ไทยไม่กินความกว้าง และห้าม
+// ถูกตัดแยกจากพยัญชนะ (เดิมตัดด้วย slice ทำให้ได้ "ห้องชั่ | งสาร" — แก้ 2026-10-17 ตอนห้องแคบลงตามแปลนจริง)
+const _fpGraphemeSeg = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter('th', { granularity: 'grapheme' }) : null;
+const _fpWordSeg = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter('th', { granularity: 'word' }) : null;
+function _fpGraphemes(text) {
+  return _fpGraphemeSeg ? Array.from(_fpGraphemeSeg.segment(text), s => s.segment) : Array.from(text);
 }
 
-// เหมือน _fpFitLabel แต่ตัดขึ้นบรรทัดใหม่ได้สูงสุด maxLines บรรทัดก่อนค่อยตัดจบด้วย "…" (ให้ชื่อห้องยาวๆ
-// อ่านออกครบแทนที่จะโดนตัดสั้นจนอ่านไม่รู้เรื่องในบรรทัดเดียว — คำขอผู้ใช้ 2026-09-14) ตัดตามจำนวนตัวอักษร
-// ล้วนๆ ไม่สนใจเว้นวรรค เพราะภาษาไทยส่วนใหญ่ไม่มีช่องว่างระหว่างคำให้ตัดตามอยู่แล้ว
+function _fpFitLabel(text, maxPx, fontPx) {
+  const maxChars = Math.max(3, Math.floor(maxPx / (fontPx * 0.62)));
+  const g = _fpGraphemes(text);
+  return g.length <= maxChars ? text : g.slice(0, maxChars - 1).join('') + '…';
+}
+
+// เหมือน _fpFitLabel แต่ขึ้นบรรทัดใหม่ได้สูงสุด maxLines บรรทัดก่อนค่อยตัดจบด้วย "…" (คำขอผู้ใช้ 2026-09-14)
+// ตัดบรรทัดตามขอบคำภาษาไทย (Intl.Segmenter) ก่อน ถ้าคำเดียวยาวเกินบรรทัดค่อยตัดกลางคำตาม grapheme
 function _fpWrapLabel(text, maxPx, fontPx, maxLines) {
   maxLines = maxLines || 2;
   const maxChars = Math.max(3, Math.floor(maxPx / (fontPx * 0.62)));
-  if (text.length <= maxChars) return [text];
+  if (_fpGraphemes(text).length <= maxChars) return [text];
+  const words = _fpWordSeg ? Array.from(_fpWordSeg.segment(text), s => s.segment) : [text];
   const lines = [];
-  for (let i = 0; i < maxLines; i++) {
-    const start = i * maxChars;
-    if (start >= text.length) break;
-    let chunk = text.slice(start, start + maxChars);
-    if (i === maxLines - 1 && start + maxChars < text.length) chunk = chunk.slice(0, -1) + '…';
-    lines.push(chunk);
-  }
-  return lines;
+  let cur = [];
+  const pushLine = () => { if (cur.length) lines.push(cur.join('')); cur = []; };
+  words.forEach(w => {
+    _fpGraphemes(w).forEach((ch, i, arr) => {
+      // เริ่มคำใหม่แล้วคำนี้ไม่พอดีบรรทัดเดิม → ขึ้นบรรทัดใหม่ก่อน (ถ้าคำสั้นพอใส่บรรทัดใหม่ได้ทั้งคำ)
+      if (i === 0 && cur.length && cur.length + arr.length > maxChars && arr.length <= maxChars) pushLine();
+      if (cur.length >= maxChars) pushLine();
+      cur.push(ch);
+    });
+  });
+  pushLine();
+  if (lines.length <= maxLines) return lines;
+  const out = lines.slice(0, maxLines);
+  const last = _fpGraphemes(out[maxLines - 1]);
+  out[maxLines - 1] = last.slice(0, Math.max(1, Math.min(last.length, maxChars - 1))).join('') + '…';
+  return out;
 }
 
 function _fpBuildSvg() {
+  // ทุกจุดที่สั่งวาดผังใหม่ (render/เลือกห้อง/ปุ่มกลับภาพรวม) เรียกผ่านฟังก์ชันนี้ — โหมด 3D แยกไปวาดเองที่นี่
+  if (_fpViewMode === '3d') { _fp3dUpdate(); return; }
   const svg = document.getElementById('fp-svg');
   if (!svg) return;
   svg.innerHTML = '';
   const mk = _fpSvgEl;
+  _fpBuildWalkways(svg);
 
   Object.keys(FP_GEOM).forEach(roomId => {
     const g = FP_GEOM[roomId];
     if (roomId === 'packbox') { _fpBuildPackRoom(svg, g); return; }
 
-    const line = FP_ROOM_LINE[roomId];
+    // ห้องชั่งสาร/Bulk/ผสมน้ำมัน ปกติไม่ผูกไลน์ แต่ถ้ามีงานแพ็คย้ายมาใช้ห้องนี้ (ดู _fpHostedLine) แสดงงานนั้นที่นี่
+    const hosted = _fpHostedLine(roomId);
+    const line = FP_ROOM_LINE[roomId] || hosted;
     const r = line ? _fpData[line] : null;
     const isMonitored = !!r;
     const status = isMonitored ? r.status : null;
@@ -9451,10 +9620,33 @@ function _fpBuildSvg() {
       const pct = r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
       const barY = g.y + g.h - 22, barX = g.x + 12, barW = g.w - 24;
       const sub = mk('text', { class: 'fp-room-sub', x: barX, y: barY - 6, 'font-size': 10 });
-      sub.textContent = `${r.isLiveScan ? 'สแกนสด ' : ''}${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()} ${r.item.UOM || ''}`;
+      const nums = `${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()}`;
+      const fits = (s, fs) => _fpGraphemes(s).length * fs * 0.62 <= barW;
+      // ห้องแคบ (ตามแปลนจริง): ตัด "สแกนสด" → ตัดหน่วย → ย่อตัวอักษร ตามลำดับ ตัวเลขต้องครบเสมอ
+      // (รายละเอียดเต็มยังอยู่ในแผงขวาเมื่อคลิกห้อง)
+      const options = [`${r.isLiveScan ? 'สแกนสด ' : ''}${nums} ${r.item.UOM || ''}`, `${nums} ${r.item.UOM || ''}`, nums];
+      let subText = options.find(s => fits(s, 10));
+      if (!subText) {
+        subText = nums;
+        sub.setAttribute('font-size', Math.max(7, barW / (_fpGraphemes(nums).length * 0.62)).toFixed(1));
+      }
+      sub.textContent = subText;
       grp.appendChild(sub);
       grp.appendChild(mk('rect', { class: 'fp-metric-track', x: barX, y: barY, width: barW, height: 6, rx: 3 }));
       grp.appendChild(mk('rect', { x: barX, y: barY, width: Math.max(0, barW * pct / 100), height: 6, rx: 3, fill: color }));
+      if (hosted) {   // บอกว่างานแพ็คไลน์ไหนมาใช้ห้องนี้ — บรรทัดเล็กใต้ชื่อห้อง (ห้องแคบ ใส่ต่อท้ายชื่อแล้วโดนตัด)
+        const tag = mk('text', { x: g.x + 12, y: g.y + 22 + labelLines.length * (labelFs + 2) + 4, 'font-size': 9, fill: color, 'font-weight': 600 });
+        tag.textContent = _fpFitLabel(_fpPackSubLabel(hosted), g.w - 24, 9);
+        grp.appendChild(tag);
+      }
+      // หุ่นพนักงานของไลน์นี้ ระหว่างชื่อห้องกับแถบความคืบหน้า
+      const peopleTop = g.y + 22 + labelLines.length * (labelFs + 2) + (hosted ? 11 : 0);
+      const peopleBot = barY - 15;
+      const availH = peopleBot - peopleTop;
+      if (availH >= 9) {
+        const withName = availH >= 22;
+        _fpPlacePeople(grp, r.roster, g.x + 10, g.x + g.w - 10, withName ? peopleBot - 8 : peopleBot, availH, withName);
+      }
     } else {
       // วางต่อจากบรรทัดสุดท้ายของชื่อห้องจริง (ไม่ใช่ y คงที่) กันทับกันตอนชื่อห้องขึ้น 2 บรรทัด
       const subY = g.y + 22 + labelLines.length * (labelFs + 2) + 4;
@@ -9466,6 +9658,106 @@ function _fpBuildSvg() {
       grp.appendChild(sub);
     }
     svg.appendChild(grp);
+  });
+  _fpBuildDoors(svg);
+}
+
+// หุ่นการ์ตูนพนักงานแบบแบนในผัง 2D (2026-10-18 "ให้หุ่นแสดงใน 2D ด้วย") — หน้าตาเดียวกับหุ่น 3D (_fp3dMakePerson):
+// ชุดชมพู, หญิง = ชุดทรงบาน+ผมยาว+มวย, ชาย = ชุดตรง+ผมสั้น, ไม่ระบุเพศ = หมวกคลุมผมขาว, ยังไม่สแกนเข้า = สีเทาจาง
+// ไม่ขยับ ส่วนคนที่สแกนเข้าแล้วโยกตัว+เดินซ้ายขวาด้วย CSS (ดู .fp-person-*) วาดที่จุดเท้า (x,y) สูง 16*s
+const FP_PERSON_COLORS = { uniform: '#ec4899', skin: '#f2c9a0', pants: '#1e3a5f', hair: '#3b2a20', ghost: '#b6c0cc' };
+function _fpSvgPerson(p, x, y, s, withName) {
+  const mk = _fpSvgEl, C = FP_PERSON_COLORS, ghost = !p.confirmed;
+  const col = c => (ghost ? C.ghost : c);
+  const outer = mk('g', { class: 'fp-person', transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, opacity: ghost ? 0.55 : 1 });
+  const walk = mk('g', ghost ? {} : { class: 'fp-person-walk', style: `animation-delay:-${(Math.random() * 6).toFixed(2)}s` });
+  const bob = mk('g', ghost ? { transform: `scale(${s})` } : { class: 'fp-person-bob', style: `animation-delay:-${(Math.random() * 1.1).toFixed(2)}s` });
+  const fig = ghost ? bob : mk('g', { transform: `scale(${s})` });
+  if (!ghost) bob.appendChild(fig);
+  const put = (tag, attrs) => fig.appendChild(mk(tag, attrs));
+  put('rect', { x: -2.4, y: -4.2, width: 1.8, height: 4.2, rx: 0.6, fill: col(C.pants) });
+  put('rect', { x: 0.6, y: -4.2, width: 1.8, height: 4.2, rx: 0.6, fill: col(C.pants) });
+  if (p.gender === 'F') put('path', { d: 'M -2.6 -10.2 L 2.6 -10.2 L 4.2 -3.6 L -4.2 -3.6 Z', fill: col(C.uniform) });
+  else put('rect', { x: -3.4, y: -10.2, width: 6.8, height: 6.8, rx: 1.6, fill: col(C.uniform) });
+  if (p.gender === 'F') {   // ผมยาวด้านหลัง (วาดก่อนหัวให้อยู่ใต้)
+    put('rect', { x: -4.1, y: -15.2, width: 8.2, height: 6.4, rx: 2.4, fill: col(C.hair) });
+  }
+  put('circle', { cx: 0, cy: -13.4, r: 3.5, fill: col(C.skin) });
+  put('circle', { cx: -1.2, cy: -13.1, r: 0.45, fill: col('#1f2937') });
+  put('circle', { cx: 1.2, cy: -13.1, r: 0.45, fill: col('#1f2937') });
+  if (p.gender === 'F') {
+    put('path', { d: 'M -3.6 -13.8 A 3.6 3.6 0 0 1 3.6 -13.8 Q 0 -15.2 -3.6 -13.8 Z', fill: col(C.hair) });
+    put('circle', { cx: 0, cy: -17.4, r: 1.5, fill: col(C.hair) });
+  } else if (p.gender === 'M') {
+    put('path', { d: 'M -3.6 -13.4 A 3.6 3.6 0 0 1 3.6 -13.4 Q 0 -15.6 -3.6 -13.4 Z', fill: col(C.hair) });
+  } else {
+    put('path', { d: 'M -3.9 -13.6 A 3.9 3.9 0 0 1 3.9 -13.6 Z', fill: col('#ffffff'), stroke: '#cbd5e1', 'stroke-width': 0.5 });
+  }
+  walk.appendChild(bob);
+  outer.appendChild(walk);
+  if (withName) {
+    const t = mk('text', { x: 0, y: 7, 'font-size': 6.5, 'text-anchor': 'middle', 'font-weight': 600,
+      fill: ghost ? '#94a3b8' : '#831843' });
+    t.textContent = p.name;
+    outer.appendChild(t);
+  }
+  return outer;
+}
+
+// วางหุ่นเรียงแถวเดียวในกรอบ (x0..x1) เท้าอยู่ที่ footY ขนาดหุ่นย่อให้พอดีความสูงที่มี (availH) ถ้าคนเกินที่
+// เหลือ ใส่ "+N" ต่อท้าย — ชื่อใต้เท้าเฉพาะตอนที่มีที่พอ (ห้องแคบ/สถานีย่อยไม่ใส่ชื่อ — ดูชื่อได้ที่แผงขวา)
+function _fpPlacePeople(svg, roster, x0, x1, footY, availH, withName) {
+  if (!roster || !roster.length) return;
+  const s = Math.max(0.5, Math.min(1, (availH - (withName ? 8 : 0)) / 18));
+  const step = withName ? Math.max(18 * s, 19) : 13 * s;
+  const fit = Math.max(1, Math.floor((x1 - x0) / step));
+  const shown = roster.length > fit ? roster.slice(0, fit - 1) : roster;
+  shown.forEach((p, i) => svg.appendChild(_fpSvgPerson(p, x0 + step / 2 + i * step, footY, s, withName)));
+  if (roster.length > shown.length) {
+    const t = _fpSvgEl('text', { x: x0 + step / 2 + shown.length * step, y: footY - 4, 'font-size': 8, 'text-anchor': 'middle',
+      fill: 'var(--fp-text-dim)', 'font-weight': 600 });
+    t.textContent = `+${roster.length - shown.length}`;
+    svg.appendChild(t);
+  }
+}
+
+// ทางเดิน/โถง (FP_WALKWAYS) — วาดก่อนห้อง ให้อยู่ชั้นล่างสุด สีพื้นอ่อน+เส้นประ แยกจากห้องชัดเจน
+function _fpBuildWalkways(svg) {
+  const mk = _fpSvgEl;
+  FP_WALKWAYS.forEach(wk => {
+    svg.appendChild(mk('rect', { x: wk.x, y: wk.y, width: wk.w, height: wk.h, fill: '#f8fafc',
+      stroke: '#cbd5e1', 'stroke-dasharray': '4 3', 'stroke-width': 1 }));
+    const cx = wk.x + wk.w / 2, cy = wk.ly || (wk.y + wk.h / 2);
+    const t = mk('text', { x: cx, y: cy, 'font-size': 9, fill: 'var(--fp-text-faint)', 'text-anchor': 'middle',
+      'dominant-baseline': 'middle', transform: wk.vertical ? `rotate(-90 ${cx} ${cy})` : '' });
+    t.textContent = wk.label;
+    svg.appendChild(t);
+  });
+}
+
+// ช่องประตู (FP_DOORS) เจาะเส้นผนังให้เห็นเป็นช่องเปิด + ขอบวงกบเล็กๆ 2 ข้าง และลูกศรทางเข้า-ออกของโซน
+function _fpBuildDoors(svg) {
+  const mk = _fpSvgEl;
+  FP_DOORS.forEach(d => {
+    const h = d.o === 'h', half = d.w / 2;
+    const [x1, y1, x2, y2] = h ? [d.x - half, d.y, d.x + half, d.y] : [d.x, d.y - half, d.x, d.y + half];
+    svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: '#ffffff', 'stroke-width': 4 }));
+    const jamb = (x, y) => svg.appendChild(mk('line', h
+      ? { x1: x, y1: y - 4, x2: x, y2: y + 4, stroke: '#475569', 'stroke-width': 1.6 }
+      : { x1: x - 4, y1: y, x2: x + 4, y2: y, stroke: '#475569', 'stroke-width': 1.6 }));
+    jamb(x1, y1);
+    jamb(x2, y2);
+  });
+  FP_ENTRANCES.forEach(e => {
+    const len = 22, x2 = e.x + e.dx * len / 2, y2 = e.y + e.dy * len / 2;
+    const x1 = e.x - e.dx * len / 2, y1 = e.y - e.dy * len / 2;
+    svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: '#0f766e', 'stroke-width': 2 }));
+    const px = -e.dy, py = e.dx;   // แกนตั้งฉากของหัวลูกศร
+    svg.appendChild(mk('polygon', { fill: '#0f766e',
+      points: `${x2 + e.dx * 6},${y2 + e.dy * 6} ${x2 + px * 4},${y2 + py * 4} ${x2 - px * 4},${y2 - py * 4}` }));
+    const t = mk('text', { x: e.x, y: e.y - 8, 'font-size': 8.5, fill: '#0f766e', 'text-anchor': 'middle', 'font-weight': 600 });
+    t.textContent = e.label;
+    svg.appendChild(t);
   });
 }
 
@@ -9482,7 +9774,9 @@ function _fpBuildPackRoom(svg, g) {
   FP_PACK_SUBLINES.forEach((sub, i) => {
     const sy = g.y + 24 + i * slotH;
     const r = _fpData[sub.line];
-    const status = r ? r.status : 'idle';
+    // งานแพ็คของสถานีนี้ย้ายไปทำห้องอื่น (เลือกตอนสแกน) — สถานีนี้แสดงเป็นว่าง + บอกว่าย้ายไปห้องไหน
+    const movedTo = _fpPackLineRoom(sub.line);
+    const status = r && !movedTo ? r.status : 'idle';
     const id = `packbox__${sub.key}`;
     let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
     if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
@@ -9495,15 +9789,771 @@ function _fpBuildPackRoom(svg, g) {
     sg.appendChild(mk('rect', { class: 'fp-room', x: g.x + 6, y: sy, width: g.w - 12, height: slotH - 4, rx: 6, fill, stroke: color, 'stroke-opacity': .85 }));
     const hasDot = status !== 'idle';
     const lbl = mk('text', { class: 'fp-room-label', x: g.x + 14, y: sy + slotH / 2 - 2, 'font-size': 8.5 });
-    lbl.textContent = _fpFitLabel(sub.label, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
+    lbl.textContent = _fpFitLabel(movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}` : sub.label, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
     sg.appendChild(lbl);
     if (hasDot) {
       sg.appendChild(mk('circle', {
         class: status === 'running' ? 'fp-dot-live' : '',
         cx: g.x + g.w - 16, cy: sy + slotH / 2 - 4, r: 3.4, fill: color,
       }));
+      // สถานีแคบ — หุ่นจิ๋วไม่มีชื่อ ด้านขวาของชื่อสถานี (ชื่อคนดูได้ที่แผงขวาเมื่อคลิก)
+      _fpPlacePeople(sg, r.roster, g.x + g.w * 0.62, g.x + g.w - 22, sy + slotH - 5, slotH - 5, false);
     }
     svg.appendChild(sg);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// มุมมอง 3D แบบเรียลไทม์ (เพิ่ม 2026-10-17 ตามคำขอผู้ใช้ "ทำมุมมอง 3D แบบ realtime ก่อน") — ยกผัง FP_GEOM เดิม
+// ขึ้นเป็นห้อง 3 มิติ ใช้ _fpData ชุดเดียวกับผัง 2D ทุกอย่าง (สี/สถานะ/ยอด/คน) จึงรีเฟรชตามรอบ 60 วิเดิมเอง
+// three.js r128 โหลดจาก jsDelivr ตอนกด 3D ครั้งแรกเท่านั้น (ไม่ถ่วงการโหลดแอปปกติ) — renderer/กล้องสร้าง
+// ครั้งเดียวแล้วย้าย canvas เข้า container ใหม่ทุกครั้งที่ _fpRender สร้าง DOM ใหม่ มุมกล้องที่หมุนไว้จึงไม่รีเซ็ต
+// ตอนรีเฟรชข้อมูล — ยังไม่ใช่ "จำลองสถานการณ์" (what-if) ซึ่งตกลงกันว่าแยกเป็นเฟสถัดไป
+// ══════════════════════════════════════════════════════════════════════════
+let _fpViewMode = (() => { try { return localStorage.getItem('fpViewMode') === '3d' ? '3d' : '2d'; } catch (e) { return '2d'; } })();
+let _fp3d = null;          // { renderer, scene, camera, controls, roomsGroup, raycaster, pointer, pickables, pulses, raf, ro }
+let _fp3dLoading = null;   // Promise การโหลด three.js (ครั้งเดียวต่อ session)
+
+const FP3D_COLORS = {
+  running: { stroke: 0x0d9488, fill: 0xd5f0ec },
+  behind:  { stroke: 0xd97706, fill: 0xfbe9cf },
+  done:    { stroke: 0x7c3aed, fill: 0xe9defb },
+  muted:   { stroke: 0x94a3b8, fill: 0xe6ebf2 },
+};
+
+// ห้องที่มีไฟล์สแกน 3 มิติจริง (Polycam → Export GLTF/GLB, เพิ่ม 2026-10-17) — วางโมเดลสแกนแทนผนังโปร่ง
+// ของห้องนั้น ย่อ/ขยายให้พอดีกรอบห้องใน FP_GEOM (คงสัดส่วนจริง) ไฟล์ต้องอัปโหลดขึ้น repo คู่กับ index.html
+// ด้วย ไม่งั้นโหลดไม่เจอ (ห้องนั้นจะกลับไปเป็นกล่องธรรมดาเอง ไม่พัง) — rotY หมุนให้ด้านยาวของสแกนตรงกับผัง
+// ถ้าประตู/ผนังหันผิดด้าน ปรับ rotY ทีละ Math.PI/2
+const FP3D_SCANS = {
+  // ห้องจริง 3.70×2.78 ม. (กว้าง>ลึก ตามแปลน) สแกนดิบ 4.36×3.22 ม. — ด้านยาวตรงกันแล้วโดยไม่ต้องหมุน 90°
+  // ประตูจริงอยู่ผนังด้านขวา (ตะวันออก) ค่อนไปทางล่าง ถ้าประตูในโมเดลอยู่ผิดฝั่ง ให้ลอง rotY: Math.PI
+  fillsh: { url: 'room-fillsh.glb', rotY: 0 },
+};
+
+function _fpSetViewMode(mode) {
+  if (mode === _fpViewMode) return;
+  _fpViewMode = mode;
+  try { localStorage.setItem('fpViewMode', mode); } catch (e) {}
+  _fpRender();
+}
+
+function _fpLoadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('โหลดไม่สำเร็จ: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+function _fp3dLoadLib() {
+  if (window.THREE && THREE.OrbitControls) return Promise.resolve();
+  if (!_fp3dLoading) {
+    _fp3dLoading = _fpLoadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js')
+      .then(() => _fpLoadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'))
+      .catch(err => { _fp3dLoading = null; throw err; });
+  }
+  return _fp3dLoading;
+}
+
+async function _fp3dUpdate() {
+  if (!document.getElementById('fp-3d')) return;
+  if (!_fp3d) {
+    document.getElementById('fp-3d').innerHTML = '<div class="fp-3d-msg">กำลังโหลดมุมมอง 3D…</div>';
+    try {
+      await _fp3dLoadLib();
+      if (!_fp3d) _fp3dInit();
+    } catch (e) {
+      console.error('Floor Pulse 3D:', e);
+      const h = document.getElementById('fp-3d');
+      if (h) h.innerHTML = '<div class="fp-3d-msg">เปิดมุมมอง 3D ในเครื่องนี้ไม่ได้ (โหลดไลบรารีไม่สำเร็จ หรือเบราว์เซอร์ไม่รองรับ WebGL) — กดปุ่ม 2D เพื่อใช้ผังแบบเดิม</div>';
+      return;
+    }
+  }
+  const host = document.getElementById('fp-3d');   // _fpRender อาจสร้าง container ใหม่ระหว่างรอโหลด
+  if (!host) return;
+  const canvas = _fp3d.renderer.domElement;
+  if (canvas.parentNode !== host) {
+    host.innerHTML = '';
+    host.appendChild(canvas);
+    host.insertAdjacentHTML('beforeend', '<div class="fp-3d-hint">ลากเพื่อหมุน · คลิกขวาลากเพื่อเลื่อน · ลูกกลิ้งเพื่อซูม · คลิกห้องเพื่อดูรายละเอียด</div>');
+    _fp3d.ro.disconnect();
+    _fp3d.ro.observe(host);
+  }
+  _fp3dResize();
+  _fp3dBuildRooms();
+  _fp3dRenderFlowLegend();
+  _fp3dStartLoop();
+  _fp3dLoadScans();
+}
+
+// โหลดโมเดลสแกนห้องจริงครั้งเดียวต่อ session — เก็บไว้ใน scansGroup แยกจาก roomsGroup เพราะ roomsGroup ถูก
+// ล้าง+dispose ทุกครั้งที่ข้อมูลรีเฟรช (ไม่อยากโหลดไฟล์ 3 MB ซ้ำทุก 60 วิ) พอโหลดเสร็จค่อยวาดห้องใหม่อีกรอบ
+// เพื่อซ่อนผนังโปร่งของห้องนั้น (ดู scanned ใน _fp3dAddRoom)
+function _fp3dLoadScans() {
+  if (_fp3d.scansStarted) return;
+  _fp3d.scansStarted = true;
+  const libReady = THREE.GLTFLoader ? Promise.resolve()
+    : _fpLoadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js');
+  libReady.then(() => {
+    const loader = new THREE.GLTFLoader();
+    Object.keys(FP3D_SCANS).forEach(id => {
+      const cfg = FP3D_SCANS[id];
+      loader.load(cfg.url, gltf => {
+        const root = gltf.scene;
+        // สแกนแบบภาพถ่ายมีแสงเงาจริงฝังใน texture อยู่แล้ว — ใช้วัสดุไม่รับแสง (MeshBasic) ไม่งั้นจะมืดซ้ำซ้อน
+        root.traverse(m => {
+          if (!m.isMesh) return;
+          const old = m.material;
+          m.material = new THREE.MeshBasicMaterial({ map: old.map || null, color: old.map ? 0xffffff : 0xdddddd });
+          old.dispose();
+        });
+        const height = _fp3dPlaceScan(id, cfg, root);
+        _fp3d.scansGroup.add(root);
+        _fp3d.scanReady[id] = { height };
+        if (document.getElementById('fp-3d')) _fp3dBuildRooms();
+      }, undefined, err => console.warn('Floor Pulse 3D: โหลดสแกนห้อง ' + id + ' ไม่ได้ (' + cfg.url + ')', err));
+    });
+  }).catch(err => console.warn('Floor Pulse 3D: โหลด GLTFLoader ไม่ได้', err));
+}
+
+// วางโมเดลให้อยู่กลางห้อง พื้นสแกนแตะพื้นห้อง ย่อแบบคงสัดส่วนให้พอดีกรอบ FP_GEOM — คืนความสูงหลังย่อ
+function _fp3dPlaceScan(id, cfg, root) {
+  const T = THREE, g = FP_GEOM[id];
+  root.rotation.y = cfg.rotY || 0;
+  root.updateMatrixWorld(true);
+  const size = new T.Box3().setFromObject(root).getSize(new T.Vector3());
+  const s = Math.min((g.w - 6) / size.x, (g.h - 6) / size.z);
+  root.scale.setScalar(s);
+  root.updateMatrixWorld(true);
+  const box = new T.Box3().setFromObject(root);
+  const c = box.getCenter(new T.Vector3());
+  root.position.set(g.x + g.w / 2 - FP_VIEW.w / 2 - c.x, 4.2 - box.min.y, g.y + g.h / 2 - FP_VIEW.h / 2 - c.z);
+  return box.max.y - box.min.y;
+}
+
+function _fp3dInit() {
+  const T = THREE;
+  const renderer = new T.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0xffffff, 1);
+
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(38, 1, 1, 5000);
+  camera.position.set(0, 640, 620);
+
+  const controls = new T.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0, 10);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.maxPolarAngle = Math.PI * 0.46;   // ไม่ให้มุดลงใต้พื้น
+  controls.minDistance = 220;
+  controls.maxDistance = 1600;
+  controls.update();
+
+  scene.add(new T.HemisphereLight(0xffffff, 0xcbd5e1, 0.9));
+  const sun = new T.DirectionalLight(0xffffff, 0.5);
+  sun.position.set(-300, 700, 400);
+  scene.add(sun);
+
+  // พื้นอาคาร (ขนาดเท่า viewBox ของผัง 2D — FP_VIEW) + เส้นกริดจางๆ
+  const floor = new T.Mesh(new T.BoxGeometry(FP_VIEW.w + 20, 6, FP_VIEW.h + 20), new T.MeshLambertMaterial({ color: 0xf1f5f9 }));
+  floor.position.y = -3;
+  scene.add(floor);
+  const grid = new T.GridHelper(FP_VIEW.w, 40, 0xe2e8f0, 0xe2e8f0);
+  grid.scale.z = FP_VIEW.h / FP_VIEW.w;
+  grid.position.y = 0.2;
+  scene.add(grid);
+
+  const roomsGroup = new T.Group();
+  scene.add(roomsGroup);
+  const scansGroup = new T.Group();   // โมเดลสแกนห้องจริง (FP3D_SCANS) — ไม่ถูกล้างตอนรีเฟรชข้อมูล
+  scene.add(scansGroup);
+
+  // คลิกเลือกห้อง — นับเป็นคลิกเฉพาะตอนเมาส์แทบไม่ขยับ (ไม่งั้นการลากหมุนกล้องจะเผลอเลือกห้อง)
+  let downAt = null;
+  const el = renderer.domElement;
+  el.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY }; });
+  el.addEventListener('pointerup', e => {
+    const moved = !downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5;
+    downAt = null;
+    if (moved) return;
+    const id = _fp3dPick(e);
+    if (id) _fpSelectRoom(id);
+  });
+  el.addEventListener('pointermove', e => {
+    if (e.buttons) return;
+    el.style.cursor = _fp3dPick(e) ? 'pointer' : 'grab';
+  });
+
+  const ro = new ResizeObserver(() => _fp3dResize());
+  _fp3d = { renderer, scene, camera, controls, roomsGroup, scansGroup, scanReady: {}, scansStarted: false,
+    raycaster: new T.Raycaster(), pointer: new T.Vector2(), pickables: [], pulses: [], flowMovers: [], raf: null, ro };
+}
+
+function _fp3dPick(e) {
+  const { renderer, camera, raycaster, pointer, pickables } = _fp3d;
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(pickables, false)[0];
+  return hit ? hit.object.userData.fpId : null;
+}
+
+function _fp3dResize() {
+  if (!_fp3d) return;
+  const host = _fp3d.renderer.domElement.parentNode;
+  if (!host) return;
+  const w = host.clientWidth, h = host.clientHeight;
+  if (!w || !h) return;
+  _fp3d.renderer.setSize(w, h, false);
+  _fp3d.camera.aspect = w / h;
+  _fp3d.camera.updateProjectionMatrix();
+}
+
+// วนวาดเฉพาะตอนหน้านี้เปิดอยู่ในโหมด 3D เท่านั้น — หยุดเองเมื่อสลับหน้า/สลับเป็น 2D/canvas หลุดจาก DOM
+function _fp3dStartLoop() {
+  if (!_fp3d || _fp3d.raf) return;
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const tick = t => {
+    const pageEl = document.getElementById('page-floorpulse');
+    if (!_fp3d.renderer.domElement.isConnected || _fpViewMode !== '3d' || !pageEl || !pageEl.classList.contains('active')) {
+      _fp3d.raf = null;
+      return;
+    }
+    _fp3d.raf = requestAnimationFrame(tick);
+    if (document.hidden) return;
+    if (!reduceMotion) {
+      const k = 0.1 + 0.1 * (0.5 + 0.5 * Math.sin(t / 420));   // ห้องที่กำลังผลิต ผนังเต้นเบาๆ
+      _fp3d.pulses.forEach(m => { m.opacity = k; });
+      _fp3d.flowMovers.forEach(mv => mv.tick());   // จุดไข่ปลาเดินตามเส้นโฟลงาน (ดู _fp3dDottedPath)
+    }
+    _fp3d.controls.update();
+    _fp3d.renderer.render(_fp3d.scene, _fp3d.camera);
+  };
+  _fp3d.raf = requestAnimationFrame(tick);
+}
+
+function _fp3dClearRooms() {
+  const g = _fp3d.roomsGroup;
+  g.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+  });
+  while (g.children.length) g.remove(g.children[0]);
+  _fp3d.pickables = [];
+  _fp3d.pulses = [];
+  _fp3d.flowMovers = [];
+}
+
+function _fp3dHex(n) { return '#' + n.toString(16).padStart(6, '0'); }
+
+// ป้ายชื่อห้องลอยเหนือห้อง — วาดลง canvas แล้วทำเป็น sprite (หันหน้าเข้ากล้องเสมอ อ่านง่ายทุกมุม)
+function _fp3dLabel(title, sub, strokeHex, worldPerPx) {
+  const S = 2;   // วาดใหญ่ 2 เท่าให้คมบนจอความละเอียดสูง
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+  const titleFont = `600 ${15 * S}px Sarabun, sans-serif`;
+  const subFont = `500 ${12 * S}px 'IBM Plex Mono', Sarabun, monospace`;
+  ctx.font = titleFont;
+  const tw = ctx.measureText(title).width;
+  ctx.font = subFont;
+  const sw = sub ? ctx.measureText(sub).width : 0;
+  const padX = 9 * S;
+  const w = Math.ceil(Math.max(tw, sw) + padX * 2), h = (sub ? 44 : 26) * S;
+  cv.width = w;
+  cv.height = h;
+  const r = 7 * S;
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(w - r, 0); ctx.quadraticCurveTo(w, 0, w, r);
+  ctx.lineTo(w, h - r); ctx.quadraticCurveTo(w, h, w - r, h);
+  ctx.lineTo(r, h); ctx.quadraticCurveTo(0, h, 0, h - r);
+  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  ctx.fill();
+  ctx.lineWidth = 1.5 * S;
+  ctx.strokeStyle = strokeHex;
+  ctx.stroke();
+  ctx.textBaseline = 'top';
+  ctx.font = titleFont;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText(title, padX, 5 * S);
+  if (sub) {
+    ctx.font = subFont;
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(sub, padX, 25 * S);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  sp.scale.set(w * worldPerPx / S, h * worldPerPx / S, 1);
+  sp.renderOrder = 10;
+  return sp;
+}
+
+// สร้างห้อง 1 ห้อง: พื้น + ผนังโปร่ง + เส้นขอบ + เสาแสดง % + หุ่นพนักงาน + ป้ายชื่อ
+// o.id = null คือกรอบที่คลิกไม่ได้ (กรอบนอกห้องบรรจุหีบห่อ), o.small = สถานีย่อยในห้องบรรจุหีบห่อ
+function _fp3dAddRoom(o) {
+  const T = THREE, g = _fp3d.roomsGroup;
+  const active = o.monitored && o.status !== 'idle';
+  const c = active ? (FP3D_COLORS[o.status] || FP3D_COLORS.muted) : FP3D_COLORS.muted;
+  const cx = o.x + o.w / 2 - FP_VIEW.w / 2, cz = o.y + o.h / 2 - FP_VIEW.h / 2;
+  // ห้องที่มีสแกนจริงโหลดเสร็จแล้ว: ผนังโปร่งซ่อนไว้ (ยังคลิกได้ — raycast ไม่สนใจ material.visible) ใช้ความ
+  // สูงของสแกนแทน ให้เส้นขอบสีสถานะ/ป้ายชื่อครอบตัวโมเดลพอดี
+  const scanned = o.id && _fp3d.scanReady[o.id];
+  const W = o.w - 6, D = o.h - 6, H = scanned ? scanned.height : o.height;
+
+  if (!o.noSlab) {
+    const slab = new T.Mesh(new T.BoxGeometry(W, 4, D), new T.MeshLambertMaterial({ color: c.fill }));
+    slab.position.set(cx, 2, cz);
+    g.add(slab);
+    if (o.id) { slab.userData.fpId = o.id; _fp3d.pickables.push(slab); }
+  }
+
+  const wallMat = new T.MeshLambertMaterial({ color: c.stroke, transparent: true, opacity: active ? 0.14 : 0.05, depthWrite: false });
+  if (scanned) wallMat.visible = false;
+  const box = new T.Mesh(new T.BoxGeometry(W, H, D), wallMat);
+  box.position.set(cx, 4 + H / 2, cz);
+  g.add(box);
+  if (o.id) { box.userData.fpId = o.id; _fp3d.pickables.push(box); }
+  if (o.status === 'running') _fp3d.pulses.push(wallMat);
+
+  const edges = new T.LineSegments(new T.EdgesGeometry(box.geometry),
+    new T.LineBasicMaterial({ color: c.stroke, transparent: true, opacity: o.selected ? 1 : (active ? 0.85 : 0.4) }));
+  edges.position.copy(box.position);
+  g.add(edges);
+
+  if (o.selected) {
+    const ring = new T.Mesh(new T.PlaneGeometry(W + 14, D + 14),
+      new T.MeshBasicMaterial({ color: active ? c.stroke : 0x0d9488, transparent: true, opacity: 0.22, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(cx, 0.6, cz);
+    g.add(ring);
+  }
+
+  // เสาความคืบหน้า (สูงสุด = ครบแผน) ที่มุมห้อง — เฉพาะห้องเดี่ยวที่มีงาน
+  if (active && !o.small) {
+    const pillarH = 70, px = cx + W / 2 - 14, pz = cz + D / 2 - 14;
+    const track = new T.Mesh(new T.CylinderGeometry(5, 5, pillarH, 16),
+      new T.MeshLambertMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.55, depthWrite: false }));
+    track.position.set(px, 4 + pillarH / 2, pz);
+    g.add(track);
+    const fillH = Math.max(1, pillarH * o.pct / 100);
+    const fill = new T.Mesh(new T.CylinderGeometry(5.6, 5.6, fillH, 16), new T.MeshLambertMaterial({ color: c.stroke }));
+    fill.position.set(px, 4 + fillH / 2, pz);
+    g.add(fill);
+  }
+
+  // พนักงานในไลน์ = หุ่นการ์ตูนตามเพศจริง (employees.Gender) + ป้ายชื่อ — สแกนเข้าแล้ว = สีชุดเต็ม ขยับทำงาน/
+  // เดินในห้อง, อยู่ในแผนแต่ยังไม่สแกนเข้า = หุ่นเทาโปร่งยืนนิ่ง (ดู _fp3dMakePerson)
+  const roster = (o.roster || []).slice(0, 14);
+  const cols = Math.max(1, Math.floor((W - 34) / 18));
+  const bounds = { x0: cx - W / 2 + 8, x1: cx + W / 2 - 8, z0: cz - D / 2 + 6, z1: cz + D / 2 - 6 };
+  roster.forEach((p, i) => {
+    const row = Math.floor(i / cols);
+    const wx = cx - W / 2 + 16 + (i % cols) * 18;
+    const wz = D < 50 ? cz : cz - D / 2 + 20 + row * 20;
+    _fp3dMakePerson(p, wx, wz, bounds, o.small);
+  });
+
+  const label = _fp3dLabel(o.title, o.sub, _fp3dHex(c.stroke), o.small ? 0.32 : 0.5);
+  label.position.set(cx, 4 + H + (o.labelLift || (o.small ? 7 : 16)), cz);
+  g.add(label);
+}
+
+// หุ่นการ์ตูนพนักงาน 1 คน (เพิ่ม 2026-10-18 คำขอ "แสดง Animation พนักงานที่อยู่แต่ละไลน์ ขึ้นป้ายชื่อด้วย การ์ตูน
+// ผู้หญิง ผู้ชายตามพนักงานจริง") — เพศมาจาก employees.Gender ('F'/'M') เท่านั้น ห้ามเดาจากชื่อ ถ้ายังไม่ระบุ =
+// หุ่นกลางๆ สวมหมวกคลุมผมสีขาว ทุกคนใส่ชุดยูนิฟอร์มสีชมพูเหมือนกัน แยกเพศด้วยทรงผม/ทรงชุดเท่านั้น
+// (ผัง 2D ใช้หุ่นหน้าตาเดียวกันแบบแบน — ดู _fpSvgPerson)
+// สแกนเข้าแล้ว: เดินไปมาในห้อง (เดิน = ขาก้าว, หยุด = แขนขยับทำงาน) + ป้ายชื่อตามตัว
+// ยังไม่สแกนเข้า: หุ่นเทาโปร่งยืนนิ่งที่จุดประจำ — สื่อว่า "อยู่ในแผน แต่ยังไม่มาจริง"
+function _fp3dMakePerson(p, homeX, homeZ, bounds, small) {
+  const T = THREE, g = _fp3d.roomsGroup;
+  const ghost = !p.confirmed;
+  const mat = (color) => new T.MeshLambertMaterial(ghost
+    ? { color: 0xa8b3c2, transparent: true, opacity: 0.45, depthWrite: false }
+    : { color });
+  // ชุดยูนิฟอร์มสีชมพูตามที่ผู้ใช้ขอ (2026-10-18) — ใช้ค่าเดียวกับหุ่นในผัง 2D (FP_PERSON_COLORS)
+  const skin = mat(0xf2c9a0), uniform = mat(0xec4899), pants = mat(0x1e3a5f), hair = mat(0x3b2a20), eye = mat(0x1f2937);
+  const S = small ? 0.75 : 1;   // สถานีย่อยในห้องหีบห่อแคบ ย่อหุ่นลงหน่อย
+
+  const person = new T.Group();
+  const add = (geo, m, x, y, z) => { const mesh = new T.Mesh(geo, m); mesh.position.set(x, y, z); person.add(mesh); return mesh; };
+  // ขา (pivot ที่สะโพก ให้แกว่งตอนเดิน)
+  const legs = [-1.5, 1.5].map(x => {
+    const pivot = new T.Group(); pivot.position.set(x, 7, 0); person.add(pivot);
+    const leg = new T.Mesh(new T.CylinderGeometry(1.1, 1.1, 7, 8), pants); leg.position.y = -3.5; pivot.add(leg);
+    return pivot;
+  });
+  // ลำตัว: หญิง = ชุดทรงเอ (บนแคบล่างบาน), ชาย/ไม่ระบุ = ทรงกระบอกตรง
+  if (p.gender === 'F') add(new T.CylinderGeometry(2.6, 4.4, 8.5, 14), uniform, 0, 11, 0);
+  else add(new T.CylinderGeometry(3.3, 3.5, 8.5, 14), uniform, 0, 11, 0);
+  // แขน (pivot ที่ไหล่ ให้ขยับตอนทำงาน)
+  const arms = [-1, 1].map(side => {
+    const pivot = new T.Group(); pivot.position.set(side * (p.gender === 'F' ? 3.2 : 3.9), 14.5, 0); person.add(pivot);
+    const arm = new T.Mesh(new T.CylinderGeometry(0.9, 0.9, 6.5, 8), uniform); arm.position.y = -3.2; pivot.add(arm);
+    const hand = new T.Mesh(new T.SphereGeometry(1.1, 8, 6), skin); hand.position.y = -6.6; pivot.add(hand);
+    return pivot;
+  });
+  // หัว + ตา (หน้าหันไปทาง +z ของตัวเอง)
+  add(new T.SphereGeometry(4.2, 18, 14), skin, 0, 19.6, 0);
+  add(new T.SphereGeometry(0.55, 8, 6), eye, -1.4, 20.1, 3.85);
+  add(new T.SphereGeometry(0.55, 8, 6), eye, 1.4, 20.1, 3.85);
+  // ผม: หญิง = ผมยาวคลุมหลังลงถึงไหล่ + มวยด้านหลัง, ชาย = ผมสั้นครอบหัว, ไม่ระบุ = หมวกคลุมผมสีขาว
+  const capGeo = new T.SphereGeometry(4.5, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
+  if (p.gender === 'F') {
+    const cap = add(capGeo, hair, 0, 19.8, -0.2); cap.rotation.x = -0.25;
+    add(new T.CylinderGeometry(4.0, 4.6, 7, 14, 1, true, Math.PI * 0.6, Math.PI * 0.8), hair, 0, 17.4, -0.4).rotation.y = Math.PI;
+    add(new T.SphereGeometry(2.0, 10, 8), hair, 0, 22.5, -4.0);
+  } else if (p.gender === 'M') {
+    const cap = add(capGeo, hair, 0, 20.2, -0.3); cap.rotation.x = -0.35;
+  } else {
+    const cap = add(capGeo, mat(0xf8fafc), 0, 20.3, -0.2); cap.rotation.x = -0.3;
+  }
+  person.scale.setScalar(S);
+  person.position.set(homeX, 4, homeZ);
+  person.rotation.y = Math.random() * Math.PI * 2;
+  g.add(person);
+
+  // ป้ายชื่อเหนือหัว (ตามตัวไปด้วยตอนเดิน)
+  const tag = _fp3dLabel(p.name, ghost ? 'ยังไม่สแกนเข้า' : '', ghost ? '#94a3b8' : '#0f766e', 0.22);
+  tag.position.set(homeX, 4 + 29 * S, homeZ);
+  if (ghost) tag.material.opacity = 0.7;
+  g.add(tag);
+
+  if (ghost) return;
+  // เดินสุ่มภายในห้อง: เลือกจุดใหม่ใกล้ๆ จุดประจำ เดินไป แล้วหยุดทำงานสักพัก — ขยับเฉพาะใน render loop
+  const clampX = x => Math.min(bounds.x1, Math.max(bounds.x0, x)), clampZ = z => Math.min(bounds.z1, Math.max(bounds.z0, z));
+  const pickTarget = () => ({ x: clampX(homeX + (Math.random() - 0.5) * 30), z: clampZ(homeZ + (Math.random() - 0.5) * 22) });
+  let target = pickTarget(), pause = Math.random() * 120, phase = Math.random() * 10;
+  _fp3d.flowMovers.push({ tick: () => {
+    phase += 0.12;
+    const dx = target.x - person.position.x, dz = target.z - person.position.z, dist = Math.hypot(dx, dz);
+    if (pause > 0) {
+      pause--;
+      arms.forEach((a, i) => { a.rotation.x = -0.9 + Math.sin(phase * 1.6 + i * Math.PI) * 0.35; });   // ทำงานมือ
+      legs.forEach(l => { l.rotation.x = 0; });
+      person.position.y = 4 + Math.abs(Math.sin(phase * 0.8)) * 0.15;
+      if (pause <= 0) target = pickTarget();
+    } else if (dist < 0.6) {
+      pause = 90 + Math.random() * 200;
+    } else {
+      const step = Math.min(dist, 0.28);
+      person.position.x += dx / dist * step;
+      person.position.z += dz / dist * step;
+      person.rotation.y = Math.atan2(dx, dz);
+      legs.forEach((l, i) => { l.rotation.x = Math.sin(phase * 2 + i * Math.PI) * 0.6; });
+      arms.forEach((a, i) => { a.rotation.x = Math.sin(phase * 2 + i * Math.PI + Math.PI) * 0.45; });
+      person.position.y = 4 + Math.abs(Math.sin(phase * 2)) * 0.5;
+    }
+    tag.position.set(person.position.x, 4 + 29 * S, person.position.z);
+  } });
+}
+
+function _fp3dRoomOpts(id, g, r, title, idleSub) {
+  const monitored = !!r, status = r ? r.status : 'idle';
+  const active = monitored && status !== 'idle';
+  const pct = active && r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
+  const sub = active
+    ? `${r.isLiveScan ? 'สแกนสด ' : ''}${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()} ${(r.item && r.item.UOM) || ''} · ${pct}%`
+    : monitored ? 'ว่าง/ไม่มีแผนวันนี้' : (idleSub || '');
+  return { id, x: g.x, y: g.y, w: g.w, h: g.h, height: active ? 46 : 24, status, monitored, title, sub, pct,
+    roster: active ? (r.roster || []) : [], selected: _fpSelectedId === id };
+}
+
+// ทางเดิน (พื้นสีอ่อน+ป้าย), ประตู (บานสีเข้มบนแนวผนัง) และลูกศรทางเข้า-ออก — ชุดข้อมูลเดียวกับผัง 2D
+function _fp3dBuildCirculation() {
+  const T = THREE, g = _fp3d.roomsGroup, ox = FP_VIEW.w / 2, oz = FP_VIEW.h / 2;
+  FP_WALKWAYS.forEach(wk => {
+    const cx = wk.x + wk.w / 2 - ox, cz = wk.y + wk.h / 2 - oz;
+    const plane = new T.Mesh(new T.PlaneGeometry(wk.w - 2, wk.h - 2), new T.MeshBasicMaterial({ color: 0xf8fafc }));
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.set(cx, 0.8, cz);
+    g.add(plane);
+    const edge = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(wk.w - 2, 0.1, wk.h - 2)),
+      new T.LineBasicMaterial({ color: 0xcbd5e1 }));
+    edge.position.set(cx, 0.9, cz);
+    g.add(edge);
+    const lbl = _fp3dLabel(wk.label, '', '#cbd5e1', 0.3);
+    lbl.position.set(cx, 8, (wk.ly || (wk.y + wk.h / 2)) - oz);
+    g.add(lbl);
+  });
+  const doorMat = new T.MeshLambertMaterial({ color: 0x475569, transparent: true, opacity: 0.75 });
+  FP_DOORS.forEach(d => {
+    const h = d.o === 'h';
+    const door = new T.Mesh(new T.BoxGeometry(h ? d.w : 2.5, 20, h ? 2.5 : d.w), doorMat);
+    door.position.set(d.x - ox, 4 + 10, d.y - oz);
+    g.add(door);
+  });
+  const arrowMat = new T.MeshBasicMaterial({ color: 0x0f766e, side: T.DoubleSide });
+  FP_ENTRANCES.forEach(e => {
+    const shape = new T.Shape();
+    shape.moveTo(0, 9); shape.lineTo(7, 0); shape.lineTo(2.5, 0); shape.lineTo(2.5, -9);
+    shape.lineTo(-2.5, -9); shape.lineTo(-2.5, 0); shape.lineTo(-7, 0); shape.closePath();
+    const arrow = new T.Mesh(new T.ShapeGeometry(shape), arrowMat);
+    arrow.rotation.x = -Math.PI / 2;                           // วางราบกับพื้น (แกน +y ของรูป = -z ของฉาก)
+    arrow.rotation.z = Math.atan2(-e.dx, -e.dy);               // หมุนให้ชี้ตามทิศ dx/dy (2D: +y ลงล่าง)
+    arrow.position.set(e.x - ox, 1.2, e.y - oz);
+    g.add(arrow);
+    const lbl = _fp3dLabel(e.label, '', '#0f766e', 0.3);
+    lbl.position.set(e.x - ox, 14, e.y - oz);
+    g.add(lbl);
+  });
+}
+
+// ── เส้นโฟลงานตามแผนผลิต (3D เท่านั้น, 2026-10-17) — ผู้ใช้ขอ "แสดงเส้นโฟลงาน จากไหนไปไหน" แล้วยืนยันว่า
+// หมายถึง "ลำดับงานตามแพลน เช่น ห้องบรรจุ ไปห้องยิงล็อต ไปห้องแพ็ค" (เวอร์ชันแรกวาดเส้นทางมาตรฐานตายตัว
+// ตามหน้าที่ห้อง ซึ่งผิดความต้องการ — ยกเลิกไปแล้ว) — 1 งานในแผน = หลายแถว production_plan (ไลน์บรรจุ/ยิง Lot/
+// แพ็ค) จับกลุ่มด้วย _fpFlowJobKey แล้วเรียงตามวันที่+เวลาเริ่มในแผนจริง (งานขวดบางตัวยิง Lot ก่อนบรรจุ 1 วัน
+// ลำดับจึงต้องมาจากแผน ไม่ใช่ตายตัว) แสดงเฉพาะงานที่กำลังอยู่บนพื้นโรงงานตอนนี้ (เป็น item ปัจจุบันของไลน์ใด
+// ไลน์หนึ่งใน _fpData) — เส้นวิ่งจากขั้นที่ 1 → 2 → 3 ป้ายลอยบนแต่ละขั้นบอกลำดับ+สถานะ
+const FP_FLOW_COLORS = [0x2563eb, 0xd97706, 0xdb2777, 0x7c3aed, 0x0d9488, 0x16a34a, 0xdc2626, 0x0891b2];
+const FP_FLOW_MAX_JOBS = 8;
+let _fpFlowOn = (() => { try { return localStorage.getItem('fpFlowOn') !== '0'; } catch (e) { return true; } })();
+let _fpFlowJobs = [];   // ผลจาก _fpBuildFlowJobs() รอบล่าสุด — ใช้ร่วมกันระหว่างเส้นในฉากกับคำอธิบายมุมซ้ายบน
+
+function _fpToggleFlow() {
+  _fpFlowOn = !_fpFlowOn;
+  try { localStorage.setItem('fpFlowOn', _fpFlowOn ? '1' : '0'); } catch (e) {}
+  if (_fp3d) { _fp3dBuildRooms(); _fp3dRenderFlowLegend(); }
+}
+
+function _fpFlowJobKey(r) {
+  return r.BatchRef || (r.MO_Ref ? `MO|${r.MO_Ref}` : `${r.PlanDate}|${r.ProductCode}`);
+}
+
+// จุดบนผังของไลน์ใน PLAN_LINES — ไลน์บรรจุ = กลางห้องนั้น, ไลน์แพ็ค/ยิง Lot = กลางสถานีย่อยในห้องบรรจุหีบห่อ
+// (คำนวณตำแหน่งสถานีแบบเดียวกับ _fpBuildPackRoom/_fp3dBuildPackRoom)
+function _fpLinePoint(line, moRef) {
+  // งานแพ็คที่เลือกตอนสแกนว่าใช้ห้องอื่น → จุดอยู่ในห้องนั้นแทน (ดูจากสแกนของ MO งานนี้เอง ถ้าส่ง moRef มา)
+  const moved = moRef !== undefined ? _fpPackRoomFor(line, moRef) : _fpPackLineRoom(line);
+  if (moved) { const g = FP_GEOM[moved]; return { x: g.x + g.w / 2, y: g.y + g.h / 2, label: `${FP_ROOM_LABEL[moved]} (${_fpPackSubLabel(line)})` }; }
+  const roomId = Object.keys(FP_ROOM_LINE).find(id => FP_ROOM_LINE[id] === line);
+  if (roomId) { const g = FP_GEOM[roomId]; return { x: g.x + g.w / 2, y: g.y + g.h / 2, label: FP_ROOM_LABEL[roomId] }; }
+  const i = FP_PACK_SUBLINES.findIndex(s => s.line === line);
+  if (i < 0) return null;
+  const g = FP_GEOM.packbox, slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
+  return { x: g.x + g.w / 2, y: g.y + 24 + i * slotH + (slotH - 4) / 2, label: FP_PACK_SUBLINES[i].label };
+}
+
+// ขั้นนี้เสร็จหรือยัง — ยอดสแกนสดของ (MO, ไลน์นี้) ถึงยอดสั่งผลิต หรือ MO ปิดแล้ว (หลักเดียวกับ _planLineFinished)
+function _fpFlowStepDone(row) {
+  if (!row.MO_Ref) return false;
+  const mo = _prodStatusMOAllData.find(m => m.MO_ID === row.MO_Ref);
+  if (mo && _moDoneStatuses.includes(mo.Status)) return true;
+  const prog = _prodStatusProgressData[`${row.MO_Ref}|${row.Line}`];
+  const target = (mo && parseFloat(mo.OrderQty)) || parseFloat(row.PlanQty) || 0;
+  return !!prog && target > 0 && (parseFloat(prog.Qty) || 0) >= target;
+}
+
+function _fpBuildFlowJobs() {
+  const seen = new Set();
+  const rows = [..._prodStatusPlanWeekData, ..._prodStatusPlanAllData].filter(r => !seen.has(r._row_id) && seen.add(r._row_id));
+  const byJob = {};
+  rows.forEach(r => { (byJob[_fpFlowJobKey(r)] ||= []).push(r); });
+
+  // งานที่อยู่บนพื้นโรงงานตอนนี้ = item ปัจจุบันของไลน์ใดไลน์หนึ่ง (ไม่นับไลน์ว่าง) เรียงงานที่ "กำลังทำ" ขึ้นก่อน
+  const current = [];
+  PLAN_LINES.forEach(line => {
+    const r = _fpData[line];
+    if (!r || r.status === 'idle' || !r.item) return;
+    const key = _fpFlowJobKey(r.item);
+    const live = r.status === 'running' || r.status === 'behind';
+    const ex = current.find(c => c.key === key);
+    if (ex) { ex.live = ex.live || live; ex.liveLines.push(live ? line : null); }
+    else current.push({ key, live, liveLines: [live ? line : null], item: r.item });
+  });
+  current.sort((a, b) => (b.live - a.live));
+  const catOrder = { fill: 0, lot: 1, pack: 2 };
+
+  return current.slice(0, FP_FLOW_MAX_JOBS).map((c, idx) => {
+    const jobRows = (byJob[c.key] || [c.item]).slice().sort((a, b) =>
+      (a.PlanDate || '').localeCompare(b.PlanDate || '') ||
+      (a.TimeStart || '').localeCompare(b.TimeStart || '') ||
+      ((catOrder[_planLineCategoryOf(a.Line)] ?? 9) - (catOrder[_planLineCategoryOf(b.Line)] ?? 9)));
+    // ไลน์เดียวกันหลายวันติดกัน (แผนหลายวัน) รวมเป็นขั้นเดียว
+    const steps = [];
+    jobRows.forEach(r => {
+      const pt = _fpLinePoint(r.Line, r.MO_Ref || null);
+      if (!pt) return;
+      const last = steps[steps.length - 1];
+      if (last && last.line === r.Line) { last.rows.push(r); return; }
+      steps.push({ line: r.Line, pt, rows: [r] });
+    });
+    steps.forEach(s => {
+      const done = s.rows.every(_fpFlowStepDone);
+      const now = c.liveLines.includes(s.line);
+      s.state = done ? 'done' : (now ? 'now' : 'wait');
+    });
+    return { key: c.key, live: c.live, color: FP_FLOW_COLORS[idx % FP_FLOW_COLORS.length],
+      mo: c.item.MO_Ref || '', product: c.item.ProductName || c.item.ProductCode || '', steps };
+  });
+}
+
+function _fp3dRenderFlowLegend() {
+  const host = document.getElementById('fp-3d');
+  if (!host || !_fp3d || _fp3d.renderer.domElement.parentNode !== host) return;
+  let el = host.querySelector('.fp-flow-legend');
+  if (!el) { el = document.createElement('div'); el.className = 'fp-flow-legend'; host.appendChild(el); }
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  let rows = '';
+  if (_fpFlowOn) {
+    rows = _fpFlowJobs.length
+      ? _fpFlowJobs.map(j => `<div class="fp-flow-row" style="align-items:flex-start">
+          <span class="fp-flow-sw" style="background:${_fp3dHex(j.color)};margin-top:7px"></span>
+          <div><b>${esc(j.mo || 'ไม่มี MO')}</b> ${esc(j.product)}<br>
+          <span style="color:var(--fp-text-dim)">${j.steps.map(s => esc(s.pt.label) + (s.state === 'done' ? ' ✓' : '')).join(' → ')}</span></div></div>`).join('')
+        + '<div class="fp-flow-note">เรียงตามวัน/เวลาในแผนผลิต · ✓ = ขั้นนั้นเสร็จแล้ว</div>'
+      : '<div class="fp-flow-note">ตอนนี้ไม่มีงานบนพื้นโรงงาน</div>';
+  }
+  el.innerHTML = `<button type="button" aria-pressed="${_fpFlowOn}" onclick="_fpToggleFlow()">${_fpFlowOn ? 'ซ่อน' : 'แสดง'}เส้นโฟลงาน</button>${rows}`;
+}
+
+// เส้นโค้งลอยข้ามผนังระหว่างขั้นที่ติดกันของงานเดียวกัน (ไม่เดินตามทางเดินจริง เพราะหลายงานจะซ้อนกันในทางเดิน
+// 2 ม. จนอ่านไม่ออก) + หัวลูกศร + จุดวิ่งตามทิศทาง (เฉพาะงานที่กำลังทำ) + ป้ายลำดับ/สถานะลอยเหนือแต่ละขั้น
+function _fp3dBuildFlows() {
+  _fpFlowJobs = _fpBuildFlowJobs();
+  if (!_fpFlowOn) return;
+  const T = THREE, g = _fp3d.roomsGroup, ox = FP_VIEW.w / 2, oz = FP_VIEW.h / 2;
+  const stateText = { done: 'เสร็จ', now: 'กำลังทำ', wait: 'รอ' };
+  _fpFlowJobs.forEach((job, ji) => {
+    const hex = _fp3dHex(job.color);
+    const lift = ji * 7;   // แต่ละงานโค้งสูงต่างกัน กันเส้นของ 2 งานที่ผ่านห้องเดียวกันทับกันสนิท
+    job.steps.forEach((s, si) => {
+      const lbl = _fp3dLabel(`${si + 1}. ${s.pt.label}`, stateText[s.state], hex, 0.28);
+      lbl.position.set(s.pt.x - ox, 70 + lift + (si % 2) * 10, s.pt.y - oz);
+      if (s.state === 'done') lbl.material.opacity = 0.55;
+      g.add(lbl);
+    });
+    for (let i = 0; i < job.steps.length - 1; i++) {
+      const route = _fpFlowRoute(job.steps[i].line, job.steps[i + 1].line, ji, _fpFlowJobs.length, job.mo || null);
+      if (!route) continue;
+      const bright = job.live && job.steps[i + 1].state !== 'done';
+      _fp3dDottedPath(route, job.color, bright);
+    }
+  });
+}
+
+// ── เส้นทางเดินจริงบนผัง (2026-10-17 ผู้ใช้ขอ "อนิเมชั่นจุดไข่ปลาเดินบนทางจริงๆ" แทนเส้นโค้งลอยข้ามผนัง) ──
+// แต่ละไลน์มี "ทางออก" = ลำดับจุดจากกลางห้อง → ประตู → จุดบนแนวกลางทางเดินหลัก (ตรงกับ FP_DOORS/FP_WALKWAYS)
+// เส้นทาง A→B = ทางออกของ A + วิ่งตามแนวทางเดินหลัก + ทางออกของ B แบบกลับด้าน ถ้าอยู่ห้องเดียวกัน (สถานีใน
+// ห้องบรรจุหีบห่อ เช่น ยิง Lot → แพ็ค) เดินภายในห้องตรงๆ ไม่ออกทางเดิน
+const FP_CORRIDOR_Y = 195.5;
+const FP_LINE_EXITS = {
+  'ห้องบรรจุน้ำมัน Aroma':     [{ x:712, y:101 }, { x:689, y:120 }, { x:689, y:163 }, { x:689, y:FP_CORRIDOR_Y }],
+  'ห้องผสมใหญ่':              [{ x:580, y:368 }, { x:627, y:368 }, { x:627, y:317 }, { x:620, y:300 }, { x:612, y:240 }, { x:612, y:228 }, { x:612, y:FP_CORRIDOR_Y }],
+  'ห้องบรรจุแชมพูครีมอาบน้ำ': [{ x:528, y:272 }, { x:570, y:290 }, { x:588, y:290 }, { x:618, y:290 }, { x:612, y:240 }, { x:612, y:228 }, { x:612, y:FP_CORRIDOR_Y }],
+  'ห้องบรรจุครีมโลชั่น':       [{ x:706, y:272 }, { x:670, y:253 }, { x:653, y:253 }, { x:624, y:253 }, { x:612, y:228 }, { x:612, y:FP_CORRIDOR_Y }],
+};
+// สถานีในห้องบรรจุหีบห่อ: ออกทางประตูห้อง (445,163) — คำนวณจากตำแหน่งสถานีจริง
+// ทางออกของห้องที่ใช้แพ็คแทนได้ (ประตูอยู่ผนังล่างลงทางเดินหลักทุกห้อง — ตรงกับ FP_DOORS)
+const FP_ALT_PACK_DOOR_X = { weigh: 296, bulk: 363, mixoil: 591 };
+function _fpLineExit(line, moRef) {
+  const moved = _fpPackRoomFor(line, moRef);
+  if (moved && FP_ALT_PACK_DOOR_X[moved]) {
+    const g = FP_GEOM[moved], dx = FP_ALT_PACK_DOOR_X[moved];
+    return [{ x: g.x + g.w / 2, y: g.y + g.h / 2 }, { x: dx, y: 135 }, { x: dx, y: 163 }, { x: dx, y: FP_CORRIDOR_Y }];
+  }
+  if (FP_LINE_EXITS[line]) return FP_LINE_EXITS[line];
+  const pt = _fpLinePoint(line, null);
+  if (!pt) return null;
+  return [{ x: pt.x + 30, y: pt.y }, { x: 445, y: pt.y }, { x: 445, y: 163 }, { x: 445, y: FP_CORRIDOR_Y }];
+}
+
+function _fpFlowRoute(lineA, lineB, jobIdx, jobCount, moRef) {
+  const ea = _fpLineExit(lineA, moRef), eb = _fpLineExit(lineB, moRef);
+  if (!ea || !eb) return null;
+  // "อยู่ห้องบรรจุหีบห่อจริง" = เป็นสถานีในห้องนั้น และไม่ได้ย้ายไปใช้ห้องอื่น
+  const inPackbox = l => FP_PACK_SUBLINES.some(s => s.line === l) && !_fpPackRoomFor(l, moRef);
+  const packA = inPackbox(lineA), packB = inPackbox(lineB);
+  if (packA && packB) return [ea[0], { x: 470, y: ea[0].y }, { x: 470, y: eb[0].y }, eb[0]];
+  // แต่ละงานเดินคนละเลนในทางเดินหลัก (เยื้องกันเล็กน้อย) กันจุดของหลายงานทับกันเป็นเส้นเดียว
+  const lane = (jobIdx - (jobCount - 1) / 2) * 6;
+  const shift = p => (p.y === FP_CORRIDOR_Y ? { x: p.x, y: p.y + lane } : p);
+  return [...ea.map(shift), ...eb.slice().reverse().map(shift)];
+}
+
+// วาดจุดไข่ปลาบนพื้นตามเส้นทาง (polyline) — InstancedMesh ก้อนเดียวต่อเส้น ขยับทุกเฟรมด้วย tick() ให้จุดเดิน
+// จากต้นทางไปปลายทาง (bright) หรือนิ่งจางๆ (ขั้นที่เสร็จแล้ว/งานที่ยังไม่เริ่ม) + หัวลูกศรแบนที่ปลายทาง
+function _fp3dDottedPath(route, color, bright) {
+  const T = THREE, g = _fp3d.roomsGroup, ox = FP_VIEW.w / 2, oz = FP_VIEW.h / 2, Y = 4.8;
+  const pts = route.map(p => new T.Vector3(p.x - ox, Y, p.y - oz))
+    .filter((p, i, arr) => i === 0 || p.distanceTo(arr[i - 1]) > 0.5);
+  if (pts.length < 2) return;
+  const path = new T.CurvePath();
+  for (let i = 0; i < pts.length - 1; i++) path.add(new T.LineCurve3(pts[i], pts[i + 1]));
+  const length = path.getLength();
+  const spacing = 9, count = Math.max(2, Math.floor(length / spacing));
+  const dotGeo = new T.CircleGeometry(bright ? 2.4 : 1.8, 10);
+  dotGeo.rotateX(-Math.PI / 2);
+  const mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: bright ? 0.95 : 0.35, depthWrite: false });
+  const inst = new T.InstancedMesh(dotGeo, mat, count);
+  inst.renderOrder = 5;
+  inst.frustumCulled = false;   // bounding sphere ของ InstancedMesh อิงตัว geometry ที่จุดกำเนิด — กันจุดหายตอนหมุนกล้อง
+  g.add(inst);
+  const m = new T.Matrix4();
+  let offset = 0;
+  const place = () => {
+    for (let k = 0; k < count; k++) {
+      const u = ((k * spacing + offset) % length) / length;
+      m.makeTranslation(...path.getPointAt(u).toArray());
+      inst.setMatrixAt(k, m);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+  };
+  place();
+  if (bright) _fp3d.flowMovers.push({ tick: () => { offset = (offset + 0.45) % spacing; place(); } });
+
+  // หัวลูกศรแบนบนพื้นตรงทางเข้าห้องปลายทาง
+  const end = pts[pts.length - 1], prev = pts[pts.length - 2];
+  const dir = end.clone().sub(prev).normalize();
+  const shape = new T.Shape();
+  shape.moveTo(0, 7); shape.lineTo(6, -4); shape.lineTo(-6, -4); shape.closePath();
+  const arrow = new T.Mesh(new T.ShapeGeometry(shape), new T.MeshBasicMaterial({ color, transparent: true, opacity: bright ? 0.95 : 0.4, side: T.DoubleSide, depthWrite: false }));
+  arrow.rotation.x = -Math.PI / 2;
+  arrow.rotation.z = Math.atan2(-dir.x, -dir.z);
+  arrow.position.set(end.x, Y + 0.1, end.z);
+  arrow.renderOrder = 5;
+  g.add(arrow);
+}
+
+function _fp3dBuildRooms() {
+  _fp3dClearRooms();
+  _fp3dBuildCirculation();
+  _fp3dBuildFlows();
+  Object.keys(FP_GEOM).forEach(roomId => {
+    const g = FP_GEOM[roomId];
+    if (roomId === 'packbox') { _fp3dBuildPackRoom(g); return; }
+    const hosted = _fpHostedLine(roomId);   // งานแพ็คที่ย้ายมาใช้ห้องนี้ (เลือกตอนสแกน)
+    const line = FP_ROOM_LINE[roomId] || hosted;
+    const r = line ? _fpData[line] : null;
+    const idleSub = roomId === 'samples' ? `${_fpHoldStock.length.toLocaleString()} รายการ Defect/Retain` : '';
+    const title = hosted ? `${FP_ROOM_LABEL[roomId]} (${_fpPackSubLabel(hosted)})` : FP_ROOM_LABEL[roomId];
+    _fp3dAddRoom(_fp3dRoomOpts(roomId, g, r, title, idleSub));
+  });
+}
+
+// ห้องบรรจุหีบห่อ: กรอบนอกเตี้ยๆ (คลิกไม่ได้ ไม่ผูกไลน์) + 5 สถานีข้างในเรียงตามผัง 2D เป๊ะ
+function _fp3dBuildPackRoom(g) {
+  _fp3dAddRoom({ id: null, x: g.x, y: g.y, w: g.w, h: g.h, height: 10, status: 'idle', monitored: false,
+    title: 'บรรจุหีบห่อ (5 สถานี)', sub: '', pct: 0, roster: [], selected: false, noSlab: true, labelLift: 52 });
+  const slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
+  FP_PACK_SUBLINES.forEach((sub, i) => {
+    const movedTo = _fpPackLineRoom(sub.line);   // ย้ายไปแพ็คห้องอื่น → สถานีนี้ว่าง
+    const r = movedTo ? { status: 'idle' } : _fpData[sub.line];
+    const id = `packbox__${sub.key}`;
+    const geo = { x: g.x + 6, y: g.y + 24 + i * slotH, w: g.w - 12, h: slotH - 4 };
+    const o = _fp3dRoomOpts(id, geo, r, sub.label, '');
+    const active = r && r.status !== 'idle';
+    o.title = movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}` : active ? `${sub.label} · ${o.pct}%` : sub.label;
+    o.sub = '';
+    o.height = active ? 26 : 10;
+    o.small = true;
+    _fp3dAddRoom(o);
   });
 }
 
@@ -9511,8 +10561,18 @@ function _fpBuildPackRoom(svg, g) {
 // ข้างในห้องบรรจุหีบห่อ แยกกัน เพราะแต่ละสถานีมีข้อมูล/สถานะเป็นของตัวเอง
 function _fpAllEntries() {
   const rooms = Object.keys(FP_GEOM).filter(id => id !== 'packbox');
-  const entries = rooms.map(id => ({ id, label: FP_ROOM_LABEL[id], full: FP_ROOM_FULL[id], line: FP_ROOM_LINE[id] || null }));
-  FP_PACK_SUBLINES.forEach(sub => entries.push({ id: `packbox__${sub.key}`, label: sub.label, full: `ห้องบรรจุหีบห่อ — ${sub.label}`, line: sub.line }));
+  // ห้องที่มีงานแพ็คย้ายมาใช้ (hostedLine) ผูกกับไลน์นั้นชั่วคราว ส่วนสถานีต้นทางที่ถูกย้ายออก (movedTo)
+  // ไม่ผูกไลน์ในภาพรวม กันงานเดียวโผล่ 2 แถว — แต่คลิกสถานีนั้นยังบอกได้ว่าย้ายไปห้องไหน (ดู _fpSelectRoom)
+  const entries = rooms.map(id => {
+    const hosted = _fpHostedLine(id);
+    return { id, label: hosted ? `${FP_ROOM_LABEL[id]} (${_fpPackSubLabel(hosted)})` : FP_ROOM_LABEL[id],
+      full: FP_ROOM_FULL[id], line: FP_ROOM_LINE[id] || hosted || null, hosted };
+  });
+  FP_PACK_SUBLINES.forEach(sub => {
+    const movedTo = _fpPackLineRoom(sub.line);
+    entries.push({ id: `packbox__${sub.key}`, label: movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}` : sub.label,
+      full: `ห้องบรรจุหีบห่อ — ${sub.label}`, line: movedTo ? null : sub.line, movedTo });
+  });
   return entries;
 }
 
@@ -9616,7 +10676,9 @@ function _fpSelectRoom(id) {
     drawer.innerHTML = `
       <button class="fp-back-link" onclick="_fpSelectedId=null;_fpRenderOverview();_fpBuildSvg()">← ภาพรวมทั้งหมด</button>
       <div><div class="fp-eyebrow">${entry.id.toUpperCase()}</div><h2>${entry.full}</h2></div>
-      <p class="fp-val" style="color:var(--fp-text-dim);font-size:13px">${FP_ROOM_NOTE[entry.id] || 'พื้นที่นี้ไม่ผูกกับไลน์ผลิตในระบบ'}</p>
+      <p class="fp-val" style="color:var(--fp-text-dim);font-size:13px">${entry.movedTo
+        ? `งานแพ็คของสถานีนี้ย้ายไปทำที่ <b>${FP_ROOM_FULL[entry.movedTo]}</b> (เลือกตอนสแกนอัปเดตยอด) — คลิกห้องนั้นบนผังเพื่อดูรายละเอียดงาน`
+        : (FP_ROOM_NOTE[entry.id] || 'พื้นที่นี้ไม่ผูกกับไลน์ผลิตในระบบ')}</p>
       ${entry.id === 'samples' ? _fpHoldStockListHtml() : ''}
     `;
     return;
@@ -9655,6 +10717,7 @@ function _fpSelectRoom(id) {
       <div class="fp-eyebrow">${entry.line}</div>
       <h2>${entry.full}</h2>
       <span class="fp-status-pill ${meta.cls}">${meta.label}</span>
+      ${entry.hosted ? `<div class="fp-val mt-1" style="font-size:12px;color:var(--fp-text-dim)"><i class="fas fa-right-left me-1"></i>ใช้ห้องนี้ทำงาน${_fpPackSubLabel(entry.hosted)}แทนห้องบรรจุหีบห่อ (เลือกตอนสแกนอัปเดตยอด)</div>` : ''}
     </div>
     ${body}
   `;
@@ -16320,7 +17383,8 @@ async function _planLoadSkillData(force = false) {
   await _planLoadLeaves();
   if (_planSkillDataLoaded && !force) return;
   const [empRes, skillRes, levelRes] = await Promise.all([
-    _sb.from('employees').select('EmployeeCode,FirstName,LastName,NickName,EmployeeType').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
+    // select('*') ให้ได้ Gender ด้วย (หุ่นการ์ตูนในผังโรงงาน 3D) ใช้ได้ทั้งก่อน/หลังรัน alter_employees_add_gender.sql
+    _sb.from('employees').select('*').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
     _sb.from('skills').select('SkillCode,SkillName,Lines'),
     _sb.from('employee_skills').select('EmployeeCode,SkillCode,Level'),
   ]);
@@ -19429,6 +20493,7 @@ function _scanprogPubRenderForm(moId, line, phone, employeeName, employeePositio
     </div>
     <div class="glass-card p-3">
       ${_scanprogPubInfoHTML(moId, line, info, employeeName, employeePosition)}
+      ${_fpIsPackLine(line) ? _fpRoomPickerHTML('scanprog-pub-room', info.lastRoom) : ''}
       <label class="form-label small fw-bold mt-3">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
       <div class="input-group mb-2">
         <input type="number" id="scanprog-pub-qty" class="form-control" min="0" step="any" value="${info.lastQty != null ? info.lastQty : ''}">
@@ -19448,13 +20513,14 @@ async function _scanprogPubSubmit(moId, line, phone) {
   const msgEl = document.getElementById('scanprog-pub-msg2');
   const qty = parseFloat(qtyInput.value);
   if (isNaN(qty) || qty < 0) { msgEl.textContent = 'กรุณากรอกตัวเลขที่ถูกต้อง'; return; }
+  const room = _fpIsPackLine(line) ? _fpPickedRoom('scanprog-pub-room') : null;
   const btn = document.getElementById('scanprog-pub-submit-btn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังบันทึก...';
   let data;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-progress`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'submit', phone, moId, line, qty }),
+      body: JSON.stringify({ action: 'submit', phone, moId, line, qty, room }),
     });
     data = await res.json();
   } catch (e) {
@@ -19472,7 +20538,7 @@ async function _scanprogPubSubmit(moId, line, phone) {
   bodyEl.innerHTML = `<div class="text-center py-5">
     <div style="font-size:2.2rem;color:#22c55e"><i class="fas fa-circle-check"></i></div>
     <div style="font-size:1.1rem;font-weight:700;margin-top:8px">อัปเดตแล้ว</div>
-    <div class="text-muted small mt-1">${mo.ProductName || moId} · ${line}<br>ยอด ${qty.toLocaleString()} ${mo.UOM || ''}</div>
+    <div class="text-muted small mt-1">${mo.ProductName || moId} · ${line}<br>ยอด ${qty.toLocaleString()} ${mo.UOM || ''}${room ? `<br>ห้องที่ใช้: ${_fpPackRoomLabel(room)}` : ''}</div>
     <button class="btn btn-outline-primary btn-sm mt-3" onclick="location.reload()"><i class="fas fa-rotate me-1"></i>สแกนอีกครั้ง</button>
   </div>`;
 }
@@ -20877,8 +21943,9 @@ async function loadProdStatusData() {
   // มาเรียงใหม่สุดก่อนแล้วเก็บเฉพาะแถวแรกต่อคีย์ (PostgREST ไม่มี DISTINCT ON ให้ใช้ตรงๆ)
   _prodStatusProgressData = {};
   if (moIds.length) {
+    // select('*') ให้ได้ Room ด้วย (ห้องที่ใช้แพ็คจริง — ดู FP_PACK_ROOM_OPTIONS) ใช้ได้ทั้งก่อน/หลังเพิ่มคอลัมน์
     const { data: progData, error: progErr } = await _sb.from('production_progress')
-      .select('MO_Ref,Line,Qty,CreatedAt').in('MO_Ref', moIds).order('CreatedAt', { ascending: false });
+      .select('*').in('MO_Ref', moIds).order('CreatedAt', { ascending: false });
     if (!progErr) (progData || []).forEach(p => {
       const key = `${p.MO_Ref}|${p.Line}`;
       if (!_prodStatusProgressData[key]) _prodStatusProgressData[key] = p;
@@ -21168,6 +22235,7 @@ async function prodStatusConfirmDone(idx) {
   _showLoader();
   const { error } = await _sb.from('production_progress').insert({
     MO_Ref: r.MO_Ref, Line: r.Line, Qty: scanTarget, ScannedBy: _currentUser?.email || null,
+    ...(liveProg && liveProg.Room ? { Room: liveProg.Room } : {}),   // คงห้องที่ใช้แพ็คจริงไว้ ไม่ให้ผังเด้งกลับห้องปกติ
   });
   _hideLoader();
   if (error) { _err('ยืนยันไม่สำเร็จ', error.message); return; }
@@ -23031,6 +24099,7 @@ function employeeOpenModal(rowId = null) {
     document.getElementById('employee-f-firstname').value  = r.FirstName || '';
     document.getElementById('employee-f-lastname').value   = r.LastName || '';
     document.getElementById('employee-f-nickname').value   = r.NickName || '';
+    document.getElementById('employee-f-gender').value     = r.Gender || '';
     document.getElementById('employee-f-position').value   = r.Position || '';
     document.getElementById('employee-f-department').value = r.Department || '';
     document.getElementById('employee-f-startdate').value  = r.StartDate || '';
@@ -23070,6 +24139,8 @@ async function employeeSubmit(e) {
     Status:       document.getElementById('employee-f-status').value || 'ทำงานอยู่',
     Note:         document.getElementById('employee-f-note').value || null,
   };
+  // เพศ (ใช้กับหุ่นการ์ตูนในผังโรงงาน 3D) — ส่งเฉพาะเมื่อมีคอลัมน์แล้ว กันพังก่อนรัน alter_employees_add_gender.sql
+  if (_employeeData.length && 'Gender' in _employeeData[0]) payload.Gender = document.getElementById('employee-f-gender').value || null;
   // ผู้บันทึก/แก้ไขล่าสุด + เวลา — ส่งเฉพาะเมื่อมีคอลัมน์แล้ว (ตรวจจากแถวที่โหลดมา) กันพังก่อนรัน alter_employees_add_updated.sql
   if (_employeeData.length && 'UpdatedAt' in _employeeData[0]) {
     payload.UpdatedBy = _currentUser?.name || _currentUser?.email || null;
@@ -38912,7 +39983,8 @@ async function scanprogressLoad(moId, line) {
   }
   const mo = moRes.data[0];
   const last = (progRes.data && progRes.data[0]) || null;
-  _scanprogressCurrent = { moId, line, mo, lastQty: last ? parseFloat(last.Qty) : null, lastAt: last ? last.CreatedAt : null };
+  _scanprogressCurrent = { moId, line, mo, lastQty: last ? parseFloat(last.Qty) : null, lastAt: last ? last.CreatedAt : null,
+    lastRoom: last ? (last.Room || null) : null };
   _scanprogressRender();
 }
 
@@ -38938,6 +40010,7 @@ function _scanprogressRender() {
         ? `ยอดล่าสุดที่กรอกไว้: <b>${s.lastQty.toLocaleString()}</b> ${mo.UOM||''} (${_fmtDateTime(s.lastAt)})`
         : 'ยังไม่มีใครกรอกยอดของไลน์นี้มาก่อน'}
     </div>
+    ${_fpIsPackLine(s.line) ? _fpRoomPickerHTML('scanprogress-room', s.lastRoom) : ''}
     <label class="form-label small fw-bold">ตอนนี้ผลิตได้เท่าไหร่แล้ว (ยอดสะสมรวม)</label>
     <div class="input-group mb-2">
       <input type="number" id="scanprogress-f-qty" class="form-control" min="0" step="any" value="${s.lastQty != null ? s.lastQty : ''}">
@@ -38955,13 +40028,16 @@ async function scanprogressSubmit() {
   const qtyInput = document.getElementById('scanprogress-f-qty');
   const qty = parseFloat(qtyInput.value);
   if (isNaN(qty) || qty < 0) { _err('กรอกยอดไม่ถูกต้อง', 'กรุณากรอกตัวเลขยอดผลิตสะสม (0 ขึ้นไป)'); return; }
+  const room = _fpIsPackLine(s.line) ? _fpPickedRoom('scanprogress-room') : null;
   _showLoader();
-  const { error } = await _sb.from('production_progress').insert({
-    MO_Ref: s.moId, Line: s.line, Qty: qty, ScannedBy: _currentUser?.email || null,
-  });
+  const row = { MO_Ref: s.moId, Line: s.line, Qty: qty, ScannedBy: _currentUser?.email || null };
+  if (room) row.Room = room;
+  let { error } = await _sb.from('production_progress').insert(row);
+  // ยังไม่ได้รัน alter_production_progress_add_room.sql — บันทึกยอดไปก่อนโดยไม่มีห้อง (ยอดสำคัญกว่า)
+  if (error && room) { delete row.Room; ({ error } = await _sb.from('production_progress').insert(row)); }
   _hideLoader();
   if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
-  Swal.fire({ icon: 'success', title: 'อัปเดตแล้ว', text: `${s.mo.ProductName || s.moId} · ${s.line} — ${qty.toLocaleString()} ${s.mo.UOM||''}`, timer: 1400, showConfirmButton: false });
+  Swal.fire({ icon: 'success', title: 'อัปเดตแล้ว', text: `${s.mo.ProductName || s.moId} · ${s.line} — ${qty.toLocaleString()} ${s.mo.UOM||''}${room ? ' · ' + _fpPackRoomLabel(room) : ''}`, timer: 1400, showConfirmButton: false });
   await scanprogressLoad(s.moId, s.line); // รีเฟรชยอดล่าสุดในหน้าตัวเอง ไม่ต้องรอ realtime debounce
 }
 
