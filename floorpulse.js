@@ -1399,6 +1399,24 @@ function _fpFlowStepDone(row) {
   return !!prog && target > 0 && (parseFloat(prog.Qty) || 0) >= target;
 }
 
+// ขั้นนี้ "กำลังทำจริง" หรือยัง — ใช้เวลาที่ย้อนดูอยู่แทนเวลาปัจจุบันถ้ากำลังย้อนดู
+// working = ถึงเวลาเริ่มกะของแถวแผนแล้ว และมีสแกนยอดของ (MO, ไลน์) ตั้งแต่เริ่มกะนั้น (ไม่นับสแกนเก่าจากวันก่อน)
+function _fpFlowStepWorking(rows, line) {
+  const nowT = _fpReplayAt || new Date();
+  const fmt = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const starts = rows.map(r => _fpTimeOnDate(r.PlanDate, r.TimeStart) || _fpTimeOnDate(r.PlanDate, '00:00')).filter(Boolean);
+  const started = starts.filter(t => t <= nowT);
+  if (!started.length) {
+    const next = starts.sort((a, b) => a - b)[0];
+    return { working: false, note: next ? `รอเริ่มกะ ${fmt(next)}` : 'รอเริ่ม' };
+  }
+  const since = started.sort((a, b) => b - a)[0];   // กะล่าสุดที่เริ่มไปแล้ว
+  const moRef = rows[0] && rows[0].MO_Ref;
+  const hist = moRef ? (_prodStatusProgressHist[`${moRef}|${line}`] || []) : [];
+  const scanned = hist.some(h => { const t = new Date(h.CreatedAt); return t >= since && t <= nowT; });
+  return scanned ? { working: true, note: '' } : { working: false, note: 'เริ่มกะแล้ว ยังไม่มีสแกน' };
+}
+
 function _fpBuildFlowJobs() {
   const seen = new Set();
   const rows = [..._prodStatusPlanWeekData, ..._prodStatusPlanAllData].filter(r => !seen.has(r._row_id) && seen.add(r._row_id));
@@ -1433,14 +1451,20 @@ function _fpBuildFlowJobs() {
       if (last && last.line === r.Line) { last.rows.push(r); return; }
       steps.push({ line: r.Line, pt, rows: [r] });
     });
+    // "กำลังทำ" จริง = ไลน์นั้นกำลังโชว์งานนี้อยู่ + ถึงเวลากะของแผนแล้ว + มีสแกนอัปเดตยอดตั้งแต่เริ่มกะ (คำขอผู้ใช้
+    // 2026-10-19 "งานที่อยู่กะบ่าย หรือยังไม่มีการสแกนอัพเดต ยังไม่ต้องมีเส้นวิ่ง ป้องกันสับสนว่ากำลังทำอยู่") —
+    // ไม่ครบเงื่อนไข = 'pending' (ป้ายบอกว่ารอเริ่มกะ/ยังไม่มีสแกน) เส้นที่วิ่งเข้าขั้นนั้นนิ่งจางแทน
     steps.forEach(s => {
       const done = s.rows.every(_fpFlowStepDone);
-      const now = c.liveLines.includes(s.line);
-      s.state = done ? 'done' : (now ? 'now' : 'wait');
+      const onLine = c.liveLines.includes(s.line);
+      const w = onLine && !done ? _fpFlowStepWorking(s.rows, s.line) : null;
+      s.state = done ? 'done' : (w && w.working ? 'now' : (onLine ? 'pending' : 'wait'));
+      s.note = w && !w.working ? w.note : '';
     });
+    c.live = steps.some(s => s.state === 'now');
     return { key: c.key, live: c.live, color: FP_FLOW_COLORS[idx % FP_FLOW_COLORS.length],
       mo: c.item.MO_Ref || '', product: c.item.ProductName || c.item.ProductCode || '', steps };
-  });
+  }).sort((a, b) => b.live - a.live);   // งานที่กำลังทำจริงขึ้นก่อนในคำอธิบาย
 }
 
 function _fp3dRenderFlowLegend() {
@@ -1473,15 +1497,18 @@ function _fp3dBuildFlows() {
     const hex = _fp3dHex(job.color);
     const lift = ji * 7;   // แต่ละงานโค้งสูงต่างกัน กันเส้นของ 2 งานที่ผ่านห้องเดียวกันทับกันสนิท
     job.steps.forEach((s, si) => {
-      const lbl = _fp3dLabel(`${si + 1}. ${s.pt.label}`, stateText[s.state], hex, 0.28);
+      const lbl = _fp3dLabel(`${si + 1}. ${s.pt.label}`, s.state === 'pending' ? s.note : stateText[s.state], hex, 0.28);
       lbl.position.set(s.pt.x - ox, 70 + lift + (si % 2) * 10, s.pt.y - oz);
-      if (s.state === 'done') lbl.material.opacity = 0.55;
+      if (s.state === 'done' || s.state === 'pending' || s.state === 'wait') lbl.material.opacity = s.state === 'done' ? 0.55 : 0.75;
       g.add(lbl);
     });
     for (let i = 0; i < job.steps.length - 1; i++) {
       const route = _fpFlowRoute(job.steps[i].line, job.steps[i + 1].line, ji, _fpFlowJobs.length, job.mo || null);
       if (!route) continue;
-      const bright = job.live && job.steps[i + 1].state !== 'done';
+      // วิ่งเฉพาะเส้นที่ต่อกับขั้นที่ "กำลังทำจริง" (ถึงกะแล้ว + มีสแกน) — ทั้งเส้นที่เข้าขั้นนั้น (ของเข้ามา) และเส้นที่
+      // ออกจากขั้นนั้นไปขั้นถัดไป (ของที่ทำเสร็จกำลังไหลต่อ) ยกเว้นขั้นปลายทางเสร็จไปแล้ว — ที่เหลือแค่เส้นจางนิ่ง
+      const src = job.steps[i], dst = job.steps[i + 1];
+      const bright = (src.state === 'now' || dst.state === 'now') && dst.state !== 'done';
       _fp3dDottedPath(route, job.color, bright);
     }
   });
