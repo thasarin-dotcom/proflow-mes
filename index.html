@@ -1763,7 +1763,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
   --fp-bg: #eef2f7; --fp-surface: #ffffff; --fp-surface-2: #f4f7fb;
   --fp-wall-soft: #dbe3ee;
   --fp-text: #1e293b; --fp-text-dim: #64748b; --fp-text-faint: #94a3b8;
-  --fp-accent: #0d9488; --fp-accent-2: #7c3aed; --fp-warn: #d97706;
+  --fp-accent: #0d9488; --fp-accent-2: #7c3aed; --fp-warn: #d97706; --fp-wait: #0284c7;
   --fp-muted: #94a3b8; --fp-muted-fill: #eef2f7;
 }
 #page-floorpulse .fp-stage {
@@ -1925,6 +1925,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 #page-floorpulse .fp-status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 #page-floorpulse .fp-status-running { color: var(--fp-accent); }
 #page-floorpulse .fp-status-behind { color: var(--fp-warn); }
+#page-floorpulse .fp-status-waiting { color: var(--fp-wait); }
 #page-floorpulse .fp-status-done { color: var(--fp-accent-2); }
 #page-floorpulse .fp-status-idle { color: var(--fp-text-dim); }
 #page-floorpulse .fp-hold-chip {
@@ -5910,13 +5911,29 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
           <div class="glass-card nc-grow-card d-flex flex-column">
             <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
               <div class="fw-bold me-auto"><span class="badge bg-primary me-1">2</span>กำลังผลิตต่อวัน <span class="small text-muted fw-normal">(จากสินค้าที่ใกล้เคียง)</span></div>
-              <div class="input-group input-group-sm" style="width:150px"><input type="number" class="form-control" id="nc-size" placeholder="ขนาด" oninput="newcostFindSimilar()">
-                <select class="form-select" id="nc-size-unit" style="max-width:62px" onchange="newcostFindSimilar()"><option value="ml">ml</option><option value="g">g</option></select></div>
-              <select class="form-select form-select-sm" id="nc-type" style="width:150px" onchange="newcostFindSimilar()"></select>
+              <div class="input-group input-group-sm" style="width:170px" title="ขนาดสินค้าใหม่"><input type="number" class="form-control" id="nc-size" placeholder="ขนาด" oninput="newcostSizeChanged()">
+                <select class="form-select" id="nc-size-unit" style="max-width:72px;min-width:68px" onchange="newcostFindSimilar()"><option value="ml">ml</option><option value="g">g</option></select></div>
+              <select class="form-select form-select-sm" id="nc-type" style="width:150px" onchange="newcostFindSimilar()" title="ประเภทสินค้า"></select>
+            </div>
+            <!-- กรองแบบไฮบริด (2026-10-19): ช่วงขนาด + บรรจุภัณฑ์ (มีผลกับเครื่องบรรจุที่ใช้) + ประเภท — ที่ตรงทุกข้อขึ้นก่อน
+                 ที่เหลือที่ใกล้เคียงรองลงมาต่อท้ายพร้อมป้ายบอกว่าต่างตรงไหน -->
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-1 small">
+              <span class="text-muted">ช่วงขนาด</span>
+              <div class="input-group input-group-sm" style="width:170px">
+                <input type="number" class="form-control" id="nc-size-min" placeholder="จาก" oninput="newcostFindSimilar()" aria-label="ขนาดต่ำสุด">
+                <span class="input-group-text px-1">–</span>
+                <input type="number" class="form-control" id="nc-size-max" placeholder="ถึง" oninput="newcostFindSimilar()" aria-label="ขนาดสูงสุด">
+              </div>
+              <div class="form-check mb-0" title="สินค้าเครื่องสำอางส่วนใหญ่ 1 ml ≈ 1 g — ติ๊กไว้เพื่อเทียบสินค้า ml กับ g ด้วยกัน">
+                <input class="form-check-input" type="checkbox" id="nc-size-mix" checked onchange="newcostFindSimilar()">
+                <label class="form-check-label" for="nc-size-mix">นับ ml = g</label>
+              </div>
+              <span class="text-muted ms-2">บรรจุภัณฑ์</span>
+              <select class="form-select form-select-sm" id="nc-pkg" style="width:120px" onchange="newcostFindSimilar()" title="บรรจุภัณฑ์ (หน่วยสำเร็จรูปใน BOM) — มีผลกับเครื่องบรรจุ"></select>
             </div>
             <div class="table-responsive nc-scrollbox nc-grow" style="min-height:132px">
               <table class="table table-sm align-middle mb-1">
-                <thead><tr><th style="width:26px"></th><th>สินค้า</th><th>ขนาด · ประเภท</th><th class="text-end">Lot</th><th class="text-end">ชิ้น/วัน</th><th class="text-end">ชม.คน/วัน</th></tr></thead>
+                <thead><tr><th style="width:26px"></th><th>สินค้า</th><th>ขนาด · ประเภท</th><th>บรรจุภัณฑ์</th><th class="text-end">Lot</th><th class="text-end">ชิ้น/วัน</th><th class="text-end">ชม.คน/วัน</th></tr></thead>
                 <tbody id="nc-similar"></tbody></table>
             </div>
             <div class="d-flex align-items-center gap-2 mb-1"><button class="btn btn-sm btn-outline-primary py-0" onclick="newcostApplySimilar()"><i class="fas fa-calculator me-1"></i>เฉลี่ยจากที่ติ๊ก</button>
@@ -11180,32 +11197,60 @@ async function purchasereqLoadData() {
   purchasereqUpdateNavBadge(false, _purchasereqData.filter(p => p.Status === 'รออนุมัติ').length);
 }
 
-// ── สถานะรับเข้าของใบที่ "อนุมัติแล้ว" (2026-10-12 ตามคำขอผู้ใช้) — ใบขอซื้อไม่มีลิงก์ตรงกับ mr_receive
-// เลยประมาณแบบเดียวกับ _codemandLoadApprovedPR: ต่อวัตถุดิบ เอายอดรับเข้า (mr_receive) ตั้งแต่วันอนุมัติใบแรก
-// มาตัดใบที่อนุมัติแล้วแบบ FIFO (ApprovedAt → PR_No) แล้วตั้งค่า l._received / l._left ต่อบรรทัด และ
-// pr._recvStatus = 'full' | 'partial' | 'none' ต่อใบ. ข้อจำกัด: จับคู่แค่รหัสวัตถุดิบ ไม่ดูซัพพลายเออร์/ไม่รู้ว่า
-// รับเข้าจากใบไหนจริง — ถ้ารับวัตถุดิบตัวเดียวกันจากที่อื่นที่ไม่ได้ขอซื้อ จะถูกนับตัดใบให้ด้วย
+// ── ยอดรับเข้าต่อบรรทัดใบขอซื้อที่อนุมัติแล้ว — ใช้ร่วมกันโดยหน้าใบขอซื้อ (_purchasereqComputeReceived) และหน้า
+// ความต้องการวัตถุดิบจาก CO (_codemandLoadApprovedPR) ให้ตัวเลขตรงกัน
+// แก้ 2026-10-19 (ผู้ใช้แจ้ง: รับ LRL ESCAPE SIGNATURE SHAMPOO แบบไม่อ้างอิงใบขอซื้อ แต่ระบบไปตัดยอดของใบขอซื้อ
+// PR-69/105 ให้): เดิมตัดแบบ FIFO จาก "ทุก" การรับเข้ารหัสเดียวกันหลังวันอนุมัติ ไม่ดู mr_receive.PR_Ref เลย ตอนนี้:
+//  1) รับเข้าที่อ้างอิงใบขอซื้อ (PR_Ref) → นับให้ใบนั้นเท่านั้น (บรรทัดรหัสเดียวกัน)
+//  2) รับเข้าที่ไม่อ้างอิงใบ → นับแบบ FIFO เดิมเฉพาะรายการ "ก่อน" วันที่เริ่มมีการอ้างอิงใบขอซื้อครั้งแรกในระบบ
+//     (ข้อมูลเก่าก่อนมีช่อง PR_Ref) หลังจากนั้นถือว่าไม่ใช่ของจากใบขอซื้อ ไม่ตัดใบไหนเลย
+// items: [{ prNo, approvedAt, code, qty }] → เติม .received ให้แต่ละตัว / คืน false ถ้าโหลดข้อมูลรับเข้าไม่ได้
+async function _prAllocateReceived(items) {
+  if (!items.length) return true;
+  const minDate = items.map(i => i.approvedAt).filter(Boolean).sort()[0] || '2000-01-01';
+  let hasRef = true;
+  let mrRes = await _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date,PR_Ref', 'Date', minDate, '9999-12-31');
+  if (mrRes.error) {   // ยังไม่ได้รัน alter_mr_receive_add_pr_ref.sql — ใช้วิธีเดิมทั้งหมด
+    hasRef = false;
+    mrRes = await _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', minDate, '9999-12-31');
+  }
+  if (mrRes.error) return false;
+  let linkStart = null;
+  if (hasRef) {
+    const { data } = await _sb.from('mr_receive').select('Date').not('PR_Ref', 'is', null).order('Date', { ascending: true }).limit(1);
+    linkStart = data && data[0] && data[0].Date ? String(data[0].Date) : null;
+  }
+  const linked = {}, legacy = {};
+  (mrRes.data || []).forEach(r => {
+    const q = parseFloat(r.Qty) || 0;
+    if (r.PR_Ref) { const k = `${r.PR_Ref}|${r.MaterialCode}`; linked[k] = (linked[k] || 0) + q; }
+    else if (!linkStart || String(r.Date || '') < linkStart) (legacy[r.MaterialCode] ||= []).push(r);
+  });
+  items.forEach(i => {
+    const k = `${i.prNo}|${i.code}`;
+    const got = Math.min(i.qty, linked[k] || 0);
+    i.received = got; linked[k] = (linked[k] || 0) - got;
+  });
+  const byMat = {};
+  items.forEach(i => (byMat[i.code] ||= []).push(i));
+  Object.entries(byMat).forEach(([code, list]) => {
+    list.sort((a, b) => String(a.approvedAt || '').localeCompare(String(b.approvedAt || '')) || String(a.prNo).localeCompare(String(b.prNo)));
+    const firstDate = list[0].approvedAt || '2000-01-01';
+    let pool = (legacy[code] || []).filter(r => String(r.Date || '') >= firstDate).reduce((s, r) => s + (parseFloat(r.Qty) || 0), 0);
+    list.forEach(i => { const g = Math.max(0, Math.min(i.qty - i.received, pool)); i.received += g; pool -= g; });
+  });
+  return true;
+}
+
+// ── สถานะรับเข้าของใบที่ "อนุมัติแล้ว" (2026-10-12 ตามคำขอผู้ใช้) — ตั้งค่า l._received / l._left ต่อบรรทัด และ
+// pr._recvStatus = 'full' | 'partial' | 'none' ต่อใบ (กติกาการนับดู _prAllocateReceived)
 async function _purchasereqComputeReceived() {
   const approved = _purchasereqData.filter(p => p.Status === 'อนุมัติแล้ว');
   if (!approved.length) return;
-  const minDate = approved.map(p => p.ApprovedAt).filter(Boolean).sort()[0] || '2000-01-01';
-  const mrRes = await _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', minDate, '9999-12-31');
-  if (mrRes.error) return; // โหลดไม่ได้ → ไม่โชว์สถานะรับเข้า (ไม่บล็อกหน้า)
-  const mrByMat = {};
-  (mrRes.data || []).forEach(r => (mrByMat[r.MaterialCode] ||= []).push(r));
-
-  const byMat = {};
-  approved.forEach(p => p.lines.forEach(l => (byMat[l.MaterialCode] ||= []).push({ p, l })));
-  Object.entries(byMat).forEach(([code, items]) => {
-    items.sort((a, b) => String(a.p.ApprovedAt || '').localeCompare(String(b.p.ApprovedAt || '')) || String(a.p.PR_No).localeCompare(String(b.p.PR_No)));
-    const firstDate = items[0].p.ApprovedAt || '2000-01-01';
-    let pool = (mrByMat[code] || []).filter(r => String(r.Date || '') >= firstDate).reduce((s, r) => s + (parseFloat(r.Qty) || 0), 0);
-    items.forEach(({ l }) => {
-      const qty = parseFloat(l.RequestQty) || 0;
-      const got = Math.min(qty, pool);
-      l._received = got; l._left = qty - got; pool -= got;
-    });
-  });
+  const items = [];
+  approved.forEach(p => p.lines.forEach(l => items.push({ prNo: p.PR_No, approvedAt: p.ApprovedAt, code: l.MaterialCode, qty: parseFloat(l.RequestQty) || 0, l })));
+  if (!(await _prAllocateReceived(items))) return; // โหลดไม่ได้ → ไม่โชว์สถานะรับเข้า (ไม่บล็อกหน้า)
+  items.forEach(i => { i.l._received = i.received; i.l._left = i.qty - i.received; });
   approved.forEach(p => {
     const total = p.lines.reduce((s, l) => s + (parseFloat(l.RequestQty) || 0), 0);
     const got = p.lines.reduce((s, l) => s + (l._received || 0), 0);
@@ -29408,19 +29453,13 @@ async function _codemandLoadApprovedPR(matCodes) {
   lines.splice(0, lines.length, ...lines.filter(l => matSet.has(l.MaterialCode)));
   if (!lines.length) return out;
 
+  // ยอดรับเข้าต่อบรรทัด — กติกาเดียวกับหน้าใบขอซื้อ (อ้างอิง PR_Ref ก่อน ดู _prAllocateReceived)
+  const items = lines.map(l => ({ prNo: l.PR_Ref, code: l.MaterialCode, qty: parseFloat(l.RequestQty) || 0, approvedAt: apprByPR[l.PR_Ref] || '' }));
+  if (!(await _prAllocateReceived(items))) items.forEach(i => { i.received = 0; });
   const byMat = {};
-  lines.forEach(l => (byMat[l.MaterialCode] ||= []).push({ prNo: l.PR_Ref, qty: parseFloat(l.RequestQty) || 0, approvedAt: apprByPR[l.PR_Ref] || '' }));
-  const minDate = lines.map(l => apprByPR[l.PR_Ref]).filter(Boolean).sort()[0] || '2000-01-01';
-  const mrRes = await _fetchAllPagedRange('mr_receive', 'MaterialCode,Qty,Date', 'Date', minDate, '9999-12-31');
-  const mrRows = mrRes.error ? [] : (mrRes.data || []);
-
+  items.forEach(i => (byMat[i.code] ||= []).push({ prNo: i.prNo, qty: i.qty, approvedAt: i.approvedAt, left: i.qty - i.received }));
   Object.keys(byMat).forEach(code => {
-    const prs = byMat[code].sort((a, b) => String(a.approvedAt).localeCompare(String(b.approvedAt)));
-    const firstDate = prs[0].approvedAt || '2000-01-01';
-    let received = mrRows.filter(r => r.MaterialCode === code && String(r.Date || '') >= firstDate)
-                         .reduce((s, r) => s + (parseFloat(r.Qty) || 0), 0);
-    prs.forEach(p => { const used = Math.min(p.qty, received); p.left = p.qty - used; received -= used; });
-    const open = prs.filter(p => p.left > 0.0001);
+    const open = byMat[code].filter(p => p.left > 0.0001);
     if (open.length) out[code] = { outstanding: open.reduce((s, p) => s + p.left, 0), prs: open };
   });
   return out;
@@ -36603,9 +36642,12 @@ async function newcostLoad() {
     h.hrs.ftN += t.ftNormalHours; h.hrs.ftO += t.ftOtHours; h.hrs.ptN += t.ptNormalHours;
     h.hrs.ptO += t.ptOtHours; h.hrs.osN += t.osNormalHours; h.hrs.osO += t.osOtHours;
   });
+  // บรรจุภัณฑ์ของแต่ละสินค้า = หน่วยสำเร็จรูปใน BOM (UOF: ขวด/หลอด/ซอง/กระปุก ...) — ใช้จับคู่เครื่องบรรจุที่ใกล้เคียง
+  const pkgByCode = {};
+  _ncBom.forEach(b => { const u = String(b.UOF || '').trim(); if (u && b.ProductCode && !pkgByCode[b.ProductCode]) pkgByCode[b.ProductCode] = u; });
   _ncHistory = Object.values(byCode).map(h => {
     const s = _ncParseSize(h.name);
-    return { ...h, size: s?.v ?? null, sizeUnit: s?.u ?? '', type: _fgParseNameParts(h.name).type };
+    return { ...h, size: s?.v ?? null, sizeUnit: s?.u ?? '', type: _fgParseNameParts(h.name).type, pkg: pkgByCode[h.code] || '' };
   });
 
   // เรท: ต้นทุนมาตรฐานเดือนนี้ → เฉลี่ย 6 เดือน (น้ำไฟ/เช่า) + ใบล่าสุด (ค่าแรง)
@@ -36627,6 +36669,11 @@ async function newcostLoad() {
   const keep = tSel.value;
   tSel.innerHTML = '<option value="">— ทุกประเภท —</option>' + types.map(t => `<option value="${_ncEsc(t)}">${_ncEsc(t)}</option>`).join('');
   tSel.value = keep;
+  const pkgs = [...new Set(_ncHistory.map(h => h.pkg).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  const pSel = document.getElementById('nc-pkg');
+  const keepPkg = pSel.value;
+  pSel.innerHTML = '<option value="">— ทุกแบบ —</option>' + pkgs.map(p => `<option value="${_ncEsc(p)}">${_ncEsc(p)}</option>`).join('');
+  pSel.value = keepPkg;
   _ncRenderRates();
   if (!document.querySelectorAll('#nc-lines tr').length) newcostAddLine();
   newcostFindSimilar();
@@ -36652,10 +36699,14 @@ function newcostLoadFromFG() {
   // ตั้งขนาด/ประเภทตามสินค้าต้นแบบ แล้วหาสินค้าใกล้เคียงให้
   const name = lines[0].ProductName;
   const sz = _ncParseSize(name);
-  if (sz) { document.getElementById('nc-size').value = sz.v; document.getElementById('nc-size-unit').value = sz.u; }
+  if (sz) { document.getElementById('nc-size').value = sz.v; document.getElementById('nc-size-unit').value = sz.u; _ncSetSizeRange(sz.v); }
   const t = _fgParseNameParts(name).type;
   const tSel = document.getElementById('nc-type');
   if ([...tSel.options].some(o => o.value === t)) tSel.value = t;
+  // บรรจุภัณฑ์ตามสินค้าที่เลือก (UOF ใน BOM) — มีผลกับเครื่องบรรจุ
+  const pkg = String((lines.find(b => b.UOF) || {}).UOF || '').trim();
+  const pSel = document.getElementById('nc-pkg');
+  if (pkg && [...pSel.options].some(o => o.value === pkg)) pSel.value = pkg;
   document.getElementById('nc-fg-name').textContent = name || '';
   // ชื่อสินค้าในรูปสรุป: เติมจาก FG ที่เลือกให้ (แก้เป็นชื่อสินค้าใหม่ได้) — ไม่ทับถ้าพิมพ์ชื่อไว้แล้ว
   const nn = document.getElementById('nc-newname');
@@ -36696,28 +36747,61 @@ function newcostPickMat(seq) {
 }
 
 // ── 2) สินค้าใกล้เคียง ──
+// ช่วงขนาดเริ่มต้นเมื่อพิมพ์ขนาดสินค้าใหม่: ครึ่งหนึ่ง ถึง 3 เท่า (เช่น 10 → 5–30) แก้เองได้ทีหลัง
+function _ncSetSizeRange(size) {
+  const mn = document.getElementById('nc-size-min'), mx = document.getElementById('nc-size-max');
+  if (!(size > 0)) { mn.value = ''; mx.value = ''; return; }
+  const r = v => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
+  mn.value = r(size / 2); mx.value = r(size * 3);
+}
+function newcostSizeChanged() {
+  _ncSetSizeRange(parseFloat(document.getElementById('nc-size').value));
+  newcostFindSimilar();
+}
+
+// ── สินค้าใกล้เคียงแบบไฮบริด (2026-10-19 คำขอผู้ใช้: สินค้าใหม่ 10 ml/g ให้แสดงที่ใกล้ที่สุด เช่น 5–30 ml/g และ
+// บรรจุภัณฑ์แบบเดียวกัน ขวด/หลอด ตามสินค้าที่เลือก "เพราะมีผลกับการใช้เครื่องจุ") — เงื่อนไข 3 ข้อ: ขนาดอยู่ในช่วง,
+// บรรจุภัณฑ์ (UOF) ตรง, ประเภทตรง (ข้อที่เว้นว่าง = ไม่กรอง) ที่ผ่านครบขึ้นก่อน เรียงตามขนาดที่ใกล้สุด (log ratio)
+// ถ้าได้น้อยกว่า 12 รายการ เติม "ใกล้เคียงรองลงมา" ต่อท้ายพร้อมป้ายบอกว่าต่างข้อไหน ติ๊กอัตโนมัติ 3 ตัวแรกที่ผ่านครบ
 function newcostFindSimilar() {
   const size = parseFloat(document.getElementById('nc-size').value);
   const unit = document.getElementById('nc-size-unit').value;
   const type = document.getElementById('nc-type').value;
-  const scored = _ncHistory.map(h => {
-    let score = 0;
-    if (type) score += h.type === type ? 0 : 10;
-    if (!isNaN(size) && size > 0) score += (h.size && h.sizeUnit === unit) ? Math.abs(Math.log(h.size / size)) : 5;
-    return { h, score };
-  }).sort((a, b) => a.score - b.score).slice(0, 12);
-  document.getElementById('nc-similar').innerHTML = scored.length ? scored.map(({ h, score }, i) => {
+  const pkg = document.getElementById('nc-pkg').value;
+  const mix = document.getElementById('nc-size-mix').checked;
+  const mn = parseFloat(document.getElementById('nc-size-min').value), mx = parseFloat(document.getElementById('nc-size-max').value);
+  const hasSize = size > 0, hasRange = !isNaN(mn) || !isNaN(mx);
+  const unitOk = h => !!h.size && (mix || h.sizeUnit === unit);
+  const rows = _ncHistory.map(h => {
+    const miss = [];
+    if ((hasSize || hasRange) && !unitOk(h)) miss.push(h.size ? 'หน่วยต่าง' : 'ไม่ทราบขนาด');
+    else if (hasRange && ((!isNaN(mn) && h.size < mn) || (!isNaN(mx) && h.size > mx))) miss.push('ขนาดนอกช่วง');
+    if (pkg && h.pkg !== pkg) miss.push(h.pkg ? 'บรรจุภัณฑ์ต่าง' : 'ไม่ทราบบรรจุภัณฑ์');
+    if (type && h.type !== type) miss.push('ประเภทต่าง');
+    const dist = hasSize && unitOk(h) ? Math.abs(Math.log(h.size / size)) : 3;
+    return { h, miss, score: miss.length * 10 + dist };
+  }).sort((a, b) => a.score - b.score);
+  const matched = rows.filter(r => !r.miss.length);
+  const others = rows.filter(r => r.miss.length).slice(0, Math.max(0, 12 - matched.length));
+  const rowHtml = ({ h, miss }, i) => {
     const upd = h.fg / h.days;
-    const checked = i < 3 && score < 1;   // เลือกให้อัตโนมัติ 3 ตัวแรกที่ประเภทตรงและขนาดต่างไม่เกิน ~2.7 เท่า
-    return `<tr>
+    const checked = !miss.length && i < 3;
+    return `<tr class="${miss.length ? 'text-muted' : ''}">
       <td><input type="checkbox" class="nc-sim" value="${_ncEsc(h.code)}" ${checked ? 'checked' : ''} onchange="newcostRecalc()"></td>
-      <td><span class="badge bg-secondary">${_ncEsc(h.code)}</span> ${_ncEsc(h.name)}</td>
+      <td><span class="badge bg-secondary">${_ncEsc(h.code)}</span> ${_ncEsc(h.name)}
+        ${miss.map(m => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:.62rem">${m}</span>`).join('')}</td>
       <td class="small">${h.size ? `${h.size} ${h.sizeUnit}` : '—'} · ${_ncEsc(h.type)}</td>
+      <td class="small">${_ncEsc(h.pkg || '—')}</td>
       <td class="text-end">${h.lots}</td>
       <td class="text-end">${Math.round(upd).toLocaleString()}</td>
       <td class="text-end small">${((h.hrs.ftN + h.hrs.ftO + h.hrs.ptN + h.hrs.ptO + h.hrs.osN + h.hrs.osO) / h.days).toFixed(1)}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="6" class="text-center text-muted">ยังไม่มีประวัติผลิตที่อนุมัติต้นทุนแล้ว</td></tr>';
+  };
+  let html = matched.map(rowHtml).join('');
+  if (!matched.length && _ncHistory.length) html = '<tr><td colspan="7" class="text-center small text-muted">ไม่มีสินค้าที่ตรงทุกเงื่อนไข — ลองขยายช่วงขนาด หรือเลือก "ทุกแบบ/ทุกประเภท"</td></tr>';
+  if (others.length) html += `<tr><td colspan="7" class="small text-muted pt-2" style="background:#f8fafc">ใกล้เคียงรองลงมา (ไม่ตรงบางเงื่อนไข — ติ๊กเพิ่มเองได้)</td></tr>` + others.map(r => rowHtml(r, 99)).join('');
+  document.getElementById('nc-similar').innerHTML = _ncHistory.length ? html
+    : '<tr><td colspan="7" class="text-center text-muted">ยังไม่มีประวัติผลิตที่อนุมัติต้นทุนแล้ว</td></tr>';
   newcostApplySimilar();
 }
 
@@ -36905,7 +36989,7 @@ async function newcostExportImage() {
 
 function newcostReset() {
   document.getElementById('nc-lines').innerHTML = '';
-  ['nc-fg', 'nc-size', 'nc-sell', 'nc-target', 'nc-newname', 'nc-note'].forEach(id => { document.getElementById(id).value = ''; });
+  ['nc-fg', 'nc-size', 'nc-size-min', 'nc-size-max', 'nc-pkg', 'nc-sell', 'nc-target', 'nc-newname', 'nc-note'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('nc-newname').dataset.auto = '';
   document.getElementById('nc-mk-bulk').value = 3; document.getElementById('nc-mk-pac').value = 0;
   document.getElementById('nc-fg-name').textContent = '';
@@ -40563,6 +40647,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-<script src="floorpulse.js?v=20261019c"></script>
+<script src="floorpulse.js?v=20261019d"></script>
 </body>
 </html>

@@ -165,6 +165,7 @@ function _fpStatusMeta(status) {
   return {
     running: { label: 'กำลังผลิต',    cls: 'fp-status-running' },
     behind:  { label: 'ล่าช้ากว่าแผน', cls: 'fp-status-behind' },
+    waiting: { label: 'รอเริ่มกะ',     cls: 'fp-status-waiting' },
     done:    { label: 'เสร็จตามแผน',  cls: 'fp-status-done' },
     idle:    { label: 'ว่าง/รอคิว',   cls: 'fp-status-idle' },
   }[status] || { label: status, cls: 'fp-status-idle' };
@@ -246,6 +247,12 @@ async function loadFloorPulseData() {
       }
     }
 
+    // งานของวันนี้ที่ยังไม่ถึงเวลาเริ่มกะตามแผน (เช่น กะบ่าย ตอนเช้า) — แสดงเป็น "รอเริ่มกะ" แทน "กำลังผลิต" (คำขอ
+    // ผู้ใช้ 2026-10-19 "ให้ห้องขึ้นเป็นรอเริ่มกะด้วย") ถึงเวลาเมื่อไหร่รอบรีเฟรชถัดไปจะกลับเป็นสถานะตามแผนเอง
+    if ((r.status === 'running' || r.status === 'behind') && r.item && r.item.PlanDate === _planWeekLocalDateStr(new Date())) {
+      const start = _fpTimeOnDate(r.item.PlanDate, r.item.TimeStart);
+      if (start && new Date() < start) { r.status = 'waiting'; r.waitFrom = start; }
+    }
     r.eta = _fpComputeEta(line, r);
     r.alerts = _fpComputeAlerts(line, r);
     _fpData[line] = r;
@@ -389,6 +396,7 @@ function _fpRender() {
       <section class="fp-staff-panel" id="fp-staff-panel" aria-label="พนักงานทั้งหมด"></section>
       <div class="fp-legend">
         <span><span class="fp-swatch" style="background:var(--fp-accent)"></span>กำลังผลิต</span>
+        <span><span class="fp-swatch" style="background:var(--fp-wait)"></span>รอเริ่มกะ</span>
         <span><span class="fp-swatch" style="background:var(--fp-accent-2)"></span>เสร็จตามแผน</span>
         <span><span class="fp-swatch" style="background:var(--fp-warn)"></span>ล่าช้า/ว่าง</span>
         <span><span class="fp-swatch" style="background:var(--fp-muted)"></span>คลัง/สนับสนุน (ไม่ผูกไลน์)</span>
@@ -491,7 +499,7 @@ function _fpRenderKpis() {
   PLAN_LINES.forEach(line => {
     const r = _fpData[line];
     if (!r) return;
-    if (r.status === 'running') running++;
+    if (r.status === 'running' || r.status === 'waiting') running++;   // รอเริ่มกะ = ยังนับว่ามีงานค้างในไลน์
     else if (r.status === 'behind') behind++;
   });
   const staff = _fpBuildStaffOverview();
@@ -586,6 +594,7 @@ function _fpBuildSvg() {
     let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
     if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
     else if (status === 'behind')  { color = 'var(--fp-warn)';     fill = '#fdf1e0'; }
+    else if (status === 'waiting') { color = 'var(--fp-wait)';     fill = '#e0f2fe'; }
     else if (status === 'done')    { color = 'var(--fp-accent-2)'; fill = '#f0e9fc'; }
 
     const dim = !isMonitored || status === 'idle';
@@ -628,6 +637,8 @@ function _fpBuildSvg() {
         ...(eta ? [`${r.isLiveScan ? 'สแกนสด ' : ''}${nums} ${r.item.UOM || ''}${eta}`, `${nums} ${r.item.UOM || ''}${eta}`, `${nums}${eta}`] : []),
         `${r.isLiveScan ? 'สแกนสด ' : ''}${nums} ${r.item.UOM || ''}`, `${nums} ${r.item.UOM || ''}`, nums];
       if (r.eta && r.eta.late) sub.setAttribute('style', 'fill:#dc2626');
+      // รอเริ่มกะ: บอกเวลาเริ่มกะแทนยอด (ยอดยังเป็น 0 ไม่มีความหมาย)
+      if (status === 'waiting') options.unshift(`รอเริ่มกะ ${_fpHM(r.waitFrom)}`, `รอ ${_fpHM(r.waitFrom)}`);
       let subText = options.find(s => fits(s, 10));
       if (!subText) {
         subText = nums;
@@ -803,6 +814,7 @@ function _fpBuildPackRoom(svg, g) {
     let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
     if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
     else if (status === 'behind')  { color = 'var(--fp-warn)';     fill = '#fdf1e0'; }
+    else if (status === 'waiting') { color = 'var(--fp-wait)';     fill = '#e0f2fe'; }
     else if (status === 'done')    { color = 'var(--fp-accent-2)'; fill = '#f0e9fc'; }
 
     const sg = mk('g', { class: `fp-zone${status === 'idle' ? ' fp-dim' : ''}${_fpSelectedId === id ? ' fp-selected' : ''}`,
@@ -811,7 +823,9 @@ function _fpBuildPackRoom(svg, g) {
     sg.appendChild(mk('rect', { class: 'fp-room', x: g.x + 6, y: sy, width: g.w - 12, height: slotH - 4, rx: 6, fill, stroke: color, 'stroke-opacity': .85 }));
     const hasDot = status !== 'idle';
     const lbl = mk('text', { class: 'fp-room-label', x: g.x + 14, y: sy + slotH / 2 - 2, 'font-size': 8.5 });
-    lbl.textContent = _fpFitLabel(movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}` : sub.label, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
+    const stLabel = movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}`
+      : status === 'waiting' ? `${sub.label} · รอ ${_fpHM(r.waitFrom)}` : sub.label;
+    lbl.textContent = _fpFitLabel(stLabel, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
     sg.appendChild(lbl);
     if (hasDot) {
       sg.appendChild(mk('circle', {
@@ -841,6 +855,7 @@ let _fp3dLoading = null;   // Promise การโหลด three.js (ครั�
 const FP3D_COLORS = {
   running: { stroke: 0x0d9488, fill: 0xd5f0ec },
   behind:  { stroke: 0xd97706, fill: 0xfbe9cf },
+  waiting: { stroke: 0x0284c7, fill: 0xdbeafe },
   done:    { stroke: 0x7c3aed, fill: 0xe9defb },
   muted:   { stroke: 0x94a3b8, fill: 0xe6ebf2 },
 };
@@ -1307,7 +1322,8 @@ function _fp3dRoomOpts(id, g, r, title, idleSub) {
   const monitored = !!r, status = r ? r.status : 'idle';
   const active = monitored && status !== 'idle';
   const pct = active && r.planned > 0 && r.actual != null ? Math.min(100, Math.round(r.actual / r.planned * 100)) : 0;
-  const sub = active
+  const sub = status === 'waiting' ? `รอเริ่มกะ ${_fpHM(r.waitFrom)}`
+    : active
     ? `${r.isLiveScan ? 'สแกนสด ' : ''}${(r.actual ?? 0).toLocaleString()} / ${r.planned.toLocaleString()} ${(r.item && r.item.UOM) || ''} · ${pct}%${r.eta ? ` · เสร็จ ~${_fpEtaLabel(r.eta.eta)}` : ''}`
     : monitored ? 'ว่าง/ไม่มีแผนวันนี้' : (idleSub || '');
   return { id, x: g.x, y: g.y, w: g.w, h: g.h, height: active ? 46 : 24, status, monitored, title, sub, pct,
@@ -1429,7 +1445,8 @@ function _fpBuildFlowJobs() {
     const r = _fpData[line];
     if (!r || r.status === 'idle' || !r.item) return;
     const key = _fpFlowJobKey(r.item);
-    const live = r.status === 'running' || r.status === 'behind';
+    // waiting (รอเริ่มกะ) ยังนับว่างานอยู่บนไลน์ — ขั้นนั้นจะเป็น 'pending' พร้อมป้าย "รอเริ่มกะ" (ไม่วิ่ง)
+    const live = r.status === 'running' || r.status === 'behind' || r.status === 'waiting';
     const ex = current.find(c => c.key === key);
     if (ex) { ex.live = ex.live || live; ex.liveLines.push(live ? line : null); }
     else current.push({ key, live, liveLines: [live ? line : null], item: r.item });
@@ -1661,8 +1678,10 @@ function _fpRenderOverview() {
     const dotColor = !entry.line ? 'var(--fp-muted)'
       : r.status === 'running' ? 'var(--fp-accent)'
       : r.status === 'behind'  ? 'var(--fp-warn)'
+      : r.status === 'waiting' ? 'var(--fp-wait)'
       : r.status === 'done'    ? 'var(--fp-accent-2)' : 'var(--fp-muted)';
     const val = !entry.line ? 'คลัง/สนับสนุน'
+      : r.status === 'waiting' ? `รอเริ่มกะ ${_fpHM(r.waitFrom)}`
       : (r.status !== 'idle' && r.item) ? `${(r.actual ?? 0).toLocaleString()}/${r.planned.toLocaleString()}`
       : _fpStatusMeta(r.status).label;
     const lvl = r ? _fpAlertLevel(r.alerts) : null;
