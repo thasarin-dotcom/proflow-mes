@@ -850,9 +850,11 @@ const FP3D_COLORS = {
 // ด้วย ไม่งั้นโหลดไม่เจอ (ห้องนั้นจะกลับไปเป็นกล่องธรรมดาเอง ไม่พัง) — rotY หมุนให้ด้านยาวของสแกนตรงกับผัง
 // ถ้าประตู/ผนังหันผิดด้าน ปรับ rotY ทีละ Math.PI/2
 const FP3D_SCANS = {
+  // ปิดไว้ก่อนตามคำขอผู้ใช้ 2026-10-19 "เอารูปห้องจริงออกก่อน" — ห้องบรรจุแชมพูกลับไปเป็นกล่องธรรมดาเหมือนห้องอื่น
+  // จะเปิดกลับ: เอา // หน้าบรรทัด fillsh ออก (ไฟล์ room-fillsh.glb ยังอยู่ในโฟลเดอร์ ต้องอัปโหลดคู่ด้วย)
   // ห้องจริง 3.70×2.78 ม. (กว้าง>ลึก ตามแปลน) สแกนดิบ 4.36×3.22 ม. — ด้านยาวตรงกันแล้วโดยไม่ต้องหมุน 90°
   // ประตูจริงอยู่ผนังด้านขวา (ตะวันออก) ค่อนไปทางล่าง ถ้าประตูในโมเดลอยู่ผิดฝั่ง ให้ลอง rotY: Math.PI
-  fillsh: { url: 'room-fillsh.glb', rotY: 0 },
+  // fillsh: { url: 'room-fillsh.glb', rotY: 0 },
 };
 
 function _fpSetViewMode(mode) {
@@ -919,6 +921,7 @@ async function _fp3dUpdate() {
 function _fp3dLoadScans() {
   if (_fp3d.scansStarted) return;
   _fp3d.scansStarted = true;
+  if (!Object.keys(FP3D_SCANS).length) return;   // ไม่มีห้องที่ใช้สแกนจริง — ไม่ต้องโหลด GLTFLoader
   const libReady = THREE.GLTFLoader ? Promise.resolve()
     : _fpLoadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js');
   libReady.then(() => {
