@@ -260,8 +260,24 @@ async function loadFloorPulseData() {
   _fpLiveData = _fpData;
   if (_fpReplayAt) _fpData = _fpSnapshotAt(_fpReplayAt);   // กำลังย้อนดูอยู่ — รีเฟรชข้อมูลสดเบื้องหลังแต่ยังแสดงเวลาที่เลือก
 
-  _fpRender();
+  // โครงหน้ามีอยู่แล้ว (รีเฟรชอัตโนมัติ/realtime) — วาดเฉพาะเนื้อหาใหม่ ไม่สร้างทั้งหน้าใหม่ (2026-10-21 แก้ "กดแล้วมันเด้ง"
+  // บนแท็บเลต: สร้างใหม่ทั้งหน้าทำให้ความสูงหน้ายุบชั่วขณะ จอกระโดดขึ้นบน และค่าที่เลือก/กรอกในแผงหายทุกครั้งที่มีคนบันทึกข้อมูล)
+  const stage = document.querySelector('#fp-root .fp-stage');
+  if (stage) {
+    const bar = stage.querySelector('.fp-replay');
+    if (bar && !_fpReplayAt) bar.outerHTML = _fpReplayBarHTML();
+    _fpRefreshViews();
+    const upd = document.getElementById('fp-updated-at');
+    if (upd) upd.textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  } else _fpRender();
   _fpStartAutoRefresh();
+}
+
+// กำลังเลือกห้อง/กรอกยอดค้างในแผงขวา — ให้รอบรีเฟรช (60 วิ และ realtime ใน index.html) รอก่อน แต่ไม่เกิน 2 นาที
+// หลังแตะล่าสุด กันกรณีเลือกค้างไว้แล้วเดินออกไป หน้าจะได้ไม่ค้างข้อมูลเก่าตลอด
+function _fpIsEditing() {
+  return _fpDrawerDirty && Date.now() - _fpDrawerDirtyAt < 120000
+    && !!document.getElementById('page-floorpulse')?.classList.contains('active');
 }
 
 // ── เครื่องมือเวลา ── เวลาใน production_plan/production_labor_log เป็นข้อความ 'HH:MM' หรือ 'HH:MM:SS'
@@ -368,7 +384,7 @@ function _fpStartAutoRefresh() {
     const pageEl = document.getElementById('page-floorpulse');
     if (!pageEl || !pageEl.classList.contains('active')) { clearInterval(_fpInterval); _fpInterval = null; return; }
     if (document.hidden) return;   // ข้ามรอบเมื่อแท็บถูกซ่อน ลด log ingestion (2026-10-12)
-    if (_fpDrawerDirty || (window.Swal && Swal.isVisible())) return;   // กำลังกรอกยอด/ยืนยันลงเวลาอยู่ — ไม่วาดทับ
+    if (_fpIsEditing() || (window.Swal && Swal.isVisible())) return;   // กำลังกรอกยอด/ยืนยันลงเวลาอยู่ — ไม่วาดทับ
     loadFloorPulseData();
   }, 60000);
 }
@@ -484,16 +500,26 @@ function _fpToggleTv() {
   _fpTvMode = !_fpTvMode;
   const page = document.getElementById('page-floorpulse');
   page.classList.toggle('fp-tv', _fpTvMode);
+  // iPad Safari รุ่นเก่ามีแต่ webkitRequestFullscreen — แท็บเลต Android ล็อกจอแนวนอนให้ด้วย (ผังเป็นแนวนอน ใช้จอได้เต็มกว่า)
+  // ล็อกได้เฉพาะตอนเต็มจอ และ iPad ไม่รองรับ (catch เงียบ — ผู้ใช้หมุนแท็บเลตเอง)
   try {
-    if (_fpTvMode && page.requestFullscreen) page.requestFullscreen().catch(() => {});
-    else if (!_fpTvMode && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (_fpTvMode && !fsEl) {
+      const req = page.requestFullscreen || page.webkitRequestFullscreen;
+      const p = req ? req.call(page) : null;
+      Promise.resolve(p).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {});
+    } else if (!_fpTvMode && fsEl) {
+      try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) {}
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+    }
   } catch (e) {}
   _fpRenderKpis();
   if (_fp3d) setTimeout(_fp3dResize, 50);
 }
-document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement && _fpTvMode) _fpToggleTv();   // ผู้ใช้กด Esc ออกจากเต็มจอ
-});
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => {
+  if (!(document.fullscreenElement || document.webkitFullscreenElement) && _fpTvMode) _fpToggleTv();   // ผู้ใช้กด Esc/ปัดออกจากเต็มจอ
+}));
 
 function _fpRenderKpis() {
   let running = 0, behind = 0;
@@ -795,22 +821,44 @@ function _fpBuildDoors(svg) {
   });
 }
 
+// แบ่งพื้นที่ห้องบรรจุหีบห่อให้สถานีที่ "ยังทำอยู่ในห้องนี้" (คำขอผู้ใช้ 2026-10-21 "เวลาแยกห้องเอางานแพ็คออก ห้องยิง Lot
+// ให้ขยาย ยืด-หดพื้นที่ให้เต็มๆ") — สถานีแพ็คที่งานย้ายไปห้องอื่น (_fpPackLineRoom) ไม่วาดในห้องนี้ สถานีที่เหลือแบ่งความสูง
+// ห้องกันเต็มๆ แล้วเหลือแถบหมายเหตุบรรทัดล่างบอกว่าย้ายไปไหน (คลิกสถานีที่ย้ายยังเข้าจากรายการภาพรวมได้) — ใช้ทั้ง 2D/3D/เส้นโฟลงาน
+function _fpPackSlots(g) {
+  const moved = FP_PACK_SUBLINES.filter(s => _fpPackLineRoom(s.line));
+  const here = FP_PACK_SUBLINES.filter(s => !moved.includes(s));
+  const noteH = moved.length ? 13 : 0;
+  // ยืด-หด: สถานีที่มีงาน (ไม่ idle) ได้พื้นที่ 3 เท่าของสถานีว่าง แต่สถานีว่างสูงไม่ต่ำกว่า 14px (ยังอ่านชื่อ/คลิกได้)
+  // ทุกสถานีว่างหมด หรือมีงานหมด = แบ่งเท่ากันเหมือนเดิม
+  const isActive = s => !!(_fpData[s.line] && _fpData[s.line].status !== 'idle');
+  const avail = g.h - 24 - noteH;
+  const nAct = here.filter(isActive).length, nIdle = here.length - nAct;
+  let idleH = avail / Math.max(1, here.length), actH = idleH;
+  if (nAct && nIdle) { idleH = Math.max(14, avail / (nAct * 3 + nIdle)); actH = (avail - nIdle * idleH) / nAct; }
+  let y = g.y + 24;
+  const slots = here.map(sub => { const h = isActive(sub) ? actH : idleH; const slot = { sub, y, h }; y += h; return slot; });
+  return { slots, moved, noteY: g.y + g.h - 5 };
+}
+
 function _fpBuildPackRoom(svg, g) {
   const mk = _fpSvgEl;
+  const { slots, moved, noteY } = _fpPackSlots(g);
   const outer = mk('g', { class: 'fp-zone fp-dim' });
   outer.appendChild(mk('rect', { class: 'fp-room', x: g.x, y: g.y, width: g.w, height: g.h, rx: 10, fill: 'var(--fp-muted-fill)', stroke: 'var(--fp-muted)', 'stroke-opacity': .6 }));
   const title = mk('text', { class: 'fp-room-label', x: g.x + 10, y: g.y + 16, 'font-size': 10 });
-  title.textContent = 'บรรจุหีบห่อ (5 สถานี)';
+  title.textContent = `บรรจุหีบห่อ (${slots.length} สถานี)`;
   outer.appendChild(title);
+  if (moved.length) {
+    const note = mk('text', { class: 'fp-room-sub', x: g.x + 10, y: noteY, 'font-size': 7 });
+    note.textContent = _fpFitLabel('ย้ายห้อง: ' + moved.map(s => `${s.label.replace('แพ็ค-', '')}→${FP_ROOM_LABEL[_fpPackLineRoom(s.line)]}`).join(', '), g.w - 20, 7);
+    outer.appendChild(note);
+  }
   svg.appendChild(outer);
 
-  const slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
-  FP_PACK_SUBLINES.forEach((sub, i) => {
-    const sy = g.y + 24 + i * slotH;
+  slots.forEach(({ sub, y: sy, h: slotH }) => {
     const r = _fpData[sub.line];
-    // งานแพ็คของสถานีนี้ย้ายไปทำห้องอื่น (เลือกตอนสแกน) — สถานีนี้แสดงเป็นว่าง + บอกว่าย้ายไปห้องไหน
-    const movedTo = _fpPackLineRoom(sub.line);
-    const status = r && !movedTo ? r.status : 'idle';
+    const status = r ? r.status : 'idle';
+    const big = slotH >= 36;   // เหลือไม่กี่สถานี (งานแพ็คย้ายออก) — ช่องสูงพอ ตัวหนังสือใหญ่ขึ้น + หุ่นมีป้ายชื่อ
     const id = `packbox__${sub.key}`;
     let color = 'var(--fp-muted)', fill = 'var(--fp-muted-fill)';
     if (status === 'running')      { color = 'var(--fp-accent)';   fill = '#e3f5f3'; }
@@ -823,20 +871,26 @@ function _fpBuildPackRoom(svg, g) {
     sg.addEventListener('click', () => _fpSelectRoom(id));
     sg.appendChild(mk('rect', { class: 'fp-room', x: g.x + 6, y: sy, width: g.w - 12, height: slotH - 4, rx: 6, fill, stroke: color, 'stroke-opacity': .85 }));
     const hasDot = status !== 'idle';
-    const lbl = mk('text', { class: 'fp-room-label', x: g.x + 14, y: sy + slotH / 2 - 2, 'font-size': 8.5 });
-    const stLabel = movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}`
-      : status === 'waiting' ? `${sub.label} · รอ ${_fpHM(r.waitFrom)}` : sub.label;
-    lbl.textContent = _fpFitLabel(stLabel, (g.w - 12) - 24 - (hasDot ? 12 : 0), 8.5);
+    const fs = big ? 10 : 8.5;
+    const lbl = mk('text', { class: 'fp-room-label', x: g.x + 14, y: big ? sy + 15 : sy + slotH / 2 - 2, 'font-size': fs });
+    const stLabel = status === 'waiting' ? `${sub.label} · รอ ${_fpHM(r.waitFrom)}` : sub.label;
+    lbl.textContent = _fpFitLabel(stLabel, (g.w - 12) - 24 - (hasDot ? 12 : 0), fs);
     sg.appendChild(lbl);
+    if (big && hasDot && r.item) {   // ช่องสูงพอ — ใส่ยอดผลิต/แผนใต้ชื่อสถานีเหมือนห้องเดี่ยว
+      const sub2 = mk('text', { class: 'fp-room-sub', x: g.x + 14, y: sy + 27, 'font-size': 8 });
+      sub2.textContent = status === 'waiting' ? 'รอเริ่มกะ' : `${(r.actual ?? 0).toLocaleString()}/${(r.planned || 0).toLocaleString()}`;
+      sg.appendChild(sub2);
+    }
     if (hasDot) {
       sg.appendChild(mk('circle', {
         class: status === 'running' ? 'fp-dot-live' : '',
-        cx: g.x + g.w - 16, cy: sy + slotH / 2 - 4, r: 3.4, fill: color,
+        cx: g.x + g.w - 16, cy: big ? sy + 11 : sy + slotH / 2 - 4, r: 3.4, fill: color,
       }));
-      // สถานีแคบ — หุ่นจิ๋วไม่มีชื่อ ด้านขวาของชื่อสถานี (ชื่อคนดูได้ที่แผงขวาเมื่อคลิก)
-      _fpPlacePeople(sg, r.roster, g.x + g.w * 0.62, g.x + g.w - 30, sy + slotH - 5, slotH - 5, false);
+      // สถานีแคบ — หุ่นจิ๋วไม่มีชื่อ ด้านขวาของชื่อสถานี (ชื่อคนดูได้ที่แผงขวาเมื่อคลิก) / ช่องสูง — หุ่นมีป้ายชื่อเต็มความกว้าง
+      if (big) _fpPlacePeople(sg, r.roster, g.x + 14, g.x + g.w - 14, sy + slotH - 6, slotH - 32, true);
+      else _fpPlacePeople(sg, r.roster, g.x + g.w * 0.62, g.x + g.w - 30, sy + slotH - 5, slotH - 5, false);
       const lvl = _fpAlertLevel(r.alerts);
-      if (lvl) sg.appendChild(_fpSvgAlertBadge(g.x + g.w - 26, sy + slotH / 2 - 3, lvl, r.alerts, 0.7));
+      if (lvl) sg.appendChild(_fpSvgAlertBadge(g.x + g.w - 26, big ? sy + 11 : sy + slotH / 2 - 3, lvl, r.alerts, 0.7));
     }
     svg.appendChild(sg);
   });
@@ -1400,10 +1454,11 @@ function _fpLinePoint(line, moRef) {
   if (moved) { const g = FP_GEOM[moved]; return { x: g.x + g.w / 2, y: g.y + g.h / 2, label: `${FP_ROOM_LABEL[moved]} (${_fpPackSubLabel(line)})` }; }
   const roomId = Object.keys(FP_ROOM_LINE).find(id => FP_ROOM_LINE[id] === line);
   if (roomId) { const g = FP_GEOM[roomId]; return { x: g.x + g.w / 2, y: g.y + g.h / 2, label: FP_ROOM_LABEL[roomId] }; }
-  const i = FP_PACK_SUBLINES.findIndex(s => s.line === line);
-  if (i < 0) return null;
-  const g = FP_GEOM.packbox, slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
-  return { x: g.x + g.w / 2, y: g.y + 24 + i * slotH + (slotH - 4) / 2, label: FP_PACK_SUBLINES[i].label };
+  const sub = FP_PACK_SUBLINES.find(s => s.line === line);
+  if (!sub) return null;
+  const g = FP_GEOM.packbox, slot = _fpPackSlots(g).slots.find(s => s.sub === sub);
+  // งานของ MO นี้ทำในห้องบรรจุหีบห่อ แต่งานปัจจุบันของสถานีย้ายไปห้องอื่น (ช่องสถานีไม่ได้วาด) — ใช้กลางห้องแทน
+  return { x: g.x + g.w / 2, y: slot ? slot.y + (slot.h - 4) / 2 : g.y + g.h / 2, label: sub.label };
 }
 
 // ขั้นนี้เสร็จหรือยัง — ยอดสแกนสดของ (MO, ไลน์นี้) ถึงยอดสั่งผลิต หรือ MO ปิดแล้ว (หลักเดียวกับ _planLineFinished)
@@ -1633,20 +1688,19 @@ function _fp3dBuildRooms() {
 
 // ห้องบรรจุหีบห่อ: กรอบนอกเตี้ยๆ (คลิกไม่ได้ ไม่ผูกไลน์) + 5 สถานีข้างในเรียงตามผัง 2D เป๊ะ
 function _fp3dBuildPackRoom(g) {
+  const { slots } = _fpPackSlots(g);   // สถานีที่งานแพ็คย้ายห้องไม่วาด ที่เหลือแบ่งพื้นที่เต็มห้อง (เหมือน 2D)
   _fp3dAddRoom({ id: null, x: g.x, y: g.y, w: g.w, h: g.h, height: 10, status: 'idle', monitored: false,
-    title: 'บรรจุหีบห่อ (5 สถานี)', sub: '', pct: 0, roster: [], selected: false, noSlab: true, labelLift: 52 });
-  const slotH = (g.h - 24) / FP_PACK_SUBLINES.length;
-  FP_PACK_SUBLINES.forEach((sub, i) => {
-    const movedTo = _fpPackLineRoom(sub.line);   // ย้ายไปแพ็คห้องอื่น → สถานีนี้ว่าง
-    const r = movedTo ? { status: 'idle' } : _fpData[sub.line];
+    title: `บรรจุหีบห่อ (${slots.length} สถานี)`, sub: '', pct: 0, roster: [], selected: false, noSlab: true, labelLift: 52 });
+  slots.forEach(({ sub, y, h }) => {
+    const r = _fpData[sub.line];
     const id = `packbox__${sub.key}`;
-    const geo = { x: g.x + 6, y: g.y + 24 + i * slotH, w: g.w - 12, h: slotH - 4 };
+    const geo = { x: g.x + 6, y, w: g.w - 12, h: h - 4 };
     const o = _fp3dRoomOpts(id, geo, r, sub.label, '');
     const active = r && r.status !== 'idle';
-    o.title = movedTo ? `${sub.label} → ${FP_ROOM_LABEL[movedTo]}` : active ? `${sub.label} · ${o.pct}%` : sub.label;
+    o.title = active ? `${sub.label} · ${o.pct}%` : sub.label;
     o.sub = '';
     o.height = active ? 26 : 10;
-    o.small = true;
+    o.small = h < 36;   // ช่องสูงพอ (เหลือไม่กี่สถานี) ใช้ป้าย/หุ่นขนาดปกติ
     _fp3dAddRoom(o);
   });
 }
@@ -1856,7 +1910,9 @@ function _fpRosterRoleText(p) {
 // อยู่ไลน์อื่น (เข้าแล้วยังไม่ออก) จะถามแล้วลงเวลาออกที่นั่นให้ในเวลาเดียวกัน กันช่วงเวลาซ้อนกัน (กติกาเดียวกับ
 // _laborCheckOverlapDB) — อัปเดตยอด = insert production_progress เหมือน scanprogressSubmit ทุกอย่าง (รวม Room ของไลน์แพ็ค)
 // ══════════════════════════════════════════════════════════════════════════
-let _fpDrawerDirty = false;   // กำลังกรอกฟอร์มในแผงขวา — ข้ามรอบรีเฟรชอัตโนมัติ กันค่าที่กรอกค้างหาย
+let _fpDrawerDirty = false;   // กำลังกรอกฟอร์มในแผงขวา — ข้ามรอบรีเฟรชอัตโนมัติ กันค่าที่กรอกค้างหาย (ดู _fpIsEditing)
+let _fpDrawerDirtyAt = 0;
+function _fpMarkDirty() { _fpDrawerDirty = true; _fpDrawerDirtyAt = Date.now(); }
 
 function _fpCanEdit(r) { return !_fpReplayAt && !!(r && r.item && r.item.MO_Ref); }
 function _fpNowHM() { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; }
@@ -1975,7 +2031,7 @@ function _fpProgressFormHTML(line, r) {
   const last = _prodStatusProgressData[`${moRef}|${line}`];
   const lastQty = last ? parseFloat(last.Qty) : null;
   // ไม่ใช้คลาส fp-field — สไตล์ ".fp-field label" (ตัวเล็กพิมพ์ใหญ่) จะไปทับปุ่มเลือกห้องที่เป็น <label class="btn">
-  return `<div class="fp-update-form" oninput="_fpDrawerDirty=true" onchange="_fpDrawerDirty=true">
+  return `<div class="fp-update-form" oninput="_fpMarkDirty()" onchange="_fpMarkDirty()">
     <div class="fp-eyebrow">อัปเดตยอด${_fpIsPackLine(line) ? ' / ห้องที่แพ็คจริง' : ''} (เหมือนหน้าสแกน)</div>
     ${_fpIsPackLine(line) ? _fpRoomPickerHTML('fp-room-pick', (last && last.Room) || 'packbox') : ''}
     <div class="fp-val" style="font-size:12px;color:var(--fp-text-dim)">${lastQty != null ? `ยอดล่าสุด ${lastQty.toLocaleString()} ${r.item.UOM || ''} (${_fmtDateTime(last.CreatedAt)})` : 'ยังไม่มีการสแกนยอดของไลน์นี้'}</div>

@@ -1445,6 +1445,8 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 
 /* ── MR Receive: Print Report Modal (เลือกข้อมูล + เลข RC No) ── */
 #mrReportModal .modal-dialog{max-width:1100px}
+.reqdiff-table td{padding:1px 6px 1px 0;vertical-align:top}
+.reqdiff-table td:first-child{white-space:nowrap}
 .mrrpt-step{padding:14px 20px;border-bottom:1px solid #e7ecf5;background:#f8fafc}
 .mrrpt-step-title{font-size:.8rem;font-weight:700;color:#1e3a8a;display:flex;align-items:center;gap:7px;margin-bottom:10px}
 .mrrpt-step-title .n{width:20px;height:20px;border-radius:50%;background:#1e3a8a;color:#fff;font-size:.68rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1486,39 +1488,40 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 .leave-page .lv-sign div{flex:1;text-align:center;border-top:1px solid #334155;padding-top:3px}
 .mrrpt-page{
   font-family:Sarabun,sans-serif;font-size:12px;color:#1e293b;
-  width:297mm;min-height:210mm;box-sizing:border-box;padding:15mm;
+  /* ขอบแคบ 7mm (A4 แนวนอน) — เดิม 15mm ทำให้ช่องเซ็นชื่อหลุดไปหน้า 2 เมื่อมี ~10 รายการ */
+  width:297mm;min-height:210mm;box-sizing:border-box;padding:7mm 9mm;
   background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
   display:flex;flex-direction:column;
 }
-.mrrpt-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px}
-.mrrpt-logo-block{display:flex;align-items:center;gap:10px}
-.mrrpt-logo-img{height:50px;width:auto}
-.mrrpt-company{font-size:11px;color:#64748b;line-height:1.5}
-.mrrpt-company b{color:#1e293b;font-size:13px}
+.mrrpt-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:8px}
+.mrrpt-logo-block{display:flex;align-items:center;gap:8px}
+.mrrpt-logo-img{height:36px;width:auto}
+.mrrpt-company{font-size:9.5px;color:#64748b;line-height:1.4}
+.mrrpt-company b{color:#1e293b;font-size:11.5px}
 .mrrpt-title-block{text-align:right}
-.mrrpt-title{font-size:22px;font-weight:800;color:#1e3a8a}
-.mrrpt-rcno{font-size:20px;font-weight:800;color:#dc2626;margin-top:4px}
-.mrrpt-meta{font-size:11px;color:#64748b;margin-top:4px}
+.mrrpt-title{font-size:17px;font-weight:800;color:#1e3a8a;line-height:1.2}
+.mrrpt-rcno{font-size:15px;font-weight:800;color:#dc2626;margin-top:1px}
+.mrrpt-meta{font-size:9.5px;color:#64748b;margin-top:1px}
 /* วันที่รับ + ซัพพลายเออร์ — เน้นใหญ่/หนา เรียงบรรทัดเดียว (label+value แนวนอน ไม่ซ้อน 2 บรรทัด) */
-.mrrpt-filters{display:flex;gap:26px;align-items:baseline;margin-bottom:12px;flex-wrap:wrap}
+.mrrpt-filters{display:flex;gap:26px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap}
 .mrrpt-filters .emph{display:flex;align-items:baseline;gap:7px}
 .mrrpt-filters .emph .lbl{font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-.mrrpt-filters .emph .val{font-size:18px;color:#1e3a8a;font-weight:800;white-space:nowrap}
+.mrrpt-filters .emph .val{font-size:15px;color:#1e3a8a;font-weight:800;white-space:nowrap}
 .mrrpt-filters .minor{font-size:11px;color:#64748b}
 .mrrpt-filters .minor b{color:#1e293b}
 table.mrrpt-table{width:100%;border-collapse:collapse;font-size:11px}
-table.mrrpt-table th{background:#1e3a8a;color:#fff;padding:6px 7px;text-align:left;font-weight:700;font-size:10.5px}
-table.mrrpt-table td{padding:5px 7px;border-bottom:1px solid #e2e8f0}
+table.mrrpt-table th{background:#1e3a8a;color:#fff;padding:5px 7px;text-align:left;font-weight:700;font-size:10.5px}
+table.mrrpt-table td{padding:4px 7px;border-bottom:1px solid #e2e8f0}
 table.mrrpt-table td.ord{text-align:center;color:#94a3b8}
 table.mrrpt-table td.text-end{text-align:right;font-variant-numeric:tabular-nums}
 table.mrrpt-table td.qty-emph{font-weight:800;font-size:13px;color:#1e3a8a}
-.mrrpt-summary-title{font-size:13px;font-weight:800;color:#1e3a8a;margin:18px 0 6px}
-table.mrrpt-summary th{background:#334155;color:#fff;padding:6px 7px;text-align:left;font-weight:700;font-size:10.5px}
-table.mrrpt-summary td{padding:5px 7px;border-bottom:1px solid #e2e8f0}
+.mrrpt-summary-title{font-size:12px;font-weight:800;color:#1e3a8a;margin:10px 0 4px}
+table.mrrpt-summary th{background:#334155;color:#fff;padding:5px 7px;text-align:left;font-weight:700;font-size:10.5px}
+table.mrrpt-summary td{padding:3px 7px;border-bottom:1px solid #e2e8f0}
 table.mrrpt-summary tr.mrrpt-summary-total td{background:#1e3a8a;color:#fff;font-weight:800;font-size:11.5px}
-.mrrpt-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:24px;font-size:11px;color:#64748b}
+.mrrpt-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:10px;font-size:11px;color:#64748b;break-inside:avoid}
 .mrrpt-sign{text-align:center;width:32%}
-.mrrpt-sign .line{border-top:1px solid #94a3b8;margin-top:32px;padding-top:4px}
+.mrrpt-sign .line{border-top:1px solid #94a3b8;margin-top:24px;padding-top:4px}
 .mrrpt-empty{color:#dc2626;font-size:11px;margin-top:20px}
 
 /* ── แผนผลิต: พิมพ์แผน 1 หรือ 2 สัปดาห์ (ปฏิทิน, ให้พนักงานสายผลิตดู) — A3 แนวนอน ขอบแคบ (8mm) เลือกได้จาก
@@ -1962,6 +1965,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 /* โหมดแท็บเลตคลัง: ไม่แสดงรายชื่อพนักงานทั้งหมดใต้ผัง (คำขอผู้ใช้ 2026-10-21) — ดูรายคนได้จากการแตะห้อง/หุ่น */
 body.wh-desktop-mode #page-floorpulse .fp-staff-panel { display: none; }
 body.wh-desktop-mode #page-floorpulse .fp-drawer { max-height: none; overflow: visible; }  /* แผงอยู่ใต้ผัง — เลื่อนทั้งหน้าแทนกล่องเลื่อนซ้อน */
+/* โหมดจอทีวีบนแท็บเลต: ผังเต็มจอ (คำขอผู้ใช้ 2026-10-21) — จอแท็บเลตแคบ แผงรายละเอียดตกไปอยู่ใต้ผังต้องเลื่อนลง
+   จึงซ่อนแผงขวา + แถบย้อนดู เหลือแถวตัวเลขด้านบน + ผัง + คำอธิบายสี ให้ผังสูงเต็มที่เหลือของจอ */
+body.wh-desktop-mode #page-floorpulse.fp-tv .fp-drawer,
+body.wh-desktop-mode #page-floorpulse.fp-tv .fp-replay { display: none; }
+body.wh-desktop-mode #page-floorpulse.fp-tv .fp-main { grid-template-columns: 1fr; }
+body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh - 175px); padding: 8px; }
 #page-floorpulse .fp-avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--fp-accent-2);
   display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600;
@@ -8613,6 +8622,56 @@ function _diffFields(oldRow, newPayload) {
   return changes.join(', ');
 }
 
+// ── รายละเอียดคำขอแก้ไข/เพิ่ม/ลบ แบบตาราง "รายการ | ค่าเดิม → ค่าใหม่" — ใช้ร่วมกันทุกคิวอนุมัติ (หน้าคำขอแก้ไข,
+// กล่องยืนยันอนุมัติ/ปฏิเสธ, แจ้งผลกลับผู้ขอ) ให้เห็นชัดว่าแก้อะไร จากอะไรเป็นอะไร อยู่ตรงไหน
+// opts: { action:'EDIT'|'ADD'|'DELETE', where:'html บรรทัดบอกตำแหน่ง', oldP, newP, labels:{key:label}, by, extra }
+const _REQ_SKIP_KEYS = new Set(['_row_id','created_at','CreatedAt','UpdatedAt','Status','RC_No']);
+function _reqFmtVal(key, v) {
+  if (v === null || v === undefined || v === '') return '<span class="text-muted">—</span>';
+  if (/Date$|^Date$/.test(key) && /^\d{4}-\d{2}-\d{2}/.test(String(v))) return _fmtDate(String(v).slice(0, 10));
+  if (typeof v === 'number' || (/(Qty|Cost|Price)/.test(key) && !isNaN(parseFloat(v)) && isFinite(v))) return parseFloat(v).toLocaleString();
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+function _reqDetailHTML(o) {
+  const L = o.labels || {};
+  const lbl = k => L[k] || k;
+  const act = o.action === 'ADD' ? ['เพิ่มรายการใหม่', 'bg-primary'] : o.action === 'DELETE' ? ['ลบรายการ', 'bg-danger'] : ['แก้ไขข้อมูล', 'bg-warning text-dark'];
+  let rows = [];
+  if (o.action === 'EDIT') {
+    Object.keys(o.newP || {}).forEach(k => {
+      if (_REQ_SKIP_KEYS.has(k)) return;
+      const a = (o.oldP || {})[k], b = o.newP[k];
+      if (String(a ?? '') === String(b ?? '')) return;
+      rows.push(`<tr><td class="text-muted pe-2">${lbl(k)}</td><td><span class="text-decoration-line-through text-danger">${_reqFmtVal(k, a)}</span></td>
+        <td class="px-1 text-muted"><i class="fas fa-arrow-right"></i></td><td class="fw-bold text-success">${_reqFmtVal(k, b)}</td></tr>`);
+    });
+    if (!rows.length) rows.push('<tr><td colspan="4" class="text-muted">ไม่พบข้อมูลที่เปลี่ยน</td></tr>');
+  } else {
+    const src = o.action === 'ADD' ? o.newP : o.oldP;
+    const keys = o.listKeys || (Object.keys(L).length ? Object.keys(L) : Object.keys(src || {}));
+    keys.forEach(k => {
+      if (_REQ_SKIP_KEYS.has(k) || !src || src[k] === undefined || src[k] === null || src[k] === '') return;
+      rows.push(o.action === 'ADD'
+        ? `<tr><td class="text-muted pe-2">${lbl(k)}</td><td colspan="3" class="fw-bold text-primary">${_reqFmtVal(k, src[k])}</td></tr>`
+        : `<tr><td class="text-muted pe-2">${lbl(k)}</td><td colspan="3"><span class="text-decoration-line-through text-danger">${_reqFmtVal(k, src[k])}</span></td></tr>`);
+    });
+  }
+  return `<div class="text-start" style="font-size:.86rem">
+    <div class="mb-1"><span class="badge ${act[1]} me-1">${act[0]}</span>${o.where || ''}</div>
+    <table class="reqdiff-table" style="border-collapse:collapse;margin:2px 0 4px"><tbody>${rows.join('')}</tbody></table>
+    ${o.extra ? `<div class="small mb-1">${o.extra}</div>` : ''}
+    <small class="text-muted">ขอโดย ${o.by || '—'}</small></div>`;
+}
+// ชื่อสินค้าของ MO จาก cache ที่มีอยู่แล้วในหน้าต่างๆ (ไม่ query เพิ่ม) — ไม่เจอคืน ''
+function _reqMOProductName(moId) {
+  if (!moId) return '';
+  const pools = [typeof _moData !== 'undefined' ? _moData : [], typeof _issueMOList !== 'undefined' ? _issueMOList : [],
+    typeof _prodStatusMOAllData !== 'undefined' ? _prodStatusMOAllData : []];
+  for (const p of pools) { const m = (p || []).find(x => x.MO_ID === moId); if (m) return m.ProductName || ''; }
+  return '';
+}
+
 // ปุ่ม × เคลียร์ช่องค้นหา — ใช้ร่วมกันทุกหน้า (ดู .search-clear-btn/.search-clear-icon ใน <style>)
 // dispatch 'input' event จริงเพื่อให้ oninput="xxxRenderTable()" เดิมของแต่ละหน้ายิงทำงานเอง ไม่ต้องรับ callback มา
 function _clearSearchInput(el) {
@@ -9137,7 +9196,10 @@ function _whBackToTablet() {
   document.getElementById('whBackFab').style.display = 'none';
   document.getElementById('whTabletView').style.display = 'flex';
   document.body.classList.remove('wh-desktop-mode');
+  const wasHome = _whPage === 1;
   _whGoPage(1); // กลับมาที่หน้าคลังทีไร ให้อยู่หน้าโฮม (ภาพรวมการผลิต) เสมอ ไม่จำตำแหน่งที่สไวป์ค้างไว้ก่อนออกไป
+  // _whGoPage รีเฟรชเฉพาะตอนเปลี่ยนหน้า — ระหว่างเปิดผังโรงงาน realtime ไม่ได้โหลดหน้าโฮมให้ (ดู _realtimeRunRefresh) จึงโหลดเองตรงนี้
+  if (wasHome) _whRefreshPage(1);
 }
 
 async function loadWhTabletData() {
@@ -12538,17 +12600,15 @@ function _mrRequestActionsHTML(req) {
     : '';
   return `${adminBtns}<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="mrCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo"></i></button>`;
 }
+const _MR_REQ_LABELS = { Date:'วันที่รับ', MaterialCode:'รหัสวัตถุดิบ', MaterialName:'ชื่อวัตถุดิบ', Lot:'Lot', MfgLotNo:'Lot ผู้ผลิต',
+  ExpDate:'วันหมดอายุ', Qty:'จำนวนรับ', UOM:'หน่วย', UnitCost:'ราคา/หน่วย', TotalCost:'ราคารวม', Supplier:'ซัพพลายเออร์', PR_Ref:'ใบขอซื้อ (PR)', Remark:'หมายเหตุ' };
 function _mrRequestSummaryHTML(req) {
-  const name = req.Payload?.MaterialName || req.OldPayload?.MaterialName || '';
-  const lot  = req.Payload?.Lot ?? req.OldPayload?.Lot ?? '';
-  let body = `<div class="text-start" style="font-size:.88rem"><b>${req.Action === 'EDIT' ? 'แก้ไข' : 'ลบ'}</b> — ${name} (Lot ${lot||'—'})<br>`;
-  if (req.Action === 'EDIT') {
-    body += `จำนวนเดิม: <b>${(parseFloat(req.OldPayload?.Qty)||0).toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${(parseFloat(req.Payload?.Qty)||0).toLocaleString()}</b>`;
-  } else {
-    body += `จำนวนที่ขอลบ: <b class="text-danger">${(parseFloat(req.OldPayload?.Qty)||0).toLocaleString()} ${req.OldPayload?.UOM||''}</b>`;
-  }
-  body += `<br><small class="text-muted">ขอโดย ${req.RequestedBy||'—'}</small></div>`;
-  return body;
+  const p = req.Payload || {}, o = req.OldPayload || {};
+  const where = `หน้า <b>รับวัตถุดิบ</b> · รายการรับวันที่ <b>${_fmtDate(o.Date)}</b><br>
+    วัตถุดิบ <b>${o.MaterialName || p.MaterialName || ''}</b> · Lot <b>${o.Lot ?? '—'}</b>${o.Supplier ? ` · ${o.Supplier}` : ''}
+    <span class="text-muted small">(Lot นี้ถูกเบิกไปผลิตแล้ว จึงต้องขออนุมัติ)</span>`;
+  return _reqDetailHTML({ action: req.Action, where, oldP: o, newP: p, labels: _MR_REQ_LABELS, by: req.RequestedBy,
+    listKeys: ['Qty', 'UOM', 'UnitCost', 'ExpDate', 'MfgLotNo', 'PR_Ref', 'Remark'] });
 }
 
 // ── Modal Open ──
@@ -13372,8 +13432,8 @@ function mrReportRenderPreview() {
     const qty  = parseFloat(r.Qty||r.QtyIn||0);
     const cost = parseFloat(r.UnitCost||0);
     return `<tr>
-      <td class="ord">${i+1}</td><td>${r.MaterialCode||''}</td><td>${r.MaterialName||''}</td><td>${r.Lot||''}</td>
-      <td>${_fmtDate(r.ExpDate)}</td><td class="text-end qty-emph">${qty.toLocaleString()}</td><td>${r.UOM||''}</td>
+      <td class="ord">${i+1}</td><td>${r.MaterialCode||''}</td><td style="white-space:nowrap">${r.MaterialName||''}</td><td>${r.Lot||''}</td>
+      <td>${_fmtDate(r.ExpDate)}</td><td class="text-end qty-emph">${qty.toLocaleString()}</td><td style="white-space:nowrap">${r.UOM||''}</td>
       <td class="text-end">฿${cost.toLocaleString()}</td>
       <td>${r.Remark||''}</td>
     </tr>`;
@@ -13416,8 +13476,8 @@ function mrReportRenderPreview() {
       ${rows.length ? `
       <table class="mrrpt-table">
         <thead><tr>
-          <th style="width:3%">ลำดับ</th><th style="width:7%">รหัส</th><th style="width:27%">ชื่อ</th><th style="width:6%">Lot</th><th style="width:7%">วันหมดอายุ</th>
-          <th class="text-end" style="width:8%">จำนวน</th><th style="width:10%">UOM</th><th class="text-end" style="width:8%">ราคา/หน่วย</th><th style="width:24%">หมายเหตุ</th>
+          <th style="width:4%">ลำดับ</th><th style="width:7%">รหัส</th><th style="width:40%">ชื่อ</th><th style="width:7%">Lot</th><th style="width:8%">วันหมดอายุ</th>
+          <th class="text-end" style="width:7%">จำนวน</th><th style="width:9%">UOM</th><th class="text-end" style="width:7%">ราคา/หน่วย</th><th style="width:11%">หมายเหตุ</th>
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
@@ -28782,12 +28842,14 @@ function _coRequestActionsHTML(req) {
     : '';
   return `${adminBtns}<button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();coCancelRequest(${req._row_id})" title="ยกเลิกคำขอ"><i class="fas fa-undo me-1"></i>ยกเลิกคำขอ</button>`;
 }
+const _CO_REQ_LABELS = { Order_ID:'เลขที่ CO', CustomerName:'ลูกค้า', PO_No:'เลขที่ PO', ProductCode:'รหัสสินค้า', ProductName:'ชื่อสินค้า',
+  OrderQty:'จำนวนสั่ง', UOF:'หน่วย', UOM:'หน่วย', OrderDate:'วันที่สั่ง', DueDate:'กำหนดส่ง', Address:'ที่อยู่', CustomerAddress:'ที่อยู่',
+  ContactName:'ผู้ติดต่อ', ContactPerson:'ผู้ติดต่อ', Phone:'เบอร์โทร', Remark:'หมายเหตุ', ItemType:'ประเภท' };
 function _coRequestSummaryHTML(req) {
-  const diff = _diffFields(req.OldPayload, req.Payload);
-  return `<div class="text-start" style="font-size:.88rem">
-    <b>${req.Order_ID||''}</b> — ${req.OldPayload?.CustomerName||''} (${req.OldPayload?.ProductName||''})<br>
-    ${diff ? `<span class="text-primary">${diff}</span><br>` : '<span class="text-muted">ไม่พบฟิลด์ที่เปลี่ยน</span><br>'}
-    <small class="text-muted">ขอโดย ${req.RequestedBy||'—'}</small></div>`;
+  const o = req.OldPayload || {};
+  const where = `หน้า <b>คำสั่งลูกค้า (CO)</b> · <b>${req.Order_ID || o.Order_ID || ''}</b> — ${o.CustomerName || ''}<br>
+    สินค้า <b>${o.ProductName || ''}</b>${o.PO_No ? ` · PO ${o.PO_No}` : ''}`;
+  return _reqDetailHTML({ action: 'EDIT', where, oldP: o, newP: req.Payload || {}, labels: _CO_REQ_LABELS, by: req.RequestedBy });
 }
 
 async function coApproveRequest(reqId) {
@@ -33060,20 +33122,28 @@ async function issueBulkDelete() {
 // 2026-10-04) — ไม่มี DB-level restriction สำหรับกลุ่มนี้ (ข้อจำกัดที่ตั้งใจไว้ในเวอร์ชันนี้
 // เหมือน moForceClose/moCancelPlan/deliveryCancel) — ยกเลิกคำขอเปิดให้ทุกคนทำได้เหมือนกัน
 // ══════════════════════════════════════════════
+const _ISSUE_REQ_LABELS = { Date:'วันที่เบิก', MO_ID:'MO', MaterialCode:'รหัสวัตถุดิบ', MaterialName:'ชื่อวัตถุดิบ', Lot:'Lot', IssuedQty:'จำนวนเบิก', UOM:'หน่วย', Remark:'หมายเหตุ' };
 function _issueRequestSummaryHTML(req) {
-  const actLabel = req.Action === 'EDIT' ? 'แก้ไข' : req.Action === 'ADD' ? 'เพิ่มรายการ' : 'ลบ';
-  const name = req.Payload?.MaterialName || req.OldPayload?.MaterialName || '';
-  const lot  = req.Payload?.Lot ?? req.OldPayload?.Lot ?? '';
-  let body = `<div class="text-start" style="font-size:.88rem"><b>${actLabel}</b> — ${name} (Lot ${lot||'—'})<br>`;
-  if (req.Action === 'EDIT') {
-    body += `จำนวนเดิม: <b>${(parseFloat(req.OldPayload?.IssuedQty)||0).toLocaleString()}</b> → ขอแก้เป็น: <b class="text-primary">${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()}</b>`;
-  } else if (req.Action === 'ADD') {
-    body += `จำนวนที่ขอเพิ่ม: <b class="text-primary">${(parseFloat(req.Payload?.IssuedQty)||0).toLocaleString()} ${req.Payload?.UOM||''}</b>`;
-  } else {
-    body += `จำนวนที่ขอลบ: <b class="text-danger">${(parseFloat(req.OldPayload?.IssuedQty)||0).toLocaleString()} ${req.OldPayload?.UOM||''}</b>`;
+  const p = req.Payload || {}, o = req.OldPayload || {};
+  const moId = req.MO_ID || p.MO_ID || o.MO_ID || '';
+  const prod = _reqMOProductName(moId);
+  const matName = p.MaterialName || o.MaterialName || '';
+  const where = `หน้า <b>เบิกผลิต</b> · MO <b>${moId || '—'}</b>${prod ? ` (${prod})` : ''}<br>
+    วัตถุดิบ <b>${matName}</b> · Lot <b>${o.Lot ?? p.Lot ?? '—'}</b>${o.Date ? ` · รายการที่เบิกวันที่ ${_fmtDate(o.Date)}` : ''}`;
+  // ยอดเบิกรวมของวัตถุดิบนี้ใน MO นี้ ก่อน/หลังอนุมัติ — คำนวณจาก _issueData ถ้าหน้าเบิกผลิตเคยโหลดไว้แล้วเท่านั้น
+  let extra = '';
+  const matCode = p.MaterialCode || o.MaterialCode;
+  const rows = (typeof _issueData !== 'undefined' ? _issueData : []).filter(r => r.MO_ID === moId && r.MaterialCode === matCode);
+  if (rows.length || req.Action === 'ADD') {
+    const before = rows.reduce((s, r) => s + (parseFloat(r.IssuedQty) || 0), 0);
+    const delta = req.Action === 'ADD' ? (parseFloat(p.IssuedQty) || 0)
+      : req.Action === 'DELETE' ? -(parseFloat(o.IssuedQty) || 0)
+      : (p.MaterialCode === o.MaterialCode ? (parseFloat(p.IssuedQty) || 0) - (parseFloat(o.IssuedQty) || 0) : 0);
+    const uom = p.UOM || o.UOM || '';
+    if (rows.length) extra = `ยอดเบิก${matName}รวมใน MO นี้: <b>${before.toLocaleString()}</b> → หลังอนุมัติ <b class="text-primary">${(before + delta).toLocaleString()}</b> ${uom}`;
   }
-  body += `<br><small class="text-muted">MO: ${req.MO_ID||'—'} · ขอโดย ${req.RequestedBy||'—'}</small></div>`;
-  return body;
+  return _reqDetailHTML({ action: req.Action, where, oldP: o, newP: p, labels: _ISSUE_REQ_LABELS, by: req.RequestedBy, extra,
+    listKeys: ['Date', 'IssuedQty', 'UOM', 'Remark'] });
 }
 
 async function issueApproveRequest(reqId) {
@@ -38851,23 +38921,19 @@ async function editreqLoad() {
 }
 
 function _editreqHoldLabel(m) {
-  const label = m.PendingAction === 'EDIT'
-    ? `แก้ไข ${_HOLDSTOCK_MOVE_LABELS[m.MoveType]||m.MoveType}: จำนวนเดิม ${m.Qty} → ${m.PendingPayload?.Qty}`
-    : `ลบรายการ ${_HOLDSTOCK_MOVE_LABELS[m.MoveType]||m.MoveType} จำนวน ${m.Qty}`;
-  return `<div class="text-start" style="font-size:.88rem"><b>${m.ItemCode}</b> — ${m.ItemName||''} · Lot ${m.Lot}<br>${label}
-    <br><small class="text-muted">ขอโดย ${m.PendingRequestedBy||'—'}</small></div>`;
+  const where = `หน้า <b>สต็อก ${m.HoldType === 'RETAIN' ? 'Retain' : 'Defect'}</b> · รายการ "${_HOLDSTOCK_MOVE_LABELS[m.MoveType]||m.MoveType}" วันที่ <b>${_fmtDate(m.MoveDate)}</b><br>
+    <b>${m.ItemCode}</b> — ${m.ItemName||''} · Lot <b>${m.Lot}</b>`;
+  return _reqDetailHTML({ action: m.PendingAction, where,
+    oldP: { MoveDate: m.MoveDate, Qty: m.Qty, Reason: m.Reason }, newP: m.PendingPayload || {},
+    labels: { MoveDate:'วันที่', Qty:'จำนวน', Reason:'เหตุผล' }, by: m.PendingRequestedBy });
 }
 
 function _editreqLaborLabel(r) {
-  const isDelete = r.RequestType === 'DELETE';
-  const oldText = `${r.OldTimeIn||'—'}–${r.OldTimeOut||'—'}`;
-  const newText = isDelete ? '<span class="text-danger">ลบรายการนี้ทิ้ง</span>' : `${r.NewTimeIn||'—'}–${r.NewTimeOut||'—'}`;
-  return `<div class="text-start" style="font-size:.88rem">
-    <b>${r.EmployeeName||r.EmployeeCode}</b> (${r.EmployeeCode}) · MO ${r.MO_Ref||'—'} · ${r.Line||''} · ${_fmtDate(r.WorkDate)}<br>
-    จาก <span class="text-decoration-line-through">${oldText}</span>
-    <i class="fas fa-arrow-right mx-1 text-muted"></i>
-    <span class="fw-semibold">${newText}</span>
-    <br><small class="text-muted">ขอโดย ${r.RequestedByName||'—'}</small></div>`;
+  const where = `หน้า <b>เวลาแรงงาน</b> · MO <b>${r.MO_Ref||'—'}</b> · ${r.Line||''} · วันที่ ${_fmtDate(r.WorkDate)}<br>
+    พนักงาน <b>${r.EmployeeName||r.EmployeeCode}</b> (${r.EmployeeCode})`;
+  return _reqDetailHTML({ action: r.RequestType === 'DELETE' ? 'DELETE' : 'EDIT', where,
+    oldP: { TimeIn: r.OldTimeIn, TimeOut: r.OldTimeOut }, newP: { TimeIn: r.NewTimeIn, TimeOut: r.NewTimeOut },
+    labels: { TimeIn:'เวลาเข้า', TimeOut:'เวลาออก' }, by: r.RequestedByName });
 }
 
 // ตั้ง _holdstockHistoryRowKey ให้ตรงกับแถวนี้ก่อนเสมอ กัน _holdstockLoadHistory() (ที่ถูกเรียกปิดท้ายใน
@@ -40405,6 +40471,8 @@ function _realtimeIsBusy() {
       (ae.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'submit'].includes(ae.type)))) return true;
   if (typeof Swal !== 'undefined' && Swal.isVisible && Swal.isVisible()) return true;
   if (_prodStatusDrag || _lotqDrag) return true;
+  // ผังโรงงานเรียลไทม์: กำลังเลือกห้องแพ็ค/กรอกยอดในแผงขวา (ฟังก์ชันอยู่ใน floorpulse.js — เช็ค typeof เผื่อไฟล์โหลดไม่สำเร็จ)
+  if (typeof _fpIsEditing === 'function' && _fpIsEditing()) return true;
   return false;
 }
 
@@ -40478,6 +40546,10 @@ async function _realtimeRunRefresh() {
     _realtimeChangedRows = [];
 
     if (_currentUser.isWarehouse) {
+      // เปิดผังโรงงานจากแท็บเลตคลังอยู่ — รีเฟรชผัง (วาดเฉพาะเนื้อหา ไม่สร้างหน้าใหม่) แทนการโหลดหน้าโฮมคลังที่ซ่อนอยู่
+      // ข้างหลัง (เดิมโหลดหน้าที่มองไม่เห็นทุกครั้ง แต่ผังที่ดูอยู่ไม่อัปเดตเลย) — 2026-10-21
+      if (document.getElementById('page-floorpulse')?.classList.contains('active')
+          && document.body.classList.contains('wh-desktop-mode')) { await _fpLoadPage(); return; }
       _whRefreshPage(_whPage); // โหมดแท็บเลตคลัง — โหลดซ้ำเฉพาะหน้าที่กำลังสไวป์ดูอยู่ตอนนี้ (ยังไม่ทำไฮไลท์รายแถวในโหมดนี้)
       return;
     }
@@ -40665,6 +40737,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-<script src="floorpulse.js?v=20261021b"></script>
+<script src="floorpulse.js?v=20261021f"></script>
 </body>
 </html>
