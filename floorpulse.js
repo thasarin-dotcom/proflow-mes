@@ -1851,8 +1851,8 @@ function _fpRosterRoleText(p) {
 // ══════════════════════════════════════════════════════════════════════════
 // ลงเวลา + อัปเดตยอด/ห้องแพ็คจากแผงห้อง (2026-10-21 คำขอผู้ใช้ สำหรับพนักงานถือแท็บเลตเดินเช็คหน้างาน:
 // "เมื่อกดไปที่ห้อง เลือกคน และให้กดลงเวลาได้เลย" / "ห้องแพ็คให้เพิ่มเหมือนหน้าสแกน ให้เลือกว่าทำจริงห้องไหน")
-// ลงเวลา = เขียน production_labor_log ตารางเดียวกับหน้าสแกนบันทึกเวลาแรงงาน (แถวต่อ MO+ไลน์+วัน+คน) ใช้เวลา
-// ปัจจุบัน — "ลงเวลาเข้า" ใส่ TimeIn เว้น TimeOut ว่าง (= อยู่ในไลน์ตอนนี้ ตามนิยาม roster.confirmed) ถ้าคนนั้นยังค้าง
+// ลงเวลา = เขียน production_labor_log ตารางเดียวกับหน้าสแกนบันทึกเวลาแรงงาน (แถวต่อ MO+ไลน์+วัน+คน) เวลาเลือกเองได้
+// (ค่าเริ่มต้น = ตอนนี้ ดู _fpClock) — "ลงเวลาเข้า" ใส่ TimeIn เว้น TimeOut ว่าง (= อยู่ในไลน์ตอนนี้ ตามนิยาม roster.confirmed) ถ้าคนนั้นยังค้าง
 // อยู่ไลน์อื่น (เข้าแล้วยังไม่ออก) จะถามแล้วลงเวลาออกที่นั่นให้ในเวลาเดียวกัน กันช่วงเวลาซ้อนกัน (กติกาเดียวกับ
 // _laborCheckOverlapDB) — อัปเดตยอด = insert production_progress เหมือน scanprogressSubmit ทุกอย่าง (รวม Room ของไลน์แพ็ค)
 // ══════════════════════════════════════════════════════════════════════════
@@ -1868,10 +1868,14 @@ function _fpClockBtnHTML(line, p) {
     <i class="fas ${dir === 'in' ? 'fa-right-to-bracket' : 'fa-right-from-bracket'} me-1"></i>${dir === 'in' ? 'ลงเวลาเข้า' : 'ลงเวลาออก'}</button>`;
 }
 
+// เลือกเวลาเองได้ (คำขอผู้ใช้ 2026-10-21 "ลงเวลาเข้า-ออกให้เลือกเวลาเองได้") — ค่าเริ่มต้น = ตอนนี้ปัดลงทีละ 5 นาที
+// (ตัวเลือกนาทีของ _prodrecordTimeSelectHTML เป็นช่วง 5 นาที เหมือนหน้าสแกนบันทึกเวลา) ห้ามเลือกเวลาในอนาคต
+// กติกาชนกันเช็คกับเวลาที่เลือก: ช่วงที่เปิดใหม่ยังไม่มีเวลาออก จึงห้ามมีเวลาเข้าไลน์อื่นหลังเวลาที่เลือก
 async function _fpClock(line, code, dir) {
   const r = _fpData[line];
   if (!_fpCanEdit(r)) return;
   const moRef = r.item.MO_Ref, workDate = _planWeekLocalDateStr(new Date()), now = _fpNowHM();
+  const n = new Date(), def = `${String(n.getHours()).padStart(2, '0')}:${String(Math.floor(n.getMinutes() / 5) * 5).padStart(2, '0')}`;
   const emp = _planEmployees.find(e => e.EmployeeCode === code);
   const name = emp ? (emp.NickName || emp.FirstName || code) : code;
   const hm = t => String(t || '').slice(0, 5);
@@ -1881,53 +1885,72 @@ async function _fpClock(line, code, dir) {
   const own = (rows || []).find(x => x.MO_Ref === moRef && x.Line === line);
   const others = (rows || []).filter(x => x !== own);
   const ownKey = q => q.eq('MO_Ref', moRef).eq('Line', line).eq('WorkDate', workDate).eq('EmployeeCode', code);
+  const pickerHTML = label => `<div class="d-flex align-items-center justify-content-center gap-2 mt-3">
+    <b>${label}</b>${_prodrecordTimeSelectHTML('fp-clock-time', def)}</div>`;
+  // validate = null → ไม่มีช่องเลือกเวลา (กรณีเปิดช่วงเดิมต่อ)
+  const ask = (title, html, btn, validate) => Swal.fire({ icon: 'question', title, html, showCancelButton: true,
+    confirmButtonText: btn, cancelButtonText: 'ยกเลิก',
+    preConfirm: () => {
+      if (!validate) return true;
+      _prodrecordSyncTimeSelect('fp-clock-time');
+      const t = document.getElementById('fp-clock-time')?.value || '';
+      const msg = !t ? 'เลือกเวลาให้ครบทั้งชั่วโมงและนาที'
+        : t > now ? `เลือกเวลาในอนาคตไม่ได้ (ตอนนี้ ${now})` : validate(t);
+      if (msg) { Swal.showValidationMessage(msg); return false; }
+      return t;
+    } });
+  let t;
 
   if (dir === 'out') {
     if (!own || !own.TimeIn) { _err('ยังไม่ได้ลงเวลาเข้า', `${name} ยังไม่มีเวลาเข้าของไลน์นี้วันนี้`); return; }
-    if (hm(own.TimeIn) > now) { _err('เวลาไม่ถูกต้อง', `เวลาเข้า ${hm(own.TimeIn)} อยู่หลังเวลาตอนนี้ (${now}) — แก้ที่หน้าประวัติบันทึกเวลา`); return; }
-    const mid = others.filter(x => x.TimeIn && hm(x.TimeIn) >= hm(own.TimeIn) && hm(x.TimeIn) < now);
-    if (mid.length) { _err('เวลาทำงานชนกัน', `ระหว่าง ${hm(own.TimeIn)}-${now} ${name} ลงเวลาที่ ${mid.map(x => `${x.Line} (${hm(x.TimeIn)})`).join(', ')} แล้ว — แก้ที่หน้าประวัติบันทึกเวลา`); return; }
-    const ok = await Swal.fire({ icon: 'question', title: `ลงเวลาออก ${name}`, html: `${line}<br>เข้า ${hm(own.TimeIn)} → ออก <b>${now}</b>`,
-      showCancelButton: true, confirmButtonText: 'ลงเวลาออก', cancelButtonText: 'ยกเลิก' });
-    if (!ok.isConfirmed) return;
+    const res = await ask(`ลงเวลาออก ${name}`, `${line}<br>เวลาเข้า ${hm(own.TimeIn)}${pickerHTML('เวลาออก')}`, 'ลงเวลาออก', t => {
+      if (t <= hm(own.TimeIn)) return `เวลาออกต้องหลังเวลาเข้า (${hm(own.TimeIn)})`;
+      const mid = others.filter(x => x.TimeIn && hm(x.TimeIn) >= hm(own.TimeIn) && hm(x.TimeIn) < t);
+      return mid.length ? `ช่วง ${hm(own.TimeIn)}-${t} ชนกับ ${mid.map(x => `${x.Line} (เข้า ${hm(x.TimeIn)})`).join(', ')}` : null;
+    });
+    if (!res.isConfirmed) return;
+    t = res.value;
     _showLoader();
-    const { error: upErr } = await ownKey(_sb.from('production_labor_log').update({ TimeOut: now, UpdatedAt: new Date().toISOString() }));
+    const { error: upErr } = await ownKey(_sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() }));
     _hideLoader();
     if (upErr) { _err('ลงเวลาออกไม่สำเร็จ', upErr.message); return; }
   } else {
-    // ช่วงที่ปิดแล้วของไลน์อื่นที่ครอบเวลาตอนนี้อยู่ = ชนกันจริง ต้องไปแก้ที่หน้าประวัติก่อน
-    const clash = others.filter(x => x.TimeIn && x.TimeOut && hm(x.TimeIn) <= now && hm(x.TimeOut) > now);
-    if (clash.length) { _err('เวลาทำงานชนกัน', clash.map(x => `${x.Line} ของ MO ${x.MO_Ref} (${hm(x.TimeIn)}-${hm(x.TimeOut)})`).join('<br>')); return; }
-    const open = others.filter(x => x.TimeIn && !x.TimeOut && hm(x.TimeIn) <= now);
-    // เคยเข้า-ออกไลน์นี้ไปแล้ววันนี้ — 1 แถวต่อวัน (UNIQUE) จึงเปิดช่วงเดิมต่อ (ลบเวลาออก) ได้เฉพาะเมื่อระหว่างนั้นไม่ได้ไปทำไลน์อื่น
+    // เคยเข้า-ออกไลน์นี้ไปแล้ววันนี้ — 1 แถวต่อวัน (UNIQUE) จึงเปิดช่วงเดิมต่อ (ลบเวลาออก คงเวลาเข้าเดิม ไม่ต้องเลือกเวลา)
+    // ได้เฉพาะเมื่อระหว่างนั้นไม่ได้ไปทำไลน์อื่น
     const reopen = own && own.TimeIn && own.TimeOut;
     if (reopen && others.some(x => x.TimeIn && hm(x.TimeIn) >= hm(own.TimeIn))) {
       _err('ลงเวลาเข้าซ้ำไม่ได้', `${name} มีเวลาของไลน์นี้วันนี้แล้ว (${hm(own.TimeIn)}-${hm(own.TimeOut)}) และไปทำไลน์อื่นต่อ — แก้ที่หน้าประวัติบันทึกเวลา`); return;
     }
-    const notes = [
-      ...open.map(x => `จะลงเวลาออกจาก <b>${x.Line}</b> (เข้า ${hm(x.TimeIn)}) ให้เวลา ${now}`),
-      ...(reopen ? [`มีเวลาของไลน์นี้แล้ว ${hm(own.TimeIn)}-${hm(own.TimeOut)} — จะเปิดต่อจากเดิม (เวลาเข้า ${hm(own.TimeIn)})`] : []),
-    ];
-    const ok = await Swal.fire({ icon: 'question', title: `ลงเวลาเข้า ${name}`,
-      html: `${line}<br>เวลาเข้า <b>${reopen ? hm(own.TimeIn) : now}</b>${notes.length ? `<div class="text-start small mt-2">${notes.join('<br>')}</div>` : ''}`,
-      showCancelButton: true, confirmButtonText: 'ลงเวลาเข้า', cancelButtonText: 'ยกเลิก' });
-    if (!ok.isConfirmed) return;
+    // ยังค้างอยู่ไลน์อื่น (เข้าแล้วยังไม่ออก) — ลงเวลาออกที่นั่นให้ ณ เวลาเข้าที่เลือก
+    const open = reopen ? [] : others.filter(x => x.TimeIn && !x.TimeOut);
+    const res = reopen
+      ? await ask(`ลงเวลาเข้า ${name}`, `${line}<div class="text-start small mt-2">มีเวลาของไลน์นี้แล้ว ${hm(own.TimeIn)}-${hm(own.TimeOut)} — จะเปิดต่อจากเดิม (เวลาเข้า ${hm(own.TimeIn)}, ลบเวลาออก)</div>`, 'ลงเวลาเข้า', null)
+      : await ask(`ลงเวลาเข้า ${name}`, `${line}${pickerHTML('เวลาเข้า')}${open.length
+          ? `<div class="text-start small mt-2">${open.map(x => `ยังค้างอยู่ <b>${x.Line}</b> (เข้า ${hm(x.TimeIn)}) — จะลงเวลาออกที่นั่นให้ตามเวลาที่เลือก`).join('<br>')}</div>` : ''}`,
+        'ลงเวลาเข้า', t => {
+          const clash = others.filter(x => x.TimeIn && x.TimeOut && hm(x.TimeIn) <= t && hm(x.TimeOut) > t);
+          if (clash.length) return `ชนกับ ${clash.map(x => `${x.Line} (${hm(x.TimeIn)}-${hm(x.TimeOut)})`).join(', ')}`;
+          const later = others.filter(x => x.TimeIn && hm(x.TimeIn) >= t);
+          return later.length ? `${name} ลงเวลาเข้า ${later.map(x => `${x.Line} ${hm(x.TimeIn)}`).join(', ')} แล้ว — เลือกเวลาหลังจากนั้น` : null;
+        });
+    if (!res.isConfirmed) return;
+    t = reopen ? hm(own.TimeIn) : res.value;
     _showLoader();
     for (const x of open) {
-      const { error: e1 } = await _sb.from('production_labor_log').update({ TimeOut: now, UpdatedAt: new Date().toISOString() })
+      const { error: e1 } = await _sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() })
         .eq('MO_Ref', x.MO_Ref).eq('Line', x.Line).eq('WorkDate', workDate).eq('EmployeeCode', code);
       if (e1) { _hideLoader(); _err(`ลงเวลาออกจาก ${x.Line} ไม่สำเร็จ`, e1.message); return; }
     }
     const { error: e2 } = reopen
       ? await ownKey(_sb.from('production_labor_log').update({ TimeOut: null, UpdatedAt: new Date().toISOString() }))
       : await _sb.from('production_labor_log').upsert({
-          MO_Ref: moRef, Line: line, WorkDate: workDate, EmployeeCode: code, EmployeeName: name, TimeIn: now, TimeOut: null,
+          MO_Ref: moRef, Line: line, WorkDate: workDate, EmployeeCode: code, EmployeeName: name, TimeIn: t, TimeOut: null,
           RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null, UpdatedAt: new Date().toISOString(),
         }, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
     _hideLoader();
     if (e2) { _err('ลงเวลาเข้าไม่สำเร็จ', e2.message); return; }
   }
-  Swal.fire({ icon: 'success', title: dir === 'in' ? 'ลงเวลาเข้าแล้ว' : 'ลงเวลาออกแล้ว', text: `${name} · ${line} · ${now}`, timer: 1300, showConfirmButton: false });
+  Swal.fire({ icon: 'success', title: dir === 'in' ? 'ลงเวลาเข้าแล้ว' : 'ลงเวลาออกแล้ว', text: `${name} · ${line} · ${t}`, timer: 1300, showConfirmButton: false });
   await loadFloorPulseData();
 }
 
