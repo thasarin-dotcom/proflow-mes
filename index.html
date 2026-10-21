@@ -437,9 +437,12 @@ body.wh-desktop-mode .wh-hide-remark { display: none; }
    คอลัมน์อื่นที่เหลือด้วย (วันที่/วันหมดอายุ/จำนวน/UOM) ไม่งั้นถูกบีบจนตัวเลข/วันที่ตัดขึ้นบรรทัดใหม่ 3 บรรทัด
    (table-layout:fixed หารพื้นที่ที่เหลือทั้งหมดเท่าๆ กันให้คอลัมน์ที่ไม่ได้กำหนดความกว้างไว้) */
 body.wh-desktop-mode .mr-table-inner .mr-col-name { width: 24%; }
-body.wh-desktop-mode .mr-table-inner .mr-col-lot { width: 16%; }
-body.wh-desktop-mode .mr-table-inner .mr-col-exp { width: 12%; }
-body.wh-desktop-mode .mr-table-inner .mr-col-qty { width: 10%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-lot { width: 19%; }
+body.wh-desktop-mode .mr-table-inner .mr-col-exp { width: 11%; padding-right: 2px; }
+body.wh-desktop-mode .mr-table-inner .mr-col-qty { width: 8%; padding-left: 2px; }
+/* เลข Lot ห้ามตัด 2 บรรทัด (คำขอผู้ใช้ 2026-10-21) — ยกเว้นจากกฎ badge ตัดคำของตารางแท็บเลตด้านล่าง; Lot กว้างขึ้น
+   (16→19%) เอาพื้นที่มาจากวันหมดอายุ/จำนวน ซึ่งช่วยลดช่องว่างระหว่าง 2 คอลัมน์นี้ไปในตัว */
+body.wh-desktop-mode .mr-table-inner .mr-col-lot > .badge { white-space: nowrap !important; word-break: normal; }
 body.wh-desktop-mode .mr-table-inner .mr-col-uom { width: 9%; }
 body.wh-desktop-mode .mr-table-inner .mr-col-supplier { width: 22%; }
 /* คลาสความกว้างคอลัมน์แบบทั่วไป ใช้ซ้ำได้กับทุกตารางอื่นในโหมดแท็บเลต (ตาราง MR ใช้ชุด .mr-col-* ของตัวเอง
@@ -13432,8 +13435,8 @@ function mrReportRenderPreview() {
     const qty  = parseFloat(r.Qty||r.QtyIn||0);
     const cost = parseFloat(r.UnitCost||0);
     return `<tr>
-      <td class="ord">${i+1}</td><td>${r.MaterialCode||''}</td><td style="white-space:nowrap">${r.MaterialName||''}</td><td>${r.Lot||''}</td>
-      <td>${_fmtDate(r.ExpDate)}</td><td class="text-end qty-emph">${qty.toLocaleString()}</td><td style="white-space:nowrap">${r.UOM||''}</td>
+      <td class="ord">${i+1}</td><td>${r.MaterialCode||''}</td><td style="white-space:nowrap">${r.MaterialName||''}</td><td style="white-space:nowrap">${r.Lot||''}</td>
+      <td style="white-space:nowrap;padding-right:2px">${_fmtDate(r.ExpDate)}</td><td class="text-end qty-emph" style="padding-left:2px">${qty.toLocaleString()}</td><td style="white-space:nowrap">${r.UOM||''}</td>
       <td class="text-end">฿${cost.toLocaleString()}</td>
       <td>${r.Remark||''}</td>
     </tr>`;
@@ -13476,8 +13479,8 @@ function mrReportRenderPreview() {
       ${rows.length ? `
       <table class="mrrpt-table">
         <thead><tr>
-          <th style="width:4%">ลำดับ</th><th style="width:7%">รหัส</th><th style="width:40%">ชื่อ</th><th style="width:7%">Lot</th><th style="width:8%">วันหมดอายุ</th>
-          <th class="text-end" style="width:7%">จำนวน</th><th style="width:9%">UOM</th><th class="text-end" style="width:7%">ราคา/หน่วย</th><th style="width:11%">หมายเหตุ</th>
+          <th style="width:4%">ลำดับ</th><th style="width:7%">รหัส</th><th style="width:35%">ชื่อ</th><th style="width:12%">Lot</th><th style="width:8%;padding-right:2px">วันหมดอายุ</th>
+          <th class="text-end" style="width:6%;padding-left:2px">จำนวน</th><th style="width:9%">UOM</th><th class="text-end" style="width:7%">ราคา/หน่วย</th><th style="width:11%">หมายเหตุ</th>
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
