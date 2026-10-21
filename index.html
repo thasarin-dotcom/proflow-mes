@@ -7744,6 +7744,7 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
             <button class="wh-tile" onclick="_whOpenDesktopPage('stock')"><i class="fas fa-boxes-stacked"></i><span>Stock วัตถุดิบ</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('fgstock')"><i class="fas fa-box"></i><span>Stock FG</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('prodstatus')"><i class="fas fa-industry"></i><span>ภาพรวมการผลิต</span></button>
+            <button class="wh-tile" onclick="_whOpenDesktopPage('floorpulse')"><i class="fas fa-satellite-dish"></i><span>ผังโรงงานเรียลไทม์</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('mo')"><i class="fas fa-diagram-project"></i><span>ไลน์ผลิต</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('plan')"><i class="fas fa-calendar-alt"></i><span>แผนผลิต</span></button>
             <button class="wh-tile" onclick="_whOpenDesktopPage('lotqueue')"><i class="fas fa-barcode"></i><span>คิวห้องยิง Lot</span></button>
@@ -7763,6 +7764,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
       <button class="wh-tab" id="wh-dot-0" onclick="_whGoPage(0)"><i class="fas fa-chart-line"></i>พยากรณ์ BULK</button>
       <button class="wh-tab active" id="wh-dot-1" onclick="_whGoPage(1)"><i class="fas fa-industry"></i>ภาพรวม</button>
       <button class="wh-tab" id="wh-dot-2" onclick="_whGoPage(2)"><i class="fas fa-grip"></i>เมนู</button>
+      <!-- ผังโรงงานเรียลไทม์ — ให้พนักงานถือแท็บเลตเข้าไปเช็คว่าใครทำอยู่ห้องไหน ได้เท่าไหร่ (คำขอผู้ใช้ 2026-10-21)
+           ไม่ใช่หน้าสไวป์ (ไม่มี id wh-dot-N) — เปิดหน้า desktop เดิมแบบ tile เพราะผัง 3D ใช้ลากนิ้วหมุนมุมกล้อง ชนกับสไวป์ -->
+      <button class="wh-tab" onclick="_whOpenDesktopPage('floorpulse')"><i class="fas fa-satellite-dish"></i>ผังโรงงาน</button>
     </nav>
   </div>
 </div>
