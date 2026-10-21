@@ -368,6 +368,7 @@ function _fpStartAutoRefresh() {
     const pageEl = document.getElementById('page-floorpulse');
     if (!pageEl || !pageEl.classList.contains('active')) { clearInterval(_fpInterval); _fpInterval = null; return; }
     if (document.hidden) return;   // ข้ามรอบเมื่อแท็บถูกซ่อน ลด log ingestion (2026-10-12)
+    if (_fpDrawerDirty || (window.Swal && Swal.isVisible())) return;   // กำลังกรอกยอด/ยืนยันลงเวลาอยู่ — ไม่วาดทับ
     loadFloorPulseData();
   }, 60000);
 }
@@ -1672,6 +1673,7 @@ function _fpAllEntries() {
 function _fpRenderOverview() {
   const drawer = document.getElementById('fp-drawer');
   if (!drawer) return;
+  _fpDrawerDirty = false;
   const entries = _fpAllEntries();
   const rows = entries.map(entry => {
     const r = entry.line ? _fpData[entry.line] : null;
@@ -1770,8 +1772,10 @@ function _fpHoldStockListHtml() {
 }
 
 function _fpSelectRoom(id) {
+  const isNew = _fpSelectedId !== id;
   _fpSelectedId = id;
   _fpSelectedPerson = null;
+  _fpDrawerDirty = false;
   _fpBuildSvg(); // rebuild เพื่ออัปเดตคลาส fp-selected บนห้องที่เพิ่งเลือก
 
   const entry = _fpAllEntries().find(e => e.id === id);
@@ -1783,7 +1787,7 @@ function _fpSelectRoom(id) {
       <button class="fp-back-link" onclick="_fpSelectedId=null;_fpRenderOverview();_fpBuildSvg()">← ภาพรวมทั้งหมด</button>
       <div><div class="fp-eyebrow">${entry.id.toUpperCase()}</div><h2>${entry.full}</h2></div>
       <p class="fp-val" style="color:var(--fp-text-dim);font-size:13px">${entry.movedTo
-        ? `งานแพ็คของสถานีนี้ย้ายไปทำที่ <b>${FP_ROOM_FULL[entry.movedTo]}</b> (เลือกตอนสแกนอัปเดตยอด) — คลิกห้องนั้นบนผังเพื่อดูรายละเอียดงาน`
+        ? `งานแพ็คของสถานีนี้ย้ายไปทำที่ <b>${FP_ROOM_FULL[entry.movedTo]}</b> (เลือกตอนอัปเดตยอด) — คลิกห้องนั้นบนผังเพื่อดูรายละเอียดงาน`
         : (FP_ROOM_NOTE[entry.id] || 'พื้นที่นี้ไม่ผูกกับไลน์ผลิตในระบบ')}</p>
       ${entry.id === 'samples' ? _fpHoldStockListHtml() : ''}
     `;
@@ -1814,10 +1818,13 @@ function _fpSelectRoom(id) {
             <div class="fp-staff-chip${p.confirmed ? '' : ' fp-staff-planned'}" role="button" tabindex="0" style="cursor:pointer"
               onclick="_fpShowPerson('${_fpJsStr(p.code)}')" onkeydown="if(event.key==='Enter')_fpShowPerson('${_fpJsStr(p.code)}')">
               <div class="fp-avatar">${p.name.slice(0,1)}</div>
-              <div><div class="fp-name">${p.name}</div><div class="fp-role">${p.confirmed ? `สแกนเข้าแล้ว${p.timeIn ? ' ' + String(p.timeIn).slice(0, 5) : ''}` : 'ตามแผน — ยังไม่สแกนเข้า'}</div></div>
+              <div><div class="fp-name">${p.name}</div><div class="fp-role">${_fpRosterRoleText(p)}</div></div>
+              ${_fpClockBtnHTML(entry.line, p)}
             </div>`).join('') : '<div class="fp-val" style="color:var(--fp-text-dim)">ยังไม่มีข้อมูลพนักงานประจำไลน์นี้</div>' }
         </div>
-      </div>`;
+        ${_fpCanEdit(r) ? `<button type="button" class="fp-clock-btn fp-clock-add" onclick="_fpClockAddWorker('${_fpJsStr(entry.line)}')"><i class="fas fa-user-plus me-1"></i>เลือกคนอื่นเข้าไลน์นี้</button>` : ''}
+      </div>
+      ${_fpProgressFormHTML(entry.line, r)}`;
   }
   const alertsHtml = (r.alerts || []).map(a => `<div class="fp-alert-box fp-alert-${a.level}"><i class="fas fa-triangle-exclamation me-1"></i>${a.text}</div>`).join('');
   drawer.innerHTML = `
@@ -1826,11 +1833,158 @@ function _fpSelectRoom(id) {
       <div class="fp-eyebrow">${entry.line}</div>
       <h2>${entry.full}</h2>
       <span class="fp-status-pill ${meta.cls}">${meta.label}</span>
-      ${entry.hosted ? `<div class="fp-val mt-1" style="font-size:12px;color:var(--fp-text-dim)"><i class="fas fa-right-left me-1"></i>ใช้ห้องนี้ทำงาน${_fpPackSubLabel(entry.hosted)}แทนห้องบรรจุหีบห่อ (เลือกตอนสแกนอัปเดตยอด)</div>` : ''}
+      ${entry.hosted ? `<div class="fp-val mt-1" style="font-size:12px;color:var(--fp-text-dim)"><i class="fas fa-right-left me-1"></i>ใช้ห้องนี้ทำงาน${_fpPackSubLabel(entry.hosted)}แทนห้องบรรจุหีบห่อ (เลือกตอนอัปเดตยอด)</div>` : ''}
     </div>
     ${alertsHtml}
     ${body}
   `;
+  // แท็บเลต: แผงรายละเอียดอยู่ใต้ผัง — แตะห้องแล้วเลื่อนลงไปให้เห็นทันที (เฉพาะตอนเลือกห้องใหม่ ไม่ใช่ทุกรอบรีเฟรช)
+  if (isNew && document.body.classList.contains('wh-desktop-mode')) drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function _fpRosterRoleText(p) {
+  if (p.confirmed) return `เข้า ${String(p.timeIn).slice(0, 5)} — ยังไม่ออก`;
+  if (p.timeIn && p.timeOut) return `เข้า ${String(p.timeIn).slice(0, 5)} · ออก ${String(p.timeOut).slice(0, 5)}`;
+  return 'ตามแผน — ยังไม่ลงเวลาเข้า';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ลงเวลา + อัปเดตยอด/ห้องแพ็คจากแผงห้อง (2026-10-21 คำขอผู้ใช้ สำหรับพนักงานถือแท็บเลตเดินเช็คหน้างาน:
+// "เมื่อกดไปที่ห้อง เลือกคน และให้กดลงเวลาได้เลย" / "ห้องแพ็คให้เพิ่มเหมือนหน้าสแกน ให้เลือกว่าทำจริงห้องไหน")
+// ลงเวลา = เขียน production_labor_log ตารางเดียวกับหน้าสแกนบันทึกเวลาแรงงาน (แถวต่อ MO+ไลน์+วัน+คน) ใช้เวลา
+// ปัจจุบัน — "ลงเวลาเข้า" ใส่ TimeIn เว้น TimeOut ว่าง (= อยู่ในไลน์ตอนนี้ ตามนิยาม roster.confirmed) ถ้าคนนั้นยังค้าง
+// อยู่ไลน์อื่น (เข้าแล้วยังไม่ออก) จะถามแล้วลงเวลาออกที่นั่นให้ในเวลาเดียวกัน กันช่วงเวลาซ้อนกัน (กติกาเดียวกับ
+// _laborCheckOverlapDB) — อัปเดตยอด = insert production_progress เหมือน scanprogressSubmit ทุกอย่าง (รวม Room ของไลน์แพ็ค)
+// ══════════════════════════════════════════════════════════════════════════
+let _fpDrawerDirty = false;   // กำลังกรอกฟอร์มในแผงขวา — ข้ามรอบรีเฟรชอัตโนมัติ กันค่าที่กรอกค้างหาย
+
+function _fpCanEdit(r) { return !_fpReplayAt && !!(r && r.item && r.item.MO_Ref); }
+function _fpNowHM() { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; }
+
+function _fpClockBtnHTML(line, p) {
+  if (!_fpCanEdit(_fpData[line])) return '';
+  const dir = p.confirmed ? 'out' : 'in';
+  return `<button type="button" class="fp-clock-btn fp-clock-${dir}" onclick="event.stopPropagation();_fpClock('${_fpJsStr(line)}','${_fpJsStr(p.code)}','${dir}')">
+    <i class="fas ${dir === 'in' ? 'fa-right-to-bracket' : 'fa-right-from-bracket'} me-1"></i>${dir === 'in' ? 'ลงเวลาเข้า' : 'ลงเวลาออก'}</button>`;
+}
+
+async function _fpClock(line, code, dir) {
+  const r = _fpData[line];
+  if (!_fpCanEdit(r)) return;
+  const moRef = r.item.MO_Ref, workDate = _planWeekLocalDateStr(new Date()), now = _fpNowHM();
+  const emp = _planEmployees.find(e => e.EmployeeCode === code);
+  const name = emp ? (emp.NickName || emp.FirstName || code) : code;
+  const hm = t => String(t || '').slice(0, 5);
+  const { data: rows, error } = await _sb.from('production_labor_log').select('MO_Ref,Line,TimeIn,TimeOut')
+    .eq('WorkDate', workDate).eq('EmployeeCode', code);
+  if (error) { _err('โหลดเวลาเดิมไม่สำเร็จ', error.message); return; }
+  const own = (rows || []).find(x => x.MO_Ref === moRef && x.Line === line);
+  const others = (rows || []).filter(x => x !== own);
+  const ownKey = q => q.eq('MO_Ref', moRef).eq('Line', line).eq('WorkDate', workDate).eq('EmployeeCode', code);
+
+  if (dir === 'out') {
+    if (!own || !own.TimeIn) { _err('ยังไม่ได้ลงเวลาเข้า', `${name} ยังไม่มีเวลาเข้าของไลน์นี้วันนี้`); return; }
+    if (hm(own.TimeIn) > now) { _err('เวลาไม่ถูกต้อง', `เวลาเข้า ${hm(own.TimeIn)} อยู่หลังเวลาตอนนี้ (${now}) — แก้ที่หน้าประวัติบันทึกเวลา`); return; }
+    const mid = others.filter(x => x.TimeIn && hm(x.TimeIn) >= hm(own.TimeIn) && hm(x.TimeIn) < now);
+    if (mid.length) { _err('เวลาทำงานชนกัน', `ระหว่าง ${hm(own.TimeIn)}-${now} ${name} ลงเวลาที่ ${mid.map(x => `${x.Line} (${hm(x.TimeIn)})`).join(', ')} แล้ว — แก้ที่หน้าประวัติบันทึกเวลา`); return; }
+    const ok = await Swal.fire({ icon: 'question', title: `ลงเวลาออก ${name}`, html: `${line}<br>เข้า ${hm(own.TimeIn)} → ออก <b>${now}</b>`,
+      showCancelButton: true, confirmButtonText: 'ลงเวลาออก', cancelButtonText: 'ยกเลิก' });
+    if (!ok.isConfirmed) return;
+    _showLoader();
+    const { error: upErr } = await ownKey(_sb.from('production_labor_log').update({ TimeOut: now, UpdatedAt: new Date().toISOString() }));
+    _hideLoader();
+    if (upErr) { _err('ลงเวลาออกไม่สำเร็จ', upErr.message); return; }
+  } else {
+    // ช่วงที่ปิดแล้วของไลน์อื่นที่ครอบเวลาตอนนี้อยู่ = ชนกันจริง ต้องไปแก้ที่หน้าประวัติก่อน
+    const clash = others.filter(x => x.TimeIn && x.TimeOut && hm(x.TimeIn) <= now && hm(x.TimeOut) > now);
+    if (clash.length) { _err('เวลาทำงานชนกัน', clash.map(x => `${x.Line} ของ MO ${x.MO_Ref} (${hm(x.TimeIn)}-${hm(x.TimeOut)})`).join('<br>')); return; }
+    const open = others.filter(x => x.TimeIn && !x.TimeOut && hm(x.TimeIn) <= now);
+    // เคยเข้า-ออกไลน์นี้ไปแล้ววันนี้ — 1 แถวต่อวัน (UNIQUE) จึงเปิดช่วงเดิมต่อ (ลบเวลาออก) ได้เฉพาะเมื่อระหว่างนั้นไม่ได้ไปทำไลน์อื่น
+    const reopen = own && own.TimeIn && own.TimeOut;
+    if (reopen && others.some(x => x.TimeIn && hm(x.TimeIn) >= hm(own.TimeIn))) {
+      _err('ลงเวลาเข้าซ้ำไม่ได้', `${name} มีเวลาของไลน์นี้วันนี้แล้ว (${hm(own.TimeIn)}-${hm(own.TimeOut)}) และไปทำไลน์อื่นต่อ — แก้ที่หน้าประวัติบันทึกเวลา`); return;
+    }
+    const notes = [
+      ...open.map(x => `จะลงเวลาออกจาก <b>${x.Line}</b> (เข้า ${hm(x.TimeIn)}) ให้เวลา ${now}`),
+      ...(reopen ? [`มีเวลาของไลน์นี้แล้ว ${hm(own.TimeIn)}-${hm(own.TimeOut)} — จะเปิดต่อจากเดิม (เวลาเข้า ${hm(own.TimeIn)})`] : []),
+    ];
+    const ok = await Swal.fire({ icon: 'question', title: `ลงเวลาเข้า ${name}`,
+      html: `${line}<br>เวลาเข้า <b>${reopen ? hm(own.TimeIn) : now}</b>${notes.length ? `<div class="text-start small mt-2">${notes.join('<br>')}</div>` : ''}`,
+      showCancelButton: true, confirmButtonText: 'ลงเวลาเข้า', cancelButtonText: 'ยกเลิก' });
+    if (!ok.isConfirmed) return;
+    _showLoader();
+    for (const x of open) {
+      const { error: e1 } = await _sb.from('production_labor_log').update({ TimeOut: now, UpdatedAt: new Date().toISOString() })
+        .eq('MO_Ref', x.MO_Ref).eq('Line', x.Line).eq('WorkDate', workDate).eq('EmployeeCode', code);
+      if (e1) { _hideLoader(); _err(`ลงเวลาออกจาก ${x.Line} ไม่สำเร็จ`, e1.message); return; }
+    }
+    const { error: e2 } = reopen
+      ? await ownKey(_sb.from('production_labor_log').update({ TimeOut: null, UpdatedAt: new Date().toISOString() }))
+      : await _sb.from('production_labor_log').upsert({
+          MO_Ref: moRef, Line: line, WorkDate: workDate, EmployeeCode: code, EmployeeName: name, TimeIn: now, TimeOut: null,
+          RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null, UpdatedAt: new Date().toISOString(),
+        }, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
+    _hideLoader();
+    if (e2) { _err('ลงเวลาเข้าไม่สำเร็จ', e2.message); return; }
+  }
+  Swal.fire({ icon: 'success', title: dir === 'in' ? 'ลงเวลาเข้าแล้ว' : 'ลงเวลาออกแล้ว', text: `${name} · ${line} · ${now}`, timer: 1300, showConfirmButton: false });
+  await loadFloorPulseData();
+}
+
+// เลือกคนที่ยังไม่อยู่ในรายชื่อของไลน์นี้ แล้วลงเวลาเข้าทันที — รายชื่อตามเกณฑ์สกิลเดียวกับปุ่ม "เพิ่มคนอื่น" หน้าสแกนบันทึกเวลา
+async function _fpClockAddWorker(line) {
+  const r = _fpData[line];
+  if (!_fpCanEdit(r)) return;
+  const pool = _scanlaborQualifiedPool(line, (r.roster || []).map(p => p.code));
+  if (!pool.length) { _err('ไม่มีคนให้เลือก', 'พนักงานที่มีสกิลตรงกับไลน์นี้อยู่ในรายชื่อครบแล้ว'); return; }
+  const { value: code } = await Swal.fire({
+    title: `เลือกคนเข้า ${line}`,
+    html: `<select id="fp-add-worker" class="form-select">${pool.map(e => `<option value="${e.EmployeeCode}">${e.NickName || e.FirstName || e.EmployeeCode}${e.NickName && e.FirstName ? ` (${e.FirstName})` : ''} — ${e.EmployeeCode}</option>`).join('')}</select>`,
+    showCancelButton: true, confirmButtonText: 'ถัดไป', cancelButtonText: 'ยกเลิก',
+    preConfirm: () => document.getElementById('fp-add-worker').value,
+  });
+  if (code) await _fpClock(line, code, 'in');
+}
+
+function _fpProgressFormHTML(line, r) {
+  if (!_fpCanEdit(r) || r.status === 'done') return '';
+  const moRef = r.item.MO_Ref;
+  const last = _prodStatusProgressData[`${moRef}|${line}`];
+  const lastQty = last ? parseFloat(last.Qty) : null;
+  // ไม่ใช้คลาส fp-field — สไตล์ ".fp-field label" (ตัวเล็กพิมพ์ใหญ่) จะไปทับปุ่มเลือกห้องที่เป็น <label class="btn">
+  return `<div class="fp-update-form" oninput="_fpDrawerDirty=true" onchange="_fpDrawerDirty=true">
+    <div class="fp-eyebrow">อัปเดตยอด${_fpIsPackLine(line) ? ' / ห้องที่แพ็คจริง' : ''} (เหมือนหน้าสแกน)</div>
+    ${_fpIsPackLine(line) ? _fpRoomPickerHTML('fp-room-pick', (last && last.Room) || 'packbox') : ''}
+    <div class="fp-val" style="font-size:12px;color:var(--fp-text-dim)">${lastQty != null ? `ยอดล่าสุด ${lastQty.toLocaleString()} ${r.item.UOM || ''} (${_fmtDateTime(last.CreatedAt)})` : 'ยังไม่มีการสแกนยอดของไลน์นี้'}</div>
+    <div class="input-group">
+      <input type="number" id="fp-qty" class="form-control" min="0" step="any" inputmode="decimal" placeholder="ยอดผลิตสะสมรวม" value="${lastQty != null ? lastQty : ''}">
+      <span class="input-group-text">${r.item.UOM || ''}</span>
+    </div>
+    <button type="button" class="fp-clock-btn fp-clock-in" style="margin-left:0;justify-content:center" onclick="_fpSubmitProgress('${_fpJsStr(line)}')"><i class="fas fa-check me-1"></i>อัปเดต</button>
+  </div>`;
+}
+
+async function _fpSubmitProgress(line) {
+  const r = _fpData[line];
+  if (!_fpCanEdit(r)) return;
+  const qty = parseFloat(document.getElementById('fp-qty')?.value);
+  if (isNaN(qty) || qty < 0) { _err('กรอกยอดไม่ถูกต้อง', 'กรุณากรอกตัวเลขยอดผลิตสะสม (0 ขึ้นไป)'); return; }
+  const room = _fpIsPackLine(line) ? _fpPickedRoom('fp-room-pick') : null;
+  _showLoader();
+  const row = { MO_Ref: r.item.MO_Ref, Line: line, Qty: qty, ScannedBy: _currentUser?.email || null };
+  if (room) row.Room = room;
+  let { error } = await _sb.from('production_progress').insert(row);
+  if (error && room) { delete row.Room; ({ error } = await _sb.from('production_progress').insert(row)); }  // ยังไม่ได้รัน SQL เพิ่มคอลัมน์ Room
+  _hideLoader();
+  if (error) { _err('อัปเดตไม่สำเร็จ', error.message); return; }
+  _fpDrawerDirty = false;
+  Swal.fire({ icon: 'success', title: 'อัปเดตแล้ว', text: `${line} — ${qty.toLocaleString()} ${r.item.UOM || ''}${room ? ' · ' + _fpPackRoomLabel(room) : ''}`, timer: 1400, showConfirmButton: false });
+  // ย้ายห้องแพ็ค — ให้แผงขวาตามงานไปห้องใหม่ (ไม่งั้นค้างที่สถานีเดิมซึ่งตอนนี้ขึ้นแค่ "ย้ายไปห้อง...")
+  if (room) {
+    const sub = FP_PACK_SUBLINES.find(s => s.line === line);
+    _fpSelectedId = room !== 'packbox' ? room : sub ? `packbox__${sub.key}` : _fpSelectedId;
+  }
+  await loadFloorPulseData();
 }
 
 function _fpJsStr(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
@@ -1849,6 +2003,7 @@ function _fpShowPerson(code) {
   const drawer = document.getElementById('fp-drawer');
   if (!drawer) return;
   _fpSelectedPerson = code;
+  _fpDrawerDirty = false;
   const emp = _planEmployees.find(e => e.EmployeeCode === code) || { EmployeeCode: code };
   const ov = _fpBuildStaffOverview().find(s => s.code === code);
   const lines = PLAN_LINES.filter(l => ((_fpData[l] && _fpData[l].roster) || []).some(p => p.code === code));
@@ -1867,7 +2022,7 @@ function _fpShowPerson(code) {
     }).join('') : '<div class="fp-oval">ไลน์นี้ยังไม่ได้ผูกสกิลในแมททริกสกิล</div>';
     return `<div class="fp-field" style="border:1px solid var(--fp-wall-soft);border-radius:10px;padding:8px 10px">
       <label>${entry ? `<a href="#" onclick="_fpSelectRoom('${entry.id}');return false">${entry.label}</a>` : l}${r.item ? ` · ${r.item.ProductName || ''}` : ''}</label>
-      <div class="fp-val fp-mono" style="font-size:12px">${p && p.timeIn ? `เข้า ${String(p.timeIn).slice(0, 5)}` : 'ยังไม่สแกนเข้า'}${p && p.timeOut ? ` · ออก ${String(p.timeOut).slice(0, 5)}` : ''}</div>
+      <div class="fp-val fp-mono" style="font-size:12px;display:flex;align-items:center;gap:8px">${p && p.timeIn ? `เข้า ${String(p.timeIn).slice(0, 5)}` : 'ยังไม่สแกนเข้า'}${p && p.timeOut ? ` · ออก ${String(p.timeOut).slice(0, 5)}` : ''}${p ? _fpClockBtnHTML(l, p) : ''}</div>
       ${skillHtml}
     </div>`;
   }).join('');
