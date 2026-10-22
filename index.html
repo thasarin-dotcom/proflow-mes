@@ -12914,6 +12914,29 @@ async function mrUpdateStock(matCode, lot, qty, unitCost, expDate, uom, matName)
       ExpDate      : expDate || null,
     });
   }
+  await _stockRecalcLotValue(matCode, lot);   // มูลค่า = คงเหลือ × ราคาเฉลี่ยของ Lot เสมอ (ดูหมายเหตุที่ฟังก์ชัน)
+}
+
+// มูลค่าคงเหลือของ Lot = QtyBalance × ราคารับเข้าเฉลี่ยถ่วงน้ำหนักของ Lot นั้น (mr_receive ที่มีราคา > 0) — คำนวณใหม่ทั้งก้อน
+// ทุกครั้งหลังรับ/แก้/ลบรายการรับ (เพิ่ม 2026-10-22 แก้บั๊กจริง: ขวดแก้ว PMBT046 Lot 211026 รับ 1,363 โดยยังไม่ใส่ราคา → ถูกเบิก
+// 1,100 ตอน UnitCost=0 (issueUpdateStock หักมูลค่า 0) → มาใส่ราคา ฿13.2 ทีหลัง mrUpdateStock บวกมูลค่าเต็ม 1,363 ชิ้นกลับเข้าไป
+// ทั้งที่เหลือ 263 → StockValue ฿17,992 ÷ 263 = ฿68.41/ชิ้น ผิดไปถึงหน้าคำนวณต้นทุนสินค้าใหม่ที่อ่าน "สต็อกเฉลี่ย")
+// แบบบวก/ลบทีละรายการเดิมพังได้ทุกครั้งที่ลำดับการกรอกสลับกัน แบบนี้ไม่ขึ้นกับลำดับ — Lot ที่ไม่มีราคาในใบรับเลยไม่แตะ
+async function _stockRecalcLotValue(matCode, lot) {
+  if (!matCode || !lot) return;
+  const [{ data: recs }, { data: sb }] = await Promise.all([
+    _sb.from('mr_receive').select('*').eq('MaterialCode', matCode).eq('Lot', lot),
+    _sb.from('stock_balance').select('_row_id,QtyBalance').eq('MaterialCode', matCode).eq('Lot', lot).maybeSingle(),
+  ]);
+  if (!sb) return;
+  let q = 0, v = 0;
+  (recs || []).forEach(r => {
+    const qq = parseFloat(r.Qty ?? r.QtyIn) || 0, c = parseFloat(r.UnitCost) || 0;
+    if (qq > 0 && c > 0) { q += qq; v += qq * c; }
+  });
+  if (!(q > 0)) return;
+  const avg = v / q, val = (parseFloat(sb.QtyBalance) || 0) * avg;
+  await _sb.from('stock_balance').update({ UnitCost: avg, StockValue: val, TotalCost: val }).eq('_row_id', sb._row_id);
 }
 
 // กลับด้าน mrUpdateStock — เรียกตอนแก้ไข/ลบรายการรับวัตถุดิบ เพื่อย้อนยอดที่เคยบวกเข้า stock_balance
@@ -12932,6 +12955,7 @@ async function _mrReverseStock(matCode, lot, qty, unitCost) {
     TotalCost  : (parseFloat(existing.TotalCost) || 0) - cost,
     StockValue : (parseFloat(existing.StockValue) || 0) - cost,
   }).eq('_row_id', existing._row_id);
+  await _stockRecalcLotValue(matCode, lot);
 }
 
 // ── Delete ──
