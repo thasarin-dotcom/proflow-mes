@@ -1870,6 +1870,9 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 /* เครื่องจักรตำแหน่งจริงในผัง 2D (FP_MACHINES, 2026-10-22) — จางๆ อยู่ใต้ชื่อห้อง/หุ่น */
 #page-floorpulse .fp-machine { fill: #64748b; fill-opacity: .16; stroke: #64748b; stroke-opacity: .45; stroke-width: .7; }
 #page-floorpulse .fp-machine-table { fill-opacity: .07; stroke-dasharray: 2 1.5; }
+#page-floorpulse .fp-machine { cursor: pointer; }
+#page-floorpulse .fp-machine:hover { fill-opacity: .32; }
+#page-floorpulse .fp-machine-sel { fill: #0d9488; fill-opacity: .45; stroke: #0d9488; stroke-opacity: 1; stroke-width: 1.4; }
 #page-floorpulse .fp-machine-row { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
 #page-floorpulse .fp-machine-edit { border: 1px solid var(--fp-wall-soft); background: var(--fp-surface-2); color: #64748b;
   border-radius: 8px; width: 34px; height: 32px; cursor: pointer; flex-shrink: 0; }
@@ -40359,6 +40362,15 @@ function _isPhoneDevice() {
   return s > 0 && s < 600 && window.matchMedia('(pointer: coarse)').matches;
 }
 function _mobileOptedOut() { try { return localStorage.getItem(_MOBILE_OPT_OUT_KEY) === '1'; } catch (e) { return false; } }
+// ?nfc=<room id> บนแท็บเล็ต/คอม — เปิดผังโรงงานเรียลไทม์ (ผ่านโหมดแท็บเลตคลังถ้าเป็นบัญชีคลัง) แล้วเลือกห้องนั้น
+// FP_ROOM_LABEL / _fpSelectRoom อยู่ใน factory-layout.js / floorpulse.js (โหลดหลังสคริปต์นี้ แต่ฟังก์ชันนี้ถูกเรียกหลัง login เสมอ)
+async function _nfcOpenRoom(roomId) {
+  if (typeof FP_ROOM_LABEL === 'undefined' || !FP_ROOM_LABEL[roomId]) return;
+  if (_currentUser?.isWarehouse) _whOpenDesktopPage('floorpulse');
+  else showPage('floorpulse', document.getElementById('nav-floorpulse'));
+  await _fpLoadPage();
+  if (typeof _fpSelectRoom === 'function') _fpSelectRoom(roomId);
+}
 function openMobileApp() {
   try { localStorage.removeItem(_MOBILE_OPT_OUT_KEY); } catch (e) {}
   location.href = 'mobile/index.html';
@@ -40717,6 +40729,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // โหมดสแกน QR บันทึกเวลาแรงงานแบบไม่ต้อง login (?scanlabor=1&mo=...&line=...) — กลไกเดียวกับ ?scanprog=1
   // เป๊ะ แค่กันด้วยเบอร์โทรฝั่ง Edge Function คนละตัว (ดู scan-labor)
   if (_qs.get('scanlabor') === '1') { _renderPublicScanLabor(_qs.get('mo') || ''); return; }
+  // แตะแท็ก NFC / สแกน QR หน้าห้อง (?nfc=<room id>, นำร่อง 2026-10-22) — มือถือไปหน้า "ห้องนี้ตอนนี้" ในแอปมือถือทันที
+  // (ก่อน login — แอปมือถือมีหน้า login ของตัวเอง) ส่วนแท็บเล็ต/คอมเปิดผังโรงงานเรียลไทม์แล้วเลือกห้องนั้นให้ (ดู _nfcOpenRoom)
+  const _nfcRoom = _qs.get('nfc');
+  if (_nfcRoom && _isPhoneDevice() && !_mobileOptedOut()) { location.replace('mobile/index.html' + location.search); return; }
 
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
@@ -40743,7 +40759,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (_currentUser.isWarehouse) {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
         document.getElementById('whTabletView').style.display = 'flex';
-        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
+        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); if (_nfcRoom) _nfcOpenRoom(_nfcRoom); }
       } else {
         // มือถือ (จอเล็ก จอสัมผัส) — พาไปแอปมือถือ (/mobile/) ที่ออกแบบมาสำหรับจอนี้ แทนหน้าเดสก์ท็อปที่ใช้ยาก
         // session อยู่ใน localStorage โดเมนเดียวกัน แอปมือถือจึงล็อกอินต่อได้เลยไม่ต้องกรอกใหม่ — กด "เปิดแบบเต็ม"
@@ -40765,6 +40781,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _coUpdateNavBadge(true);
           _editreqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไขค้างอนุมัติจากหน้าใดๆ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
           _laborutilUpdateNavBadge(true); // เด้งเตือนครั้งเดียวตอน login ถ้ามีเวลาแรงงานไม่ครบ (หัวหน้างานขึ้นไป) // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
+          if (_nfcRoom) _nfcOpenRoom(_nfcRoom);
         }
       }
     } else {
@@ -40774,6 +40791,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-<script src="floorpulse.js?v=20261022c"></script>
+<!-- factory-layout.js = ห้อง↔ไลน์ + เครื่องจักร ใช้ร่วมกับแอปมือถือ — ต้องโหลดก่อน floorpulse.js เสมอ -->
+<script src="factory-layout.js?v=20261022a"></script>
+<script src="floorpulse.js?v=20261022f"></script>
 </body>
 </html>
