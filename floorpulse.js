@@ -128,6 +128,38 @@ const FP_ROOM_FULL = {
   mixall: 'ห้องผสมแชมพู/ผสมครีม/โลชั่น/ครีมนวด/เจลอาบน้ำ/สครับขัดผิว',
 };
 
+// เครื่องจักร/อุปกรณ์ตำแหน่งจริง (2026-10-22 คำขอผู้ใช้ "อยากให้เห็นตำแหน่งเครื่องจักรจริง จะได้เห็นว่าทำงานตำแหน่งเครื่อง
+// ไหนบ้าง") — วัดจากสแกน Polycam "21_10_2569 BE.glb" (ห้องผสมรวม + บรรจุครีม/โลชั่น + บรรจุแชมพู + ทางเดินหลัก)
+// สแกนหมุน 180° จากแปลน (ยืนยันจากขนาดห้อง: ครีม/โลชั่น 3.2×2.8 ม., ทางเดินบรรจุ 2.0 ม., ผสมรวม 11.3 ม. ตรงแบบ) แปลงเป็น
+// พิกัดผังทีละห้องเทียบกับขอบห้องในสแกน (x,y,w,h = px ผัง เหมือน FP_GEOM) — ชื่อเครื่องดูจากรูปในสแกน ยังไม่ได้ยืนยันกับ
+// ผู้ใช้ แก้ชื่อที่นี่ได้เลย ไม่กระทบตำแหน่ง | hM = ความสูงจริงโดยประมาณ (ม.) ใช้ทำความสูงในมุมมอง 3D
+// kind: mixer/tank/filler/machine/table — ใช้เลือกทรง 3D และลำดับจุดยืนทำงานของพนักงาน (เครื่องก่อน โต๊ะทีหลัง)
+// ไฟล์สแกนเองไม่ได้ใส่ในแอป (18 MB หนักเกินสำหรับแท็บเลต) — ถ้าย้ายเครื่อง/สแกนใหม่ ต้องวัดพิกัดใหม่
+// id = รหัสคงที่ของตำแหน่งนั้น (2026-10-22) ใช้เก็บชื่อจริงที่ผู้ใช้ตั้ง (ตาราง floor_machines) และเครื่องที่ลงเวลา
+// (production_labor_log.MachineId) — ห้ามเปลี่ยน id ของเครื่องที่มีอยู่แล้ว (ข้อมูลเก่าจะหลุดจากเครื่อง) | label = ชื่อเริ่มต้น
+const FP_MACHINES = [
+  { id: 'mixall-homo',    room: 'mixall', kind: 'mixer',   label: 'เครื่องผสมสุญญากาศ (โฮโมจีไนเซอร์)', x: 666, y: 371, w: 58, h: 47, hM: 1.8 },
+  { id: 'mixall-homotank', room: 'mixall', kind: 'tank',   label: 'ถังผสมของเครื่องโฮโมจีไนเซอร์',      x: 649, y: 336, w: 28, h: 61, hM: 1.3 },
+  { id: 'mixall-m3',      room: 'mixall', kind: 'machine', label: 'เครื่องจักรสเตนเลส (ข้างเครื่องผสม)', x: 604, y: 372, w: 25, h: 38, hM: 1.4 },
+  { id: 'mixall-tbl1',    room: 'mixall', kind: 'table',   label: 'โต๊ะทำงาน 1',                       x: 536, y: 383, w: 41, h: 20, hM: 0.85 },
+  { id: 'mixall-stand',   room: 'mixall', kind: 'machine', label: 'เครื่องกวนแบบขาตั้ง',                 x: 410, y: 375, w: 57, h: 25, hM: 1.4 },
+  { id: 'mixall-kettle',  room: 'mixall', kind: 'tank',    label: 'ถังต้ม/ผสม (ทรงกลม)',                 x: 425, y: 338, w: 27, h: 32, hM: 1.2 },
+  { id: 'mixall-tbl2',    room: 'mixall', kind: 'table',   label: 'โต๊ะทำงาน 2',                       x: 460, y: 318, w: 60, h: 20, hM: 0.85 },
+  { id: 'filllotion-filler', room: 'filllotion', kind: 'filler', label: 'เครื่องบรรจุ (ถังป้อนด้านบน)',  x: 712, y: 238, w: 31, h: 48, hM: 1.6 },
+  { id: 'filllotion-tbl', room: 'filllotion', kind: 'table',  label: 'โต๊ะสเตนเลส',                     x: 676, y: 297, w: 38, h: 20, hM: 0.85 },
+  { id: 'fillsh-cart',    room: 'fillsh', kind: 'machine', label: 'เครื่อง (คลุมพลาสติก) บนรถเข็น',      x: 531, y: 297, w: 22, h: 20, hM: 1.2 },
+  { id: 'fillsh-piston',  room: 'fillsh', kind: 'filler',  label: 'เครื่องบรรจุแบบลูกสูบ',              x: 477, y: 287, w: 18, h: 20, hM: 1.6 },
+  { id: 'fillsh-capper',  room: 'fillsh', kind: 'table',   label: 'โต๊ะ + เครื่องปิดฝา + ตาชั่ง',        x: 469, y: 230, w: 25, h: 51, hM: 0.85 },
+];
+let _fpMachineNames = {};   // MachineId -> ชื่อที่ผู้ใช้ตั้ง (floor_machines) — โหลดใน loadFloorPulseData
+function _fpMachinesIn(roomId) { return FP_MACHINES.filter(m => m.room === roomId); }
+function _fpMachineById(id) { return FP_MACHINES.find(m => m.id === id) || null; }
+function _fpMachineName(m) { return (m && (_fpMachineNames[m.id] || m.label)) || ''; }
+// ห้องที่ไลน์นี้ทำงานอยู่ตอนนี้ — ห้องเดี่ยวตาม FP_ROOM_LINE หรือห้องที่งานแพ็คย้ายไปใช้ (สถานีในห้องหีบห่อไม่มีเครื่องในผัง)
+function _fpLineRoomId(line) {
+  return Object.keys(FP_ROOM_LINE).find(id => FP_ROOM_LINE[id] === line) || _fpPackLineRoom(line) || null;
+}
+
 
 // ห้องที่ไลน์แพ็คนี้ใช้จริงตอนนี้ (จาก Room ของแถวสแกนล่าสุดของงานปัจจุบัน) — null = ห้องปกติ (สถานีในห้อง
 // บรรจุหีบห่อ) ใช้ทั้งผัง 2D/3D, แผงรายละเอียด และเส้นโฟลงาน
@@ -185,7 +217,8 @@ function _fpBuildRoster(line, planItem, laborRowsByLine) {
     const confirmed = !!(row && row.TimeIn && !row.TimeOut); // สแกนเข้าแล้วและยังไม่สแกนออก = อยู่จริงตอนนี้
     return { code, name: emp ? (emp.NickName || emp.FirstName || code) : code, confirmed, line,
       gender: emp && (emp.Gender === 'F' || emp.Gender === 'M') ? emp.Gender : null,
-      timeIn: row ? row.TimeIn || null : null, timeOut: row ? row.TimeOut || null : null };
+      timeIn: row ? row.TimeIn || null : null, timeOut: row ? row.TimeOut || null : null,
+      machine: row ? row.MachineId || null : null };   // เครื่องที่เลือกตอนลงเวลา (FP_MACHINES id)
   });
 }
 
@@ -214,10 +247,15 @@ async function loadFloorPulseData() {
   await Promise.all([ loadProdStatusData(), _planLoadSkillData() ]);
 
   const todayStr = _planWeekLocalDateStr(new Date());
-  const [laborRes, holdRes] = await Promise.all([
-    _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut').eq('WorkDate', todayStr),
+  let [laborRes, holdRes, machRes] = await Promise.all([
+    _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut,MachineId').eq('WorkDate', todayStr),
     _sb.from('hold_stock').select('HoldType,ItemType,ItemCode,ItemName,Lot,UOM,QtyBalance').gt('QtyBalance', 0),
+    _sb.from('floor_machines').select('MachineId,Name'),
   ]);
+  // ยังไม่ได้รัน alter_labor_log_add_machine.sql — โหลดเวลาแบบเดิมไม่มีเครื่อง (ชื่อเครื่องใช้ค่าเริ่มต้นในโค้ด)
+  if (laborRes.error) laborRes = await _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut').eq('WorkDate', todayStr);
+  _fpMachineNames = {};
+  if (!machRes.error) (machRes.data || []).forEach(r => { if (r.Name) _fpMachineNames[r.MachineId] = r.Name; });
   const laborRowsByLine = {};
   (laborRes.data || []).forEach(row => {
     if (!laborRowsByLine[row.Line]) laborRowsByLine[row.Line] = [];
@@ -630,6 +668,16 @@ function _fpBuildSvg() {
     grp.addEventListener('click', () => _fpSelectRoom(roomId));
     grp.addEventListener('keypress', e => { if (e.key === 'Enter') _fpSelectRoom(roomId); });
     grp.appendChild(mk('rect', { class: 'fp-room', x: g.x, y: g.y, width: g.w, height: g.h, rx: 10, fill, stroke: color, 'stroke-opacity': .85 }));
+    // เครื่องจักรตำแหน่งจริง (FP_MACHINES) — รูปทรงจางๆ ใต้ชื่อห้อง/หุ่น ไม่แย่งสายตา ชี้เมาส์ค้างดูชื่อเครื่องได้
+    _fpMachinesIn(roomId).forEach(m => {
+      const round = m.kind === 'tank';
+      const shape = round
+        ? mk('ellipse', { cx: m.x + m.w / 2, cy: m.y + m.h / 2, rx: m.w / 2, ry: m.h / 2 })
+        : mk('rect', { x: m.x, y: m.y, width: m.w, height: m.h, rx: m.kind === 'table' ? 1.5 : 3 });
+      shape.setAttribute('class', `fp-machine fp-machine-${m.kind}`);
+      const t = mk('title', {}); t.textContent = _fpMachineName(m); shape.appendChild(t);
+      grp.appendChild(shape);
+    });
 
     const hasDot = isMonitored && status !== 'idle';
     const alertLvl = isMonitored ? _fpAlertLevel(r.alerts) : null;
@@ -1256,7 +1304,23 @@ function _fp3dAddRoom(o) {
   const roster = (o.roster || []).slice(0, 14);
   const cols = Math.max(1, Math.floor((W - 34) / 18));
   const bounds = { x0: cx - W / 2 + 8, x1: cx + W / 2 - 8, z0: cz - D / 2 + 6, z1: cz + D / 2 - 6 };
+  // ห้องที่มีเครื่องจักรตำแหน่งจริง (FP_MACHINES): วางเครื่อง แล้วให้พนักงานยืนประจำหน้าเครื่อง (เครื่องก่อน โต๊ะทีหลัง วนซ้ำ
+  // ถ้าคนมากกว่าเครื่อง) เดินขยับแค่รอบๆ จุดนั้น — ห้องที่ยังไม่มีข้อมูลเครื่อง วางเรียงแถวเดินทั่วห้องแบบเดิม
+  const machines = o.id && !o.small ? _fpMachinesIn(o.id) : [];
+  machines.forEach(m => _fp3dAddMachine(m, o.selected));
+  const spots = _fp3dWorkSpots(machines, cx, cz, bounds);
+  // คนที่เลือกเครื่องตอนลงเวลา (p.machine) ยืนเครื่องนั้น ที่เหลือวนจัดลงเครื่องตามลำดับความสำคัญเหมือนเดิม
+  const spotById = Object.fromEntries(spots.map(s => [s.id, s])), perSpot = {};
+  let nextFree = 0;
   roster.forEach((p, i) => {
+    if (spots.length) {
+      const sp = (p.machine && spotById[p.machine]) || spots[nextFree++ % spots.length];
+      const k = (perSpot[sp.id] = (perSpot[sp.id] || 0) + 1) - 1;   // คนที่ 2 ของเครื่องเดียวกัน ขยับข้างๆ
+      const wx = Math.min(bounds.x1, Math.max(bounds.x0, sp.x + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 11));
+      const near = { x0: Math.max(bounds.x0, wx - 7), x1: Math.min(bounds.x1, wx + 7), z0: Math.max(bounds.z0, sp.z - 5), z1: Math.min(bounds.z1, sp.z + 5) };
+      _fp3dMakePerson(p, wx, sp.z, near, o.small, sp.face);
+      return;
+    }
     const row = Math.floor(i / cols);
     const wx = cx - W / 2 + 16 + (i % cols) * 18;
     const wz = D < 50 ? cz : cz - D / 2 + 20 + row * 20;
@@ -1276,13 +1340,74 @@ function _fp3dAddRoom(o) {
   }
 }
 
+// เครื่องจักร 1 เครื่อง (FP_MACHINES) เป็นทรงง่ายๆ สีสเตนเลสตามชนิด — กว้าง/ลึกตามพิกัดผังจริง ความสูง hM × 18 หน่วย
+// (ย่อกว่าสเกลผังจริงราวครึ่ง ให้เข้ากับหุ่นพนักงานที่สูง ~29 หน่วย) ไม่อยู่ใน pickables — คลิกตรงเครื่องยังเลือกห้องได้
+// ป้ายชื่อเครื่องขึ้นเฉพาะห้องที่เลือกอยู่ กันป้ายรกทั้งผัง
+function _fp3dAddMachine(m, showLabel) {
+  const T = THREE, root = _fp3d.roomsGroup;
+  const H = Math.max(8, m.hM * 18), W = m.w, D = m.h;
+  const steel = new T.MeshLambertMaterial({ color: 0xd5dde6 }), dark = new T.MeshLambertMaterial({ color: 0x8796a8 });
+  const grp = new T.Group();
+  grp.position.set(m.x + W / 2 - FP_VIEW.w / 2, 4, m.y + D / 2 - FP_VIEW.h / 2);
+  const add = (geo, mat, x, y, z) => { const me = new T.Mesh(geo, mat); me.position.set(x, y, z); grp.add(me); return me; };
+  const outline = mesh => { const e = new T.LineSegments(new T.EdgesGeometry(mesh.geometry), new T.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.6 })); e.position.copy(mesh.position); grp.add(e); };
+  if (m.kind === 'table') {
+    outline(add(new T.BoxGeometry(W, 1.2, D), steel, 0, H, 0));
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => add(new T.BoxGeometry(1, H, 1), dark, sx * (W / 2 - 1.5), H / 2, sz * (D / 2 - 1.5)));
+    add(new T.BoxGeometry(W - 3, 0.8, D - 3), dark, 0, H * 0.3, 0);   // ชั้นวางใต้โต๊ะ
+  } else if (m.kind === 'tank') {
+    const r = Math.min(W, D) / 2 - 0.5;
+    outline(add(new T.CylinderGeometry(r, r * 0.92, H * 0.75, 20), steel, 0, H * 0.25 + H * 0.375, 0));
+    add(new T.SphereGeometry(r, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2), steel, 0, H, 0).scale.y = 0.35;   // ฝาโดม
+    [0, 2.1, 4.2].forEach(a => add(new T.CylinderGeometry(0.6, 0.6, H * 0.25, 6), dark, Math.cos(a) * r * 0.75, H * 0.125, Math.sin(a) * r * 0.75));
+  } else if (m.kind === 'filler') {
+    outline(add(new T.BoxGeometry(W, H * 0.55, D), steel, 0, H * 0.275, 0));
+    const r = Math.min(W, D) / 2;
+    add(new T.CylinderGeometry(r * 0.95, r * 0.35, H * 0.35, 18), steel, 0, H * 0.55 + H * 0.175, 0);   // ถังป้อน (กรวย)
+    add(new T.CylinderGeometry(0.7, 0.7, H * 0.12, 8), dark, 0, H * 0.5, D / 2 + 0.6);                   // หัวฉีด
+  } else if (m.kind === 'mixer') {
+    outline(add(new T.BoxGeometry(W, H * 0.6, D), steel, 0, H * 0.3, 0));                                  // ตู้ควบคุม
+    add(new T.BoxGeometry(3, H * 0.35, 3), dark, -W / 2 + 4, H * 0.6 + H * 0.175, 0);                       // เสายกแขน
+    add(new T.BoxGeometry(W * 0.85, 3, 6), steel, 0, H * 0.95, 0);                                         // แขนยกฝาถัง
+    add(new T.BoxGeometry(W * 0.25, H * 0.15, 0.6), new T.MeshLambertMaterial({ color: 0x1e293b }), -W * 0.15, H * 0.4, D / 2 + 0.3);   // จอ
+  } else {
+    outline(add(new T.BoxGeometry(W * 0.9, H * 0.7, D * 0.9), steel, 0, H * 0.35, 0));
+    add(new T.BoxGeometry(W * 0.5, H * 0.3, D * 0.5), dark, 0, H * 0.85, 0);
+  }
+  root.add(grp);
+  if (showLabel) {
+    const tag = _fp3dLabel(_fpMachineName(m), '', '#475569', 0.2);
+    tag.position.set(grp.position.x, 4 + H + 9, grp.position.z);
+    root.add(tag);
+  }
+}
+
+// จุดยืนทำงานหน้าเครื่องแต่ละเครื่อง: ลองทั้ง 4 ด้านของเครื่อง เลือกด้านที่อยู่ในห้องและใกล้กลางห้องที่สุด (ฝั่งที่มีพื้นที่ยืน
+// ไม่ใช่ด้านชิดผนัง) — เรียงเครื่องจักรก่อน โต๊ะทีหลัง ให้คนแรกๆ ได้ยืนประจำเครื่องหลัก | face = มุม rotation.y ให้หน้าหันเข้าเครื่อง
+function _fp3dWorkSpots(machines, rcx, rcz, bounds) {
+  const prio = { mixer: 0, filler: 0, machine: 1, tank: 2, table: 3 };
+  return machines.slice().sort((a, b) => prio[a.kind] - prio[b.kind]).map(m => {
+    const mx = m.x + m.w / 2 - FP_VIEW.w / 2, mz = m.y + m.h / 2 - FP_VIEW.h / 2, gap = 6;
+    const cands = [
+      { x: mx - m.w / 2 - gap, z: mz }, { x: mx + m.w / 2 + gap, z: mz },
+      { x: mx, z: mz - m.h / 2 - gap }, { x: mx, z: mz + m.h / 2 + gap },
+    ];
+    const inside = c => c.x >= bounds.x0 && c.x <= bounds.x1 && c.z >= bounds.z0 && c.z <= bounds.z1;
+    const pool = cands.filter(inside);
+    const best = (pool.length ? pool : cands).sort((a, b) => Math.hypot(a.x - rcx, a.z - rcz) - Math.hypot(b.x - rcx, b.z - rcz))[0];
+    const x = Math.min(bounds.x1, Math.max(bounds.x0, best.x)), z = Math.min(bounds.z1, Math.max(bounds.z0, best.z));
+    return { id: m.id, x, z, face: Math.atan2(mx - x, mz - z) };
+  });
+}
+
 // หุ่นการ์ตูนพนักงาน 1 คน (เพิ่ม 2026-10-18 คำขอ "แสดง Animation พนักงานที่อยู่แต่ละไลน์ ขึ้นป้ายชื่อด้วย การ์ตูน
 // ผู้หญิง ผู้ชายตามพนักงานจริง") — เพศมาจาก employees.Gender ('F'/'M') เท่านั้น ห้ามเดาจากชื่อ ถ้ายังไม่ระบุ =
 // หุ่นกลางๆ สวมหมวกคลุมผมสีขาว ทุกคนใส่ชุดยูนิฟอร์มสีชมพูเหมือนกัน แยกเพศด้วยทรงผม/ทรงชุดเท่านั้น
 // (ผัง 2D ใช้หุ่นหน้าตาเดียวกันแบบแบน — ดู _fpSvgPerson)
 // สแกนเข้าแล้ว: เดินไปมาในห้อง (เดิน = ขาก้าว, หยุด = แขนขยับทำงาน) + ป้ายชื่อตามตัว
 // ยังไม่สแกนเข้า: หุ่นเทาโปร่งยืนนิ่งที่จุดประจำ — สื่อว่า "อยู่ในแผน แต่ยังไม่มาจริง"
-function _fp3dMakePerson(p, homeX, homeZ, bounds, small) {
+// face = มุมหันหน้าเข้าเครื่องจักร (rad, ดู _fp3dWorkSpots) — มีค่า = ยืนทำงานหน้าเครื่อง หยุดเดินเมื่อไหร่หันกลับเข้าเครื่อง
+function _fp3dMakePerson(p, homeX, homeZ, bounds, small, face) {
   const T = THREE, g = _fp3d.roomsGroup;
   const ghost = !p.confirmed;
   const mat = (color) => new T.MeshLambertMaterial(ghost
@@ -1335,7 +1460,7 @@ function _fp3dMakePerson(p, homeX, homeZ, bounds, small) {
   }
   person.scale.setScalar(S);
   person.position.set(homeX, 4, homeZ);
-  person.rotation.y = Math.random() * Math.PI * 2;
+  person.rotation.y = face != null ? face : Math.random() * Math.PI * 2;
   g.add(person);
 
   // ป้ายชื่อเหนือหัว (ตามตัวไปด้วยตอนเดิน)
@@ -1360,6 +1485,7 @@ function _fp3dMakePerson(p, homeX, homeZ, bounds, small) {
       if (pause <= 0) target = pickTarget();
     } else if (dist < 0.6) {
       pause = 90 + Math.random() * 200;
+      if (face != null) person.rotation.y = face;   // ถึงจุดแล้วหันกลับเข้าหาเครื่อง ทำงานต่อ
     } else {
       const step = Math.min(dist, 0.28);
       person.position.x += dx / dist * step;
@@ -1844,6 +1970,7 @@ function _fpSelectRoom(id) {
         ? `งานแพ็คของสถานีนี้ย้ายไปทำที่ <b>${FP_ROOM_FULL[entry.movedTo]}</b> (เลือกตอนอัปเดตยอด) — คลิกห้องนั้นบนผังเพื่อดูรายละเอียดงาน`
         : (FP_ROOM_NOTE[entry.id] || 'พื้นที่นี้ไม่ผูกกับไลน์ผลิตในระบบ')}</p>
       ${entry.id === 'samples' ? _fpHoldStockListHtml() : ''}
+      ${_fpMachineListHTML(entry.id)}
     `;
     return;
   }
@@ -1891,14 +2018,59 @@ function _fpSelectRoom(id) {
     </div>
     ${alertsHtml}
     ${body}
+    ${_fpMachineListHTML(entry.id)}
   `;
   // แท็บเลต: แผงรายละเอียดอยู่ใต้ผัง — แตะห้องแล้วเลื่อนลงไปให้เห็นทันที (เฉพาะตอนเลือกห้องใหม่ ไม่ใช่ทุกรอบรีเฟรช)
   if (isNew && document.body.classList.contains('wh-desktop-mode')) drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// รายการเครื่องจักรในห้อง (FP_MACHINES) ท้ายแผงรายละเอียดห้อง — ห้องที่ยังไม่มีข้อมูลเครื่องไม่แสดงส่วนนี้
+function _fpMachineListHTML(roomId) {
+  const ms = _fpMachinesIn(roomId);
+  if (!ms.length) return '';
+  const icon = { mixer: 'fa-blender', tank: 'fa-database', filler: 'fa-fill-drip', machine: 'fa-gears', table: 'fa-table' };
+  // ใครอยู่เครื่องไหนตอนนี้ (ลงเวลาเข้าแล้วยังไม่ออก + เลือกเครื่องไว้)
+  const line = FP_ROOM_LINE[roomId] || _fpHostedLine(roomId);
+  const roster = (line && _fpData[line] && _fpData[line].roster) || [];
+  return `<div class="fp-field"><label>เครื่องจักร/อุปกรณ์ในห้อง (${ms.length}) — ตำแหน่งจากสแกนห้องจริง · กดดินสอเพื่อตั้งชื่อเครื่อง</label>
+    ${ms.map(m => {
+      const at = roster.filter(p => p.confirmed && p.machine === m.id).map(p => p.name);
+      return `<div class="fp-oval fp-machine-row">
+        <i class="fas ${icon[m.kind] || 'fa-gears'}" style="width:14px;color:#64748b"></i>
+        <span style="flex:1">${_fpMachineName(m)}${at.length ? `<br><span style="color:#0f766e;font-size:11px"><i class="fas fa-user me-1"></i>${at.join(', ')}</span>` : ''}</span>
+        ${_fpReplayAt ? '' : `<button type="button" class="fp-machine-edit" title="ตั้งชื่อเครื่อง" onclick="_fpRenameMachine('${_fpJsStr(m.id)}')"><i class="fas fa-pen"></i></button>`}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ตั้งชื่อจริงของเครื่องจักรตำแหน่งนี้ (คำขอผู้ใช้ 2026-10-22 "อยากใส่ชื่อเครื่อง ว่าตำแหน่งนี้เครื่องไหน") — เก็บที่ floor_machines
+// ทุกคนที่ login แก้ได้ (แอปนี้ไม่มีระบบจำกัดสิทธิ์ราย action มีแค่ audit log) เว้นว่าง = กลับไปใช้ชื่อเริ่มต้นในโค้ด
+async function _fpRenameMachine(id) {
+  const m = _fpMachineById(id);
+  if (!m) return;
+  const { value: name, isConfirmed } = await Swal.fire({
+    title: 'ตั้งชื่อเครื่อง', input: 'text', inputValue: _fpMachineNames[id] || '',
+    inputPlaceholder: m.label, inputLabel: `${FP_ROOM_LABEL[m.room]} — ตำแหน่ง: ${m.label}`,
+    html: '<div class="small text-muted">เว้นว่าง = ใช้ชื่อเริ่มต้น</div>',
+    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+  });
+  if (!isConfirmed) return;
+  const clean = String(name || '').trim();
+  _showLoader();
+  const { error } = clean
+    ? await _sb.from('floor_machines').upsert({ MachineId: id, Name: clean, UpdatedBy: _currentUser?.name || _currentUser?.email || null, UpdatedAt: new Date().toISOString() }, { onConflict: 'MachineId' })
+    : await _sb.from('floor_machines').delete().eq('MachineId', id);
+  _hideLoader();
+  if (error) { _err('บันทึกชื่อเครื่องไม่สำเร็จ', `${error.message}<br><small>ถ้ายังไม่ได้รัน alter_labor_log_add_machine.sql ใน Supabase ให้รันก่อน</small>`); return; }
+  if (typeof _logAudit === 'function') _logAudit('EDIT', 'floor_machines', id, `${_fpMachineName(m)} → ${clean || m.label}`);
+  await loadFloorPulseData();
+}
+
 function _fpRosterRoleText(p) {
-  if (p.confirmed) return `เข้า ${String(p.timeIn).slice(0, 5)} — ยังไม่ออก`;
-  if (p.timeIn && p.timeOut) return `เข้า ${String(p.timeIn).slice(0, 5)} · ออก ${String(p.timeOut).slice(0, 5)}`;
+  const mc = p.machine && _fpMachineById(p.machine) ? ` · ${_fpMachineName(_fpMachineById(p.machine))}` : '';
+  if (p.confirmed) return `เข้า ${String(p.timeIn).slice(0, 5)} — ยังไม่ออก${mc}`;
+  if (p.timeIn && p.timeOut) return `เข้า ${String(p.timeIn).slice(0, 5)} · ออก ${String(p.timeOut).slice(0, 5)}${mc}`;
   return 'ตามแผน — ยังไม่ลงเวลาเข้า';
 }
 
@@ -1935,27 +2107,41 @@ async function _fpClock(line, code, dir) {
   const emp = _planEmployees.find(e => e.EmployeeCode === code);
   const name = emp ? (emp.NickName || emp.FirstName || code) : code;
   const hm = t => String(t || '').slice(0, 5);
-  const { data: rows, error } = await _sb.from('production_labor_log').select('MO_Ref,Line,TimeIn,TimeOut')
-    .eq('WorkDate', workDate).eq('EmployeeCode', code);
+  const q = cols => _sb.from('production_labor_log').select(cols).eq('WorkDate', workDate).eq('EmployeeCode', code);
+  let { data: rows, error } = await q('MO_Ref,Line,TimeIn,TimeOut,MachineId');
+  const hasMachineCol = !error;   // ยังไม่รัน alter_labor_log_add_machine.sql → ลงเวลาได้ แต่ไม่เก็บเครื่อง
+  if (error) ({ data: rows, error } = await q('MO_Ref,Line,TimeIn,TimeOut'));
   if (error) { _err('โหลดเวลาเดิมไม่สำเร็จ', error.message); return; }
   const own = (rows || []).find(x => x.MO_Ref === moRef && x.Line === line);
   const others = (rows || []).filter(x => x !== own);
   const ownKey = q => q.eq('MO_Ref', moRef).eq('Line', line).eq('WorkDate', workDate).eq('EmployeeCode', code);
   const pickerHTML = label => `<div class="d-flex align-items-center justify-content-center gap-2 mt-3">
     <b>${label}</b>${_prodrecordTimeSelectHTML('fp-clock-time', def)}</div>`;
-  // validate = null → ไม่มีช่องเลือกเวลา (กรณีเปิดช่วงเดิมต่อ)
-  const ask = (title, html, btn, validate) => Swal.fire({ icon: 'question', title, html, showCancelButton: true,
+  // เลือกเครื่องที่ทำ (คำขอผู้ใช้ 2026-10-22 "ทำให้เลือกเครื่องตอนลงเวลาได้ด้วย ... ไว้ช่วยเรื่องแมททริกสกิล") — เฉพาะตอนลงเวลาเข้า
+  // และห้องของไลน์นี้มีเครื่องในผัง (FP_MACHINES) ค่าเริ่มต้น = เครื่องเดิมของแถวนี้ (ถ้ามี) ไม่บังคับเลือก ("ไม่ระบุ")
+  const roomMachines = dir === 'in' && hasMachineCol ? _fpMachinesIn(_fpLineRoomId(line)) : [];
+  const machineHTML = !roomMachines.length ? '' : (() => {
+    const cur = (own && own.MachineId) || '';
+    const opts = [{ id: '', name: 'ไม่ระบุ' }, ...roomMachines.map(m => ({ id: m.id, name: _fpMachineName(m) }))];
+    return `<div class="text-start mt-3"><div class="small fw-bold mb-1">ทำเครื่องไหน</div>
+      <div class="d-grid gap-2" style="grid-template-columns:1fr 1fr">${opts.map((o, i) => `
+        <input type="radio" class="btn-check" name="fp-clock-machine" id="fp-clock-machine-${i}" value="${o.id}"${o.id === cur ? ' checked' : ''}>
+        <label class="btn btn-outline-primary btn-sm py-2" for="fp-clock-machine-${i}">${o.name}</label>`).join('')}</div></div>`;
+  })();
+  // validate = null → ไม่มีช่องเลือกเวลา (กรณีเปิดช่วงเดิมต่อ) | คืนค่า { t: เวลาที่เลือก, mid: เครื่องที่เลือก ('' = ไม่ระบุ) }
+  const ask = (title, html, btn, validate) => Swal.fire({ icon: 'question', title, html: html + machineHTML, showCancelButton: true,
     confirmButtonText: btn, cancelButtonText: 'ยกเลิก',
     preConfirm: () => {
-      if (!validate) return true;
+      const mid = document.querySelector('input[name="fp-clock-machine"]:checked')?.value || '';
+      if (!validate) return { t: '', mid };
       _prodrecordSyncTimeSelect('fp-clock-time');
       const t = document.getElementById('fp-clock-time')?.value || '';
       const msg = !t ? 'เลือกเวลาให้ครบทั้งชั่วโมงและนาที'
         : t > now ? `เลือกเวลาในอนาคตไม่ได้ (ตอนนี้ ${now})` : validate(t);
       if (msg) { Swal.showValidationMessage(msg); return false; }
-      return t;
+      return { t, mid };
     } });
-  let t;
+  let t, mid = '';
 
   if (dir === 'out') {
     if (!own || !own.TimeIn) { _err('ยังไม่ได้ลงเวลาเข้า', `${name} ยังไม่มีเวลาเข้าของไลน์นี้วันนี้`); return; }
@@ -1965,7 +2151,7 @@ async function _fpClock(line, code, dir) {
       return mid.length ? `ช่วง ${hm(own.TimeIn)}-${t} ชนกับ ${mid.map(x => `${x.Line} (เข้า ${hm(x.TimeIn)})`).join(', ')}` : null;
     });
     if (!res.isConfirmed) return;
-    t = res.value;
+    t = res.value.t;
     _showLoader();
     const { error: upErr } = await ownKey(_sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() }));
     _hideLoader();
@@ -1990,7 +2176,9 @@ async function _fpClock(line, code, dir) {
           return later.length ? `${name} ลงเวลาเข้า ${later.map(x => `${x.Line} ${hm(x.TimeIn)}`).join(', ')} แล้ว — เลือกเวลาหลังจากนั้น` : null;
         });
     if (!res.isConfirmed) return;
-    t = reopen ? hm(own.TimeIn) : res.value;
+    t = reopen ? hm(own.TimeIn) : res.value.t;
+    mid = res.value.mid;
+    const machineCol = hasMachineCol ? { MachineId: mid || null } : {};
     _showLoader();
     for (const x of open) {
       const { error: e1 } = await _sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() })
@@ -1998,15 +2186,16 @@ async function _fpClock(line, code, dir) {
       if (e1) { _hideLoader(); _err(`ลงเวลาออกจาก ${x.Line} ไม่สำเร็จ`, e1.message); return; }
     }
     const { error: e2 } = reopen
-      ? await ownKey(_sb.from('production_labor_log').update({ TimeOut: null, UpdatedAt: new Date().toISOString() }))
+      ? await ownKey(_sb.from('production_labor_log').update({ TimeOut: null, ...machineCol, UpdatedAt: new Date().toISOString() }))
       : await _sb.from('production_labor_log').upsert({
-          MO_Ref: moRef, Line: line, WorkDate: workDate, EmployeeCode: code, EmployeeName: name, TimeIn: t, TimeOut: null,
+          MO_Ref: moRef, Line: line, WorkDate: workDate, EmployeeCode: code, EmployeeName: name, TimeIn: t, TimeOut: null, ...machineCol,
           RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null, UpdatedAt: new Date().toISOString(),
         }, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
     _hideLoader();
     if (e2) { _err('ลงเวลาเข้าไม่สำเร็จ', e2.message); return; }
   }
-  Swal.fire({ icon: 'success', title: dir === 'in' ? 'ลงเวลาเข้าแล้ว' : 'ลงเวลาออกแล้ว', text: `${name} · ${line} · ${t}`, timer: 1300, showConfirmButton: false });
+  const mName = mid ? _fpMachineName(_fpMachineById(mid)) : '';
+  Swal.fire({ icon: 'success', title: dir === 'in' ? 'ลงเวลาเข้าแล้ว' : 'ลงเวลาออกแล้ว', text: `${name} · ${line} · ${t}${mName ? ' · ' + mName : ''}`, timer: 1300, showConfirmButton: false });
   await loadFloorPulseData();
 }
 
@@ -2101,7 +2290,7 @@ function _fpShowPerson(code) {
     }).join('') : '<div class="fp-oval">ไลน์นี้ยังไม่ได้ผูกสกิลในแมททริกสกิล</div>';
     return `<div class="fp-field" style="border:1px solid var(--fp-wall-soft);border-radius:10px;padding:8px 10px">
       <label>${entry ? `<a href="#" onclick="_fpSelectRoom('${entry.id}');return false">${entry.label}</a>` : l}${r.item ? ` · ${r.item.ProductName || ''}` : ''}</label>
-      <div class="fp-val fp-mono" style="font-size:12px;display:flex;align-items:center;gap:8px">${p && p.timeIn ? `เข้า ${String(p.timeIn).slice(0, 5)}` : 'ยังไม่สแกนเข้า'}${p && p.timeOut ? ` · ออก ${String(p.timeOut).slice(0, 5)}` : ''}${p ? _fpClockBtnHTML(l, p) : ''}</div>
+      <div class="fp-val fp-mono" style="font-size:12px;display:flex;align-items:center;gap:8px">${p && p.timeIn ? `เข้า ${String(p.timeIn).slice(0, 5)}` : 'ยังไม่สแกนเข้า'}${p && p.timeOut ? ` · ออก ${String(p.timeOut).slice(0, 5)}` : ''}${p && p.machine && _fpMachineById(p.machine) ? ` · <i class="fas fa-gears"></i> ${_fpMachineName(_fpMachineById(p.machine))}` : ''}${p ? _fpClockBtnHTML(l, p) : ''}</div>
       ${skillHtml}
     </div>`;
   }).join('');
