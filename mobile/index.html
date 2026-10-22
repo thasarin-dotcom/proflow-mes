@@ -18,6 +18,8 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!-- ห้อง ↔ ไลน์ + เครื่องจักร ใช้ร่วมกับแอปหลัก (หน้า "ห้องนี้ตอนนี้" — NFC หน้าห้อง) แก้แล้วเลื่อน ?v= ให้ตรงกับ index.html -->
+<script src="../factory-layout.js?v=20261022a"></script>
 <!--
   ProFlow Mobile — companion PWA แยกต่างหากจาก index.html หลัก (2026-08-15, ตามคำขอผู้ใช้
   "อีกเว็บ คนละหน้าตากับคอมเลย กดติดตั้งที่โทรศัพได้") ขอบเขต 4 หน้าเท่านั้น: ภาพรวมการผลิต,
@@ -274,6 +276,43 @@ button, input, select { font-family: inherit; }
   position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg,#3b82f6,#06b6d4);
   width: 0; transition: width .3s; z-index: 9998;
 }
+
+/* ── หน้า "ห้องนี้ตอนนี้" (NFC หน้าห้อง, 2026-10-22) — ปุ่มใหญ่ กดด้วยนิ้วหน้างาน (สวมถุงมือก็กดโดน) ── */
+.room-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.room-head h2 { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--blue); flex: 1; }
+.room-head select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: .85rem; background: #fff; max-width: 48%; }
+.room-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.room-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 9px 14px; font-size: .82rem; font-weight: 600; color: #475569; min-height: 40px; }
+.room-chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.room-sec { font-weight: 700; font-size: .9rem; margin: 2px 0 8px; }
+.room-bar { height: 10px; border-radius: 6px; background: #e2e8f0; overflow: hidden; margin: 6px 0 4px; }
+.room-bar i { display: block; height: 100%; background: #16a34a; }
+.room-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: .85rem; padding: 6px 12px; border-radius: 999px; }
+.room-st-RUN { background: #ecfdf5; color: #15803d; }
+.room-st-PAUSE { background: #fffbeb; color: #b45309; }
+.room-st-STOP { background: #fef2f2; color: #b91c1c; }
+.room-st-NONE { background: #f1f5f9; color: #64748b; }
+.room-stbtns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+.room-stbtns button { border: 2px solid transparent; border-radius: 12px; padding: 12px 4px; font-weight: 700; font-size: .9rem; min-height: 56px; }
+.room-stbtns .b-run { background: #ecfdf5; color: #15803d; border-color: #86efac; }
+.room-stbtns .b-pause { background: #fffbeb; color: #b45309; border-color: #fcd34d; }
+.room-stbtns .b-stop { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+.room-stbtns button.cur { box-shadow: 0 0 0 3px #1e3a8a33; }
+.room-qty { display: flex; gap: 8px; margin-top: 8px; }
+.room-qty input { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 1.05rem; }
+.room-btn { border: none; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 700; padding: 12px 16px; min-height: 48px; font-size: .9rem; }
+.room-btn.ghost { background: #fff; color: var(--blue); border: 1px solid var(--blue); }
+.room-btn.out { background: #fff; color: #b45309; border: 1px solid #f59e0b; }
+.room-person { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #f1f5f9; }
+.room-person:first-child { border-top: none; }
+.room-person .who { flex: 1; min-width: 0; }
+.room-person .who b { display: block; font-size: .92rem; }
+.room-person .who small { color: #64748b; font-size: .75rem; }
+.room-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: left; }
+.room-pick label { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; font-size: .85rem; display: flex; gap: 6px; align-items: center; }
+.room-pick input:checked + span { font-weight: 700; color: var(--blue); }
+.room-time { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 4px; }
+.room-time select { font-size: 1.1rem; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; }
 </style>
 </head>
 <body>
@@ -410,6 +449,10 @@ button, input, select { font-family: inherit; }
       <div id="lotscan-result" style="display:none"></div>
     </div>
     <!-- __PAGE_LOTSCAN__ -->
+    <!-- หน้า "ห้องนี้ตอนนี้" — เปิดจากการแตะแท็ก NFC หน้าห้อง (?nfc=<room>) ไม่มีปุ่มในแถบล่าง (ดู roomOpen) -->
+    <div class="mpage" id="mpage-room">
+      <div id="room-body"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div>
+    </div>
   </div>
 
   <div id="bottomnav">
@@ -496,13 +539,13 @@ async function mLogout() {
 // ══════════════════════════════════════════════
 const _mPageTitles = {
   prodstatus: 'ภาพรวมการผลิต', stock: 'สต็อกวัตถุดิบ', fgstock: 'สต็อก FG', lotscan: 'Lot Scan',
-  plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ',
+  plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ', room: 'ห้องนี้ตอนนี้',
 };
 const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false, plancal: false, approvals: false };
 // ปุ่มรีเฟรชบนแถบบน — โหลดข้อมูลหน้าที่เปิดอยู่ใหม่ (เดิมต้องปิดแอปเปิดใหม่ เพราะแต่ละหน้าโหลดแค่ครั้งแรกที่เข้า)
 const _mPageLoaders = {
   prodstatus: () => loadProdStatusData(), stock: () => loadStockData(), fgstock: () => loadFGStockData(),
-  plancal: () => plancalLoad(), approvals: () => apprLoad(), lotscan: () => (typeof lotscanSearch === 'function' && document.getElementById('lotscan-f-code').value.trim() ? lotscanSearch() : null),
+  plancal: () => plancalLoad(), approvals: () => apprLoad(), room: () => roomLoad(), lotscan: () => (typeof lotscanSearch === 'function' && document.getElementById('lotscan-f-code').value.trim() ? lotscanSearch() : null),
 };
 async function mRefresh() {
   const btn = document.getElementById('mRefreshBtn');
@@ -1949,6 +1992,325 @@ async function installApp() {
 }
 
 // ══════════════════════════════════════════════
+// PAGE: ห้องนี้ตอนนี้ — นำร่อง NFC หน้าห้อง (2026-10-22, แบบ A ที่ผู้ใช้เลือก: หัวหน้าไลน์ถือมือถือที่ล็อกอินแล้ว ลงเวลา
+// ให้ลูกทีม) แท็ก NFC/QR หน้าห้องเก็บแค่ลิงก์ ?nfc=<room id> (FP_ROOM_LINE หรือ 'packbox' ใน factory-layout.js) — ไม่ใส่ MO
+// ในแท็ก งานของห้องหาเองจากแผนผลิต: ทุก MO ที่ยังเปิดอยู่ (_ROOM_ACTIVE_MO) ของไลน์นั้น ที่ PlanDate ≤ วันนี้ (ย้อน 45 วัน)
+// และยอดสแกนยังไม่ครบ OrderQty — เรียงงานเก่าสุดก่อน (เหมือนผังโรงงานเรียลไทม์ที่ยกงานค้างมาแสดง)
+// เขียนตารางเดียวกับแอปหลักทุกอย่าง: production_labor_log (ลงเวลา+เครื่อง — กติกาเวลาชนกันเดียวกับ _fpClock ใน
+// floorpulse.js), production_progress (ยอดสะสม เหมือน scanprogressSubmit — ไลน์แพ็คคงห้องที่เลือกไว้ล่าสุด),
+// production_status_log (สถานะ กำลังทำ/พัก/หยุด+สาเหตุ — create_production_status_log.sql) ผังเรียลไทม์อ่านไปแสดงต่อ
+// ══════════════════════════════════════════════
+const _ROOM_ACTIVE_MO = ['แพลนแล้ว', 'ยืนยันการผลิต', 'เบิกแล้ว', 'กำลังผลิต'];
+const _ROOM_STATUS_LABEL = { RUN: 'กำลังทำ', PAUSE: 'พัก', STOP: 'หยุด' };
+let _room = { id: null, line: null, mo: null, data: null };
+
+function _roomLinesOf(id) {
+  if (id === 'packbox') return FP_PACK_SUBLINES.map(s => ({ line: s.line, label: s.label }));
+  return FP_ROOM_LINE[id] ? [{ line: FP_ROOM_LINE[id], label: FP_ROOM_LABEL[id] }] : [];
+}
+function _roomEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function _roomJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function _roomNowHM() { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; }
+const _roomHM = t => String(t || '').slice(0, 5);
+function _roomMinsSince(iso) { return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); }
+function _roomDur(min) { return min >= 60 ? `${Math.floor(min / 60)} ชม. ${min % 60} นาที` : `${min} นาที`; }
+function _roomMachineName(id) { const m = _fpMachineById(id); return m ? ((_room.data && _room.data.machNames[id]) || m.label) : ''; }
+// เครื่องในห้องนี้ (สถานีในห้องบรรจุหีบห่อยังไม่มีเครื่องในผัง)
+function _roomMachines() { return _room.id === 'packbox' ? [] : _fpMachinesIn(_room.id); }
+
+function roomOpen(id) {
+  _room = { id, line: null, mo: null, data: null };
+  mShowPage('room');
+  roomLoad();
+}
+
+async function roomLoad() {
+  const body = document.getElementById('room-body');
+  const lines = _roomLinesOf(_room.id);
+  if (!lines.length) { body.innerHTML = _roomHeadHTML() + '<div class="mcard" style="color:#64748b">ห้องนี้ไม่ผูกกับไลน์ผลิต — ไม่มีงานให้บันทึก</div>'; return; }
+  if (!_room.line || !lines.some(l => l.line === _room.line)) _room.line = lines[0].line;
+  _showLoader();
+  const today = _planWeekLocalDateStr(new Date());
+  const from = _planWeekLocalDateStr(new Date(Date.now() - 45 * 864e5));
+  const lineNames = lines.map(l => l.line);
+  const [planRes, empRes, machRes] = await Promise.all([
+    _sb.from('production_plan').select('*').in('Line', lineNames).gte('PlanDate', from).lte('PlanDate', today).order('PlanDate'),
+    _sb.from('employees').select('EmployeeCode,FirstName,NickName').eq('Status', 'ทำงานอยู่').order('EmployeeCode'),
+    _sb.from('floor_machines').select('MachineId,Name'),
+  ]);
+  if (planRes.error) { _hideLoader(); _err('โหลดแผนผลิตไม่ได้', planRes.error.message); return; }
+  const moIds = [...new Set((planRes.data || []).map(r => r.MO_Ref).filter(Boolean))];
+  const [moRes, progRes, laborRes, stRes] = await Promise.all([
+    moIds.length ? _sb.from('manufacturing_orders').select('MO_ID,ProductName,OrderQty,UOM,Status').in('MO_ID', moIds) : { data: [] },
+    moIds.length ? _sb.from('production_progress').select('*').in('MO_Ref', moIds).in('Line', lineNames).order('CreatedAt', { ascending: false }) : { data: [] },
+    _sb.from('production_labor_log').select('*').eq('WorkDate', today).in('Line', lineNames),
+    _sb.from('production_status_log').select('*').eq('WorkDate', today).in('Line', lineNames).order('CreatedAt', { ascending: false }),
+  ]);
+  _hideLoader();
+
+  const moMap = {}; (moRes.data || []).forEach(m => { moMap[m.MO_ID] = m; });
+  const latestProg = {}; (progRes.data || []).forEach(p => { const k = `${p.MO_Ref}|${p.Line}`; if (!latestProg[k]) latestProg[k] = p; });
+  const statusLatest = {}; (stRes.data || []).forEach(s => { const k = `${s.MO_Ref}|${s.Line}`; if (!statusLatest[k]) statusLatest[k] = s; });
+  const jobsByLine = {};
+  lineNames.forEach(line => {
+    const byMo = {};
+    (planRes.data || []).filter(r => r.Line === line && r.MO_Ref).forEach(r => (byMo[r.MO_Ref] = byMo[r.MO_Ref] || []).push(r));
+    jobsByLine[line] = Object.entries(byMo).map(([mo, rows]) => {
+      const m = moMap[mo];
+      const target = parseFloat(m && m.OrderQty) || 0;
+      const prog = latestProg[`${mo}|${line}`];
+      const qty = prog ? parseFloat(prog.Qty) || 0 : 0;
+      return { mo, line, m, target, qty, prog, first: rows[0].PlanDate, row: rows.find(r => r.PlanDate === today) || rows[rows.length - 1] };
+    }).filter(j => j.m && _ROOM_ACTIVE_MO.includes(j.m.Status) && !(j.target > 0 && j.qty >= j.target))
+      .sort((a, b) => (a.first || '').localeCompare(b.first || ''));
+  });
+  const machNames = {}; if (!machRes.error) (machRes.data || []).forEach(r => { if (r.Name) machNames[r.MachineId] = r.Name; });
+  _room.data = { today, moMap, latestProg, statusLatest, jobsByLine, labor: laborRes.data || [], emps: empRes.data || [],
+    machNames, statusOk: !stRes.error };
+  roomRender();
+}
+
+function _roomHeadHTML() {
+  const ids = [...Object.keys(FP_ROOM_LINE), 'packbox'];
+  const opts = ids.map(id => `<option value="${id}"${id === _room.id ? ' selected' : ''}>${_roomEsc(FP_ROOM_LABEL[id])}</option>`).join('');
+  return `<div class="room-head"><h2><i class="fas fa-door-open" style="margin-right:6px"></i>${_roomEsc(FP_ROOM_LABEL[_room.id] || _room.id)}</h2>
+    <select onchange="roomOpen(this.value)" aria-label="เปลี่ยนห้อง">${opts}</select></div>`;
+}
+
+function _roomEmpName(code) {
+  const e = (_room.data.emps || []).find(x => x.EmployeeCode === code);
+  return e ? (e.NickName || e.FirstName || code) : code;
+}
+
+function roomRender() {
+  const d = _room.data, body = document.getElementById('room-body');
+  const lines = _roomLinesOf(_room.id);
+  let html = _roomHeadHTML();
+  if (lines.length > 1) {
+    html += `<div class="room-chips">${lines.map(l => `<button class="room-chip${l.line === _room.line ? ' on' : ''}" onclick="_room.line='${_roomJs(l.line)}';_room.mo=null;roomRender()">${_roomEsc(l.label)}${(d.jobsByLine[l.line] || []).length ? ` (${d.jobsByLine[l.line].length})` : ''}</button>`).join('')}</div>`;
+  }
+  const jobs = d.jobsByLine[_room.line] || [];
+  if (!jobs.length) {
+    body.innerHTML = html + `<div class="mcard" style="color:#64748b;text-align:center;padding:28px 16px"><i class="fas fa-mug-hot" style="font-size:1.6rem;display:block;margin-bottom:8px"></i>ตอนนี้ไม่มีงานค้างของ ${_roomEsc(_room.line)} ในแผนผลิต</div>`;
+    return;
+  }
+  if (!_room.mo || !jobs.some(j => j.mo === _room.mo)) _room.mo = jobs[0].mo;
+  if (jobs.length > 1) {
+    html += `<div class="room-chips">${jobs.map(j => `<button class="room-chip${j.mo === _room.mo ? ' on' : ''}" onclick="_room.mo='${_roomJs(j.mo)}';roomRender()">${_roomEsc(j.mo)}</button>`).join('')}</div>`;
+  }
+  const j = jobs.find(x => x.mo === _room.mo);
+  const pct = j.target > 0 ? Math.min(100, Math.round(j.qty / j.target * 100)) : 0;
+  const uom = (j.m && j.m.UOM) || '';
+  const shift = j.row.TimeStart ? ` · กะ ${_roomHM(j.row.TimeStart)}–${_roomHM(j.row.TimeEnd)}` : '';
+  html += `<div class="mcard">
+    <div style="font-size:.75rem;color:#64748b">${_roomEsc(j.mo)} · แผน ${_fmtDate(j.row.PlanDate)}${shift}</div>
+    <div style="font-weight:700;font-size:1rem;margin:2px 0">${_roomEsc(j.m.ProductName || '—')}</div>
+    ${j.first < d.today ? `<span class="mbadge mb-amber">งานค้างตั้งแต่ ${_fmtDate(j.first)}</span>` : ''}
+    <div class="room-bar"><i style="width:${pct}%"></i></div>
+    <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${j.qty.toLocaleString()} / ${j.target.toLocaleString()} ${_roomEsc(uom)}</span><b>${pct}%</b></div>
+    <small style="color:#94a3b8">${j.prog ? `อัปเดตยอดล่าสุด ${new Date(j.prog.CreatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : 'ยังไม่มีการอัปเดตยอด'}</small>
+  </div>`;
+
+  // สถานะหน้างาน
+  const st = d.statusLatest[`${j.mo}|${j.line}`];
+  const stKey = st ? st.Status : 'NONE';
+  const stText = !st ? 'ยังไม่ได้กดสถานะวันนี้'
+    : `${_ROOM_STATUS_LABEL[st.Status]}${st.Status === 'STOP' && st.Reason ? ' — ' + _roomEsc(st.Reason) : ''} · ตั้งแต่ ${new Date(st.CreatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} (${_roomDur(_roomMinsSince(st.CreatedAt))})`;
+  html += `<div class="mcard"><div class="room-sec">สถานะหน้างาน</div>
+    <span class="room-status room-st-${stKey}">${stText}</span>
+    ${d.statusOk ? '' : '<div style="font-size:.75rem;color:#b91c1c;margin-top:6px">ยังไม่ได้รัน create_production_status_log.sql — กดสถานะยังบันทึกไม่ได้</div>'}
+    <div class="room-stbtns">
+      <button class="b-run${stKey === 'RUN' ? ' cur' : ''}" onclick="roomSetStatus('RUN')"><i class="fas fa-play"></i><br>กำลังทำ</button>
+      <button class="b-pause${stKey === 'PAUSE' ? ' cur' : ''}" onclick="roomSetStatus('PAUSE')"><i class="fas fa-pause"></i><br>พัก</button>
+      <button class="b-stop${stKey === 'STOP' ? ' cur' : ''}" onclick="roomSetStatus('STOP')"><i class="fas fa-hand"></i><br>หยุด</button>
+    </div></div>`;
+
+  // อัปเดตยอด
+  html += `<div class="mcard"><div class="room-sec">อัปเดตยอดผลิต (ยอดสะสมรวม)</div>
+    <div class="room-qty"><input type="number" id="room-qty" inputmode="decimal" min="0" step="any" value="${j.prog ? j.qty : ''}" placeholder="ยอดสะสม">
+    <button class="room-btn" onclick="roomSubmitQty()"><i class="fas fa-check"></i> อัปเดต</button></div></div>`;
+
+  // พนักงาน — คนตามแผน (WorkerCodes ของแถวแผนที่แสดง) + คนที่มีเวลาวันนี้ในงานนี้
+  const laborRows = d.labor.filter(r => r.MO_Ref === j.mo && r.Line === j.line);
+  const planCodes = String(j.row.WorkerCodes || '').split(',').map(s => s.trim()).filter(Boolean);
+  const codes = [...new Set([...planCodes, ...laborRows.map(r => r.EmployeeCode)])];
+  const people = codes.map(code => {
+    const r = laborRows.find(x => x.EmployeeCode === code);
+    const open = !!(r && r.TimeIn && !r.TimeOut);
+    const mc = r && r.MachineId ? ` · <i class="fas fa-gears"></i> ${_roomEsc(_roomMachineName(r.MachineId))}` : '';
+    const info = open ? `เข้า ${_roomHM(r.TimeIn)} — ยังไม่ออก${mc}` : r && r.TimeIn ? `เข้า ${_roomHM(r.TimeIn)} · ออก ${_roomHM(r.TimeOut)}${mc}` : 'ตามแผน — ยังไม่ลงเวลาเข้า';
+    return `<div class="room-person"><div class="who"><b>${_roomEsc(_roomEmpName(code))}</b><small>${info}</small></div>
+      <button class="room-btn${open ? ' out' : ''}" onclick="roomClock('${_roomJs(code)}','${open ? 'out' : 'in'}')">${open ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</button></div>`;
+  }).join('');
+  html += `<div class="mcard"><div class="room-sec">พนักงานในงานนี้ (${codes.length})</div>
+    ${people || '<div style="color:#94a3b8;font-size:.85rem">ยังไม่มีรายชื่อในแผน — กดเพิ่มคนด้านล่าง</div>'}
+    <button class="room-btn ghost" style="width:100%;margin-top:10px" onclick="roomAddWorker()"><i class="fas fa-user-plus"></i> เพิ่มคนเข้างานนี้</button></div>`;
+  body.innerHTML = html;
+}
+
+function _roomCurJob() {
+  const jobs = (_room.data && _room.data.jobsByLine[_room.line]) || [];
+  return jobs.find(x => x.mo === _room.mo) || null;
+}
+
+async function roomSetStatus(status) {
+  const j = _roomCurJob();
+  if (!j) return;
+  let reason = null, note = null;
+  if (status === 'STOP') {
+    const res = await Swal.fire({
+      title: 'หยุดงาน — สาเหตุ',
+      html: `<div class="room-pick">${FP_STOP_REASONS.map((r, i) => `<label><input type="radio" name="room-reason" value="${_roomEsc(r)}"${i === 0 ? ' checked' : ''}><span>${_roomEsc(r)}</span></label>`).join('')}</div>
+        <input id="room-reason-note" class="swal2-input" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)" style="margin:12px 0 0;width:100%">`,
+      showCancelButton: true, confirmButtonText: 'บันทึกหยุดงาน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#b91c1c',
+      preConfirm: () => {
+        const r = document.querySelector('input[name="room-reason"]:checked')?.value || '';
+        const n = document.getElementById('room-reason-note').value.trim();
+        if (r === 'อื่นๆ' && !n) { Swal.showValidationMessage('เลือก "อื่นๆ" ต้องพิมพ์รายละเอียด'); return false; }
+        return { r, n };
+      },
+    });
+    if (!res.isConfirmed) return;
+    reason = res.value.r; note = res.value.n || null;
+  }
+  _showLoader();
+  const { error } = await _sb.from('production_status_log').insert({
+    MO_Ref: j.mo, Line: j.line, WorkDate: _room.data.today, Status: status, Reason: reason, Note: note, Room: _room.id,
+    CreatedBy: _currentUser?.name || _currentUser?.email || null,
+  });
+  _hideLoader();
+  if (error) { _err('บันทึกสถานะไม่สำเร็จ', `${error.message}<br>ถ้ายังไม่ได้รัน create_production_status_log.sql ใน Supabase ให้รันก่อน`); return; }
+  Swal.fire({ toast: true, position: 'top', icon: 'success', title: `${_ROOM_STATUS_LABEL[status]}${reason ? ' — ' + reason : ''}`, showConfirmButton: false, timer: 1500 });
+  roomLoad();
+}
+
+async function roomSubmitQty() {
+  const j = _roomCurJob();
+  if (!j) return;
+  const qty = parseFloat(document.getElementById('room-qty').value);
+  if (isNaN(qty) || qty < 0) { _err('กรอกยอดไม่ถูกต้อง', 'กรุณากรอกยอดผลิตสะสม (0 ขึ้นไป)'); return; }
+  if (j.prog && qty < j.qty) {
+    const ok = await Swal.fire({ icon: 'warning', title: 'ยอดน้อยกว่าครั้งก่อน', text: `ครั้งก่อน ${j.qty.toLocaleString()} — ยืนยันแก้เป็น ${qty.toLocaleString()}?`, showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก' });
+    if (!ok.isConfirmed) return;
+  }
+  // ไลน์แพ็คที่ย้ายไปทำห้องอื่นไว้ (Room ของสแกนล่าสุด) — คงห้องเดิมไว้ ไม่งั้นงานเด้งกลับห้องหีบห่อบนผังเรียลไทม์
+  const row = { MO_Ref: j.mo, Line: j.line, Qty: qty, ScannedBy: _currentUser?.email || null };
+  if (j.prog && j.prog.Room) row.Room = j.prog.Room;
+  _showLoader();
+  let { error } = await _sb.from('production_progress').insert(row);
+  if (error && row.Room) { delete row.Room; ({ error } = await _sb.from('production_progress').insert(row)); }
+  _hideLoader();
+  if (error) { _err('อัปเดตยอดไม่สำเร็จ', error.message); return; }
+  Swal.fire({ toast: true, position: 'top', icon: 'success', title: `อัปเดตยอด ${qty.toLocaleString()} แล้ว`, showConfirmButton: false, timer: 1500 });
+  roomLoad();
+}
+
+function _roomTimeSelHTML(def) {
+  const [dh, dm] = def.split(':');
+  const hs = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+  const ms = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  return `<div class="room-time"><select id="room-t-h">${hs.map(h => `<option${h === dh ? ' selected' : ''}>${h}</option>`).join('')}</select> :
+    <select id="room-t-m">${ms.map(m => `<option${m === dm ? ' selected' : ''}>${m}</option>`).join('')}</select></div>`;
+}
+
+// ลงเวลาเข้า/ออก — กติกาเดียวกับ _fpClock (floorpulse.js): เลือกเวลาเองได้ (ค่าเริ่มต้นตอนนี้ ปัดลง 5 นาที) ห้ามเวลาในอนาคต,
+// เวลาออกต้องหลังเวลาเข้า, เข้าใหม่ห้ามมีเวลาเข้าไลน์อื่นหลังเวลาที่เลือก, ค้างอยู่ไลน์อื่น = ลงเวลาออกที่นั่นให้ตามเวลาที่เลือก,
+// เคยเข้า-ออกงานนี้แล้ววันนี้ = เปิดช่วงเดิมต่อ (1 แถวต่อวันตาม UNIQUE) — ลงเวลาเข้าเลือกเครื่องได้ (MachineId)
+async function roomClock(code, dir) {
+  const j = _roomCurJob();
+  if (!j) return;
+  const today = _room.data.today, now = _roomNowHM(), name = _roomEmpName(code);
+  const n = new Date(), def = `${String(n.getHours()).padStart(2, '0')}:${String(Math.floor(n.getMinutes() / 5) * 5).padStart(2, '0')}`;
+  const { data: rows, error } = await _sb.from('production_labor_log').select('*').eq('WorkDate', today).eq('EmployeeCode', code);
+  if (error) { _err('โหลดเวลาเดิมไม่สำเร็จ', error.message); return; }
+  const own = (rows || []).find(x => x.MO_Ref === j.mo && x.Line === j.line);
+  const others = (rows || []).filter(x => x !== own);
+  const keyQ = q => q.eq('MO_Ref', j.mo).eq('Line', j.line).eq('WorkDate', today).eq('EmployeeCode', code);
+  const machines = dir === 'in' ? _roomMachines() : [];
+  const machineHTML = !machines.length ? '' : `<div style="text-align:left;margin-top:12px;font-weight:700;font-size:.85rem">ทำเครื่องไหน</div>
+    <div class="room-pick" style="margin-top:6px">${[{ id: '', name: 'ไม่ระบุ' }, ...machines.map(m => ({ id: m.id, name: _roomMachineName(m.id) }))].map(o =>
+      `<label><input type="radio" name="room-machine" value="${o.id}"${o.id === ((own && own.MachineId) || '') ? ' checked' : ''}><span>${_roomEsc(o.name)}</span></label>`).join('')}</div>`;
+  const ask = (title, html, btn, validate) => Swal.fire({ title, html: html + machineHTML, showCancelButton: true, confirmButtonText: btn, cancelButtonText: 'ยกเลิก',
+    preConfirm: () => {
+      const mid = document.querySelector('input[name="room-machine"]:checked')?.value || '';
+      if (!validate) return { t: '', mid };
+      const t = `${document.getElementById('room-t-h').value}:${document.getElementById('room-t-m').value}`;
+      const msg = t > now ? `เลือกเวลาในอนาคตไม่ได้ (ตอนนี้ ${now})` : validate(t);
+      if (msg) { Swal.showValidationMessage(msg); return false; }
+      return { t, mid };
+    } });
+  let t, mid = '';
+  if (dir === 'out') {
+    if (!own || !own.TimeIn) { _err('ยังไม่ได้ลงเวลาเข้า', `${name} ยังไม่มีเวลาเข้างานนี้วันนี้`); return; }
+    const res = await ask(`ลงเวลาออก ${name}`, `เวลาเข้า ${_roomHM(own.TimeIn)}${_roomTimeSelHTML(def)}`, 'ลงเวลาออก', t => {
+      if (t <= _roomHM(own.TimeIn)) return `เวลาออกต้องหลังเวลาเข้า (${_roomHM(own.TimeIn)})`;
+      const mids = others.filter(x => x.TimeIn && _roomHM(x.TimeIn) >= _roomHM(own.TimeIn) && _roomHM(x.TimeIn) < t);
+      return mids.length ? `ช่วงนี้ชนกับ ${mids.map(x => `${x.Line} (เข้า ${_roomHM(x.TimeIn)})`).join(', ')}` : null;
+    });
+    if (!res.isConfirmed) return;
+    t = res.value.t;
+    _showLoader();
+    const { error: e } = await keyQ(_sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() }));
+    _hideLoader();
+    if (e) { _err('ลงเวลาออกไม่สำเร็จ', e.message); return; }
+  } else {
+    const reopen = own && own.TimeIn && own.TimeOut;
+    if (reopen && others.some(x => x.TimeIn && _roomHM(x.TimeIn) >= _roomHM(own.TimeIn))) {
+      _err('ลงเวลาเข้าซ้ำไม่ได้', `${name} มีเวลาของงานนี้วันนี้แล้ว (${_roomHM(own.TimeIn)}-${_roomHM(own.TimeOut)}) และไปทำไลน์อื่นต่อ — แก้ที่แอปหลัก หน้าประวัติบันทึกเวลา`); return;
+    }
+    const open = reopen ? [] : others.filter(x => x.TimeIn && !x.TimeOut);
+    const res = reopen
+      ? await ask(`ลงเวลาเข้า ${name}`, `<div style="font-size:.85rem">มีเวลาของงานนี้แล้ว ${_roomHM(own.TimeIn)}-${_roomHM(own.TimeOut)} — จะเปิดต่อจากเดิม</div>`, 'ลงเวลาเข้า', null)
+      : await ask(`ลงเวลาเข้า ${name}`, `${_roomTimeSelHTML(def)}${open.length ? `<div style="font-size:.8rem;text-align:left;margin-top:6px">${open.map(x => `ยังค้างอยู่ <b>${_roomEsc(x.Line)}</b> (เข้า ${_roomHM(x.TimeIn)}) — จะลงเวลาออกที่นั่นให้`).join('<br>')}</div>` : ''}`, 'ลงเวลาเข้า', t => {
+          const clash = others.filter(x => x.TimeIn && x.TimeOut && _roomHM(x.TimeIn) <= t && _roomHM(x.TimeOut) > t);
+          if (clash.length) return `ชนกับ ${clash.map(x => `${x.Line} (${_roomHM(x.TimeIn)}-${_roomHM(x.TimeOut)})`).join(', ')}`;
+          const later = others.filter(x => x.TimeIn && _roomHM(x.TimeIn) >= t);
+          return later.length ? `มีเวลาเข้า ${later.map(x => `${x.Line} ${_roomHM(x.TimeIn)}`).join(', ')} แล้ว — เลือกเวลาหลังจากนั้น` : null;
+        });
+    if (!res.isConfirmed) return;
+    t = reopen ? _roomHM(own.TimeIn) : res.value.t;
+    mid = res.value.mid;
+    _showLoader();
+    for (const x of open) {
+      const { error: e1 } = await _sb.from('production_labor_log').update({ TimeOut: t, UpdatedAt: new Date().toISOString() })
+        .eq('MO_Ref', x.MO_Ref).eq('Line', x.Line).eq('WorkDate', today).eq('EmployeeCode', code);
+      if (e1) { _hideLoader(); _err(`ลงเวลาออกจาก ${x.Line} ไม่สำเร็จ`, e1.message); return; }
+    }
+    const write = withMachine => {
+      const mc = withMachine ? { MachineId: mid || null } : {};
+      return reopen
+        ? keyQ(_sb.from('production_labor_log').update({ TimeOut: null, ...mc, UpdatedAt: new Date().toISOString() }))
+        : _sb.from('production_labor_log').upsert({ MO_Ref: j.mo, Line: j.line, WorkDate: today, EmployeeCode: code, EmployeeName: name,
+            TimeIn: t, TimeOut: null, ...mc, RecordedByPhone: null, RecordedByName: _currentUser?.name || _currentUser?.email || null,
+            UpdatedAt: new Date().toISOString() }, { onConflict: 'MO_Ref,Line,WorkDate,EmployeeCode' });
+    };
+    let { error: e2 } = await write(machines.length > 0);
+    if (e2 && machines.length) ({ error: e2 } = await write(false));   // ยังไม่ได้รัน alter_labor_log_add_machine.sql
+    _hideLoader();
+    if (e2) { _err('ลงเวลาเข้าไม่สำเร็จ', e2.message); return; }
+  }
+  const mName = mid ? _roomMachineName(mid) : '';
+  Swal.fire({ toast: true, position: 'top', icon: 'success', title: `${dir === 'in' ? 'เข้า' : 'ออก'} ${name} ${t}${mName ? ' · ' + mName : ''}`, showConfirmButton: false, timer: 1600 });
+  roomLoad();
+}
+
+async function roomAddWorker() {
+  const j = _roomCurJob();
+  if (!j) return;
+  const inJob = new Set([...String(j.row.WorkerCodes || '').split(',').map(s => s.trim()),
+    ..._room.data.labor.filter(r => r.MO_Ref === j.mo && r.Line === j.line).map(r => r.EmployeeCode)]);
+  const pool = (_room.data.emps || []).filter(e => !inJob.has(e.EmployeeCode));
+  if (!pool.length) { _err('ไม่มีคนให้เลือก', 'พนักงานทุกคนอยู่ในงานนี้แล้ว'); return; }
+  const { value: code } = await Swal.fire({
+    title: 'เพิ่มคนเข้างานนี้',
+    html: `<select id="room-add-emp" class="swal2-select" style="width:100%;margin:0">${pool.map(e => `<option value="${_roomEsc(e.EmployeeCode)}">${_roomEsc(e.NickName || e.FirstName || e.EmployeeCode)}${e.NickName && e.FirstName ? ` (${_roomEsc(e.FirstName)})` : ''} — ${_roomEsc(e.EmployeeCode)}</option>`).join('')}</select>`,
+    showCancelButton: true, confirmButtonText: 'ถัดไป', cancelButtonText: 'ยกเลิก',
+    preConfirm: () => document.getElementById('room-add-emp').value,
+  });
+  if (code) await roomClock(code, 'in');
+}
+
+// ══════════════════════════════════════════════
 // Init — เช็ค session ก่อนปล่อยเข้าแอป (เหมือนแอปหลัก)
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
@@ -1963,7 +2325,16 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('loginGate').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       document.getElementById('mUserName').textContent = _currentUser.name;
-      if (!_bootstrapped) { _bootstrapped = true; mShowPage('prodstatus'); }
+      if (!_bootstrapped) {
+        _bootstrapped = true;
+        // แตะแท็ก NFC / สแกน QR หน้าห้อง (?nfc=<room id>) → เปิดหน้า "ห้องนี้ตอนนี้" ของห้องนั้นทันที
+        const nfc = new URLSearchParams(location.search).get('nfc');
+        if (nfc && FP_ROOM_LABEL[nfc]) roomOpen(nfc);
+        else {
+          mShowPage('prodstatus');
+          if (nfc) Swal.fire({ icon: 'warning', title: 'ไม่รู้จักห้องนี้', text: `แท็กนี้ชี้ไปห้อง "${nfc}" ซึ่งไม่มีในระบบ — แจ้งแอดมินให้เขียนแท็กใหม่` });
+        }
+      }
     } else {
       _currentUser = null;
       document.getElementById('loginGate').style.display = 'flex';
