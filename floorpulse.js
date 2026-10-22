@@ -17,22 +17,8 @@
 // 2026-09-13 — ถ้าต้องการเปลี่ยนเป็นรูปจริงทีหลัง แค่แทน svg rect ด้วย <image> เดียว ไม่กระทบส่วนอื่น)
 // ══════════════════════════════════════════════════════════════════════════
 
-// ห้อง "บรรจุหีบห่อ" ห้องเดียวแบ่ง 5 สถานี (ยืนยันกับผู้ใช้แล้ว): 4 ไลน์แพ็ค + ยิง Lot
-const FP_PACK_SUBLINES = [
-  { key: 'pack-mix',    label: 'แพ็ค-ผสมใหญ่',   line: 'ห้องแพ็ค (ห้องผสมใหญ่)' },
-  { key: 'pack-lotion', label: 'แพ็ค-ครีมโลชั่น', line: 'ห้องแพ็ค (ห้องบรรจุครีมโลชั่น)' },
-  { key: 'pack-sham',   label: 'แพ็ค-แชมพู',     line: 'ห้องแพ็ค (ห้องบรรจุแชมพูครีมอาบน้ำ)' },
-  { key: 'pack-aroma',  label: 'แพ็ค-อโรม่า',    line: 'ห้องแพ็ค (ห้องบรรจุน้ำมัน Aroma)' },
-  { key: 'lot',         label: 'ยิง Lot',        line: 'ยิง Lot' },
-];
-
-// ห้องเดี่ยวที่ผูกกับ 1 ไลน์ใน PLAN_LINES ตรงๆ (ห้องที่ไม่อยู่ในนี้ = ไม่ผูกไลน์ ดู FP_ROOM_NOTE)
-const FP_ROOM_LINE = {
-  mixall:     'ห้องผสมใหญ่',
-  filllotion: 'ห้องบรรจุครีมโลชั่น',
-  fillsh:     'ห้องบรรจุแชมพูครีมอาบน้ำ',
-  filloil:    'ห้องบรรจุน้ำมัน Aroma',
-};
+// FP_PACK_SUBLINES / FP_ROOM_LINE / FP_ROOM_LABEL / FP_MACHINES (+ _fpMachinesIn/_fpMachineById, FP_STOP_REASONS)
+// ย้ายไปไฟล์ factory-layout.js แล้ว (2026-10-22) เพื่อใช้ร่วมกับแอปมือถือ — index.html โหลดไฟล์นั้นก่อนไฟล์นี้
 
 // หมายเหตุห้องที่ไม่มีไลน์ผูก (คลัง/สนับสนุน) — "ห้องผสมน้ำมัน(อโรม่า)" ยืนยันแล้วว่าอยู่กลุ่มนี้ด้วย
 // แม้อยู่ติดห้องบรรจุน้ำมัน เพราะ PLAN_LINES ไม่มีไลน์แยกให้ขั้นตอนผสม (ห้ามเดาว่าใช้ข้อมูลร่วมกัน)
@@ -111,12 +97,6 @@ const FP_ENTRANCES = [
   { x:96, y:314, dx:1,  dy:0, label: 'พนักงานเข้า' },
 ];
 
-const FP_ROOM_LABEL = {
-  prep: 'เตรียมวัตถุดิบ', weigh: 'ห้องชั่งสาร', bulk: 'เก็บ Bulk', packbox: 'บรรจุหีบห่อ',
-  mixoil: 'ผสมน้ำมัน (อโรม่า)', filloil: 'บรรจุน้ำมัน (อโรม่า)', locker: 'Locker',
-  qc: 'ทดสอบคุณภาพ', samples: 'เก็บตัวอย่าง', fillsh: 'บรรจุแชมพู', filllotion: 'บรรจุครีม/โลชั่น',
-  fgstore: 'คลังสำเร็จรูป', wash: 'ห้องล้าง/อุปกรณ์', mixall: 'ผสมรวม',
-};
 const FP_ROOM_FULL = {
   prep: 'ห้องเก็บสินค้าสำหรับเตรียมการผลิต (FG/RM/PM)', weigh: 'ห้องชั่งสาร',
   bulk: 'ห้องเก็บ Bulk เครื่องสำอางรอบรรจุ', packbox: 'ห้องบรรจุหีบห่อ',
@@ -128,33 +108,12 @@ const FP_ROOM_FULL = {
   mixall: 'ห้องผสมแชมพู/ผสมครีม/โลชั่น/ครีมนวด/เจลอาบน้ำ/สครับขัดผิว',
 };
 
-// เครื่องจักร/อุปกรณ์ตำแหน่งจริง (2026-10-22 คำขอผู้ใช้ "อยากให้เห็นตำแหน่งเครื่องจักรจริง จะได้เห็นว่าทำงานตำแหน่งเครื่อง
-// ไหนบ้าง") — วัดจากสแกน Polycam "21_10_2569 BE.glb" (ห้องผสมรวม + บรรจุครีม/โลชั่น + บรรจุแชมพู + ทางเดินหลัก)
-// สแกนหมุน 180° จากแปลน (ยืนยันจากขนาดห้อง: ครีม/โลชั่น 3.2×2.8 ม., ทางเดินบรรจุ 2.0 ม., ผสมรวม 11.3 ม. ตรงแบบ) แปลงเป็น
-// พิกัดผังทีละห้องเทียบกับขอบห้องในสแกน (x,y,w,h = px ผัง เหมือน FP_GEOM) — ชื่อเครื่องดูจากรูปในสแกน ยังไม่ได้ยืนยันกับ
-// ผู้ใช้ แก้ชื่อที่นี่ได้เลย ไม่กระทบตำแหน่ง | hM = ความสูงจริงโดยประมาณ (ม.) ใช้ทำความสูงในมุมมอง 3D
-// kind: mixer/tank/filler/machine/table — ใช้เลือกทรง 3D และลำดับจุดยืนทำงานของพนักงาน (เครื่องก่อน โต๊ะทีหลัง)
-// ไฟล์สแกนเองไม่ได้ใส่ในแอป (18 MB หนักเกินสำหรับแท็บเลต) — ถ้าย้ายเครื่อง/สแกนใหม่ ต้องวัดพิกัดใหม่
-// id = รหัสคงที่ของตำแหน่งนั้น (2026-10-22) ใช้เก็บชื่อจริงที่ผู้ใช้ตั้ง (ตาราง floor_machines) และเครื่องที่ลงเวลา
-// (production_labor_log.MachineId) — ห้ามเปลี่ยน id ของเครื่องที่มีอยู่แล้ว (ข้อมูลเก่าจะหลุดจากเครื่อง) | label = ชื่อเริ่มต้น
-const FP_MACHINES = [
-  { id: 'mixall-homo',    room: 'mixall', kind: 'mixer',   label: 'เครื่องผสมสุญญากาศ (โฮโมจีไนเซอร์)', x: 666, y: 371, w: 58, h: 47, hM: 1.8 },
-  { id: 'mixall-homotank', room: 'mixall', kind: 'tank',   label: 'ถังผสมของเครื่องโฮโมจีไนเซอร์',      x: 649, y: 336, w: 28, h: 61, hM: 1.3 },
-  { id: 'mixall-m3',      room: 'mixall', kind: 'machine', label: 'เครื่องจักรสเตนเลส (ข้างเครื่องผสม)', x: 604, y: 372, w: 25, h: 38, hM: 1.4 },
-  { id: 'mixall-tbl1',    room: 'mixall', kind: 'table',   label: 'โต๊ะทำงาน 1',                       x: 536, y: 383, w: 41, h: 20, hM: 0.85 },
-  { id: 'mixall-stand',   room: 'mixall', kind: 'machine', label: 'เครื่องกวนแบบขาตั้ง',                 x: 410, y: 375, w: 57, h: 25, hM: 1.4 },
-  { id: 'mixall-kettle',  room: 'mixall', kind: 'tank',    label: 'ถังต้ม/ผสม (ทรงกลม)',                 x: 425, y: 338, w: 27, h: 32, hM: 1.2 },
-  { id: 'mixall-tbl2',    room: 'mixall', kind: 'table',   label: 'โต๊ะทำงาน 2',                       x: 460, y: 318, w: 60, h: 20, hM: 0.85 },
-  { id: 'filllotion-filler', room: 'filllotion', kind: 'filler', label: 'เครื่องบรรจุ (ถังป้อนด้านบน)',  x: 712, y: 238, w: 31, h: 48, hM: 1.6 },
-  { id: 'filllotion-tbl', room: 'filllotion', kind: 'table',  label: 'โต๊ะสเตนเลส',                     x: 676, y: 297, w: 38, h: 20, hM: 0.85 },
-  { id: 'fillsh-cart',    room: 'fillsh', kind: 'machine', label: 'เครื่อง (คลุมพลาสติก) บนรถเข็น',      x: 531, y: 297, w: 22, h: 20, hM: 1.2 },
-  { id: 'fillsh-piston',  room: 'fillsh', kind: 'filler',  label: 'เครื่องบรรจุแบบลูกสูบ',              x: 477, y: 287, w: 18, h: 20, hM: 1.6 },
-  { id: 'fillsh-capper',  room: 'fillsh', kind: 'table',   label: 'โต๊ะ + เครื่องปิดฝา + ตาชั่ง',        x: 469, y: 230, w: 25, h: 51, hM: 0.85 },
-];
 let _fpMachineNames = {};   // MachineId -> ชื่อที่ผู้ใช้ตั้ง (floor_machines) — โหลดใน loadFloorPulseData
-function _fpMachinesIn(roomId) { return FP_MACHINES.filter(m => m.room === roomId); }
-function _fpMachineById(id) { return FP_MACHINES.find(m => m.id === id) || null; }
+let _fpFloorStatus = {};    // `${MO}|${Line}` -> แถว production_status_log ล่าสุดของวันนี้ (RUN/PAUSE/STOP)
 function _fpMachineName(m) { return (m && (_fpMachineNames[m.id] || m.label)) || ''; }
+// แก้ชื่อเครื่องได้เฉพาะแอดมิน คนอื่นดูอย่างเดียว (คำขอผู้ใช้ 2026-10-22) — บังคับซ้ำที่ RLS ด้วย (restrict_floor_machines_admin.sql)
+// เช็คทั้ง 2 กลไกสิทธิ์ของแอป: role ในตาราง user_roles (_hasRole) และ app_metadata.role เดิม (isAdmin) — ตรงกับ policy ฝั่ง DB
+function _fpCanEditMachines() { return !_fpReplayAt && (_hasRole('admin') || !!_currentUser?.isAdmin); }
 // ห้องที่ไลน์นี้ทำงานอยู่ตอนนี้ — ห้องเดี่ยวตาม FP_ROOM_LINE หรือห้องที่งานแพ็คย้ายไปใช้ (สถานีในห้องหีบห่อไม่มีเครื่องในผัง)
 function _fpLineRoomId(line) {
   return Object.keys(FP_ROOM_LINE).find(id => FP_ROOM_LINE[id] === line) || _fpPackLineRoom(line) || null;
@@ -189,6 +148,7 @@ let _fpReplayAt = null;        // Date ที่กำลังย้อนด�
 let _fpReplayTimer = null;     // interval ตอนกดเล่นย้อนหลัง
 let _fpTvMode = false;         // โหมดจอทีวี (เต็มจอ + กล้อง 3D หมุนเอง)
 let _fpSelectedPerson = null;  // EmployeeCode ที่เปิดรายละเอียดอยู่ในแผงขวา
+let _fpSelectedMachine = null; // FP_MACHINES id ที่เปิดดู/แก้ชื่ออยู่ในแผงขวา (_fpShowMachine)
 let _fpHoldStock = [];  // hold_stock rows (DEFECT+RETAIN, QtyBalance>0) โชว์ในห้องเก็บตัวอย่าง (ยืนยันกับผู้ใช้แล้ว 2026-09-14 ว่าเอาทั้ง 2 ประเภทมารวมกัน)
 let _fpInterval = null;
 let _fpSelectedId = null;
@@ -247,11 +207,15 @@ async function loadFloorPulseData() {
   await Promise.all([ loadProdStatusData(), _planLoadSkillData() ]);
 
   const todayStr = _planWeekLocalDateStr(new Date());
-  let [laborRes, holdRes, machRes] = await Promise.all([
+  let [laborRes, holdRes, machRes, stRes] = await Promise.all([
     _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut,MachineId').eq('WorkDate', todayStr),
     _sb.from('hold_stock').select('HoldType,ItemType,ItemCode,ItemName,Lot,UOM,QtyBalance').gt('QtyBalance', 0),
     _sb.from('floor_machines').select('MachineId,Name'),
+    _sb.from('production_status_log').select('MO_Ref,Line,Status,Reason,CreatedAt,CreatedBy').eq('WorkDate', todayStr).order('CreatedAt', { ascending: false }),
   ]);
+  // สถานะหน้างานล่าสุดต่อ (MO, ไลน์) วันนี้ — กดจากหน้า "ห้องนี้ตอนนี้" ในแอปมือถือ (NFC หน้าห้อง) ยังไม่รัน SQL = ว่าง
+  _fpFloorStatus = {};
+  if (!stRes.error) (stRes.data || []).forEach(s => { const k = `${s.MO_Ref}|${s.Line}`; if (!_fpFloorStatus[k]) _fpFloorStatus[k] = s; });
   // ยังไม่ได้รัน alter_labor_log_add_machine.sql — โหลดเวลาแบบเดิมไม่มีเครื่อง (ชื่อเครื่องใช้ค่าเริ่มต้นในโค้ด)
   if (laborRes.error) laborRes = await _sb.from('production_labor_log').select('Line,EmployeeCode,TimeIn,TimeOut').eq('WorkDate', todayStr);
   _fpMachineNames = {};
@@ -359,7 +323,16 @@ function _fpComputeEta(line, r) {
 // ── แจ้งเตือนข้อมูลไม่สอดคล้อง (2026-10-18) ── เฉพาะไลน์ที่มีงานค้างอยู่ (running/behind) — level danger = แดง, warn = ส้ม
 function _fpComputeAlerts(line, r) {
   const out = [];
-  if (!r.item || !(r.status === 'running' || r.status === 'behind')) return out;
+  if (!r.item || !(r.status === 'running' || r.status === 'behind' || r.status === 'waiting')) return out;
+  // สถานะที่หัวหน้าไลน์กดจากหน้างาน (NFC หน้าห้อง) — หยุด = แดง, พัก = ส้ม พร้อมเวลาที่ผ่านไป (นำร่อง 2026-10-22)
+  const fs = r.item.MO_Ref ? _fpFloorStatus[`${r.item.MO_Ref}|${line}`] : null;
+  if (fs && fs.Status !== 'RUN') {
+    const mins = (Date.now() - new Date(fs.CreatedAt).getTime()) / 60000;
+    out.push(fs.Status === 'STOP'
+      ? { level: 'danger', text: `หยุด — ${fs.Reason || 'ไม่ระบุสาเหตุ'} (${_fpDur(mins)})` }
+      : { level: 'warn', text: `พัก (${_fpDur(mins)})` });
+  }
+  if (r.status === 'waiting') return out;
   const now = new Date(), today = _planWeekLocalDateStr(now);
   if (r.item.PlanDate && r.item.PlanDate < today) {
     out.push({ level: 'warn', text: `งานค้างจากแผนวันที่ ${_fmtDate(r.item.PlanDate)}` });
@@ -470,7 +443,8 @@ function _fpRefreshViews() {
   _fpBuildSvg();
   _fpRenderKpis();
   _fpRenderStaffPanel();
-  if (_fpSelectedPerson) _fpShowPerson(_fpSelectedPerson);
+  if (_fpSelectedMachine) _fpShowMachine(_fpSelectedMachine, true);
+  else if (_fpSelectedPerson) _fpShowPerson(_fpSelectedPerson);
   else if (_fpSelectedId) _fpSelectRoom(_fpSelectedId);
   else _fpRenderOverview();
 }
@@ -674,8 +648,9 @@ function _fpBuildSvg() {
       const shape = round
         ? mk('ellipse', { cx: m.x + m.w / 2, cy: m.y + m.h / 2, rx: m.w / 2, ry: m.h / 2 })
         : mk('rect', { x: m.x, y: m.y, width: m.w, height: m.h, rx: m.kind === 'table' ? 1.5 : 3 });
-      shape.setAttribute('class', `fp-machine fp-machine-${m.kind}`);
+      shape.setAttribute('class', `fp-machine fp-machine-${m.kind}${_fpSelectedMachine === m.id ? ' fp-machine-sel' : ''}`);
       const t = mk('title', {}); t.textContent = _fpMachineName(m); shape.appendChild(t);
+      shape.addEventListener('click', e => { e.stopPropagation(); _fpShowMachine(m.id); });   // คลิกเครื่อง ไม่ใช่คลิกห้อง
       grp.appendChild(shape);
     });
 
@@ -1127,17 +1102,18 @@ function _fp3dInit() {
     if (moved) return;
     const ud = _fp3dPick(e);
     if (ud && ud.fpPerson) _fpShowPerson(ud.fpPerson);
+    else if (ud && ud.fpMachine) _fpShowMachine(ud.fpMachine);
     else if (ud && ud.fpId) _fpSelectRoom(ud.fpId);
   });
   el.addEventListener('pointermove', e => {
     if (e.buttons) return;
     const ud = _fp3dPick(e);
-    el.style.cursor = ud && (ud.fpId || ud.fpPerson) ? 'pointer' : 'grab';
+    el.style.cursor = ud && (ud.fpId || ud.fpPerson || ud.fpMachine) ? 'pointer' : 'grab';
   });
 
   const ro = new ResizeObserver(() => _fp3dResize());
   _fp3d = { renderer, scene, camera, controls, roomsGroup, scansGroup, scanReady: {}, scansStarted: false,
-    raycaster: new T.Raycaster(), pointer: new T.Vector2(), pickables: [], pulses: [], flowMovers: [], raf: null, ro };
+    raycaster: new T.Raycaster(), pointer: new T.Vector2(), pickables: [], pulses: [], flowMovers: [], lodSprites: [], raf: null, ro };
 }
 
 function _fp3dPick(e) {
@@ -1147,9 +1123,10 @@ function _fp3dPick(e) {
   pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
   // หุ่นอยู่ "ข้างใน" กล่องผนังโปร่งของห้อง รังสีจึงชนผนังห้องก่อนเสมอ — ถ้าแนวรังสีผ่านหุ่นตัวไหน ให้หุ่นชนะ
+  // เครื่องจักรก็อยู่ในกล่องผนังห้องเหมือนกัน — ลำดับ: หุ่น > เครื่องจักร > ห้อง
   const hits = raycaster.intersectObjects(pickables, false);
-  const hit = hits.find(h => h.object.userData.fpPerson) || hits[0];
-  return hit ? hit.object.userData : null;   // { fpId } = ห้อง/สถานี, { fpPerson } = หุ่นพนักงาน
+  const hit = hits.find(h => h.object.userData.fpPerson) || hits.find(h => h.object.userData.fpMachine) || hits[0];
+  return hit ? hit.object.userData : null;   // { fpId } = ห้อง/สถานี, { fpPerson } = หุ่นพนักงาน, { fpMachine } = เครื่องจักร
 }
 
 function _fp3dResize() {
@@ -1183,9 +1160,22 @@ function _fp3dStartLoop() {
     _fp3d.controls.autoRotate = _fpTvMode && !reduceMotion;   // โหมดจอทีวี: กล้องหมุนรอบโรงงานช้าๆ
     _fp3d.controls.autoRotateSpeed = 0.5;
     _fp3d.controls.update();
+    const cp = _fp3d.camera.position;   // ป้ายรายละเอียดขึ้นเฉพาะที่อยู่ใกล้กล้อง (ซูมเข้าไปดู) — ดู _fp3dDetail
+    _fp3d.lodSprites.forEach(s => { s.visible = s.userData.always || s.position.distanceTo(cp) < FP3D_DETAIL_DIST; });
     _fp3d.renderer.render(_fp3d.scene, _fp3d.camera);
   };
   _fp3d.raf = requestAnimationFrame(tick);
+}
+
+// ป้ายรายละเอียด (ชื่อพนักงาน, ขั้นเส้นโฟลงาน, แจ้งเตือน, ทางเดิน/ทางเข้า) — คำขอผู้ใช้ 2026-10-22 "ป้ายขึ้นเต็มไปหมด บังมาก":
+// มุมมองภาพรวมเห็นแค่ป้ายชื่อห้อง ป้ายพวกนี้ค่อยโผล่เมื่อซูมเข้าไปใกล้บริเวณนั้น (ระยะจากกล้อง < FP3D_DETAIL_DIST; กล้องเริ่มต้นอยู่
+// ห่างราว 880) — always = ขึ้นตลอดไม่สนระยะ (ห้อง/คน/เครื่องที่กำลังเลือกดูอยู่)
+const FP3D_DETAIL_DIST = 460;
+function _fp3dDetail(sprite, always) {
+  sprite.userData.always = !!always;
+  sprite.visible = !!always;
+  _fp3d.lodSprites.push(sprite);
+  return sprite;
 }
 
 function _fp3dClearRooms() {
@@ -1198,6 +1188,7 @@ function _fp3dClearRooms() {
   _fp3d.pickables = [];
   _fp3d.pulses = [];
   _fp3d.flowMovers = [];
+  _fp3d.lodSprites = [];
 }
 
 function _fp3dHex(n) { return '#' + n.toString(16).padStart(6, '0'); }
@@ -1307,7 +1298,7 @@ function _fp3dAddRoom(o) {
   // ห้องที่มีเครื่องจักรตำแหน่งจริง (FP_MACHINES): วางเครื่อง แล้วให้พนักงานยืนประจำหน้าเครื่อง (เครื่องก่อน โต๊ะทีหลัง วนซ้ำ
   // ถ้าคนมากกว่าเครื่อง) เดินขยับแค่รอบๆ จุดนั้น — ห้องที่ยังไม่มีข้อมูลเครื่อง วางเรียงแถวเดินทั่วห้องแบบเดิม
   const machines = o.id && !o.small ? _fpMachinesIn(o.id) : [];
-  machines.forEach(m => _fp3dAddMachine(m, o.selected));
+  machines.forEach(m => _fp3dAddMachine(m, _fpSelectedMachine === m.id));
   const spots = _fp3dWorkSpots(machines, cx, cz, bounds);
   // คนที่เลือกเครื่องตอนลงเวลา (p.machine) ยืนเครื่องนั้น ที่เหลือวนจัดลงเครื่องตามลำดับความสำคัญเหมือนเดิม
   const spotById = Object.fromEntries(spots.map(s => [s.id, s])), perSpot = {};
@@ -1318,23 +1309,24 @@ function _fp3dAddRoom(o) {
       const k = (perSpot[sp.id] = (perSpot[sp.id] || 0) + 1) - 1;   // คนที่ 2 ของเครื่องเดียวกัน ขยับข้างๆ
       const wx = Math.min(bounds.x1, Math.max(bounds.x0, sp.x + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 11));
       const near = { x0: Math.max(bounds.x0, wx - 7), x1: Math.min(bounds.x1, wx + 7), z0: Math.max(bounds.z0, sp.z - 5), z1: Math.min(bounds.z1, sp.z + 5) };
-      _fp3dMakePerson(p, wx, sp.z, near, o.small, sp.face);
+      _fp3dMakePerson(p, wx, sp.z, near, o.small, sp.face, o.selected);
       return;
     }
     const row = Math.floor(i / cols);
     const wx = cx - W / 2 + 16 + (i % cols) * 18;
     const wz = D < 50 ? cz : cz - D / 2 + 20 + row * 20;
-    _fp3dMakePerson(p, wx, wz, bounds, o.small);
+    _fp3dMakePerson(p, wx, wz, bounds, o.small, null, o.selected);
   });
 
-  const label = _fp3dLabel(o.title, o.sub, _fp3dHex(c.stroke), o.small ? 0.32 : 0.5);
+  const label = _fp3dLabel(o.title, o.sub, _fp3dHex(c.stroke), o.small ? 0.3 : 0.42);
   label.position.set(cx, 4 + H + (o.labelLift || (o.small ? 7 : 16)), cz);
   g.add(label);
   // แจ้งเตือนข้อมูลไม่สอดคล้อง (_fpComputeAlerts) — ป้ายแดง/ส้มลอยเหนือชื่อห้อง ข้อความแรก + จำนวนที่เหลือ
   if (o.alerts && o.alerts.length) {
     const lvl = _fpAlertLevel(o.alerts);
     const more = o.alerts.length > 1 ? ` (+${o.alerts.length - 1})` : '';
-    const warn = _fp3dLabel(`⚠ ${o.alerts[0].text}${more}`, '', lvl === 'danger' ? '#dc2626' : '#f59e0b', o.small ? 0.26 : 0.34);
+    // ข้อความแจ้งเตือนยาว ขึ้นเมื่อซูมเข้าใกล้/เลือกห้องนี้ (ภาพรวมดูแจ้งเตือนได้ที่แผงขวา + ตัวเลขแจ้งเตือนด้านบน)
+    const warn = _fp3dDetail(_fp3dLabel(`⚠ ${o.alerts[0].text}${more}`, '', lvl === 'danger' ? '#dc2626' : '#f59e0b', o.small ? 0.26 : 0.34), o.selected);
     warn.position.set(cx, label.position.y + (o.small ? 9 : 16), cz);
     g.add(warn);
   }
@@ -1374,10 +1366,22 @@ function _fp3dAddMachine(m, showLabel) {
     outline(add(new T.BoxGeometry(W * 0.9, H * 0.7, D * 0.9), steel, 0, H * 0.35, 0));
     add(new T.BoxGeometry(W * 0.5, H * 0.3, D * 0.5), dark, 0, H * 0.85, 0);
   }
+  // กล่องคลิกล่องหนครอบเครื่อง — คลิกเครื่อง = ดู/แก้ชื่อเครื่องนั้น (_fpShowMachine) (คำขอผู้ใช้ 2026-10-22)
+  const hit = new T.Mesh(new T.BoxGeometry(W + 2, H + 2, D + 2), new T.MeshBasicMaterial({ visible: false }));
+  hit.position.y = H / 2;
+  hit.userData.fpMachine = m.id;
+  grp.add(hit);
+  _fp3d.pickables.push(hit);
+  if (showLabel) {   // เครื่องที่เลือกอยู่: พื้นไฮไลต์สีเขียวใต้เครื่อง + ป้ายชื่อ
+    const ring = new T.Mesh(new T.PlaneGeometry(W + 8, D + 8), new T.MeshBasicMaterial({ color: 0x0d9488, transparent: true, opacity: 0.35, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.8;
+    grp.add(ring);
+  }
   root.add(grp);
   if (showLabel) {
-    const tag = _fp3dLabel(_fpMachineName(m), '', '#475569', 0.2);
-    tag.position.set(grp.position.x, 4 + H + 9, grp.position.z);
+    const tag = _fp3dLabel(_fpMachineName(m), '', '#0d9488', 0.26);
+    tag.position.set(grp.position.x, 4 + H + 10, grp.position.z);
     root.add(tag);
   }
 }
@@ -1407,7 +1411,8 @@ function _fp3dWorkSpots(machines, rcx, rcz, bounds) {
 // สแกนเข้าแล้ว: เดินไปมาในห้อง (เดิน = ขาก้าว, หยุด = แขนขยับทำงาน) + ป้ายชื่อตามตัว
 // ยังไม่สแกนเข้า: หุ่นเทาโปร่งยืนนิ่งที่จุดประจำ — สื่อว่า "อยู่ในแผน แต่ยังไม่มาจริง"
 // face = มุมหันหน้าเข้าเครื่องจักร (rad, ดู _fp3dWorkSpots) — มีค่า = ยืนทำงานหน้าเครื่อง หยุดเดินเมื่อไหร่หันกลับเข้าเครื่อง
-function _fp3dMakePerson(p, homeX, homeZ, bounds, small, face) {
+// showTag = ป้ายชื่อขึ้นตลอด (ห้องที่เลือกอยู่/คนที่เปิดดู) — นอกนั้นป้ายชื่อขึ้นเมื่อซูมเข้าใกล้ (ดู _fp3dDetail)
+function _fp3dMakePerson(p, homeX, homeZ, bounds, small, face, showTag) {
   const T = THREE, g = _fp3d.roomsGroup;
   const ghost = !p.confirmed;
   const mat = (color) => new T.MeshLambertMaterial(ghost
@@ -1464,7 +1469,8 @@ function _fp3dMakePerson(p, homeX, homeZ, bounds, small, face) {
   g.add(person);
 
   // ป้ายชื่อเหนือหัว (ตามตัวไปด้วยตอนเดิน)
-  const tag = _fp3dLabel(p.name, ghost ? 'ยังไม่สแกนเข้า' : '', ghost ? '#94a3b8' : '#0f766e', 0.22);
+  const tag = _fp3dDetail(_fp3dLabel(p.name, ghost ? 'ยังไม่สแกนเข้า' : '', ghost ? '#94a3b8' : '#0f766e', 0.22),
+    showTag || _fpSelectedPerson === p.code);
   tag.position.set(homeX, 4 + 29 * S, homeZ);
   if (ghost) tag.material.opacity = 0.7;
   g.add(tag);
@@ -1524,7 +1530,7 @@ function _fp3dBuildCirculation() {
       new T.LineBasicMaterial({ color: 0xcbd5e1 }));
     edge.position.set(cx, 0.9, cz);
     g.add(edge);
-    const lbl = _fp3dLabel(wk.label, '', '#cbd5e1', 0.3);
+    const lbl = _fp3dDetail(_fp3dLabel(wk.label, '', '#cbd5e1', 0.3));
     lbl.position.set(cx, 8, (wk.ly || (wk.y + wk.h / 2)) - oz);
     g.add(lbl);
   });
@@ -1545,7 +1551,7 @@ function _fp3dBuildCirculation() {
     arrow.rotation.z = Math.atan2(-e.dx, -e.dy);               // หมุนให้ชี้ตามทิศ dx/dy (2D: +y ลงล่าง)
     arrow.position.set(e.x - ox, 1.2, e.y - oz);
     g.add(arrow);
-    const lbl = _fp3dLabel(e.label, '', '#0f766e', 0.3);
+    const lbl = _fp3dDetail(_fp3dLabel(e.label, '', '#0f766e', 0.3));
     lbl.position.set(e.x - ox, 14, e.y - oz);
     g.add(lbl);
   });
@@ -1696,7 +1702,7 @@ function _fp3dBuildFlows() {
     const hex = _fp3dHex(job.color);
     const lift = ji * 7;   // แต่ละงานโค้งสูงต่างกัน กันเส้นของ 2 งานที่ผ่านห้องเดียวกันทับกันสนิท
     job.steps.forEach((s, si) => {
-      const lbl = _fp3dLabel(`${si + 1}. ${s.pt.label}`, s.state === 'pending' ? s.note : stateText[s.state], hex, 0.28);
+      const lbl = _fp3dDetail(_fp3dLabel(`${si + 1}. ${s.pt.label}`, s.state === 'pending' ? s.note : stateText[s.state], hex, 0.28));
       lbl.position.set(s.pt.x - ox, 70 + lift + (si % 2) * 10, s.pt.y - oz);
       if (s.state === 'done' || s.state === 'pending' || s.state === 'wait') lbl.material.opacity = s.state === 'done' ? 0.55 : 0.75;
       g.add(lbl);
@@ -1854,6 +1860,7 @@ function _fpRenderOverview() {
   const drawer = document.getElementById('fp-drawer');
   if (!drawer) return;
   _fpDrawerDirty = false;
+  _fpSelectedMachine = null;
   const entries = _fpAllEntries();
   const rows = entries.map(entry => {
     const r = entry.line ? _fpData[entry.line] : null;
@@ -1952,9 +1959,10 @@ function _fpHoldStockListHtml() {
 }
 
 function _fpSelectRoom(id) {
-  const isNew = _fpSelectedId !== id;
+  const isNew = _fpSelectedId !== id || !!_fpSelectedMachine;
   _fpSelectedId = id;
   _fpSelectedPerson = null;
+  _fpSelectedMachine = null;
   _fpDrawerDirty = false;
   _fpBuildSvg(); // rebuild เพื่ออัปเดตคลาส fp-selected บนห้องที่เพิ่งเลือก
 
@@ -2032,31 +2040,55 @@ function _fpMachineListHTML(roomId) {
   // ใครอยู่เครื่องไหนตอนนี้ (ลงเวลาเข้าแล้วยังไม่ออก + เลือกเครื่องไว้)
   const line = FP_ROOM_LINE[roomId] || _fpHostedLine(roomId);
   const roster = (line && _fpData[line] && _fpData[line].roster) || [];
-  return `<div class="fp-field"><label>เครื่องจักร/อุปกรณ์ในห้อง (${ms.length}) — ตำแหน่งจากสแกนห้องจริง · กดดินสอเพื่อตั้งชื่อเครื่อง</label>
+  return `<div class="fp-field"><label>เครื่องจักร/อุปกรณ์ในห้อง (${ms.length}) — ตำแหน่งจากสแกนห้องจริง${_fpCanEditMachines() ? ' · กดดินสอเพื่อตั้งชื่อเครื่อง' : ''}</label>
     ${ms.map(m => {
       const at = roster.filter(p => p.confirmed && p.machine === m.id).map(p => p.name);
-      return `<div class="fp-oval fp-machine-row">
+      return `<div class="fp-oval fp-machine-row" role="button" tabindex="0" style="cursor:pointer" onclick="_fpShowMachine('${_fpJsStr(m.id)}')">
         <i class="fas ${icon[m.kind] || 'fa-gears'}" style="width:14px;color:#64748b"></i>
         <span style="flex:1">${_fpMachineName(m)}${at.length ? `<br><span style="color:#0f766e;font-size:11px"><i class="fas fa-user me-1"></i>${at.join(', ')}</span>` : ''}</span>
-        ${_fpReplayAt ? '' : `<button type="button" class="fp-machine-edit" title="ตั้งชื่อเครื่อง" onclick="_fpRenameMachine('${_fpJsStr(m.id)}')"><i class="fas fa-pen"></i></button>`}
+        ${_fpCanEditMachines() ? `<span class="fp-machine-edit d-inline-flex align-items-center justify-content-center" title="ตั้งชื่อเครื่อง"><i class="fas fa-pen"></i></span>` : ''}
       </div>`;
     }).join('')}
   </div>`;
 }
 
+// แผงขวาของเครื่องจักร 1 เครื่อง — คลิกเครื่องบนผัง 2D/3D หรือแถวในรายการเครื่องของห้อง (คำขอผู้ใช้ 2026-10-22 "เมื่อคลิกที่
+// เครื่องจักร ให้แสดงแค่ชื่อเครื่องนั้นๆ และให้แก้ไขได้") — ชื่อเครื่อง + ช่องแก้ชื่อในแผงเลย ไม่เปิดหน้าต่างซ้อน
+// fromRefresh = เรียกจากรอบรีเฟรช (ไม่เลื่อนจอ/ไม่วาดผังซ้ำ — _fpRefreshViews วาดผังให้แล้ว)
+function _fpShowMachine(id, fromRefresh) {
+  const m = _fpMachineById(id);
+  const drawer = document.getElementById('fp-drawer');
+  if (!m || !drawer) return;
+  const isNew = _fpSelectedMachine !== id;
+  _fpSelectedMachine = id;
+  _fpSelectedPerson = null;
+  _fpSelectedId = m.room;
+  if (!fromRefresh) { _fpDrawerDirty = false; _fpBuildSvg(); }   // วาดผังใหม่ให้เครื่องนี้ไฮไลต์ + ขึ้นป้ายชื่อใน 3D
+  const custom = _fpMachineNames[id] || '';
+  drawer.innerHTML = `
+    <button class="fp-back-link" onclick="_fpSelectRoom('${_fpJsStr(m.room)}')">← ${FP_ROOM_LABEL[m.room]}</button>
+    <div>
+      <div class="fp-eyebrow">เครื่องจักร · ${FP_ROOM_LABEL[m.room]}</div>
+      <h2>${_fpMachineName(m)}</h2>
+    </div>
+    ${!_fpCanEditMachines() ? (_fpReplayAt ? '' : '<div class="fp-hint" style="margin:0"><i class="fas fa-lock me-1"></i>แก้ชื่อเครื่องได้เฉพาะแอดมิน</div>') : `<div class="fp-update-form" oninput="_fpMarkDirty()">
+      <div class="fp-eyebrow">ชื่อเครื่อง</div>
+      <input type="text" id="fp-machine-name" class="form-control" value="${String(custom).replace(/"/g, '&quot;')}" placeholder="${String(m.label).replace(/"/g, '&quot;')}"
+        onkeydown="if(event.key==='Enter')_fpSaveMachineName('${_fpJsStr(id)}')">
+      <div class="fp-val" style="font-size:11px;color:var(--fp-text-dim)">เว้นว่าง = ใช้ชื่อเริ่มต้น "${m.label}"</div>
+      <button type="button" class="fp-clock-btn fp-clock-in" style="margin-left:0;justify-content:center" onclick="_fpSaveMachineName('${_fpJsStr(id)}')"><i class="fas fa-check me-1"></i>บันทึกชื่อ</button>
+    </div>`}
+  `;
+  if (!fromRefresh && isNew && document.body.classList.contains('wh-desktop-mode')) drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 // ตั้งชื่อจริงของเครื่องจักรตำแหน่งนี้ (คำขอผู้ใช้ 2026-10-22 "อยากใส่ชื่อเครื่อง ว่าตำแหน่งนี้เครื่องไหน") — เก็บที่ floor_machines
-// ทุกคนที่ login แก้ได้ (แอปนี้ไม่มีระบบจำกัดสิทธิ์ราย action มีแค่ audit log) เว้นว่าง = กลับไปใช้ชื่อเริ่มต้นในโค้ด
-async function _fpRenameMachine(id) {
+// แอดมินเท่านั้น (_fpCanEditMachines + RLS) เว้นว่าง = กลับไปใช้ชื่อเริ่มต้นในโค้ด
+async function _fpSaveMachineName(id) {
   const m = _fpMachineById(id);
   if (!m) return;
-  const { value: name, isConfirmed } = await Swal.fire({
-    title: 'ตั้งชื่อเครื่อง', input: 'text', inputValue: _fpMachineNames[id] || '',
-    inputPlaceholder: m.label, inputLabel: `${FP_ROOM_LABEL[m.room]} — ตำแหน่ง: ${m.label}`,
-    html: '<div class="small text-muted">เว้นว่าง = ใช้ชื่อเริ่มต้น</div>',
-    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
-  });
-  if (!isConfirmed) return;
-  const clean = String(name || '').trim();
+  if (!_fpCanEditMachines()) { _err('ไม่มีสิทธิ์', 'แก้ชื่อเครื่องได้เฉพาะแอดมิน'); return; }
+  const clean = String(document.getElementById('fp-machine-name')?.value || '').trim();
   _showLoader();
   const { error } = clean
     ? await _sb.from('floor_machines').upsert({ MachineId: id, Name: clean, UpdatedBy: _currentUser?.name || _currentUser?.email || null, UpdatedAt: new Date().toISOString() }, { onConflict: 'MachineId' })
@@ -2064,7 +2096,9 @@ async function _fpRenameMachine(id) {
   _hideLoader();
   if (error) { _err('บันทึกชื่อเครื่องไม่สำเร็จ', `${error.message}<br><small>ถ้ายังไม่ได้รัน alter_labor_log_add_machine.sql ใน Supabase ให้รันก่อน</small>`); return; }
   if (typeof _logAudit === 'function') _logAudit('EDIT', 'floor_machines', id, `${_fpMachineName(m)} → ${clean || m.label}`);
-  await loadFloorPulseData();
+  _fpDrawerDirty = false;
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกชื่อเครื่องแล้ว', showConfirmButton: false, timer: 1500 });
+  await loadFloorPulseData();   // แผงยังเปิดเครื่องนี้อยู่ (_fpSelectedMachine) ชื่อใหม่ขึ้นทั้งแผง/ป้าย 3D/รายการ
 }
 
 function _fpRosterRoleText(p) {
@@ -2271,6 +2305,7 @@ function _fpShowPerson(code) {
   const drawer = document.getElementById('fp-drawer');
   if (!drawer) return;
   _fpSelectedPerson = code;
+  _fpSelectedMachine = null;
   _fpDrawerDirty = false;
   const emp = _planEmployees.find(e => e.EmployeeCode === code) || { EmployeeCode: code };
   const ov = _fpBuildStaffOverview().find(s => s.code === code);
