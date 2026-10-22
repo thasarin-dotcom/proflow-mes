@@ -1867,6 +1867,12 @@ body.role-operator [onclick*="holdstockOpenActionModal("] { display: none !impor
 #page-floorpulse .fp-zone.fp-dim .fp-room-label,
 #page-floorpulse .fp-zone.fp-dim .fp-room-sub { fill: var(--fp-text-faint); }
 #page-floorpulse .fp-metric-track { fill: #00000014; }
+/* เครื่องจักรตำแหน่งจริงในผัง 2D (FP_MACHINES, 2026-10-22) — จางๆ อยู่ใต้ชื่อห้อง/หุ่น */
+#page-floorpulse .fp-machine { fill: #64748b; fill-opacity: .16; stroke: #64748b; stroke-opacity: .45; stroke-width: .7; }
+#page-floorpulse .fp-machine-table { fill-opacity: .07; stroke-dasharray: 2 1.5; }
+#page-floorpulse .fp-machine-row { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
+#page-floorpulse .fp-machine-edit { border: 1px solid var(--fp-wall-soft); background: var(--fp-surface-2); color: #64748b;
+  border-radius: 8px; width: 34px; height: 32px; cursor: pointer; flex-shrink: 0; }
 /* จุดสถานะ "กำลังผลิต" กะพริบเบาๆ ให้รู้สึกว่ากำลังทำงานอยู่จริง (ยืนยันกับผู้ใช้แล้ว 2026-09-14) —
    สถานะอื่น (ล่าช้า/เสร็จตามแผน) เป็นจุดนิ่ง ไม่กะพริบ กันดูรกเกินไป */
 #page-floorpulse .fp-dot-live { animation: fpDotBlink 1.6s ease-in-out infinite; }
@@ -5819,7 +5825,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
             <div class="col-6"><label class="form-label small mb-0">ใช้ตั้งแต่เดือน</label><input type="month" id="coststd-start" class="form-control form-control-sm"></div>
             <div class="col-6"><label class="form-label small mb-0">ถึงเดือน (รวมเดือนนี้)</label><input type="month" id="coststd-end" class="form-control form-control-sm"></div>
           </div>
-          <div class="fw-bold small text-muted mb-1">ค่าโสหุ้ย ฿/วัน (ดึงค่าเฉลี่ยยอดสุทธิ 6 เดือนมาให้ แก้ได้)</div>
+          <div class="fw-bold small text-muted mb-1">Overhead ฿/วัน (ดึงค่าเฉลี่ยยอดสุทธิ 6 เดือนมาให้ แก้ได้)</div>
           <div class="row g-2 mb-3">
             <div class="col-6"><label class="form-label small mb-0">ค่าน้ำ + ค่าไฟ (฿/วัน)</label><input type="number" step="0.01" id="coststd-util" class="form-control form-control-sm"></div>
             <div class="col-6"><label class="form-label small mb-0">ค่าเช่า + รปภ. (฿/วัน)</label><input type="number" step="0.01" id="coststd-rent" class="form-control form-control-sm"></div>
@@ -5978,7 +5984,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
 
           <div class="glass-card">
             <div class="d-flex flex-wrap gap-2 align-items-baseline mb-1">
-              <div class="fw-bold"><span class="badge bg-primary me-1">3</span>เรทค่าแรงและโสหุ้ย</div>
+              <div class="fw-bold"><span class="badge bg-primary me-1">3</span>เรทค่าแรงและ Overhead</div>
               <div class="small text-muted text-truncate" id="nc-rate-src"></div>
             </div>
             <div class="row g-1">
@@ -36952,7 +36958,7 @@ function newcostRecalc() {
     tile('วัตถุดิบ (Bulk)/ชิ้น', _ncFmt(bulk), '#1e3a8a', `ราคาจริง ${_ncFmt(bulkRaw)}${mkBulk ? ` +${mkBulk}%` : ''}`) +
     tile('บรรจุภัณฑ์ (Pac)/ชิ้น', _ncFmt(pac), '#7c3aed', `ราคาจริง ${_ncFmt(pacRaw)}${mkPac ? ` +${mkPac}%` : ''}${missing ? ` · <span class="text-danger">ไม่มีราคา ${missing} รายการ</span>` : ''}`) +
     tile('ค่าแรง/ชิ้น', upd > 0 ? _ncFmt(labor) : '—', '#0d6efd', `${_ncFmt(laborDay, 0)}/วัน ÷ ${upd.toLocaleString()} ชิ้น`) +
-    tile('โสหุ้ย/ชิ้น', upd > 0 ? _ncFmt(oh) : '—', '#f59e0b', `น้ำไฟ+เช่า+รปภ. ${_ncFmt(ohDay, 0)}/วัน`) +
+    tile('Overhead/ชิ้น', upd > 0 ? _ncFmt(oh) : '—', '#f59e0b', `น้ำไฟ+เช่า+รปภ. ${_ncFmt(ohDay, 0)}/วัน`) +
     tile('ต้นทุนรวม/ชิ้น', _ncFmt(total), '#198754');
   const profit = price > 0 ? price - total : null;
   _ncLast = { mat, bulk, pac, bulkRaw, pacRaw, mkBulk, mkPac, missing, labor, laborDay, oh, ohDay, total, upd, price, profit, target, suggest };
@@ -37028,7 +37034,7 @@ async function newcostExportImage() {
         ${row('วัตถุดิบ (Bulk)', `ราคาจริง ${f2(L.bulkRaw)}${L.mkBulk ? ` + บวกเพิ่ม ${L.mkBulk}%` : ''}`, L.bulk, '#1e3a8a')}
         ${row('บรรจุภัณฑ์ (Packaging)', `ราคาจริง ${f2(L.pacRaw)}${L.mkPac ? ` + บวกเพิ่ม ${L.mkPac}%` : ''}${L.missing ? ` · ยังไม่มีราคา ${L.missing} รายการ` : ''}`, L.pac, '#7c3aed')}
         ${row('ค่าแรง', '', L.labor, '#2563eb')}
-        ${row('โสหุ้ย (น้ำไฟ + ค่าเช่า + รปภ.)', '', L.oh, '#f59e0b')}
+        ${row('Overhead (น้ำไฟ + ค่าเช่า + รปภ.)', '', L.oh, '#f59e0b')}
         <div style="margin-top:18px;font-weight:700;color:#1e293b;font-size:14px">ส่วนประกอบต่อ 1 ชิ้น</div>
         ${['Bulk', 'Pac'].map(k => {
           const items = lines.filter(l => l.kind === k);
@@ -40740,6 +40746,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-<script src="floorpulse.js?v=20261021f"></script>
+<script src="floorpulse.js?v=20261022b"></script>
 </body>
 </html>
