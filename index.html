@@ -7851,6 +7851,12 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
 <!-- สแกน QR ไลน์ผลิตแล้วเข้าหน้านี้ตรงๆ (?scanlabor=1&mo=...&line=...) — ไม่ต้อง login/เข้าแอพเลย เหมือน
      ?scanprog=1 ทุกอย่าง (ดู supabase_functions/scan-labor) ต่างกันแค่เนื้อหาฟอร์ม (roster เวลาเข้า-ออก
      แทนยอดผลิต) -->
+<!-- หน้า "ห้องนี้ตอนนี้" แบบไม่ต้อง login — แตะแท็ก NFC / สแกน QR หน้าห้อง (?nfc=<room>) ดู _renderPublicRoom (2026-10-22) -->
+<div id="nfcRoomPublicView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Sarabun','Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
+  <div style="padding:12px 16px 40px;max-width:520px;margin:0 auto" id="nfcRoomPublicBody">
+    <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
+  </div>
+</div>
 <div id="scanLaborPublicView" style="display:none;position:fixed;inset:0;overflow-y:auto;background:#f1f5f9;z-index:99999;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#1e293b">
   <div style="padding:16px 24px;max-width:520px;margin:0 auto" id="scanLaborPublicBody">
     <div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
@@ -19246,6 +19252,273 @@ async function _scanprogPubSubmit(moId, line, phone) {
 // **ไม่มี &line= อีกต่อไป** (2026-09-12, ดูหมายเหตุยาวที่ laborqrPrintForMO) — QR ใบเดียวครอบคลุมทุกไลน์
 // ผลิตของ MO นี้ Edge Function คืนข้อมูลเป็น `lines` array แทน roster เดียว หน้านี้จึงแสดงทุกไลน์แยกส่วน
 // กันชัดเจนในหน้าเดียว (การ์ดต่อไลน์ ตารางของใครของมัน) แต่ยืนยันตัวด้วยเบอร์โทรแค่ครั้งเดียวสำหรับทั้ง MO
+// ══════════════════════════════════════════════
+// หน้า "ห้องนี้ตอนนี้" แบบไม่ต้อง login (?nfc=<room id>) — แตะแท็ก NFC / สแกน QR หน้าห้อง (นำร่องห้องบรรจุแชมพู
+// 2026-10-22) ผู้ใช้ขอ "ไม่ต้องให้เข้ามาที่หน้าแอพ ให้เป็นเหมือน QR ลงเวลางาน" → ใช้กลไกเดียวกับ ?scanlabor=1:
+// ยืนยันด้วยเบอร์โทร (attribution ไม่ใช่ auth) ทุกการเขียนผ่าน Edge Function scan-room (service role)
+// ห้อง → ไลน์ มาจาก factory-layout.js (FP_ROOM_LINE / FP_PACK_SUBLINES) เครื่องจักรจาก FP_MACHINES — งานของห้อง
+// หาเองที่ฝั่ง Edge Function จากแผนผลิต (ไม่เก็บ MO ในแท็ก) | ไม่ใช้ Swal ในหน้าสาธารณะ (ดูหมายเหตุที่
+// _scanlaborPubAddWorker — เคยพังเงียบบนมือถือบางเครื่อง) ทุกอย่างเป็นแผงในหน้าเดียว + ข้อความแจ้งผลด้านบน
+// เบอร์ที่ยืนยันแล้วจำไว้ในเครื่อง (localStorage) — แตะซ้ำไม่ต้องกรอกใหม่ กด "เปลี่ยน" เพื่อใช้เบอร์อื่น
+// ══════════════════════════════════════════════
+let _nfcPub = null;   // { room, lines:[{line,label}], line, mo, info, phone, name, panel, msg, busy }
+const _NFC_PHONE_KEY = 'proflow_nfc_phone';
+const _NFC_STATUS_LABEL = { RUN: 'กำลังทำ', PAUSE: 'พัก', STOP: 'หยุด' };
+
+function _nfcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function _nfcJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+async function _nfcCall(payload) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-room`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+function _nfcErrText(d) {
+  if (!d) return 'ไม่สามารถบันทึกได้ ลองใหม่อีกครั้ง';
+  if (d.message) return d.message;
+  return ({
+    network: 'เชื่อมต่อไม่สำเร็จ — ตรวจสัญญาณเน็ตแล้วลองใหม่',
+    phone_not_found: 'ไม่พบเบอร์นี้ในระบบพนักงานที่ยังทำงานอยู่ กรุณาตรวจสอบเบอร์อีกครั้ง',
+    missing_phone: 'กรุณากรอกเบอร์โทรศัพท์',
+    missing_reason: 'กรุณาเลือกสาเหตุที่หยุด',
+    bad_qty: 'กรอกยอดไม่ถูกต้อง',
+    insert_failed: `บันทึกไม่สำเร็จ${d.detail ? ' (' + d.detail + ')' : ''}`,
+  })[d.error] || `ไม่สามารถบันทึกได้ (${d.error || 'unknown'})`;
+}
+
+async function _renderPublicRoom(room) {
+  document.getElementById('nfcRoomPublicView').style.display = 'block';
+  const lines = typeof FP_ROOM_LINE === 'undefined' ? []
+    : room === 'packbox' ? FP_PACK_SUBLINES.map(s => ({ line: s.line, label: s.label }))
+    : FP_ROOM_LINE[room] ? [{ line: FP_ROOM_LINE[room], label: FP_ROOM_LABEL[room] }] : [];
+  let savedPhone = '';
+  try { savedPhone = localStorage.getItem(_NFC_PHONE_KEY) || ''; } catch (e) {}
+  _nfcPub = { room, lines, line: lines[0] ? lines[0].line : null, mo: null, info: null, phone: '', name: '', panel: null, msg: null, busy: false };
+  if (!lines.length) {
+    document.getElementById('nfcRoomPublicBody').innerHTML = `<div class="text-center py-5"><div style="font-size:1.2rem;font-weight:700">⚠️ ไม่รู้จักห้องนี้</div>
+      <div class="text-muted small mt-2">แท็กนี้ชี้ไปห้อง "${_nfcEsc(room)}" ซึ่งไม่มีในระบบ — แจ้งแอดมินให้เขียนแท็กใหม่</div></div>`;
+    return;
+  }
+  _nfcRender();
+  const [info, ver] = await Promise.all([
+    _nfcCall({ action: 'info', lines: lines.map(l => l.line) }),
+    savedPhone ? _nfcCall({ action: 'verify', phone: savedPhone }) : Promise.resolve(null),
+  ]);
+  if (ver && ver.ok) { _nfcPub.phone = savedPhone; _nfcPub.name = ver.employeeName; }
+  _nfcPub.info = info;
+  _nfcRender();
+}
+
+async function _nfcReload(msg) {
+  _nfcPub.info = await _nfcCall({ action: 'info', lines: _nfcPub.lines.map(l => l.line) });
+  _nfcPub.panel = null;
+  if (msg) _nfcPub.msg = msg;
+  _nfcRender();
+}
+
+function _nfcCurJob() {
+  const jobs = (_nfcPub.info && _nfcPub.info.ok && _nfcPub.info.jobsByLine[_nfcPub.line]) || [];
+  return jobs.find(j => j.mo === _nfcPub.mo) || null;
+}
+function _nfcEmpName(code) {
+  const e = ((_nfcPub.info && _nfcPub.info.employees) || []).find(x => x.code === code);
+  return e ? e.name : code;
+}
+function _nfcMachineName(id) {
+  const m = typeof _fpMachineById === 'function' ? _fpMachineById(id) : null;
+  return m ? ((_nfcPub.info && _nfcPub.info.machineNames && _nfcPub.info.machineNames[id]) || m.label) : '';
+}
+function _nfcDefaultTime() {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2, '0')}:${String(Math.floor(n.getMinutes() / 5) * 5).padStart(2, '0')}`;
+}
+
+function _nfcRender() {
+  const P = _nfcPub, body = document.getElementById('nfcRoomPublicBody');
+  const head = `<div class="d-flex align-items-center gap-2 mb-2 pt-2">
+      <img src="wisenovation_LOGO -Cut.png" style="height:26px">
+      <div class="ms-auto text-end"><div class="fw-bold" style="color:#1e3a8a;font-size:1.15rem"><i class="fas fa-door-open me-1"></i>${_nfcEsc(FP_ROOM_LABEL[P.room])}</div>
+      <div class="text-muted" style="font-size:.72rem">ห้องนี้ตอนนี้</div></div></div>`;
+  const msg = P.msg ? `<div class="alert ${P.msg.ok ? 'alert-success' : 'alert-danger'} py-2 small mb-2">${P.msg.ok ? '<i class="fas fa-circle-check me-1"></i>' : '<i class="fas fa-triangle-exclamation me-1"></i>'}${_nfcEsc(P.msg.text)}</div>` : '';
+  if (!P.info) { body.innerHTML = head + '<div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลดงานของห้องนี้...</div>'; return; }
+  if (!P.info.ok) { body.innerHTML = head + `<div class="alert alert-danger small">${_nfcEsc(_nfcErrText(P.info))}</div><button class="btn btn-outline-primary w-100" onclick="_nfcReload()">ลองใหม่</button>`; return; }
+
+  // ยังไม่ยืนยันเบอร์ — ขอเบอร์ก่อน (เหมือน QR ลงเวลางาน)
+  if (!P.name) {
+    body.innerHTML = head + msg + `<div class="glass-card p-3">
+      <label class="form-label small fw-bold">เบอร์โทรศัพท์ (ยืนยันว่าใครกรอก — หัวหน้าไลน์)</label>
+      <input type="tel" id="nfc-phone" class="form-control mb-2" placeholder="0812345678" inputmode="tel"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_nfcVerify();}">
+      <button class="btn btn-primary w-100 py-2" onclick="_nfcVerify()"><i class="fas fa-arrow-right me-1"></i>ถัดไป</button>
+      <div class="text-muted mt-2" style="font-size:.75rem">กรอกครั้งเดียว เครื่องนี้จะจำไว้ แตะครั้งต่อไปเข้าได้เลย</div></div>`;
+    return;
+  }
+  let html = head + `<div class="d-flex align-items-center small mb-2" style="color:#15803d"><i class="fas fa-user-check me-1"></i>ผู้กรอก: <b class="ms-1">${_nfcEsc(P.name)}</b>
+    <button class="btn btn-link btn-sm ms-auto p-0" onclick="_nfcChangePhone()">เปลี่ยน</button></div>` + msg;
+
+  if (P.lines.length > 1) {
+    html += `<div class="d-flex flex-wrap gap-1 mb-2">${P.lines.map(l => {
+      const n = (P.info.jobsByLine[l.line] || []).length;
+      return `<button class="btn btn-sm ${l.line === P.line ? 'btn-primary' : 'btn-outline-secondary'} rounded-pill" onclick="_nfcPub.line='${_nfcJs(l.line)}';_nfcPub.mo=null;_nfcPub.panel=null;_nfcRender()">${_nfcEsc(l.label)}${n ? ` (${n})` : ''}</button>`;
+    }).join('')}</div>`;
+  }
+  const jobs = P.info.jobsByLine[P.line] || [];
+  if (!jobs.length) {
+    body.innerHTML = html + `<div class="glass-card p-4 text-center text-muted"><i class="fas fa-mug-hot fa-2x d-block mb-2"></i>ตอนนี้ไม่มีงานค้างของ ${_nfcEsc(P.line)} ในแผนผลิต</div>`;
+    return;
+  }
+  if (!P.mo || !jobs.some(j => j.mo === P.mo)) P.mo = jobs[0].mo;
+  if (jobs.length > 1) {
+    html += `<div class="d-flex flex-wrap gap-1 mb-2">${jobs.map(j => `<button class="btn btn-sm ${j.mo === P.mo ? 'btn-primary' : 'btn-outline-secondary'} rounded-pill" onclick="_nfcPub.mo='${_nfcJs(j.mo)}';_nfcPub.panel=null;_nfcRender()">${_nfcEsc(j.mo)}</button>`).join('')}</div>`;
+  }
+  const j = jobs.find(x => x.mo === P.mo);
+  const pct = j.target > 0 ? Math.min(100, Math.round(j.qty / j.target * 100)) : 0;
+  html += `<div class="glass-card p-3 mb-2">
+    <div class="text-muted" style="font-size:.75rem">${_nfcEsc(j.mo)} · แผน ${_fmtDate(j.planDate)}${j.timeStart ? ` · กะ ${String(j.timeStart).slice(0, 5)}–${String(j.timeEnd).slice(0, 5)}` : ''}</div>
+    <div class="fw-bold" style="font-size:1rem">${_nfcEsc(j.product || '—')}</div>
+    ${j.firstPlanDate < P.info.today ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">งานค้างตั้งแต่ ${_fmtDate(j.firstPlanDate)}</span>` : ''}
+    <div class="progress my-2" style="height:10px"><div class="progress-bar bg-success" style="width:${pct}%"></div></div>
+    <div class="d-flex justify-content-between small"><span>${j.qty.toLocaleString()} / ${j.target.toLocaleString()} ${_nfcEsc(j.uom)}</span><b>${pct}%</b></div>
+    <div class="text-muted" style="font-size:.72rem">${j.lastAt ? `อัปเดตยอดล่าสุด ${new Date(j.lastAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : 'ยังไม่มีการอัปเดตยอด'}</div>
+  </div>`;
+
+  // สถานะหน้างาน
+  const st = j.status;
+  const stCls = !st ? 'bg-secondary-subtle text-secondary-emphasis' : st.Status === 'RUN' ? 'bg-success-subtle text-success-emphasis' : st.Status === 'PAUSE' ? 'bg-warning-subtle text-warning-emphasis' : 'bg-danger-subtle text-danger-emphasis';
+  const stText = !st ? 'ยังไม่ได้กดสถานะวันนี้'
+    : `${_NFC_STATUS_LABEL[st.Status]}${st.Status === 'STOP' && st.Reason ? ' — ' + st.Reason : ''} · ตั้งแต่ ${new Date(st.CreatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+  html += `<div class="glass-card p-3 mb-2">
+    <div class="fw-bold small mb-2">สถานะหน้างาน</div>
+    <span class="badge ${stCls} px-3 py-2" style="font-size:.85rem;white-space:normal">${_nfcEsc(stText)}</span>
+    ${P.info.statusTableOk ? '' : '<div class="text-danger mt-2" style="font-size:.75rem">ยังไม่ได้รัน create_production_status_log.sql — กดสถานะยังบันทึกไม่ได้</div>'}
+    <div class="row g-2 mt-1">
+      <div class="col-4"><button class="btn btn-outline-success w-100 py-3 fw-bold" onclick="_nfcSetStatus('RUN')"><i class="fas fa-play d-block mb-1"></i>กำลังทำ</button></div>
+      <div class="col-4"><button class="btn btn-outline-warning w-100 py-3 fw-bold" onclick="_nfcSetStatus('PAUSE')"><i class="fas fa-pause d-block mb-1"></i>พัก</button></div>
+      <div class="col-4"><button class="btn btn-outline-danger w-100 py-3 fw-bold" onclick="_nfcPub.panel={type:'stop'};_nfcRender()"><i class="fas fa-hand d-block mb-1"></i>หยุด</button></div>
+    </div>
+    ${P.panel && P.panel.type === 'stop' ? `<div class="border rounded-3 p-2 mt-2" style="background:#fef2f2">
+      <div class="fw-bold small mb-1 text-danger">สาเหตุที่หยุด</div>
+      <div class="row g-1">${FP_STOP_REASONS.map((r, i) => `<div class="col-6"><label class="border rounded-2 bg-white p-2 w-100 small d-flex gap-1 align-items-center">
+        <input type="radio" name="nfc-reason" value="${_nfcEsc(r)}"${i === 0 ? ' checked' : ''}>${_nfcEsc(r)}</label></div>`).join('')}</div>
+      <input id="nfc-reason-note" class="form-control form-control-sm mt-2" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ / เลือก อื่นๆ ต้องใส่)">
+      <div class="d-flex gap-2 mt-2"><button class="btn btn-danger flex-fill" onclick="_nfcSetStatus('STOP')">บันทึกหยุดงาน</button>
+      <button class="btn btn-outline-secondary" onclick="_nfcPub.panel=null;_nfcRender()">ยกเลิก</button></div></div>` : ''}
+  </div>`;
+
+  // อัปเดตยอด
+  html += `<div class="glass-card p-3 mb-2">
+    <div class="fw-bold small mb-2">อัปเดตยอดผลิต (ยอดสะสมรวม)</div>
+    <div class="input-group"><input type="number" id="nfc-qty" class="form-control form-control-lg" inputmode="decimal" min="0" step="any" value="${j.lastAt ? j.qty : ''}" placeholder="ยอดสะสม">
+    <button class="btn btn-primary px-3" onclick="_nfcSubmitQty()"><i class="fas fa-check me-1"></i>อัปเดต</button></div>
+  </div>`;
+
+  // พนักงาน
+  const codes = [...new Set([...j.workerCodes, ...j.labor.map(r => r.code)])];
+  const people = codes.map(code => {
+    const r = j.labor.find(x => x.code === code);
+    const open = !!(r && r.timeIn && !r.timeOut), done = !!(r && r.timeIn && r.timeOut);
+    const mc = r && r.machineId ? ` · <i class="fas fa-gears"></i> ${_nfcEsc(_nfcMachineName(r.machineId))}` : '';
+    const info = open ? `เข้า ${String(r.timeIn).slice(0, 5)} — ยังไม่ออก${mc}` : done ? `เข้า ${String(r.timeIn).slice(0, 5)} · ออก ${String(r.timeOut).slice(0, 5)}${mc}` : 'ตามแผน — ยังไม่ลงเวลาเข้า';
+    const btn = done ? '<span class="badge bg-light text-muted border">ลงเวลาครบแล้ว</span>'
+      : `<button class="btn ${open ? 'btn-outline-warning' : 'btn-primary'} fw-bold text-nowrap" onclick="_nfcPub.panel={type:'clock',code:'${_nfcJs(code)}',dir:'${open ? 'out' : 'in'}'};_nfcRender()">${open ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</button>`;
+    const panel = P.panel && P.panel.type === 'clock' && P.panel.code === code ? _nfcClockPanelHTML(code, P.panel.dir, r) : '';
+    return `<div class="py-2 border-top"><div class="d-flex align-items-center gap-2">
+      <div class="flex-fill" style="min-width:0"><div class="fw-bold">${_nfcEsc(_nfcEmpName(code))}</div><div class="text-muted" style="font-size:.75rem">${info}</div></div>${btn}</div>${panel}</div>`;
+  }).join('');
+  const pool = (P.info.employees || []).filter(e => !codes.includes(e.code));
+  html += `<div class="glass-card p-3 mb-2">
+    <div class="fw-bold small mb-1">พนักงานในงานนี้ (${codes.length})</div>
+    ${people || '<div class="text-muted small py-2">ยังไม่มีรายชื่อในแผน — เพิ่มคนด้านล่าง</div>'}
+    ${P.panel && P.panel.type === 'add' ? `<div class="border-top pt-2 mt-1"><select id="nfc-add-emp" class="form-select mb-2">${pool.map(e => `<option value="${_nfcEsc(e.code)}">${_nfcEsc(e.name)}${e.full && e.full !== e.name ? ` (${_nfcEsc(e.full)})` : ''} — ${_nfcEsc(e.code)}</option>`).join('')}</select>
+      <div class="d-flex gap-2"><button class="btn btn-primary flex-fill" onclick="const c=document.getElementById('nfc-add-emp').value;if(c){_nfcPub.panel={type:'clock',code:c,dir:'in',isNew:true};_nfcRender();}">ถัดไป — ลงเวลาเข้า</button>
+      <button class="btn btn-outline-secondary" onclick="_nfcPub.panel=null;_nfcRender()">ยกเลิก</button></div></div>`
+      : (P.panel && P.panel.isNew ? `<div class="py-2 border-top"><div class="fw-bold">${_nfcEsc(_nfcEmpName(P.panel.code))} <span class="badge bg-info-subtle text-info-emphasis">เพิ่มใหม่</span></div>${_nfcClockPanelHTML(P.panel.code, 'in', null)}</div>`
+        : `<button class="btn btn-outline-primary w-100 mt-2" onclick="_nfcPub.panel={type:'add'};_nfcRender()"${pool.length ? '' : ' disabled'}><i class="fas fa-user-plus me-1"></i>เพิ่มคนเข้างานนี้</button>`)}
+  </div>
+  <div class="text-center text-muted mt-3" style="font-size:.72rem">ข้อมูลขึ้นผังโรงงานเรียลไทม์ทันที · แก้เวลาที่บันทึกไปแล้วต้องให้แอดมินแก้ในแอป</div>`;
+  body.innerHTML = html;
+}
+
+// แผงลงเวลาของคน 1 คน (แสดงใต้ชื่อ) — เลือกเวลา (ค่าเริ่มต้นตอนนี้ ปัดลง 5 นาที) + เลือกเครื่อง (ตอนลงเวลาเข้า)
+function _nfcClockPanelHTML(code, dir, r) {
+  const machines = dir === 'in' && _nfcPub.room !== 'packbox' && typeof _fpMachinesIn === 'function' ? _fpMachinesIn(_nfcPub.room) : [];
+  return `<div class="border rounded-3 p-2 mt-2" style="background:#f8fafc">
+    <div class="small fw-bold mb-1">${dir === 'in' ? 'เวลาเข้า' : `เวลาออก (เข้า ${String(r && r.timeIn || '').slice(0, 5)})`}</div>
+    ${_prodrecordTimeSelectHTML('nfc-time', _nfcDefaultTime())}
+    ${machines.length ? `<div class="small fw-bold mt-2 mb-1">ทำเครื่องไหน</div><div class="row g-1">
+      ${[{ id: '', name: 'ไม่ระบุ' }, ...machines.map(m => ({ id: m.id, name: _nfcMachineName(m.id) }))].map((o, i) => `<div class="col-6">
+        <label class="border rounded-2 bg-white p-2 w-100 small d-flex gap-1 align-items-center"><input type="radio" name="nfc-machine" value="${o.id}"${i === 0 ? ' checked' : ''}>${_nfcEsc(o.name)}</label></div>`).join('')}</div>` : ''}
+    <div class="d-flex gap-2 mt-2"><button class="btn ${dir === 'in' ? 'btn-primary' : 'btn-warning'} flex-fill fw-bold" onclick="_nfcClock('${_nfcJs(code)}','${dir}')">${dir === 'in' ? 'ยืนยันลงเวลาเข้า' : 'ยืนยันลงเวลาออก'}</button>
+    <button class="btn btn-outline-secondary" onclick="_nfcPub.panel=null;_nfcRender()">ยกเลิก</button></div></div>`;
+}
+
+async function _nfcVerify() {
+  const phone = (document.getElementById('nfc-phone').value || '').trim();
+  if (!phone) { _nfcPub.msg = { ok: false, text: 'กรุณากรอกเบอร์โทรศัพท์' }; _nfcRender(); return; }
+  const d = await _nfcCall({ action: 'verify', phone });
+  if (!d || !d.ok) { _nfcPub.msg = { ok: false, text: _nfcErrText(d) }; _nfcRender(); return; }
+  try { localStorage.setItem(_NFC_PHONE_KEY, phone); } catch (e) {}
+  _nfcPub.phone = phone; _nfcPub.name = d.employeeName; _nfcPub.msg = null;
+  _nfcRender();
+}
+function _nfcChangePhone() {
+  try { localStorage.removeItem(_NFC_PHONE_KEY); } catch (e) {}
+  _nfcPub.phone = ''; _nfcPub.name = ''; _nfcPub.msg = null; _nfcPub.panel = null;
+  _nfcRender();
+}
+
+async function _nfcSend(payload, okText) {
+  if (_nfcPub.busy) return;
+  _nfcPub.busy = true;
+  document.querySelectorAll('#nfcRoomPublicBody button').forEach(b => { b.disabled = true; });
+  const d = await _nfcCall({ ...payload, phone: _nfcPub.phone });
+  _nfcPub.busy = false;
+  if (!d || !d.ok) {
+    _nfcPub.msg = { ok: false, text: _nfcErrText(d) };
+    _nfcRender();
+    document.getElementById('nfcRoomPublicView').scrollTop = 0;
+    return;
+  }
+  await _nfcReload({ ok: true, text: typeof okText === 'function' ? okText(d) : okText });
+  document.getElementById('nfcRoomPublicView').scrollTop = 0;
+}
+
+function _nfcSetStatus(status) {
+  const j = _nfcCurJob();
+  if (!j) return;
+  let reason = '', note = '';
+  if (status === 'STOP') {
+    reason = document.querySelector('input[name="nfc-reason"]:checked')?.value || '';
+    note = (document.getElementById('nfc-reason-note')?.value || '').trim();
+    if (reason === 'อื่นๆ' && !note) { _nfcPub.msg = { ok: false, text: 'เลือก "อื่นๆ" ต้องพิมพ์รายละเอียด' }; _nfcRender(); return; }
+  }
+  _nfcSend({ action: 'status', mo: j.mo, line: j.line, status, reason, note, room: _nfcPub.room },
+    `บันทึกสถานะ: ${_NFC_STATUS_LABEL[status]}${reason ? ' — ' + reason : ''}`);
+}
+
+function _nfcSubmitQty() {
+  const j = _nfcCurJob();
+  if (!j) return;
+  const qty = parseFloat(document.getElementById('nfc-qty').value);
+  if (isNaN(qty) || qty < 0) { _nfcPub.msg = { ok: false, text: 'กรอกยอดผลิตสะสม (0 ขึ้นไป)' }; _nfcRender(); return; }
+  if (j.lastAt && qty < j.qty && !confirm(`ยอดน้อยกว่าครั้งก่อน (${j.qty.toLocaleString()}) — ยืนยันแก้เป็น ${qty.toLocaleString()}?`)) return;
+  _nfcSend({ action: 'qty', mo: j.mo, line: j.line, qty }, `อัปเดตยอดเป็น ${qty.toLocaleString()} ${j.uom || ''} แล้ว`);
+}
+
+function _nfcClock(code, dir) {
+  const j = _nfcCurJob();
+  if (!j) return;
+  _prodrecordSyncTimeSelect('nfc-time');
+  const time = document.getElementById('nfc-time').value;
+  if (!time) { _nfcPub.msg = { ok: false, text: 'เลือกเวลาให้ครบทั้งชั่วโมงและนาที' }; _nfcRender(); return; }
+  const machineId = document.querySelector('input[name="nfc-machine"]:checked')?.value || '';
+  _nfcSend({ action: 'clock', mo: j.mo, line: j.line, code, dir, time, machineId },
+    d => `${dir === 'in' ? 'ลงเวลาเข้า' : 'ลงเวลาออก'} ${d.name} ${d.time}${machineId ? ' · ' + _nfcMachineName(machineId) : ''}${d.closed && d.closed.length ? ` (ลงเวลาออกจาก ${d.closed.join(', ')} ให้แล้ว)` : ''}`);
+}
+
 let _scanlaborPubInfo = null; // ผลจาก action:'info' ({mo, workDate, lines:[{line,shift,timeStart,timeEnd,roster,qualifiedPool}]}) — โหลดครั้งเดียว ใช้ซ้ำตอนแสดงฟอร์ม
 
 async function _renderPublicScanLabor(moId) {
@@ -40362,15 +40635,7 @@ function _isPhoneDevice() {
   return s > 0 && s < 600 && window.matchMedia('(pointer: coarse)').matches;
 }
 function _mobileOptedOut() { try { return localStorage.getItem(_MOBILE_OPT_OUT_KEY) === '1'; } catch (e) { return false; } }
-// ?nfc=<room id> บนแท็บเล็ต/คอม — เปิดผังโรงงานเรียลไทม์ (ผ่านโหมดแท็บเลตคลังถ้าเป็นบัญชีคลัง) แล้วเลือกห้องนั้น
-// FP_ROOM_LABEL / _fpSelectRoom อยู่ใน factory-layout.js / floorpulse.js (โหลดหลังสคริปต์นี้ แต่ฟังก์ชันนี้ถูกเรียกหลัง login เสมอ)
-async function _nfcOpenRoom(roomId) {
-  if (typeof FP_ROOM_LABEL === 'undefined' || !FP_ROOM_LABEL[roomId]) return;
-  if (_currentUser?.isWarehouse) _whOpenDesktopPage('floorpulse');
-  else showPage('floorpulse', document.getElementById('nav-floorpulse'));
-  await _fpLoadPage();
-  if (typeof _fpSelectRoom === 'function') _fpSelectRoom(roomId);
-}
+
 function openMobileApp() {
   try { localStorage.removeItem(_MOBILE_OPT_OUT_KEY); } catch (e) {}
   location.href = 'mobile/index.html';
@@ -40729,10 +40994,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // โหมดสแกน QR บันทึกเวลาแรงงานแบบไม่ต้อง login (?scanlabor=1&mo=...&line=...) — กลไกเดียวกับ ?scanprog=1
   // เป๊ะ แค่กันด้วยเบอร์โทรฝั่ง Edge Function คนละตัว (ดู scan-labor)
   if (_qs.get('scanlabor') === '1') { _renderPublicScanLabor(_qs.get('mo') || ''); return; }
-  // แตะแท็ก NFC / สแกน QR หน้าห้อง (?nfc=<room id>, นำร่อง 2026-10-22) — มือถือไปหน้า "ห้องนี้ตอนนี้" ในแอปมือถือทันที
-  // (ก่อน login — แอปมือถือมีหน้า login ของตัวเอง) ส่วนแท็บเล็ต/คอมเปิดผังโรงงานเรียลไทม์แล้วเลือกห้องนั้นให้ (ดู _nfcOpenRoom)
-  const _nfcRoom = _qs.get('nfc');
-  if (_nfcRoom && _isPhoneDevice() && !_mobileOptedOut()) { location.replace('mobile/index.html' + location.search); return; }
+  // แตะแท็ก NFC / สแกน QR หน้าห้อง (?nfc=<room id>, นำร่อง 2026-10-22) — หน้า "ห้องนี้ตอนนี้" แบบไม่ต้อง login เหมือน QR
+  // ลงเวลางาน (คำขอผู้ใช้ "ไม่ต้องให้เข้ามาที่หน้าแอพ ให้เป็นเหมือน QR ลงเวลางาน") ยืนยันด้วยเบอร์โทร ผ่าน Edge Function scan-room
+  if (_qs.get('nfc')) { _renderPublicRoom(_qs.get('nfc')); return; }
 
   let _bootstrapped = false;
   _sb.auth.onAuthStateChange(async (event, session) => {
@@ -40759,7 +41023,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (_currentUser.isWarehouse) {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
         document.getElementById('whTabletView').style.display = 'flex';
-        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); if (_nfcRoom) _nfcOpenRoom(_nfcRoom); }
+        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
       } else {
         // มือถือ (จอเล็ก จอสัมผัส) — พาไปแอปมือถือ (/mobile/) ที่ออกแบบมาสำหรับจอนี้ แทนหน้าเดสก์ท็อปที่ใช้ยาก
         // session อยู่ใน localStorage โดเมนเดียวกัน แอปมือถือจึงล็อกอินต่อได้เลยไม่ต้องกรอกใหม่ — กด "เปิดแบบเต็ม"
@@ -40781,7 +41045,6 @@ document.addEventListener('DOMContentLoaded', function() {
           _coUpdateNavBadge(true);
           _editreqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไขค้างอนุมัติจากหน้าใดๆ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
           _laborutilUpdateNavBadge(true); // เด้งเตือนครั้งเดียวตอน login ถ้ามีเวลาแรงงานไม่ครบ (หัวหน้างานขึ้นไป) // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
-          if (_nfcRoom) _nfcOpenRoom(_nfcRoom);
         }
       }
     } else {
