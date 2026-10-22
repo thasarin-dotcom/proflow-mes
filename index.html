@@ -7145,6 +7145,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
                 <tr>
                   <th class="wh-col-md">Lot</th><th class="text-end wh-col-xs">ยอดยกมา</th><th class="text-end wh-col-xs">รับเข้า</th>
                   <th class="text-end wh-col-xs">จ่ายออก</th><th class="text-end wh-col-xs">คงเหลือ</th><th class="wh-col-sm">วันหมดอายุ</th>
+                  <th class="text-end wh-col-sm" id="stockcard-lot-unit-head">ราคา/หน่วย</th>
                   <th class="text-end wh-col-sm" id="stockcard-lot-value-head">มูลค่าคงเหลือ</th>
                   <th class="text-end wh-col-sm" id="stockcard-lot-cost-head" style="display:none">ต้นทุน/หน่วย</th>
                   <th class="text-end wh-col-sm" id="stockcard-lot-price-head" style="display:none">ราคาขาย/หน่วย</th>
@@ -37144,6 +37145,7 @@ function stockcardOnModeChange() {
   document.getElementById('stockcard-result').classList.add('d-none');
   document.getElementById('stockcard-kpi-value-wrap').style.display = stockcardMode() === 'fg' ? 'none' : '';
   document.getElementById('stockcard-lot-value-head').style.display = stockcardMode() === 'fg' ? 'none' : '';
+  document.getElementById('stockcard-lot-unit-head').style.display  = stockcardMode() === 'fg' ? 'none' : '';
   document.getElementById('stockcard-lot-cost-head').style.display   = stockcardMode() === 'fg' ? '' : 'none';
   document.getElementById('stockcard-lot-price-head').style.display  = stockcardMode() === 'fg' ? '' : 'none';
   document.getElementById('stockcard-lot-profit-head').style.display = stockcardMode() === 'fg' ? '' : 'none';
@@ -37320,7 +37322,7 @@ async function stockcardRun() {
       </tr>`).join('');
 
   const lotTbody = document.getElementById('stockcard-lot-tbody');
-  const lotColCount = mode === 'fg' ? 9 : 7;
+  const lotColCount = mode === 'fg' ? 9 : 8;
   lotTbody.innerHTML = !allLots.length
     ? `<tr><td colspan="${lotColCount}" class="text-center py-4 text-muted">ไม่มีข้อมูล Lot</td></tr>`
     : allLots.map(l => {
@@ -37330,7 +37332,9 @@ async function stockcardRun() {
           ? `<td class="text-end">${fmtMoney(pl.fgCost)}</td>
              <td class="text-end">${fmtMoney(pl.fgPrice)}</td>
              <td class="text-end fw-bold ${pl.fgProfit != null ? (pl.fgProfit >= 0 ? 'text-success' : 'text-danger') : ''}">${fmtMoney(pl.fgProfit)}</td>`
-          : `<td class="text-end">฿${pl.closingValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>`;
+          // ราคา/หน่วยของ Lot (คำขอผู้ใช้ 2026-10-22) = ราคาจากใบรับเข้าแรกของ Lot ที่มีราคาจริง (ตัวเดียวกับที่ใช้คิดมูลค่าคงเหลือ)
+          : `<td class="text-end">${pl.unitCost > 0 ? '฿' + pl.unitCost.toLocaleString('th-TH', {maximumFractionDigits:2}) : '—'}</td>
+             <td class="text-end">฿${pl.closingValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</td>`;
         return `<tr>
           <td><span class="badge bg-light text-dark border">${l}</span></td>
           <td class="text-end">${pl.openingBal.toLocaleString()}</td>
