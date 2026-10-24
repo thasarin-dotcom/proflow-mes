@@ -240,6 +240,13 @@ body.has-editreq-bell .page-header { padding-right: 76px !important; }
 #page-rd .rd-sticky { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 -4px 14px rgba(15,23,42,.12); padding: 8px 14px; margin-top: 8px; }
 #page-rd .rd-sticky b { font-size: 1.05rem; }
+/* กล่องเลือกกลิ่น (กลุ่มกลิ่น/โทน) */
+#page-rd .rd-scent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; max-height: 320px; overflow: auto; }
+#page-rd .rd-scent-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 8px; font-size: .8rem; background: #fff; display: flex; flex-direction: column; gap: 2px; }
+#page-rd .rd-scent-item.in { border-color: #86efac; background: #f0fdf4; }
+#page-rd .rd-scent-desc { color: #64748b; font-size: .72rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rd-fam { font-size: .66rem; padding: 1px 7px; border-radius: 10px; color: #fff; display: inline-block; margin: 0 2px 2px 0; line-height: 1.5; }
+#page-rd .rd-fam-chip { font-size: .78rem; border-radius: 14px; padding: 2px 10px; margin: 0 4px 4px 0; border: 1px solid; background: #fff; }
 
 #editreq-bell .badge {
   position: absolute; top: -4px; right: -4px; font-size: .62rem;
@@ -10009,9 +10016,24 @@ let _rdBalanceMode = 'stable';   // คำแนะนำเติมสูต�
 let _rdBaseSig = null;           // ลายเซ็นร่าง ณ ตอนโหลด/บันทึก — ต่างจากปัจจุบัน = มีการแก้ไขที่ยังไม่บันทึก
 let _rdBackupSig = null;         // ลายเซ็นร่างที่เขียนสำรองลง localStorage ล่าสุด
 let _rdUserNames = {};           // อีเมล/ชื่อบัญชี (ตัวเล็ก) → user_roles.DisplayName — ใช้แสดงชื่อจริงในรายการสูตร/ลายเซ็น
-let _rdCompareSel = new Set();   // FormulaCode ที่ติ๊กไว้เทียบ (สูงสุด 2)
+
 let _rdShowBaseSug = false;      // กล่องแนะนำกลุ่มเบส พับไว้เป็นค่าเริ่มต้น (เทมเพลตลงกระดานให้แล้ว)
 let _rdSugQuery = '';            // คำค้นในช่องค้นหาสาร (#rd-sug-q) — คงไว้ข้ามการวาดหน้าใหม่
+// กลุ่มกลิ่น (rd_ingredients.ScentFamily — ดู add_rd_scent_families.sql; เพิ่มกลุ่มใหม่ต้องแก้ทั้งสองที่)
+const RD_SCENT_FAMILIES = [
+  { code: 'floral', th: 'ดอกไม้', en: 'Floral', color: '#db2777' },
+  { code: 'citrus', th: 'ซิตรัส', en: 'Citrus', color: '#ea580c' },
+  { code: 'fresh', th: 'สดชื่น/เขียว', en: 'Fresh & Green', color: '#16a34a' },
+  { code: 'herbal', th: 'สมุนไพร', en: 'Herbal', color: '#4d7c0f' },
+  { code: 'woody', th: 'อบอุ่น/ไม้หอม', en: 'Warm & Woody', color: '#92400e' },
+  { code: 'amber', th: 'แอมเบอร์', en: 'Amber', color: '#b45309' },
+  { code: 'spicy', th: 'เครื่องเทศ', en: 'Spicy', color: '#b91c1c' },
+  { code: 'sweet', th: 'หวาน', en: 'Sweet & Gourmand', color: '#a21caf' },
+  { code: 'musk', th: 'มัสก์/แป้ง', en: 'Musky & Powdery', color: '#64748b' },
+  { code: 'aquatic', th: 'ทะเล', en: 'Aquatic', color: '#0284c7' },
+];
+let _rdScentSel = new Set();     // กลุ่มกลิ่นที่เลือกในกล่อง "เลือกกลิ่น" (หลายกลุ่ม = อยู่กลุ่มใดกลุ่มหนึ่ง)
+let _rdScentToneSel = '';        // '' ทั้งหมด / 'ทั่วไป' / 'หรู' / 'ธรรมชาติ'
 let _rdRules = [], _rdTrials = [], _rdStab = [];   // กฎตรวจสูตร / ผลทดลอง / จุดตรวจความคงตัว (create_rd_lab_tables.sql)
 let _rdLabReady = false;                            // false = ยังไม่ได้รัน create_rd_lab_tables.sql
 let _rdRulesModal = null, _rdTrialsModal = null, _rdStabModal = null;
@@ -10353,7 +10375,8 @@ function rdRenderProjectList() {
     .sort((a, b) => sort === 'code' ? a.p.ProjectCode.localeCompare(b.p.ProjectCode)
       : sort === 'name' ? String(a.p.ProjectName).localeCompare(String(b.p.ProjectName), 'th') : b.last.localeCompare(a.last));
   const pendAll = info.reduce((s, x) => s + x.pend.length, 0);
-  const head = `<div class="small text-muted mb-1">${rows.length} จาก ${_rdProjects.length} โปรเจกต์${pendAll ? ` · <a href="#" onclick="event.preventDefault();document.getElementById('rd-f-status').value='pending';rdRenderProjectList()">รออนุมัติ ${pendAll} สูตร</a>` : ''}</div>`;
+  const head = `<div class="small text-muted mb-1 d-flex align-items-center gap-1"><span class="me-auto">${rows.length} จาก ${_rdProjects.length} โปรเจกต์${pendAll ? ` · <a href="#" onclick="event.preventDefault();document.getElementById('rd-f-status').value='pending';rdRenderProjectList()">รออนุมัติ ${pendAll} สูตร</a>` : ''}</span>
+    ${_rdFormulas.length >= 2 ? '<button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="rdCompareOpen()" title="เทียบสูตรระหว่างโปรเจกต์ หรือภายในโปรเจกต์เดียวกัน"><i class="fas fa-code-compare me-1"></i>เทียบสูตร</button>' : ''}</div>`;
   if (!rows.length) {
     el.innerHTML = head + `<div class="text-muted small text-center py-3">${_rdProjects.length ? 'ไม่พบโปรเจกต์ตามตัวกรอง' : 'ยังไม่มีโปรเจกต์ — กด "โปรเจกต์ใหม่"'}</div>`;
     return;
@@ -10422,7 +10445,7 @@ async function rdOpenProject(code) {
   if (!(await _rdConfirmDiscard())) return;
   _rdCurCode = code;
   _rdView = 'editor';
-  _rdCompareSel.clear();
+
   const vs = _rdVersions(code);
   if (vs.length) _rdLoadVersionIntoDraft(vs[0]); else _rdDraftFromTemplate(p);
   // มีร่างสำรองในเครื่องของโปรเจกต์นี้ที่ยังไม่ได้บันทึก (เช่น รีเฟรช/ปิดแท็บไปก่อน) — ถามว่าจะกู้คืนไหม
@@ -10516,11 +10539,22 @@ function rdRenderEditor() {
     <div class="col-lg-6"><div class="glass-card h-100"><div class="fw-bold small mb-1 d-flex align-items-center" id="rd-sug-base-head"></div><div id="rd-sug-base" class="rd-sug"></div></div></div>
     <div class="col-lg-6"><div class="glass-card h-100"><div class="fw-bold small mb-1"><i class="fas fa-wand-magic-sparkles me-1 text-success"></i>กลุ่มสรรพคุณเสริม / Actives</div><div id="rd-sug-act" class="rd-sug"></div></div></div>
   </div>
+  <div class="glass-card mb-2" id="rd-scent-card" style="display:none">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <div class="fw-bold small me-1"><i class="fas fa-spray-can-sparkles me-1" style="color:#a21caf"></i>เลือกกลิ่น / Fragrance</div>
+      <div class="btn-group btn-group-sm" id="rd-scent-tones"></div>
+      <span class="small text-muted ms-auto" id="rd-scent-count"></span>
+    </div>
+    <div id="rd-scent-fams"></div>
+    <div id="rd-scent-list" class="rd-scent-grid"></div>
+  </div>
   <div class="glass-card mb-2">
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
       <div class="fw-bold me-auto"><span class="badge bg-primary me-1">1</span>กระดานสูตร / Formula
         <span class="badge bg-light text-dark border ms-1">${d.fromVersion ? `แก้ต่อจากสูตร ${d.fromVersion}` : 'ฉบับร่างใหม่'}</span>
-        <span class="badge bg-warning text-dark ms-1 rd-dirty-flag" style="display:none"><i class="fas fa-pen me-1"></i>ยังไม่บันทึก</span></div>
+        <span class="badge bg-warning text-dark ms-1 rd-dirty-flag" style="display:none"><i class="fas fa-pen me-1"></i>ยังไม่บันทึก</span>
+        ${_rdVersions(d.projectCode).length ? `<button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1" onclick="rdCompareDraft()" title="เทียบร่างบนกระดานกับสูตรที่บันทึกไว้">
+          <i class="fas fa-code-compare me-1"></i>เทียบกับสูตร ${d.fromVersion || _rdVersions(d.projectCode)[0].VersionNo}</button>` : ''}</div>
       <select class="form-select form-select-sm" style="width:280px" id="rd-add-ing" onchange="rdAddItem(this.value)"></select>
     </div>
     <div class="table-responsive"><table class="table table-sm align-middle mb-0">
@@ -10556,8 +10590,9 @@ function rdRenderEditor() {
   <div class="glass-card mb-2">
     <div class="d-flex align-items-center gap-2 mb-1">
       <div class="fw-bold me-auto"><i class="fas fa-history me-1"></i>สูตรที่บันทึกไว้ / Saved versions</div>
-      <span class="small text-muted">ติ๊ก 2 สูตรเพื่อเทียบ</span>
-      <button class="btn btn-sm btn-outline-primary py-0" id="rd-cmp-btn" onclick="rdCompareVersions()" disabled><i class="fas fa-code-compare me-1"></i>เทียบ 2 สูตร</button>
+      <span class="small text-muted d-none d-md-inline">กด "เทียบ" ที่แถวสูตรเพื่อดูว่าเปลี่ยนอะไรจากสูตรก่อนหน้า</span>
+      ${_rdProjects.some(p => p.ProjectCode !== d.projectCode && _rdVersions(p.ProjectCode).length) && _rdVersions(d.projectCode).length
+        ? '<button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="rdCompareOpen()"><i class="fas fa-code-compare me-1"></i>เทียบกับโปรเจกต์อื่น</button>' : ''}
     </div>
     <div id="rd-versions"></div>
   </div>
@@ -10591,6 +10626,7 @@ function rdToggleClaim(code) {
 
 function _rdRenderFormulaArea() {
   _rdRenderSuggestions();
+  _rdRenderScents();
   _rdRenderBoard();
   _rdRenderAddOptions();
 }
@@ -10637,11 +10673,72 @@ function _rdRenderSuggestions() {
     || `<div class="text-muted small">${nSel ? 'ไม่มีสารในคลังที่ตรงกับสรรพคุณที่เลือก' : 'เลือกสรรพคุณด้านบนเพื่อดูสารที่แนะนำ'}</div>`;
 }
 
+// ── กล่องเลือกกลิ่น: น้ำหอม (โทนทั่วไป/หรู) + น้ำมันหอมระเหยธรรมชาติ กรองด้วยกลุ่มกลิ่น ──
+function _rdFam(code) { return RD_SCENT_FAMILIES.find(f => f.code === code); }
+function _rdFamPills(g) {
+  return _rdArr(g.ScentFamily).map(c => { const f = _rdFam(c); return f ? `<span class="rd-fam" style="background:${f.color}">${_rdEsc(f.th)}</span>` : ''; }).join('');
+}
+function _rdToneOf(g) {
+  const r = String(g.RoleTH || '');
+  return r.includes('หรู') ? 'หรู' : r.includes('ทั่วไป') ? 'ทั่วไป' : g.Kind === 'active' ? 'ธรรมชาติ' : 'อื่นๆ';
+}
+// สารที่เป็น "กลิ่น": มีกลุ่มกลิ่นแล้ว หรือเป็นน้ำหอม (RoleTH/INCI Parfum) หรือน้ำมันหอมระเหย (active + INCI ลงท้าย Oil)
+function _rdIsScent(g) {
+  return _rdArr(g.ScentFamily).length > 0 || /^น้ำหอม|^กลิ่น/.test(String(g.RoleTH || '')) || /^Parfum/i.test(String(g.INCI || ''))
+    || (g.Kind === 'active' && /Oil$/i.test(String(g.INCI || '')));
+}
+function rdToggleScentFam(code) {
+  if (_rdScentSel.has(code)) _rdScentSel.delete(code); else _rdScentSel.add(code);
+  _rdRenderScents();
+}
+function _rdRenderScents() {
+  const card = document.getElementById('rd-scent-card');
+  if (!card || !_rdDraft) return;
+  const type = _rdCurProject()?.ProductType;
+  const pool = _rdIngredients.filter(g => g.IsActive !== false && _rdFits(g, type) && _rdIsScent(g));
+  card.style.display = pool.length ? '' : 'none';
+  if (!pool.length) return;
+  const inBoard = new Set(_rdDraft.items.map(i => i.code));
+  const tones = ['', 'ทั่วไป', 'หรู', 'ธรรมชาติ'].filter(t => !t || pool.some(g => _rdToneOf(g) === t));
+  const toneLabel = { '': 'ทั้งหมด', 'ทั่วไป': 'โทนทั่วไป', 'หรู': 'โทนหรู', 'ธรรมชาติ': 'น้ำมันหอมระเหย' };
+  document.getElementById('rd-scent-tones').innerHTML = tones.map(t => {
+    const n = pool.filter(g => !t || _rdToneOf(g) === t).length;
+    return `<button type="button" class="btn ${_rdScentToneSel === t ? 'btn-primary' : 'btn-outline-secondary'}" onclick="_rdScentToneSel='${t}';_rdRenderScents()">${toneLabel[t]} <span class="opacity-75">${n}</span></button>`;
+  }).join('');
+  const toned = pool.filter(g => !_rdScentToneSel || _rdToneOf(g) === _rdScentToneSel);
+  const hasFam = pool.some(g => _rdArr(g.ScentFamily).length);
+  document.getElementById('rd-scent-fams').innerHTML = !hasFam
+    ? '<div class="small text-muted mb-1">ยังไม่ได้จัดกลุ่มกลิ่น — รัน add_rd_scent_families.sql หรือติ๊กกลุ่มกลิ่นที่หน้า "คลังสาร"</div>'
+    : RD_SCENT_FAMILIES.map(f => {
+      const n = toned.filter(g => _rdArr(g.ScentFamily).includes(f.code)).length;
+      if (!n && !_rdScentSel.has(f.code)) return '';
+      const on = _rdScentSel.has(f.code);
+      return `<button type="button" class="rd-fam-chip" style="border-color:${f.color};${on ? `background:${f.color};color:#fff` : `color:${f.color}`}" onclick="rdToggleScentFam('${f.code}')">${_rdEsc(f.th)} <span class="opacity-75">${n}</span></button>`;
+    }).join('') + (_rdScentSel.size ? '<button type="button" class="btn btn-sm btn-link py-0" onclick="_rdScentSel.clear();_rdRenderScents()">ล้างกลุ่มกลิ่น</button>' : '');
+  // กรอง: อยู่ในกลุ่มที่เลือก "กลุ่มใดกลุ่มหนึ่ง" — เรียงตัวที่ตรงหลายกลุ่มก่อน แล้วราคาถูกก่อน
+  const list = toned.map(g => ({ g, m: _rdArr(g.ScentFamily).filter(c => _rdScentSel.has(c)).length }))
+    .filter(x => !_rdScentSel.size || x.m > 0)
+    .sort((a, b) => b.m - a.m || _rdNum(a.g.PricePerKg) - _rdNum(b.g.PricePerKg));
+  document.getElementById('rd-scent-count').textContent = `แสดง ${list.length} กลิ่น`;
+  document.getElementById('rd-scent-list').innerHTML = list.map(({ g }) => {
+    const tone = _rdToneOf(g), on = inBoard.has(g.IngredientCode);
+    const toneBadge = tone === 'หรู' ? '<span class="badge" style="background:#1e293b">หรู</span>' : tone === 'ธรรมชาติ' ? '<span class="badge bg-success">ธรรมชาติ</span>' : '';
+    return `<div class="rd-scent-item ${on ? 'in' : ''}" title="${_rdEsc(g.FunctionTH || '')}">
+      <div class="d-flex align-items-start gap-1"><b class="me-auto">${_rdEsc(g.NameTH)}</b>${toneBadge}</div>
+      <div>${_rdFamPills(g)}</div>
+      ${g.FunctionTH ? `<div class="rd-scent-desc">${_rdEsc(g.FunctionTH)}</div>` : ''}
+      <div class="d-flex align-items-center mt-auto"><span class="small text-muted me-auto">${_rdFmt(g.PricePerKg, 0)} ฿/กก.${_rdPriceIcon(g)} · ${_rdNum(g.MinPct)}–${_rdNum(g.MaxPct)}%</span>
+        ${on ? '<span class="badge bg-success-subtle text-success border border-success-subtle">ในสูตร</span>'
+          : `<button class="btn btn-sm btn-outline-primary py-0" onclick="rdAddItem('${_rdEsc(g.IngredientCode)}')">เพิ่ม</button>`}</div></div>`;
+  }).join('') || '<div class="small text-muted">ไม่มีกลิ่นที่ตรงกับตัวเลือก</div>';
+}
+
 // ข้อความที่ค้นได้ของสาร: ชื่อ/INCI/รหัส/หน้าที่ + สรรพคุณ (ชื่อไทย/อังกฤษของแท็ก) + รายละเอียดหน้าที่และสรรพคุณ
 // — พิมพ์ "ดับกลิ่น", "moist", "ผ่อนคลาย" ก็เจอสารที่มีสรรพคุณนั้น
 function _rdSearchText(g) {
   const claims = _rdArr(g.Claims).map(c => { const x = _rdClaims.find(y => y.ClaimCode === c); return x ? `${x.NameTH} ${x.NameEN || ''}` : c; }).join(' ');
-  return `${g.IngredientCode} ${g.NameTH} ${g.NameEN || ''} ${g.INCI || ''} ${g.RoleTH || ''} ${claims} ${g.FunctionTH || ''}`.toLowerCase();
+  const fams = _rdArr(g.ScentFamily).map(c => { const f = RD_SCENT_FAMILIES.find(x => x.code === c); return f ? `${f.th} ${f.en}` : c; }).join(' ');
+  return `${g.IngredientCode} ${g.NameTH} ${g.NameEN || ''} ${g.INCI || ''} ${g.RoleTH || ''} ${claims} ${fams} ${g.FunctionTH || ''}`.toLowerCase();
 }
 // ผลค้นหาสารในคลังตามช่อง #rd-sug-q (null = ไม่ได้ค้น) — ทุกคำต้องเจอ (คั่นด้วยช่องว่าง), ใช้กับประเภทนี้ขึ้นก่อน
 function _rdSugMatches() {
@@ -10896,6 +10993,7 @@ function _rdRenderVersions() {
     }
     if (st === 'รออนุมัติ') acts.push(b('ถอนคำขอ', `rdWithdraw('${code}')`, 'btn-outline-secondary', 'rotate-left'));
     if (st === 'อนุมัติแล้ว' && isAdmin) acts.push(b('ยกเลิกอนุมัติ', `rdUnapprove('${code}')`, 'btn-outline-danger', 'lock-open'));
+    if (vs.length > 1 || _rdDraft) acts.push(b('เทียบ', `rdCompareFrom('${code}')`, 'btn-outline-primary', 'code-compare'));
     acts.push(b('ฉลาก INCI', `rdOpenLabel('${code}')`, 'btn-outline-secondary', 'tag'));
     if (_rdLabReady) {
       const tr = _rdTrialsOf(f.FormulaCode);
@@ -10909,30 +11007,85 @@ function _rdRenderVersions() {
     acts.push(b('ใบผลิต', `rdOpenPrint('${code}')`, 'btn-outline-dark', 'file-lines'));
     if (st === 'ร่าง' || st === 'ไม่อนุมัติ') acts.push(`<button class="btn btn-sm btn-link text-danger py-0" onclick="rdFormulaDelete('${code}')" title="ลบสูตรนี้"><i class="fas fa-trash"></i></button>`);
     return `<div class="rd-ver d-flex flex-wrap justify-content-between align-items-center gap-2 ${f.VersionNo === _rdDraft.fromVersion ? 'cur' : ''}">
-      <div><input type="checkbox" class="form-check-input me-1" title="เลือกเพื่อเทียบ" ${_rdCompareSel.has(f.FormulaCode) ? 'checked' : ''} onchange="rdToggleCompare('${code}', this.checked)"><span class="fw-bold">สูตร ${f.VersionNo}</span> <span class="badge ${RD_STATUS_BADGE[st] || 'bg-secondary'}">${_rdEsc(st)}</span>
+      <div><span class="fw-bold">สูตร ${f.VersionNo}</span> <span class="badge ${RD_STATUS_BADGE[st] || 'bg-secondary'}">${_rdEsc(st)}</span>
         ${st === 'อนุมัติแล้ว' ? '<i class="fas fa-lock text-muted small ms-1" title="ล็อกแล้ว แก้ไขต้องคัดลอกเป็นสูตรใหม่"></i>' : ''}
         ${f.FromVersion ? `<span class="small text-muted ms-1">แก้จากสูตร ${f.FromVersion}</span>` : ''}
         <div class="small text-muted">${info}</div></div>
       <div class="d-flex flex-wrap gap-1">${acts.join('')}</div></div>`;
   }).join('');
-  _rdUpdateCompareBtn();
+
 }
 
-// ── เทียบ 2 สูตร ──
-function rdToggleCompare(code, on) {
-  if (on) {
-    _rdCompareSel.add(code);
-    if (_rdCompareSel.size > 2) _rdCompareSel.delete([..._rdCompareSel][0]);   // เลือกเกิน 2 → เอาตัวที่เลือกก่อนสุดออก
-  } else _rdCompareSel.delete(code);
-  _rdRenderVersions();
+// ── เทียบสูตร ──
+// เรียกได้ 3 ทาง: ปุ่ม "เทียบ" ท้ายแถวสูตร (เทียบกับสูตรที่แก้มา/สูตรก่อนหน้า), ปุ่ม "เทียบกับสูตร N" บนกระดาน (ร่างที่ยังไม่บันทึก
+// เทียบกับสูตรที่เปิดมาแก้), และเปลี่ยนคู่ที่เทียบได้จากตัวเลือกในหน้าต่างเทียบเอง — 'DRAFT' = ร่างบนกระดาน
+const RD_DRAFT_KEY = 'DRAFT';
+// ร่างบนกระดานในรูปแบบเดียวกับแถว rd_formulas (ต้นทุนคิดจากราคาคลังปัจจุบัน)
+function _rdDraftAsFormula() {
+  const d = _rdDraft, p = _rdCurProject();
+  if (!d) return null;
+  const r = _rdCalc(d.items, d.batchKg, d.unitW, d.fillUnit);
+  return {
+    FormulaCode: RD_DRAFT_KEY, _label: _rdIsDirty() ? 'ร่างบนกระดาน (ยังไม่บันทึก)' : 'ร่างบนกระดาน', Status: 'ร่างบนกระดาน',
+    ProductType: p?.ProductType, BatchKg: d.batchKg, UnitWeightG: d.unitW, FillUnit: d.fillUnit,
+    Items: d.items.map(it => { const inf = _rdItemInfo(it); return { code: it.code, nameTH: inf.nameTH, nameEN: inf.nameEN, pct: _rdNum(it.pct), phase: it.phase }; }),
+    Steps: d.steps.filter(s => String(s.text || '').trim()), QCSpecs: d.qc.filter(q => String(q.item || '').trim()), Note: d.note || null,
+    TotalPct: r.tp, CostPerBatch: r.tb, CostPerUnit: r.tu, CreatedAt: null,
+  };
 }
-function _rdUpdateCompareBtn() {
-  const btn = document.getElementById('rd-cmp-btn');
-  if (btn) btn.disabled = _rdCompareSel.size !== 2;
+function _rdCmpGet(code) { return code === RD_DRAFT_KEY ? _rdDraftAsFormula() : _rdFormulas.find(f => f.FormulaCode === code); }
+// ป้ายชื่อฝั่งที่เทียบ — เทียบข้ามโปรเจกต์ให้มีรหัสโปรเจกต์นำหน้า (ไม่งั้น "สูตร 1" กับ "สูตร 1" แยกไม่ออก)
+function _rdCmpLabel(f, cross = false) {
+  if (f._label) return f._label;
+  const p = _rdProjects.find(x => x.ProjectCode === f.ProjectCode);
+  return cross ? `${f.ProjectCode}${p ? ` ${p.ProjectName}` : ''} · สูตร ${f.VersionNo}` : `สูตร ${f.VersionNo}`;
 }
-function rdCompareVersions() {
-  const [a, b] = [..._rdCompareSel].map(c => _rdFormulas.find(f => f.FormulaCode === c)).filter(Boolean).sort((x, y) => x.VersionNo - y.VersionNo);
+// ปุ่ม "เทียบสูตร" (หัวรายการโปรเจกต์ / หัวรายการสูตร): ฝั่ง A = สูตรของโปรเจกต์ที่เปิดอยู่ (ที่แก้มา/ล่าสุด),
+// ฝั่ง B = สูตรล่าสุดของโปรเจกต์อื่น (ประเภทเดียวกันก่อน) — เปลี่ยนคู่ต่อได้ในหน้าต่างเทียบ
+function rdCompareOpen() {
+  const latest = code => _rdVersions(code)[0];
+  const cur = _rdDraft ? (_rdVersions(_rdDraft.projectCode).find(v => v.VersionNo === _rdDraft.fromVersion) || latest(_rdDraft.projectCode)) : null;
+  const curType = _rdCurProject()?.ProductType;
+  const others = _rdProjects.filter(p => p.ProjectCode !== cur?.ProjectCode && latest(p.ProjectCode))
+    .sort((a, b) => ((b.ProductType === curType) - (a.ProductType === curType)) || _rdLastActivity(b).localeCompare(_rdLastActivity(a)));
+  let a = cur, b = others[0] && latest(others[0].ProjectCode);
+  if (!a && b) { a = b; b = others[1] && latest(others[1].ProjectCode); }
+  if (!a || !b) {
+    const all = _rdFormulas.slice().sort((x, y) => String(y.CreatedAt).localeCompare(String(x.CreatedAt)));
+    if (all.length < 2) { Swal.fire({ icon: 'info', title: 'ต้องมีสูตรที่บันทึกแล้วอย่างน้อย 2 สูตร' }); return; }
+    [a, b] = [all[1], all[0]];
+  }
+  rdCompare(a.FormulaCode, b.FormulaCode);
+}
+// คู่เริ่มต้นของปุ่ม "เทียบ" ในแถว: สูตรที่แก้ต่อมา (FromVersion) → สูตรก่อนหน้า → ถ้าเป็นสูตรแรกสุด เทียบกับร่างบนกระดาน
+function rdCompareFrom(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  if (!f) return;
+  const vs = _rdVersions(f.ProjectCode);
+  const base = vs.find(v => v.VersionNo === f.FromVersion) || vs.filter(v => v.VersionNo < f.VersionNo).sort((a, b) => b.VersionNo - a.VersionNo)[0];
+  if (base) rdCompare(base.FormulaCode, code);
+  else rdCompare(code, RD_DRAFT_KEY);
+}
+// ปุ่มบนกระดาน: ร่างปัจจุบันเทียบกับสูตรที่เปิดมาแก้ (หรือสูตรล่าสุดของโปรเจกต์)
+function rdCompareDraft() {
+  const vs = _rdVersions(_rdDraft?.projectCode);
+  const base = vs.find(v => v.VersionNo === _rdDraft.fromVersion) || vs[0];
+  if (!base) { Swal.fire({ icon: 'info', title: 'ยังไม่มีสูตรที่บันทึกไว้ให้เทียบ' }); return; }
+  rdCompare(base.FormulaCode, RD_DRAFT_KEY);
+}
+function rdCompare(codeA, codeB) {
+  const a = _rdCmpGet(codeA), b = _rdCmpGet(codeB);
   if (!a || !b) return;
+  // ตัวเลือกเปลี่ยนคู่เทียบ: ทุกสูตรของทุกโปรเจกต์ (จัดกลุ่มตามโปรเจกต์) + ร่างบนกระดานใต้โปรเจกต์ที่เปิดอยู่
+  const projOf = f => (f.FormulaCode === RD_DRAFT_KEY ? _rdDraft?.projectCode : f.ProjectCode);
+  const cross = projOf(a) !== projOf(b);
+  const groups = _rdProjects.slice().sort((x, y) => x.ProjectCode.localeCompare(y.ProjectCode)).map(p => {
+    const items = [..._rdVersions(p.ProjectCode).map(v => ({ code: v.FormulaCode, label: `สูตร ${v.VersionNo} (${v.Status})` })),
+      ...(_rdDraft?.projectCode === p.ProjectCode ? [{ code: RD_DRAFT_KEY, label: 'ร่างบนกระดาน' }] : [])];
+    return { label: `${p.ProjectCode} ${p.ProjectName}`, items };
+  }).filter(g => g.items.length);
+  const pick = (id, cur) => `<select id="${id}" class="form-select form-select-sm d-inline-block w-auto" style="max-width:340px">${groups.map(g =>
+    `<optgroup label="${_rdEsc(g.label)}">${g.items.map(o => `<option value="${_rdEsc(o.code)}" ${o.code === cur ? 'selected' : ''}>${_rdEsc(o.label)}</option>`).join('')}</optgroup>`).join('')}</select>`;
   const unit = f => (f.FillUnit === 'ml' ? 'มล.' : 'ก.');
   const diff = (x, y, d = 2, suf = '') => {
     const dv = _rdNum(y) - _rdNum(x);
@@ -10940,24 +11093,27 @@ function rdCompareVersions() {
     return `<span class="${dv > 0 ? 'text-success' : 'text-danger'}">${dv > 0 ? '+' : ''}${_rdFmt(dv, d)}${suf}</span>`;
   };
   const sumRow = (label, va, vb, d, suf = '') => `<tr><td>${label}</td><td class="text-end">${_rdFmt(va, d)}${suf}</td><td class="text-end">${_rdFmt(vb, d)}${suf}</td><td class="text-end">${diff(va, vb, d, suf)}</td></tr>`;
-  // รวมรายการสารทั้งสองสูตร เรียงตาม Phase ของสูตรใหม่ (สารที่มีแค่ในสูตรเก่าต่อท้าย)
+  // รวมรายการสารทั้งสองฝั่ง เรียงตามฝั่ง B (สารที่มีแค่ฝั่ง A ต่อท้าย)
   const ia = new Map(_rdArr(a.Items).map(i => [i.code, i])), ib = new Map(_rdArr(b.Items).map(i => [i.code, i]));
   const codes = [..._rdArr(b.Items).map(i => i.code), ..._rdArr(a.Items).map(i => i.code).filter(c => !ib.has(c))];
+  const isChanged = c => { const x = ia.get(c), y = ib.get(c); return !x || !y || Math.abs(_rdNum(x.pct) - _rdNum(y.pct)) > 1e-9 || x.phase !== y.phase; };
   const rows = codes.map(c => {
     const x = ia.get(c), y = ib.get(c), it = y || x;
     const tag = !x ? '<span class="badge bg-success ms-1">เพิ่มใหม่</span>' : !y ? '<span class="badge bg-danger ms-1">เอาออก</span>' : '';
-    const changed = !x || !y || Math.abs(_rdNum(x.pct) - _rdNum(y.pct)) > 1e-9 || x.phase !== y.phase;
-    return `<tr class="${changed ? 'table-warning' : ''}"><td>${_rdEsc(it.nameTH)}${tag}<span class="d-block small text-muted">${_rdEsc(it.nameEN || '')}</span></td>
+    return `<tr class="rd-cmp-row ${isChanged(c) ? 'table-warning' : 'rd-cmp-same'}"><td>${_rdEsc(it.nameTH)}${tag}<span class="d-block small text-muted">${_rdEsc(it.nameEN || '')}</span></td>
       <td class="text-end">${x ? `${_rdFmt(x.pct, 2)} <span class="small text-muted">(${_rdEsc(x.phase)})</span>` : '—'}</td>
       <td class="text-end">${y ? `${_rdFmt(y.pct, 2)} <span class="small text-muted">(${_rdEsc(y.phase)})</span>` : '—'}</td>
       <td class="text-end">${diff(x?.pct, y?.pct)}</td></tr>`;
   }).join('');
-  const nChanged = codes.filter(c => { const x = ia.get(c), y = ib.get(c); return !x || !y || Math.abs(_rdNum(x.pct) - _rdNum(y.pct)) > 1e-9; }).length;
+  const nChanged = codes.filter(isChanged).length;
   const same = (p, q) => JSON.stringify(_rdArr(p)) === JSON.stringify(_rdArr(q));
-  const head = f => `สูตร ${f.VersionNo} <span class="badge ${RD_STATUS_BADGE[f.Status] || 'bg-secondary'}">${_rdEsc(f.Status)}</span><div class="small text-muted fw-normal">${_rdDay(f.CreatedAt)}</div>`;
+  const head = f => `${_rdEsc(_rdCmpLabel(f, cross))} <span class="badge ${RD_STATUS_BADGE[f.Status] || 'bg-secondary'}">${_rdEsc(f.Status)}</span><div class="small text-muted fw-normal">${f.CreatedAt ? _rdDay(f.CreatedAt) : 'ต้นทุนจากราคาคลังปัจจุบัน'}</div>`;
   Swal.fire({
-    width: 960, title: `เทียบสูตร ${a.VersionNo} กับ สูตร ${b.VersionNo}`, confirmButtonText: 'ปิด',
+    width: 980, title: 'เทียบสูตร', confirmButtonText: 'ปิด', showDenyButton: true, denyButtonText: '<i class="fas fa-right-left me-1"></i>สลับฝั่ง',
     html: `<div class="text-start small">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">${pick('rd-cmp-a', codeA)}<i class="fas fa-arrow-right text-muted"></i>${pick('rd-cmp-b', codeB)}
+        <div class="form-check ms-auto"><input class="form-check-input" type="checkbox" id="rd-cmp-only" onchange="document.querySelectorAll('.rd-cmp-same').forEach(r=>r.style.display=this.checked?'none':'')">
+          <label class="form-check-label" for="rd-cmp-only">แสดงเฉพาะที่เปลี่ยน</label></div></div>
       <table class="table table-sm align-middle"><thead><tr><th>สรุป</th><th class="text-end">${head(a)}</th><th class="text-end">${head(b)}</th><th class="text-end">ต่าง</th></tr></thead><tbody>
         ${sumRow('รวม %', a.TotalPct, b.TotalPct, 2, '%')}
         ${sumRow('ต้นทุน/แบตช์', a.CostPerBatch, b.CostPerBatch, 2, ' ฿')}
@@ -10966,13 +11122,18 @@ function rdCompareVersions() {
         ${sumRow(`ขนาดบรรจุ/ชิ้น (${unit(b)})`, a.UnitWeightG, b.UnitWeightG, 0)}
       </tbody></table>
       <div class="fw-bold mb-1">รายการสาร — เปลี่ยน ${nChanged} รายการ (แถวสีเหลือง)</div>
-      <table class="table table-sm align-middle"><thead><tr><th>สาร</th><th class="text-end">สูตร ${a.VersionNo} %</th><th class="text-end">สูตร ${b.VersionNo} %</th><th class="text-end">ต่าง</th></tr></thead>
+      <table class="table table-sm align-middle"><thead><tr><th>สาร</th><th class="text-end">${_rdEsc(_rdCmpLabel(a, cross))} %</th><th class="text-end">${_rdEsc(_rdCmpLabel(b, cross))} %</th><th class="text-end">ต่าง</th></tr></thead>
         <tbody>${rows}</tbody></table>
       <div class="text-muted">ขั้นตอนการผสม: ${same(a.Steps, b.Steps) ? 'เหมือนกัน' : '<b class="text-warning-emphasis">ต่างกัน</b>'} · เกณฑ์ QC: ${same(a.QCSpecs, b.QCSpecs) ? 'เหมือนกัน' : '<b class="text-warning-emphasis">ต่างกัน</b>'}
-        ${(a.Note || b.Note) && a.Note !== b.Note ? `<br>หมายเหตุสูตร ${a.VersionNo}: ${_rdEsc(a.Note || '—')}<br>หมายเหตุสูตร ${b.VersionNo}: ${_rdEsc(b.Note || '—')}` : ''}</div>
-      <div class="text-muted mt-1">ต้นทุนใช้ราคาที่บันทึกไว้ตอนบันทึกแต่ละสูตร (ราคาคลังที่เปลี่ยนทีหลังไม่กระทบ)</div>
+        ${(a.Note || b.Note) && a.Note !== b.Note ? `<br>หมายเหตุ ${_rdEsc(_rdCmpLabel(a, cross))}: ${_rdEsc(a.Note || '—')}<br>หมายเหตุ ${_rdEsc(_rdCmpLabel(b, cross))}: ${_rdEsc(b.Note || '—')}` : ''}</div>
+      <div class="text-muted mt-1">ต้นทุนของสูตรที่บันทึกแล้วใช้ราคา ณ ตอนบันทึก (ราคาคลังที่เปลี่ยนทีหลังไม่กระทบ) — ร่างบนกระดานใช้ราคาคลังปัจจุบัน</div>
     </div>`,
-  });
+    didOpen: () => {
+      // เปลี่ยนคู่เทียบจากตัวเลือก → วาดหน้าต่างใหม่ทันที
+      ['rd-cmp-a', 'rd-cmp-b'].forEach(id => document.getElementById(id).addEventListener('change', () =>
+        rdCompare(document.getElementById('rd-cmp-a').value, document.getElementById('rd-cmp-b').value)));
+    },
+  }).then(r => { if (r.isDenied) rdCompare(codeB, codeA); });
 }
 
 // อัปเดตสถานะแบบมีเงื่อนไขสถานะเดิม (.eq Status) + .select() เช็คว่าเขียนได้จริง — RLS ปฏิเสธแบบเงียบ (0 แถว) ไม่ error
@@ -11637,7 +11798,7 @@ function rdRenderLibraryRows() {
     && (!priceF || _rdPriceBadge(g)));
   tb.innerHTML = rows.map(g => `<tr class="${g.IsActive === false ? 'text-muted' : ''}">
     <td class="small">${_rdEsc(g.IngredientCode)}</td>
-    <td title="${_rdEsc(g.FunctionTH || '')}">${_rdEsc(g.NameTH)}${g.IsActive === false ? ' <span class="badge bg-secondary">ปิดใช้</span>' : ''}<span class="rd-en">${_rdEsc(g.NameEN || '')}</span>${g.INCI ? `<span class="rd-en fst-italic">INCI: ${_rdEsc(g.INCI)}</span>` : ''}${g.CASNo ? `<span class="rd-en">CAS/CI: ${_rdEsc(g.CASNo)}</span>` : ''}</td>
+    <td title="${_rdEsc(g.FunctionTH || '')}">${_rdEsc(g.NameTH)}${g.IsActive === false ? ' <span class="badge bg-secondary">ปิดใช้</span>' : ''}<span class="rd-en">${_rdEsc(g.NameEN || '')}</span>${g.INCI ? `<span class="rd-en fst-italic">INCI: ${_rdEsc(g.INCI)}</span>` : ''}${g.CASNo ? `<span class="rd-en">CAS/CI: ${_rdEsc(g.CASNo)}</span>` : ''}${_rdArr(g.ScentFamily).length ? `<div>${_rdFamPills(g)}</div>` : ''}</td>
     <td>${g.Kind === 'active' ? '<span class="badge" style="background:#ede9fe;color:#5b21b6">สรรพคุณเสริม</span>' : '<span class="badge bg-primary-subtle text-primary">กลุ่มเบส</span>'}</td>
     <td class="small">${_rdEsc(g.RoleTH || '')}${_rdArr(g.Claims).length ? `<span class="rd-en">${_rdEsc(_rdArr(g.Claims).map(_rdClaimName).join(', '))}</span>` : ''}${g.FunctionTH ? `<span class="rd-en">${_rdEsc(g.FunctionTH)}</span>` : ''}</td>
     <td class="small">${_rdArr(g.ProductTypes).map(c => _rdEsc(_rdType(c)?.NameTH || c)).join(', ')}</td>
@@ -11674,6 +11835,10 @@ function rdOpenIngModal(code = null) {
     <div class="col-md-12"><label class="form-label small mb-0">หน้าที่และสรรพคุณในสูตร (รายละเอียด)</label><textarea class="form-control form-control-sm" id="rd-ing-func" rows="2">${v('FunctionTH')}</textarea></div>
     <div class="col-12"><label class="form-label small mb-0 fw-bold">ใช้กับประเภทโปรดักต์</label><div class="row g-2">${typeChecks}</div></div>
     <div class="col-12"><label class="form-label small mb-0 fw-bold">สรรพคุณ (ใช้จับคู่แนะนำ)</label><div>${claimChecks}</div></div>
+    <div class="col-12"><label class="form-label small mb-0 fw-bold">กลุ่มกลิ่น <span class="fw-normal text-muted">(เฉพาะน้ำหอม/น้ำมันหอมระเหย — ใช้กรองในกล่อง "เลือกกลิ่น")</span></label><div>
+      ${RD_SCENT_FAMILIES.map(f => `<div class="form-check form-check-inline">
+        <input class="form-check-input rd-ing-scent" type="checkbox" value="${f.code}" id="rd-ing-s-${f.code}" ${g && _rdArr(g.ScentFamily).includes(f.code) ? 'checked' : ''}>
+        <label class="form-check-label small" for="rd-ing-s-${f.code}" style="color:${f.color}">${_rdEsc(f.th)}</label></div>`).join('')}</div></div>
     <div class="col-6 col-md-3"><label class="form-label small mb-0">% ต่ำสุด</label><input type="number" step="0.1" class="form-control form-control-sm" id="rd-ing-min" value="${v('MinPct', 0)}"></div>
     <div class="col-6 col-md-3"><label class="form-label small mb-0">% สูงสุด</label><input type="number" step="0.1" class="form-control form-control-sm" id="rd-ing-max" value="${v('MaxPct', 0)}"></div>
     <div class="col-6 col-md-3"><label class="form-label small mb-0" title="g/ml — ว่าง = ถือเป็น 1.00 (ใช้กับโปรดักต์ที่ขายตามปริมาตร เช่น Room Spray)">ความถ่วงจำเพาะ (SG)</label><input type="number" step="0.001" min="0" class="form-control form-control-sm" id="rd-ing-sg" value="${v('SpecificGravity')}" placeholder="เช่น 0.810"></div>
@@ -11721,6 +11886,10 @@ async function rdIngSubmit() {
   if (_rdIngredients.some(g => 'CASNo' in g)) {
     payload.CASNo = val('rd-ing-cas') || null;
     payload.FunctionTH = val('rd-ing-func') || null;
+  }
+  // ScentFamily มาจาก add_rd_scent_families.sql — ส่งเฉพาะเมื่อมีคอลัมน์แล้ว
+  if (_rdIngredients.some(g => 'ScentFamily' in g)) {
+    payload.ScentFamily = [...document.querySelectorAll('#rd-ing-body .rd-ing-scent:checked')].map(c => c.value);
   }
   // RegMaxPct/RegRef/RangeSource มาจาก add_rd_regulatory_limits.sql — ช่วงแนะนำต้องไม่เกินเพดานตามกฎหมาย
   if (_rdIngredients.some(g => 'RegMaxPct' in g)) {
@@ -11775,6 +11944,7 @@ const RD_XLSX_COLS = [
   { key: 'kind',     label: 'กลุ่ม',            head: 'กลุ่ม (เบส/สรรพคุณเสริม)',         kw: ['กลุ่ม (เบส', 'kind'] },
   { key: 'types',    label: 'ใช้กับ',           head: 'ใช้กับ (BB,SC,RS)',                kw: ['ใช้กับ', 'product type'] },
   { key: 'claims',   label: 'สรรพคุณ',         head: 'สรรพคุณ (แท็ก)',                   kw: ['สรรพคุณ (แท็ก)', 'claims'] },
+  { key: 'scent',    label: 'กลุ่มกลิ่น',       head: 'กลุ่มกลิ่น (เช่น ดอกไม้,หวาน)',      kw: ['กลุ่มกลิ่น', 'scent family'] },
   { key: 'pct',      label: '% ตั้งต้น',        head: 'สัดส่วนแนะนำ (%)',                 kw: ['สัดส่วนแนะนำ', '% ตั้งต้น', 'default %'] },
   { key: 'min',      label: '% ต่ำสุด',         head: '% ต่ำสุด',                         kw: ['% ต่ำสุด', 'min %'] },
   { key: 'max',      label: '% สูงสุด',         head: '% สูงสุด',                         kw: ['% สูงสุด', 'max %'] },
@@ -11793,10 +11963,10 @@ const RD_XLSX_COLS = [
 // ชื่อช่องในตาราง rd_ingredients → ป้ายภาษาไทยในหน้าตัวอย่าง
 const RD_FIELD_LABELS = {
   NameTH: 'ชื่อไทย', NameEN: 'ชื่ออังกฤษ', INCI: 'INCI', CASNo: 'CAS/CI', Kind: 'กลุ่ม', RoleTH: 'หน้าที่ในสูตร', FunctionTH: 'หน้าที่และสรรพคุณ',
-  ProductTypes: 'ใช้กับ', Claims: 'สรรพคุณ', MinPct: '% ต่ำสุด', MaxPct: '% สูงสุด', DefaultPct: '% ตั้งต้น', DefaultPhase: 'Phase',
+  ProductTypes: 'ใช้กับ', Claims: 'สรรพคุณ', ScentFamily: 'กลุ่มกลิ่น', MinPct: '% ต่ำสุด', MaxPct: '% สูงสุด', DefaultPct: '% ตั้งต้น', DefaultPhase: 'Phase',
   SpecificGravity: 'SG', RegMaxPct: 'เพดาน อย. %', RegRef: 'อ้างอิงกฎหมาย', RangeSource: 'ที่มาช่วง %', PricePerKg: 'ราคา/กก.', PriceSource: 'แหล่งราคา', PriceUpdatedAt: 'วันที่ราคา', Supplier: 'ซัพพลายเออร์', Note: 'หมายเหตุ', IsActive: 'ใช้งาน',
 };
-const RD_XLSX_EXPORT_ORDER = ['code', 'nameTH', 'nameEN', 'inci', 'cas', 'kind', 'role', 'func', 'types', 'claims', 'min', 'max', 'pct', 'rsrc', 'regmax', 'regref', 'phase', 'sg', 'price', 'psrc', 'pdate', 'supplier', 'note', 'active'];
+const RD_XLSX_EXPORT_ORDER = ['code', 'nameTH', 'nameEN', 'inci', 'cas', 'kind', 'role', 'func', 'types', 'claims', 'scent', 'min', 'max', 'pct', 'rsrc', 'regmax', 'regref', 'phase', 'sg', 'price', 'psrc', 'pdate', 'supplier', 'note', 'active'];
 let _rdImport = null;       // { fileName, sheet, headers, colMap, rawRows, defaultType, rows }
 let _rdImportModal = null;
 
@@ -11805,7 +11975,7 @@ function rdExportLibraryXLSX() {
   const rows = _rdIngredients.map(g => {
     const v = {
       code: g.IngredientCode, nameTH: g.NameTH, nameEN: g.NameEN, inci: g.INCI, cas: g.CASNo, kind: g.Kind === 'active' ? 'สรรพคุณเสริม' : 'เบส',
-      role: g.RoleTH, func: g.FunctionTH, types: _rdArr(g.ProductTypes).join(','), claims: _rdArr(g.Claims).map(_rdClaimName).join(','),
+      role: g.RoleTH, func: g.FunctionTH, types: _rdArr(g.ProductTypes).join(','), claims: _rdArr(g.Claims).map(_rdClaimName).join(','), scent: _rdArr(g.ScentFamily).map(c => RD_SCENT_FAMILIES.find(f => f.code === c)?.th || c).join(','),
       min: g.MinPct, max: g.MaxPct, pct: g.DefaultPct, phase: Object.entries(g.DefaultPhase || {}).map(([t, p]) => `${t}:${p}`).join(','),
       rsrc: g.RangeSource, regmax: g.RegMaxPct, regref: g.RegRef,
       sg: g.SpecificGravity, price: g.PricePerKg, psrc: g.PriceSource, pdate: g.PriceUpdatedAt, supplier: g.Supplier, note: g.Note,
@@ -11918,15 +12088,21 @@ function _rdImportBuild() {
     // จับคู่สารเดิม: ผู้ใช้เลือกเองในหน้าตัวอย่าง (overrides) > ตรงตัว รหัส/INCI/CAS/ชื่อไทย > เดาจากชื่อ/คำแรกของ INCI (ต้องให้ผู้ใช้ตรวจ)
     const ov = im.overrides?.[rowNo];
     let suggested = false;
+    // INCI/CAS ใช้จับคู่ได้เฉพาะเมื่อมีสารเดียวในคลังที่ตรง — น้ำหอมทุกกลิ่นมี INCI "Parfum" เหมือนกันโดยตั้งใจ
+    // (จับด้วย INCI จะไปชนกลิ่นแรกผิดตัว) กรณีนั้นไปจับด้วยชื่อไทยแทน
+    const uniq = (field, v) => { const m = _rdIngredients.filter(x => norm(x[field]) === norm(v)); return m.length === 1 ? m[0] : null; };
     let g = ov === '__new' ? null : ov ? _rdIng(ov) : (code && _rdIngredients.find(x => x.IngredientCode.toUpperCase() === code))
-      || (inci && _rdIngredients.find(x => norm(x.INCI) === norm(inci)))
-      || (cas && !/^n\/?a$/i.test(cas) && _rdIngredients.find(x => norm(x.CASNo) === norm(cas)))
+      || (nameTH && cell('nameTH') && _rdIngredients.find(x => norm(x.NameTH) === norm(nameTH)))
+      || (inci && uniq('INCI', inci))
+      || (cas && !/^n\/?a$/i.test(cas) && uniq('CASNo', cas))
       || (nameTH && _rdIngredients.find(x => norm(x.NameTH) === norm(nameTH))) || null;
     if (!g && !ov) {
       // เดาแบบเข้มพอสมควร: ชื่อไทยครอบกัน หรือ INCI ฝั่งหนึ่งขึ้นต้นด้วยอีกฝั่งทั้งคำ (Mica ↔ Mica (and) Titanium Dioxide)
       // — ห้ามเทียบแค่คำแรกของ INCI ("Sodium ..." มีหลายสาร)
       const n = norm(nameTH), ni = norm(inci);
-      g = _rdIngredients.find(x => n && norm(x.NameTH).length >= 3 && (n.includes(norm(x.NameTH)) || norm(x.NameTH).includes(n)))
+      // ชื่อครอบกันต้องยาวใกล้เคียงกัน (สั้น ≥ 60% ของยาว) — กัน "น้ำหอมกลิ่นใหม่" ไปเดาว่าเป็น "น้ำหอม" แล้วทับข้อมูลตัวอื่น
+      const close = (a, b) => Math.min(a.length, b.length) >= 0.6 * Math.max(a.length, b.length);
+      g = _rdIngredients.find(x => { const xn = norm(x.NameTH); return n && xn.length >= 3 && (n.includes(xn) || xn.includes(n)) && close(n, xn); })
         || (ni.length >= 4 && _rdIngredients.find(x => { const xi = norm(x.INCI); return xi.length >= 4 && (ni.startsWith(xi + ' ') || xi.startsWith(ni + ' ')); }))
         || null;
       if (g && seen.has(g.IngredientCode)) g = null;   // สารเดิมตัวนี้ถูกแถวอื่นในไฟล์จับคู่ไปแล้ว — ถือเป็นสารใหม่แทนการข้าม
@@ -11957,6 +12133,13 @@ function _rdImportBuild() {
     String(cell('claims')).split(/[,;/]+/).map(s => s.trim()).filter(Boolean).forEach(tok => {
       const c = _rdClaims.find(x => norm(x.ClaimCode) === norm(tok) || norm(x.NameTH) === norm(tok) || norm(x.NameEN) === norm(tok));
       if (c) claims.push(c.ClaimCode); else warn.push(`ไม่รู้จักสรรพคุณ "${tok}" (ข้าม)`);
+    });
+    // กลุ่มกลิ่น: ชื่อไทย/อังกฤษ/รหัส คั่นด้วย , — ชื่อไทยแบบ "อบอุ่น/ไม้หอม" มี / อยู่ในชื่อ จึงห้ามแยกด้วย /
+    const scents = [];
+    String(cell('scent')).split(/[,;]+/).map(s => s.trim()).filter(Boolean).forEach(tok => {
+      const t = norm(tok);
+      const f = RD_SCENT_FAMILIES.find(x => x.code === t || norm(x.th) === t || norm(x.en) === t || norm(x.th).split('/').includes(t));
+      if (f) scents.push(f.code); else warn.push(`ไม่รู้จักกลุ่มกลิ่น "${tok}" (ข้าม)`);
     });
     const phaseTxt = String(cell('phase')).toUpperCase();
     const phaseMap = {};
@@ -11999,6 +12182,7 @@ function _rdImportBuild() {
       else { p.PriceSource = cell('psrc') || null; p.PriceUpdatedAt = pdate; warn.push('ไม่มีราคา'); }
       if (canCol('CASNo')) { p.CASNo = cas || null; p.FunctionTH = cell('func') || null; }
       if (canCol('SpecificGravity') && sg != null) p.SpecificGravity = sg;
+      if (canCol('ScentFamily')) p.ScentFamily = scents;
       if (hasReg) {
         p.RegMaxPct = regmax; p.RegRef = cell('regref') || null;
         p.RangeSource = cell('rsrc') || (p.MinPct || p.MaxPct ? `นำเข้า Excel (${im.fileName})` : null);
@@ -12025,6 +12209,7 @@ function _rdImportBuild() {
     const unionArr = (oldArr, add) => { const s = [...new Set([..._rdArr(oldArr), ...add])]; return s.length !== _rdArr(oldArr).length ? s : null; };
     const newTypes = unionArr(g.ProductTypes, types);
     if (newTypes) patch.ProductTypes = newTypes;
+    if (canCol('ScentFamily')) { const ns = unionArr(g.ScentFamily, scents); if (ns) patch.ScentFamily = ns; }
     const newClaims = unionArr(g.Claims, claims);
     if (newClaims) patch.Claims = newClaims;
     const ph = { ...(g.DefaultPhase || {}) };
@@ -12053,7 +12238,9 @@ function _rdImportBuild() {
     setIf('Note', cell('note'));
     if (isActive != null && isActive !== (g.IsActive !== false)) patch.IsActive = isActive;
     const fmt = v => v == null || v === '' ? '—' : Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? Object.entries(v).map(([a, b]) => `${a}:${b}`).join(', ') : v === true ? 'ใช้' : v === false ? 'ปิด' : String(v);
-    const diffs = Object.keys(patch).map(f => ({ label: RD_FIELD_LABELS[f] || f, old: fmt(g[f]), neu: fmt(patch[f]) }));
+    const famTH = v => _rdArr(v).map(c => RD_SCENT_FAMILIES.find(x => x.code === c)?.th || c);
+    const disp = (f, v) => fmt(f === 'ScentFamily' ? famTH(v) : v);
+    const diffs = Object.keys(patch).map(f => ({ label: RD_FIELD_LABELS[f] || f, old: disp(f, g[f]), neu: disp(f, patch[f]) }));
     if (suggested) warn.unshift(`ชื่อในไฟล์ "${nameTH || inci}" ไม่ตรงกับคลังเป๊ะ — ระบบเดาว่าเป็นสารเดิมนี้ ตรวจสอบช่อง "จับคู่กับ"`);
     return { rowNo, status: diffs.length ? 'update' : 'same', checked: diffs.length > 0, label, sub: g.IngredientCode, code: g.IngredientCode, patch, warn, diffs,
       matchable: suggested || !!ov, suggested, fileName: nameTH || inci };
