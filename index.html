@@ -1475,11 +1475,11 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
    display:flex column ให้ .mrrpt-footer (margin-top:auto) จมอยู่ด้านล่างสุดของกระดาษเสมอเมื่อเนื้อหาพอดี 1 หน้า —
    ถ้ารายการยาวเกิน 1 หน้า จะไหลไปหน้าถัดไปตามปกติ ไม่ได้บังคับอยู่หน้าเดียวเสมอ */
 /* รายงานขาด/ลา/มาสาย (nav-leave) — สรุป = A4 แนวตั้ง, ปฏิทิน = A4 แนวนอน */
-.leave-page{font-family:Sarabun,sans-serif;font-size:11px;color:#1e293b;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);width:210mm;min-height:297mm}
+.leave-page{display:flex;flex-direction:column;font-family:Sarabun,sans-serif;font-size:11px;color:#1e293b;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);width:210mm;min-height:297mm}
 .leave-page.cal{width:297mm;min-height:210mm;padding:8mm;font-size:9px}
 .leave-page h2{font-size:16px;margin:0 0 2px;font-weight:700}
 .leave-page .lv-sub{color:#64748b;margin-bottom:8px}
-.leave-page h3{font-size:12.5px;margin:10px 0 4px;padding:3px 8px;border-radius:4px;color:#fff;display:inline-block}
+.leave-page h3{align-self:flex-start;font-size:12.5px;margin:10px 0 4px;padding:3px 8px;border-radius:4px;color:#fff;display:inline-block}
 .leave-page table{width:100%;border-collapse:collapse;margin-bottom:6px}
 .leave-page th,.leave-page td{border:1px solid #94a3b8;padding:2px 4px;text-align:center}
 .leave-page th{background:#e2e8f0}
@@ -1487,7 +1487,7 @@ table.lotreport-table th{background:#eef2f9;text-align:left;font-weight:700}
 .leave-page.cal th,.leave-page.cal td{padding:1px 0;font-size:8.5px}
 .leave-page .sun{background:#fee2e2}
 .leave-page .lv-legend{font-size:10px;color:#475569;margin:4px 0}
-.leave-page .lv-sign{display:flex;gap:30px;margin-top:22px}
+.leave-page .lv-sign{display:flex;gap:30px;margin-top:auto;padding-top:22px}
 .leave-page .lv-sign div{flex:1;text-align:center;border-top:1px solid #334155;padding-top:3px}
 .mrrpt-page{
   font-family:Sarabun,sans-serif;font-size:12px;color:#1e293b;
@@ -6233,11 +6233,16 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
         <div class="modal-body" style="background:#525659;max-height:80vh;overflow:auto">
           <div class="d-flex gap-2 flex-wrap mb-3 bg-white p-2 rounded">
             <input type="month" id="leave-rpt-month" class="form-control form-control-sm" style="width:auto" onchange="leaveRenderReport()">
-            <select id="leave-rpt-format" class="form-select form-select-sm" style="width:auto" onchange="leaveRenderReport()">
-              <option value="sum">แบบสรุปรายคน + รายการ (แนวตั้ง)</option>
-              <option value="cal">แบบปฏิทินรายเดือน (แนวนอน)</option>
+            <select id="leave-rpt-format" class="form-select form-select-sm" style="width:auto" onchange="leaveRptFormatChanged()">
+              <option value="sum">แบบรวม: สรุปรายคน + รายการ (แนวตั้ง)</option>
+              <option value="cal">แบบรวม: ปฏิทินรายเดือน (แนวนอน)</option>
+              <option value="person">แบบรายคน (มีรูป)</option>
             </select>
-            <span class="small text-muted align-self-center">แยกกลุ่มตามประเภทพนักงาน FT / PT / OS</span>
+            <select id="leave-rpt-emp" class="form-select form-select-sm" style="width:auto;max-width:280px;display:none" onchange="leaveRenderReport()"></select>
+            <select id="leave-rpt-photo" class="form-select form-select-sm" style="width:auto;display:none" onchange="leaveRenderReport()" title="ขนาดรูป">
+              <option value="120">รูปกลาง</option><option value="180" selected>รูปใหญ่</option><option value="240">รูปใหญ่มาก</option>
+            </select>
+            <span class="small text-muted align-self-center" id="leave-rpt-hint">แบบรวม: แยกกลุ่มตามประเภทพนักงาน FT / PT / OS (ไม่มีรูป)</span>
           </div>
           <div id="leave-rpt-preview" style="overflow:auto"></div>
         </div>
@@ -8305,8 +8310,12 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
             <label>ซัพพลายเออร์ (กรองมุมมองพิมพ์)</label>
             <select id="mr-rpt-supplier" class="form-select form-select-sm" onchange="mrReportOnScopeChange()"></select>
           </div>
+          <div class="mrrpt-field">
+            <label>ใบขอซื้อ (PR)</label>
+            <select id="mr-rpt-pr" class="form-select form-select-sm" onchange="mrReportOnScopeChange()"></select>
+          </div>
         </div>
-        <div class="mrrpt-warn">⚠️ เปลี่ยนวันที่หรือซัพพลายเออร์ ต้องขอเลข RC No ใหม่ทุกครั้ง</div>
+        <div class="mrrpt-warn">⚠️ เปลี่ยนวันที่/ซัพพลายเออร์/ใบขอซื้อ ต้องขอเลข RC No ใหม่ทุกครั้ง — วันเดียวกันซัพเดียวกันแต่คนละ PR เลือกแยกทีละ PR เพื่อออกใบรับแยกตามเลขที่ PR ได้</div>
       </div>
 
       <div class="mrrpt-step">
@@ -13195,13 +13204,31 @@ function _mrRptDateCol() {
 }
 // แถวของ mr_receive ที่อยู่ในสโคป "วันที่ + ซัพพลายเออร์ที่เลือก" ทั้งหมด (รวมแถวเก่าที่เคยออกเลขไปแล้วด้วย)
 // ใช้เช็คสถานะ RC No ของทั้งสโคปเท่านั้น — ไม่ใช่ตัวที่ใช้พิมพ์/stamp จริง ดู _mrRptPrintRows() แทน
-function _mrRptScopeRows(dateStr, supplierFilter) {
+// prFilter: '' = ทุก PR, MR_RPT_NO_PR = เฉพาะรายการที่ไม่อ้างอิง PR, อื่นๆ = เลขที่ PR นั้น (ไม่ส่งมา = อ่านจาก dropdown)
+const MR_RPT_NO_PR = '__NO_PR__';
+function _mrRptScopeRows(dateStr, supplierFilter, prFilter) {
   const dateCol = _mrRptDateCol();
+  if (prFilter === undefined) prFilter = document.getElementById('mr-rpt-pr')?.value || '';
   return _mrData.filter(r => {
     if (String(r[dateCol]||'') !== dateStr) return false;
     if (supplierFilter && _mrRptNormSupplier(r.Supplier) !== supplierFilter) return false;
+    if (prFilter === MR_RPT_NO_PR ? !!r.PR_Ref : (prFilter && r.PR_Ref !== prFilter)) return false;
     return true;
   });
+}
+// เติม dropdown ใบขอซื้อจากรายการของวันที่+ซัพพลายเออร์ที่เลือกไว้ — ซัพเดียวกันวันเดียวกันแต่คนละ PR แยกออกใบรับได้
+function mrReportPopulatePRSelect() {
+  const dateStr = document.getElementById('mr-rpt-date').value;
+  const supplierFilter = document.getElementById('mr-rpt-supplier').value;
+  const rows = _mrRptScopeRows(dateStr, supplierFilter, '');
+  const prs = [...new Set(rows.map(r => r.PR_Ref).filter(Boolean))].sort();
+  const noPr = rows.filter(r => !r.PR_Ref).length;
+  const sel = document.getElementById('mr-rpt-pr');
+  const prevVal = sel.value;
+  sel.innerHTML = `<option value="">ทุกใบขอซื้อ (${rows.length} รายการ)</option>` +
+    prs.map(p => `<option value="${p}">${p} (${rows.filter(r => r.PR_Ref === p).length} รายการ)</option>`).join('') +
+    (noPr && prs.length ? `<option value="${MR_RPT_NO_PR}">ไม่อ้างอิง PR (${noPr} รายการ)</option>` : '');
+  if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
 }
 // แถวที่จะรวมอยู่ใน "รายงานที่กำลังจะพิมพ์" จริง — ใช้ _mrReportPrintRowIds ที่ล็อกไว้ตอนเปลี่ยนสโคป
 // (ไม่ใช่กรองสดจาก RC_No ทุกครั้ง เพราะ stamp เสร็จแล้วแถวจะมีเลขทันที ทำให้ filter "ยังไม่มีเลข" กรองแถวนั้นออกไปเอง)
@@ -13238,6 +13265,7 @@ function mrReportPopulateSupplierSelect() {
 // เตือนแต่ไม่ auto-lock ให้ผู้ใช้กดยืนยันเอง, ถ้ายังไม่มีเลขเลย = ปกติ (auto-run เลขถัดไปเสนอให้)
 async function mrReportOnScopeChange() {
   mrReportPopulateSupplierSelect();
+  mrReportPopulatePRSelect();
   const dateStr = document.getElementById('mr-rpt-date').value;
   const supplierFilter = document.getElementById('mr-rpt-supplier').value;
   const rows = _mrRptScopeRows(dateStr, supplierFilter);
@@ -13514,6 +13542,8 @@ function mrReportRenderPreview() {
       <div class="mrrpt-filters">
         <div class="emph"><span class="lbl">วันที่รับ</span><span class="val">${_fmtDate(dateStr)}</span></div>
         <div class="emph"><span class="lbl">ซัพพลายเออร์</span><span class="val">${supplierFilter || 'ทั้งหมด'}</span></div>
+        ${(() => { const prs = [...new Set(rows.map(r => r.PR_Ref).filter(Boolean))];
+          return prs.length ? `<div class="emph"><span class="lbl">ใบขอซื้อ (PR)</span><span class="val">${prs.join(', ')}</span></div>` : ''; })()}
         <span class="minor">จำนวนรายการ: <b>${rows.length}</b></span>
       </div>
       ${rows.length ? `
@@ -22837,9 +22867,20 @@ async function leaveOpenReportModal() {
   await _leaveEnsureEmployees();
   const m = document.getElementById('leave-filter-month').value || _lvLocalDate(new Date()).slice(0, 7);
   document.getElementById('leave-rpt-month').value = m;
+  // รายชื่อสำหรับแบบรายคน — เรียงตามรหัส, พนักงานที่ลาออกแล้วก็เลือกได้ (ดูรายงานย้อนหลัง)
+  document.getElementById('leave-rpt-emp').innerHTML = '<option value="">— เลือกพนักงาน —</option>' + _leaveEmployees.map(e =>
+    `<option value="${_lvEsc(e.EmployeeCode)}">${_lvEsc(e.EmployeeCode)} — ${_lvEsc(_lvEmpName(e))}${e.NickName ? ` (${_lvEsc(e.NickName)})` : ''}${e.Status === 'ลาออก' ? ' [ลาออก]' : ''}</option>`).join('');
+  leaveRptFormatChanged(false);
   if (!_leaveRptModal) _leaveRptModal = new bootstrap.Modal(document.getElementById('leaveReportModal'));
   _leaveRptModal.show();
   leaveRenderReport();
+}
+function leaveRptFormatChanged(render = true) {
+  const person = document.getElementById('leave-rpt-format').value === 'person';
+  document.getElementById('leave-rpt-emp').style.display = person ? '' : 'none';
+  document.getElementById('leave-rpt-photo').style.display = person ? '' : 'none';
+  document.getElementById('leave-rpt-hint').textContent = person ? 'แบบรายคน: รูปพนักงาน + สรุปและรายการของเดือนที่เลือก' : 'แบบรวม: แยกกลุ่มตามประเภทพนักงาน FT / PT / OS (ไม่มีรูป)';
+  if (render) leaveRenderReport();
 }
 async function leaveRenderReport() {
   const ym = document.getElementById('leave-rpt-month').value;
@@ -22852,8 +22893,10 @@ async function leaveRenderReport() {
   if (error) { box.innerHTML = ''; _err('โหลดข้อมูลรายงานไม่ได้', error.message); return; }
   // รายงานให้ HR นับเฉพาะรายการที่แอดมินอนุมัติแล้ว (ประเภทที่ใช้คือประเภทหลังอนุมัติ) — แจ้งจำนวนที่รออนุมัติไว้ที่หัวรายงาน
   const allRecs = data || [];
-  const recs = allRecs.filter(r => _lvApproval(r) === 'อนุมัติแล้ว');
-  const pendingN = allRecs.length - recs.length;
+  // ไม่นับแถวที่ตกวันอาทิตย์ (วันหยุด) ในทุกแบบรายงาน — ให้ตรงกับตาราง/การ์ดพนักงาน
+  const allRecsNoSun = allRecs.filter(r => !_lvIsSun(r.LeaveDate));
+  const recs = allRecsNoSun.filter(r => _lvApproval(r) === 'อนุมัติแล้ว');
+  const pendingN = allRecsNoSun.length - recs.length;
   const empMap = {}; _leaveEmployees.forEach(e => { empMap[e.EmployeeCode] = e; });
   const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const title = `${MONTHS[rng.m - 1]} ${rng.y + 543}`;
@@ -22869,6 +22912,41 @@ async function leaveRenderReport() {
   const logo = `<img src="wisenovation_LOGO%20-Cut.png" alt="" style="height:${fmt === 'cal' ? 34 : 48}px;margin-right:12px" onerror="this.style.display='none'">`;
   const head = `<div style="display:flex;align-items:center;margin-bottom:4px">${logo}<h2 style="margin:0">รายงานขาด / ลา / มาสาย ประจำเดือน ${title}</h2></div>
     <div class="lv-sub">WISE NOVATION CO., LTD. · พิมพ์เมื่อ ${_fmtDate(_lvLocalDate(new Date()))} · รวม ${recs.length} รายการ / ${new Set(recs.map(r => r.EmployeeCode)).size} คน (เฉพาะที่อนุมัติแล้ว${pendingN ? ` · ยังไม่รวมรออนุมัติ ${pendingN} รายการ` : ''})</div>`;
+  // ── แบบรายคน: รูปพนักงาน (ปรับขนาดได้) + ข้อมูลพื้นฐาน + สิทธิ์ลา (แอดมินเท่านั้นที่เห็น) + สรุปตามประเภท + รายการรายวัน ──
+  if (fmt === 'person') {
+    const code = document.getElementById('leave-rpt-emp').value;
+    const emp = empMap[code];
+    const pHead = `<div style="display:flex;align-items:center;margin-bottom:4px">${logo}<h2 style="margin:0">รายงานขาด / ลา / มาสาย รายบุคคล ประจำเดือน ${title}</h2></div>`;
+    if (!emp) { box.innerHTML = `<div class="leave-page">${pHead}<div class="text-center" style="padding:30px;color:#64748b">เลือกพนักงานจากรายการด้านบน</div></div>`; return; }
+    const mine = recs.filter(r => r.EmployeeCode === code).sort((a, b) => a.LeaveDate.localeCompare(b.LeaveDate));
+    const myPending = allRecsNoSun.filter(r => r.EmployeeCode === code && _lvApproval(r) !== 'อนุมัติแล้ว').length;
+    const size = parseInt(document.getElementById('leave-rpt-photo').value) || 180;
+    const sumH = x => Math.round(x.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
+    const info = (k, v) => v ? `<tr><td style="border:0;text-align:left;color:#64748b;width:30%;padding:1px 4px">${k}</td><td style="border:0;text-align:left;padding:1px 4px"><b>${_lvEsc(v)}</b></td></tr>` : '';
+    const quotaHTML = await _leaveQuotaCardHTML(emp, ym.slice(0, 4));
+    const types = Object.keys(LEAVE_TYPE_CODE);
+    const sumRows = types.map(t => { const x = mine.filter(r => r.LeaveType === t); return `<tr><td class="l">${t}</td><td>${x.length || '–'}</td><td>${x.length ? sumH(x) : '–'}</td><td>${x.length ? Math.round(sumH(x) / 8 * 100) / 100 : '–'}</td></tr>`; }).join('');
+    box.innerHTML = `<div class="leave-page">${pHead}
+      <div class="lv-sub">WISE NOVATION CO., LTD. · พิมพ์เมื่อ ${_fmtDate(_lvLocalDate(new Date()))} (เฉพาะที่อนุมัติแล้ว${myPending ? ` · ยังไม่รวมรออนุมัติ ${myPending} รายการ` : ''} · ไม่นับวันอาทิตย์)</div>
+      <div style="display:flex;gap:18px;align-items:center;margin:8px 0 12px;padding:10px;border:1px solid #cbd5e1;border-radius:6px">
+        <div style="flex:0 0 ${size}px">${_lvAvatar(code, size).replace('margin-right:4px;', '')}</div>
+        <div style="flex:1"><div style="font-size:18px;font-weight:700">${_lvEsc(_lvEmpName(emp))}${emp.NickName ? ` <span style="font-weight:400;color:#64748b">(${_lvEsc(emp.NickName)})</span>` : ''}</div>
+          <table style="width:100%;margin:4px 0 0;border:0"><tbody>
+            ${info('รหัสพนักงาน', emp.EmployeeCode)}${info('ประเภท', LEAVE_EMPTYPE_LABEL[emp.EmployeeType] || emp.EmployeeType)}${info('ตำแหน่ง', emp.Position)}${info('แผนก/สาย', emp.Department)}${info('วันที่เริ่มงาน', emp.StartDate ? _fmtDate(emp.StartDate) : '')}${info('สถานะ', emp.Status)}
+          </tbody></table></div>
+      </div>
+      ${quotaHTML}
+      <h3 style="background:#334155">สรุปเดือน ${title}</h3>
+      <table><thead><tr><th>ประเภท</th><th>จำนวนวัน/ครั้ง</th><th>ชั่วโมง</th><th>≈ วัน</th></tr></thead><tbody>${sumRows}
+        <tr style="background:#f1f5f9;font-weight:700"><td class="l">รวม</td><td>${mine.length}</td><td>${sumH(mine)}</td><td>${Math.round(sumH(mine) / 8 * 100) / 100}</td></tr></tbody></table>
+      <h3 style="background:#334155">รายการรายวัน</h3>
+      ${mine.length ? `<table style="font-size:10.5px"><thead><tr><th>วันที่</th><th>ประเภท</th><th>ช่วง</th><th>ชม.</th><th>เหตุผล</th></tr></thead><tbody>${mine.map(r =>
+        `<tr><td>${_fmtDate(r.LeaveDate)}</td><td>${_lvEsc(r.LeaveType)}</td><td>${r.DayPart === 'รายชั่วโมง' ? `${_lvEsc(r.TimeStart)}–${_lvEsc(r.TimeEnd)}` : _lvEsc(r.DayPart)}</td><td>${Number(r.Hours) || 0}</td><td class="l">${_lvEsc(r.Reason || '')}</td></tr>`).join('')}</tbody></table>`
+        : '<div style="padding:14px;text-align:center;color:#64748b">ไม่มีรายการขาด/ลา/มาสายที่อนุมัติแล้วในเดือนนี้</div>'}
+      <div class="lv-legend">1 วันทำงาน = 8 ชม. · รายชั่วโมงหักพักเที่ยง 12:00–13:00</div>
+      <div class="lv-sign"><div>ผู้จัดทำ</div><div>ฝ่ายบุคคล (HR)</div><div>ผู้อนุมัติ</div></div></div>`;
+    return;
+  }
   if (!groups.length) { box.innerHTML = `<div class="leave-page${fmt === 'cal' ? ' cal' : ''}">${head}<div class="text-center" style="padding:30px;color:#64748b">ไม่มีรายการขาด/ลา/มาสายในเดือนนี้</div></div>`; return; }
   const sign = '<div class="lv-sign"><div>ผู้จัดทำ</div><div>ฝ่ายบุคคล (HR)</div><div>ผู้อนุมัติ</div></div>';
   let body = '';
@@ -22893,7 +22971,7 @@ async function leaveRenderReport() {
           return `<td${dow === 0 ? ' class="sun"' : ''}>${txt}</td>`;
         }).join('');
         const hrs = Math.round(list.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
-        body += `<tr><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvAvatar(c, 20)}${_lvEsc(nameOf(c))}</td>${cells}<td><b>${hrs}</b></td></tr>`;
+        body += `<tr><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvEsc(nameOf(c))}</td>${cells}<td><b>${hrs}</b></td></tr>`;
       });
       body += '</tbody></table>';
     });
@@ -22915,7 +22993,7 @@ async function leaveRenderReport() {
         }).join('');
         const h = Math.round(list.reduce((s, r) => s + (Number(r.Hours) || 0), 0) * 100) / 100;
         totH += h;
-        body += `<tr><td>${i + 1}</td><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvAvatar(c, 32)}${_lvEsc(nameOf(c))}</td>${cells}<td><b>${h}</b></td><td>${Math.round(h / 8 * 100) / 100}</td></tr>`;
+        body += `<tr><td>${i + 1}</td><td>${_lvEsc(c)}</td><td class="l" style="white-space:nowrap">${_lvEsc(nameOf(c))}</td>${cells}<td><b>${h}</b></td><td>${Math.round(h / 8 * 100) / 100}</td></tr>`;
       });
       body += `<tr style="background:#f1f5f9;font-weight:700"><td colspan="3" class="l">รวมกลุ่ม ${g.type || ''}</td>${types.map(t => `<td>${tot[t].n} / ${Math.round(tot[t].h * 100) / 100}</td>`).join('')}<td>${Math.round(totH * 100) / 100}</td><td>${Math.round(totH / 8 * 100) / 100}</td></tr></tbody></table>`;
       // รายการละเอียดรายวันของกลุ่มนี้
