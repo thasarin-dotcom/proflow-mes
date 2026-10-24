@@ -236,6 +236,10 @@ body.has-editreq-bell .page-header { padding-right: 76px !important; }
 #page-rd .rd-ver { padding: 8px 6px; border-top: 1px solid #f1f5f9; }
 #page-rd .rd-ver.cur { background: #eff6ff; }
 #page-rd .rd-kpi { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; background: #f8fafc; }
+/* แถบสรุปติดขอบล่างจอขณะเลื่อนแก้สูตร (sticky ภายใน .scroll-content) */
+#page-rd .rd-sticky { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 -4px 14px rgba(15,23,42,.12); padding: 8px 14px; margin-top: 8px; }
+#page-rd .rd-sticky b { font-size: 1.05rem; }
 
 #editreq-bell .badge {
   position: absolute; top: -4px; right: -4px; font-size: .62rem;
@@ -1588,16 +1592,18 @@ table.mrrpt-summary tr.mrrpt-summary-total td{background:#1e3a8a;color:#fff;font
 .planweek-entry-workers{font-weight:700;font-size:10.8px;color:#0f172a;margin-top:.6mm}
 .planweek-empty{font-size:10px;color:#cbd5e1;text-align:center;padding-top:10mm}
 
-/* ── ใบสูตรการผลิต R&D (2026-10-24) — A4 แนวตั้ง ความสูงตามเนื้อหา (ไม่มี min-height) ── */
-.rd-print-page{width:210mm;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
-  font-family:Sarabun,sans-serif;color:#1e293b;font-size:11px;position:relative;overflow:hidden}
+/* ── ใบสูตรการผลิต R&D (2026-10-24) — A4 แนวตั้ง; ช่องลายเซ็นจมขอบล่างกระดาษเสมอ (คำขอผู้ใช้):
+   flex column + min-height เต็มแผ่น + .rd-print-sign margin-top:auto — min-height ต้องคงอยู่ตอนพิมพ์ (ห้าม override เป็น 0
+   แบบ .bpr-page) ใช้ 296mm ไม่ใช่ 297mm กันปัดเศษแล้วล้นเป็นแผ่นเปล่าแผ่นที่ 2; เนื้อหายาวเกิน 1 แผ่น ลายเซ็นจะต่อท้ายเนื้อหาในแผ่นสุดท้าย ── */
+.rd-print-page{width:210mm;min-height:296mm;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  font-family:Sarabun,sans-serif;color:#1e293b;font-size:11px;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .rd-print-page table{width:100%;border-collapse:collapse;margin-top:4px;table-layout:fixed}
 .rd-print-page th,.rd-print-page td{border:1px solid #94a3b8;padding:3px 5px;vertical-align:top;word-wrap:break-word}
 .rd-print-page th{background:#f1f5f9;font-weight:700}
 .rd-print-page .rd-p-en{display:block;font-size:9px;color:#64748b}
 .rd-print-page h6{font-size:12px;font-weight:700;margin:10px 0 0}
 .rd-print-wm{position:absolute;top:35%;left:50%;transform:translate(-50%,-50%) rotate(-20deg);font-size:46px;font-weight:800;color:rgba(220,38,38,.16);white-space:nowrap;pointer-events:none}
-.rd-print-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px;text-align:center;font-size:10px;break-inside:avoid}
+.rd-print-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:auto;padding-top:30px;text-align:center;font-size:10px;break-inside:avoid}
 .rd-print-sign div{border-top:1px solid #334155;padding-top:3px;min-height:34px}
 
 /* ── ใบขอซื้อวัตถุดิบ (Purchase Request) — เลียนแบบฟอร์มจริงของบริษัท FM-PU-01-03 Rev.00 ทุกกระเบียดนิ้ว
@@ -2170,6 +2176,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-rd" onclick="showPage('rd',this)" title="R&D สูตรผลิตภัณฑ์" style="display:none">
       <i class="fas fa-flask me-2"></i><span>R&amp;D สูตรผลิตภัณฑ์</span>
       <span id="nav-rd-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="สูตรรออนุมัติ"></span>
+      <span id="nav-rd-due-badge" class="badge bg-danger rounded-pill ms-1" style="display:none;font-size:.7rem" title="จุดตรวจความคงตัว (Stability) ถึงกำหนด"></span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
       <i class="fas fa-sitemap me-2"></i><span>BOM</span>
@@ -7227,6 +7234,15 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
               <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
               <input type="text" id="rd-search" class="form-control border-start-0" placeholder="ค้นหาโปรเจกต์..." oninput="rdRenderProjectList()">
             </div>
+            <div class="d-flex gap-1 mb-2">
+              <select id="rd-f-status" class="form-select form-select-sm" onchange="rdRenderProjectList()" title="สถานะ">
+                <option value="">ทุกสถานะ</option><option value="pending">มีสูตรรออนุมัติ</option><option value="approved">มีสูตรอนุมัติแล้ว</option>
+                <option value="draft">ยังไม่มีสูตรอนุมัติ</option><option value="new">มีผลอนุมัติใหม่ (ของฉัน)</option>
+                <option value="stab">ตรวจ Stability ถึงกำหนด</option></select>
+              <select id="rd-f-type" class="form-select form-select-sm" onchange="rdRenderProjectList()" title="ประเภท"><option value="">ทุกประเภท</option></select>
+              <select id="rd-f-sort" class="form-select form-select-sm" onchange="rdRenderProjectList()" title="เรียง">
+                <option value="recent">ล่าสุด</option><option value="code">รหัส</option><option value="name">ชื่อ</option></select>
+            </div>
             <div id="rd-project-list"><div class="text-center text-muted small py-3"><i class="fas fa-spinner fa-spin me-1"></i>กำลังโหลด...</div></div>
           </div>
         </div>
@@ -7757,7 +7773,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0">
             <thead>
-              <tr><th>Username</th><th>อีเมลเข้าสู่ระบบ (Email)</th><th>ชื่อแสดงผล</th><th style="width:200px">ระดับสิทธิ์</th></tr>
+              <tr><th>Username</th><th>อีเมลเข้าสู่ระบบ (Email)</th><th>ชื่อแสดงผล <span class="small text-muted fw-normal">(ใช้ในลายเซ็นเอกสาร — แก้ได้)</span></th><th style="width:200px">ระดับสิทธิ์</th></tr>
             </thead>
             <tbody id="userroles-tbody">
               <tr><td colspan="4" class="text-center text-muted py-4">
@@ -8412,6 +8428,41 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
         <button type="button" class="btn btn-success" id="rd-import-save" onclick="rdImportSave()"><i class="fas fa-save me-1"></i>บันทึก</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ R&D: กฎตรวจสูตร / ผลทดลอง / ความคงตัว — เนื้อหาวาดด้วย JS (rdOpenRules / rdOpenTrials / rdOpenStability) ════════════ -->
+<div class="modal fade" id="rdRulesModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e3a8a;color:white">
+        <h5 class="modal-title"><i class="fas fa-list-check me-2"></i>กฎตรวจความสมเหตุสมผลของสูตร</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="rd-rules-body"></div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="rdTrialsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#7c3aed;color:white">
+        <h5 class="modal-title" id="rd-trials-title"><i class="fas fa-flask-vial me-2"></i>ผลทดลอง</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="rd-trials-body"></div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="rdStabModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#b45309;color:white">
+        <h5 class="modal-title" id="rd-stab-title"><i class="fas fa-temperature-half me-2"></i>ติดตามความคงตัว (Stability)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="rd-stab-body"></div>
     </div>
   </div>
 </div>
@@ -9955,6 +10006,73 @@ let _rdDraft = null;      // { projectCode, name, claims:Set, fromVersion, batch
 let _rdBadgeSeq = 0;
 let _rdPrintModal = null, _rdIngModal = null, _rdIngEditCode = null;
 let _rdBalanceMode = 'stable';   // คำแนะนำเติมสูตรให้ครบ 100%: 'stable' (รักษาสัดส่วน) / 'cheap' (ประหยัดสุด) — ดู _rdBalanceSuggest
+let _rdBaseSig = null;           // ลายเซ็นร่าง ณ ตอนโหลด/บันทึก — ต่างจากปัจจุบัน = มีการแก้ไขที่ยังไม่บันทึก
+let _rdBackupSig = null;         // ลายเซ็นร่างที่เขียนสำรองลง localStorage ล่าสุด
+let _rdUserNames = {};           // อีเมล/ชื่อบัญชี (ตัวเล็ก) → user_roles.DisplayName — ใช้แสดงชื่อจริงในรายการสูตร/ลายเซ็น
+let _rdCompareSel = new Set();   // FormulaCode ที่ติ๊กไว้เทียบ (สูงสุด 2)
+let _rdShowBaseSug = false;      // กล่องแนะนำกลุ่มเบส พับไว้เป็นค่าเริ่มต้น (เทมเพลตลงกระดานให้แล้ว)
+let _rdSugQuery = '';            // คำค้นในช่องค้นหาสาร (#rd-sug-q) — คงไว้ข้ามการวาดหน้าใหม่
+let _rdRules = [], _rdTrials = [], _rdStab = [];   // กฎตรวจสูตร / ผลทดลอง / จุดตรวจความคงตัว (create_rd_lab_tables.sql)
+let _rdLabReady = false;                            // false = ยังไม่ได้รัน create_rd_lab_tables.sql
+let _rdRulesModal = null, _rdTrialsModal = null, _rdStabModal = null;
+let _rdRuleEdit = null;                             // กฎที่กำลังแก้ในโมดัล (null = หน้ารายการ, {} = กฎใหม่)
+let _rdTrialPhotoUrls = {};                         // path → signed URL ของรูปผลทดลอง
+const RD_TRIAL_BUCKET = 'rd-trial-photos';
+const RD_STAB_CONDITIONS = ['อุณหภูมิห้อง 25–30°C', 'ร้อน 40–45°C', 'เย็น 4–8°C', 'แสงแดด/UV'];
+const RD_STAB_WEEKS = [1, 2, 4, 8, 12];
+const RD_BACKUP_KEY = 'proflow_rd_draft_backup';
+const RD_SEEN_KEY = 'proflow_rd_results_seen';
+
+// ── ร่างที่ยังไม่บันทึก: ป้ายเตือน + สำรองลงเครื่อง + ถามก่อนทิ้ง ──
+function _rdSig(d = _rdDraft) {
+  if (!d) return null;
+  return JSON.stringify([d.projectCode, d.name, [...d.claims].sort(), d.batchKg, d.unitW,
+    d.items.map(i => [i.code, _rdNum(i.pct), i.phase]), d.steps, d.qc, d.note]);
+}
+function _rdIsDirty() { return !!_rdDraft && _rdBaseSig != null && _rdSig() !== _rdBaseSig; }
+function _rdSerialize(d) { return { ...d, claims: [...d.claims], items: d.items.map(i => ({ code: i.code, pct: i.pct, phase: i.phase, snap: i.snap })) }; }
+function _rdDeserialize(o) { return { ...o, claims: new Set(o.claims || []) }; }
+function _rdBackupRead() { try { return JSON.parse(localStorage.getItem(RD_BACKUP_KEY) || 'null'); } catch (e) { return null; } }
+function _rdBackupClear() { try { localStorage.removeItem(RD_BACKUP_KEY); } catch (e) {} _rdBackupSig = null; }
+// ทุก 1 วิ: โชว์/ซ่อนป้าย "ยังไม่บันทึก" และเขียนสำรองร่างลงเครื่อง (กันรีเฟรช/ปิดแท็บ/เครื่องดับแล้วงานหาย)
+// — ไม่ผูกกับ event ของทุกช่องกรอก (ขั้นตอน/QC/หมายเหตุแก้ _rdDraft ตรงจาก oninput) จึงเช็คเป็นรอบแทน
+setInterval(() => {
+  const dirty = _rdIsDirty();
+  document.querySelectorAll('.rd-dirty-flag').forEach(el => { el.style.display = dirty ? '' : 'none'; });
+  if (!dirty) { if (_rdBackupSig) _rdBackupClear(); return; }   // แก้กลับเหมือนเดิมแล้ว — ไม่ต้องเก็บสำรอง
+  const sig = _rdSig();
+  if (sig === _rdBackupSig) return;
+  try { localStorage.setItem(RD_BACKUP_KEY, JSON.stringify({ at: new Date().toISOString(), draft: _rdSerialize(_rdDraft) })); _rdBackupSig = sig; } catch (e) {}
+}, 1000);
+window.addEventListener('beforeunload', e => { if (_rdIsDirty()) { e.preventDefault(); e.returnValue = ''; } });
+// ก่อนแทนร่างบนกระดาน (เปิดโปรเจกต์/สูตรอื่น, สร้างโปรเจกต์ใหม่) — คืน true = ไปต่อได้
+async function _rdConfirmDiscard() {
+  if (!_rdIsDirty()) return true;
+  const r = await Swal.fire({
+    icon: 'warning', title: 'มีการแก้ไขที่ยังไม่บันทึก', text: `สูตรของ ${_rdDraft.projectCode} ที่แก้ไว้จะหายถ้าไม่บันทึก`,
+    showDenyButton: true, showCancelButton: true, allowOutsideClick: false,
+    confirmButtonText: 'บันทึกเป็นสูตรใหม่ก่อน', denyButtonText: 'ทิ้งการแก้ไข', cancelButtonText: 'อยู่ต่อ',
+  });
+  if (r.isConfirmed) return await rdSaveVersion();
+  if (r.isDenied) { _rdBackupClear(); _rdBaseSig = _rdSig(); return true; }
+  return false;
+}
+// ชื่อที่แสดงของผู้ใช้ (ตั้งที่หน้า "จัดการผู้ใช้") — ไม่มีก็แสดงค่าที่บันทึกไว้ (อีเมล/ชื่อบัญชี)
+function _rdPerson(v) {
+  if (!v) return '';
+  return _rdUserNames[String(v).toLowerCase()] || v;
+}
+// ผลอนุมัติ/ไม่อนุมัติของสูตรที่ฉันส่ง ที่ยังไม่ได้เปิดดู (เก็บที่เห็นแล้วเป็น "FormulaCode|ApprovedAt" ในเครื่อง)
+function _rdSeenSet() { try { return new Set(JSON.parse(localStorage.getItem(RD_SEEN_KEY) || '[]')); } catch (e) { return new Set(); } }
+function _rdIsMine(v) { return !!v && (v === _currentUser?.name || v === _currentUser?.email); }
+function _rdIsNewResult(f, seen = _rdSeenSet()) {
+  return (f.Status === 'อนุมัติแล้ว' || f.Status === 'ไม่อนุมัติ') && _rdIsMine(f.SubmittedBy) && f.ApprovedAt && !seen.has(`${f.FormulaCode}|${f.ApprovedAt}`);
+}
+function _rdMarkSeen(projectCode) {
+  const seen = _rdSeenSet();
+  _rdFormulas.filter(f => f.ProjectCode === projectCode && f.ApprovedAt).forEach(f => seen.add(`${f.FormulaCode}|${f.ApprovedAt}`));
+  try { localStorage.setItem(RD_SEEN_KEY, JSON.stringify([...seen].slice(-500))); } catch (e) {}
+}
 const RD_PHASES = ['A', 'B', 'C', '-'];
 const RD_STATUS_BADGE = { 'ร่าง': 'bg-secondary', 'รออนุมัติ': 'bg-warning text-dark', 'อนุมัติแล้ว': 'bg-success', 'ไม่อนุมัติ': 'bg-danger' };
 const RD_PRICE_STALE_DAYS = 90;
@@ -10097,13 +10215,23 @@ function _rdCalc(items, batchKg, fill, fillUnit = 'g') {
 
 async function rdLoadData() {
   _showLoader();
-  const [ingRes, clRes, tyRes, prRes, fmRes] = await Promise.all([
+  const [ingRes, clRes, tyRes, prRes, fmRes, urRes, ruRes, trRes, stRes] = await Promise.all([
     _fetchAllPaged('rd_ingredients', '*'),
     _sb.from('rd_claims').select('*').order('SortOrder'),
     _sb.from('rd_product_types').select('*').order('SortOrder'),
     _fetchAllPaged('rd_projects', '*'),
     _fetchAllPaged('rd_formulas', '*'),
+    _sb.from('user_roles').select('Email,DisplayName'),   // ชื่อจริงสำหรับลายเซ็น — พลาดได้ ไม่กระทบหน้า
+    _sb.from('rd_rules').select('*'),                      // 3 ตารางนี้มาจาก create_rd_lab_tables.sql — ยังไม่รันก็ใช้หน้าอื่นได้ปกติ
+    _fetchAllPaged('rd_trials', '*'),
+    _fetchAllPaged('rd_stability_checks', '*'),
   ]);
+  _rdLabReady = !ruRes.error && !trRes.error && !stRes.error;
+  _rdRules = _rdLabReady ? (ruRes.data || []) : [];
+  _rdTrials = _rdLabReady ? (trRes.data || []) : [];
+  _rdStab = _rdLabReady ? (stRes.data || []) : [];
+  _rdUserNames = {};
+  (urRes?.data || []).forEach(u => { if (u.Email && u.DisplayName) _rdUserNames[u.Email.toLowerCase()] = u.DisplayName; });
   _hideLoader();
   const err = ingRes.error || clRes.error || tyRes.error || prRes.error || fmRes.error;
   if (err) {
@@ -10118,46 +10246,130 @@ async function rdLoadData() {
   if (_rdCurCode && !_rdProjects.some(p => p.ProjectCode === _rdCurCode)) { _rdCurCode = null; _rdDraft = null; }
   rdRenderProjectList();
   rdRender();
-  rdUpdateNavBadge(_rdFormulas.filter(f => f.Status === 'รออนุมัติ').length);
+  rdUpdateNavBadge();
 }
 
-async function rdUpdateNavBadge(knownCount = null) {
+// badge เมนู: แอดมิน = จำนวนสูตรรออนุมัติ (เหลือง), คนอื่น = ผลอนุมัติ/ไม่อนุมัติของสูตรที่ตัวเองส่งที่ยังไม่ได้เปิดดู (เขียว)
+async function rdUpdateNavBadge(notifyDue = false) {
   const el = document.getElementById('nav-rd-badge');
-  if (!el) return;
-  if (!_hasRole('admin')) { el.style.display = 'none'; return; }
+  if (!el || !_currentUser) return;
+  _rdUpdateDueBadge(notifyDue);
   const mySeq = ++_rdBadgeSeq;
-  let count = knownCount;
-  if (count === null) {
+  let count = 0, admin = _hasRole('admin');
+  if (admin) {
     const { count: c, error } = await _sb.from('rd_formulas').select('_row_id', { count: 'exact', head: true }).eq('Status', 'รออนุมัติ');
-    if (mySeq !== _rdBadgeSeq) return;
     count = error ? 0 : (c || 0);
+  } else {
+    const { data, error } = await _sb.from('rd_formulas').select('FormulaCode,Status,SubmittedBy,ApprovedAt')
+      .in('Status', ['อนุมัติแล้ว', 'ไม่อนุมัติ']).in('SubmittedBy', [_currentUser.name, _currentUser.email].filter(Boolean));
+    const seen = _rdSeenSet();
+    count = error ? 0 : (data || []).filter(f => _rdIsNewResult(f, seen)).length;
   }
   if (mySeq !== _rdBadgeSeq) return;
+  el.className = `badge rounded-pill ms-2 ${admin ? 'bg-warning text-dark' : 'bg-success'}`;
+  el.title = admin ? 'สูตรรออนุมัติ' : 'ผลอนุมัติสูตรของคุณที่ยังไม่ได้เปิดดู';
   el.textContent = count;
   el.style.display = count > 0 ? '' : 'none';
 }
 
+// ป้ายแดงที่เมนู = จุดตรวจความคงตัวที่ถึงกำหนดแล้วแต่ยังไม่ได้บันทึกผล (ทุกคนที่เห็นเมนู R&D) — notify = เด้งเตือนตอน login
+let _rdDueSeq = 0;
+async function _rdUpdateDueBadge(notify = false) {
+  const el = document.getElementById('nav-rd-due-badge');
+  if (!el || !_hasRole('supervisor')) { if (el) el.style.display = 'none'; return; }
+  const mySeq = ++_rdDueSeq;
+  const { count, error } = await _sb.from('rd_stability_checks').select('_row_id', { count: 'exact', head: true })
+    .eq('Status', 'รอตรวจ').lte('DueDate', _planWeekLocalDateStr(new Date()));
+  if (mySeq !== _rdDueSeq) return;
+  const n = error ? 0 : (count || 0);   // error = ยังไม่ได้รัน create_rd_lab_tables.sql
+  el.textContent = n;
+  el.style.display = n > 0 ? '' : 'none';
+  if (notify && n > 0) {
+    Swal.fire({ icon: 'info', title: `จุดตรวจความคงตัว (Stability) ถึงกำหนด ${n} รายการ`, confirmButtonText: 'ไปดู', showCancelButton: true, cancelButtonText: 'ปิด' })
+      .then(r => {
+        if (!r.isConfirmed) return;
+        showPage('rd', document.getElementById('nav-rd'));
+        setTimeout(() => { const s = document.getElementById('rd-f-status'); if (s) { s.value = 'stab'; rdRenderProjectList(); } }, 600);
+      });
+  }
+}
+
+// แจ้งเตือนเรียลไทม์ไปเครื่องของคนที่ส่งสูตร เมื่อแอดมินอนุมัติ/ไม่อนุมัติ (broadcast เหมือน editreq_resolved — กรองฝั่งรับ)
+function _rdSendResolved(f, action, reason) {
+  const p = _rdProjects.find(x => x.ProjectCode === f.ProjectCode);
+  _realtimeChannel?.send({
+    type: 'broadcast', event: 'rd_resolved',
+    payload: { target: f.SubmittedBy || f.CreatedBy, project: f.ProjectCode, name: p?.ProjectName || '', version: f.VersionNo, action, reason: reason || '', by: _currentUser?.name || '' },
+  });
+}
+function _rdNotifyResolved(info) {
+  if (!info || !_rdIsMine(info.target)) return;
+  const ok = info.action === 'approve';
+  Swal.fire({
+    toast: true, position: 'top-end', icon: ok ? 'success' : 'error', showConfirmButton: true, confirmButtonText: 'เปิดดู',
+    showCloseButton: true, timer: 15000, timerProgressBar: true,
+    title: ok ? `สูตร ${info.version} ได้รับการอนุมัติแล้ว` : `สูตร ${info.version} ไม่ได้รับการอนุมัติ`,
+    html: `${_rdEsc(info.project)} ${_rdEsc(info.name)}${ok ? '' : `<br><b>เหตุผล:</b> ${_rdEsc(info.reason)}`}<br><span class="small text-muted">โดย ${_rdEsc(_rdPerson(info.by))}</span>`,
+  }).then(r => {
+    if (!r.isConfirmed) return;
+    showPage('rd', document.getElementById('nav-rd'));
+    setTimeout(() => rdOpenProject(info.project), 600);
+  });
+  rdUpdateNavBadge();
+}
+
+// เวลาเคลื่อนไหวล่าสุดของโปรเจกต์ (สร้าง/บันทึกสูตร/ส่ง/อนุมัติ) — ใช้เรียง "แก้ไขล่าสุด"
+function _rdLastActivity(p) {
+  let t = p.CreatedAt || '';
+  _rdFormulas.forEach(f => { if (f.ProjectCode === p.ProjectCode) [f.CreatedAt, f.SubmittedAt, f.ApprovedAt].forEach(x => { if (x && x > t) t = x; }); });
+  return t;
+}
 function rdRenderProjectList() {
   const el = document.getElementById('rd-project-list');
   if (!el) return;
+  // ตัวเลือกประเภทในตัวกรอง — เติมจาก _rdTypes ทุกครั้ง (คงค่าที่เลือกไว้)
+  const tSel = document.getElementById('rd-f-type');
+  if (tSel) {
+    const cur = tSel.value;
+    tSel.innerHTML = '<option value="">ทุกประเภท</option>' + _rdTypes.map(t => `<option value="${_rdEsc(t.TypeCode)}">${_rdEsc(t.NameTH)}</option>`).join('');
+    tSel.value = cur;
+  }
   const q = (document.getElementById('rd-search')?.value || '').trim().toLowerCase();
-  const rows = _rdProjects.filter(p => !q || `${p.ProjectCode} ${p.ProjectName}`.toLowerCase().includes(q));
+  const fStatus = document.getElementById('rd-f-status')?.value || '';
+  const fType = tSel?.value || '';
+  const sort = document.getElementById('rd-f-sort')?.value || 'recent';
+  const seen = _rdSeenSet();
+  const info = _rdProjects.map(p => {
+    const vs = _rdVersions(p.ProjectCode);
+    const codes = new Set(vs.map(v => v.FormulaCode));
+    return { p, vs, pend: vs.filter(v => v.Status === 'รออนุมัติ'), appr: vs.filter(v => v.Status === 'อนุมัติแล้ว'),
+      fresh: vs.filter(v => _rdIsNewResult(v, seen)), last: _rdLastActivity(p),
+      due: _rdStab.filter(c => codes.has(c.FormulaCode) && _rdStabIsDue(c)).length };
+  });
+  const rows = info.filter(x => (!q || `${x.p.ProjectCode} ${x.p.ProjectName}`.toLowerCase().includes(q))
+    && (!fType || x.p.ProductType === fType)
+    && (!fStatus || (fStatus === 'pending' ? x.pend.length : fStatus === 'approved' ? x.appr.length : fStatus === 'draft' ? !x.appr.length
+      : fStatus === 'stab' ? x.due : x.fresh.length)))
+    .sort((a, b) => sort === 'code' ? a.p.ProjectCode.localeCompare(b.p.ProjectCode)
+      : sort === 'name' ? String(a.p.ProjectName).localeCompare(String(b.p.ProjectName), 'th') : b.last.localeCompare(a.last));
+  const pendAll = info.reduce((s, x) => s + x.pend.length, 0);
+  const head = `<div class="small text-muted mb-1">${rows.length} จาก ${_rdProjects.length} โปรเจกต์${pendAll ? ` · <a href="#" onclick="event.preventDefault();document.getElementById('rd-f-status').value='pending';rdRenderProjectList()">รออนุมัติ ${pendAll} สูตร</a>` : ''}</div>`;
   if (!rows.length) {
-    el.innerHTML = `<div class="text-muted small text-center py-3">${_rdProjects.length ? 'ไม่พบโปรเจกต์' : 'ยังไม่มีโปรเจกต์ — กด "โปรเจกต์ใหม่"'}</div>`;
+    el.innerHTML = head + `<div class="text-muted small text-center py-3">${_rdProjects.length ? 'ไม่พบโปรเจกต์ตามตัวกรอง' : 'ยังไม่มีโปรเจกต์ — กด "โปรเจกต์ใหม่"'}</div>`;
     return;
   }
-  el.innerHTML = rows.map(p => {
-    const vs = _rdVersions(p.ProjectCode), last = vs[0], t = _rdType(p.ProductType);
-    const pend = vs.filter(v => v.Status === 'รออนุมัติ').length;
-    const appr = vs.some(v => v.Status === 'อนุมัติแล้ว');
+  el.innerHTML = head + rows.map(({ p, vs, pend, appr, fresh, last, due }) => {
+    const t = _rdType(p.ProductType);
     return `<div class="rd-proj ${p.ProjectCode === _rdCurCode ? 'active' : ''}" onclick="rdOpenProject('${_rdEsc(p.ProjectCode)}')">
       <div class="d-flex justify-content-between gap-1"><span class="fw-bold small">${_rdEsc(p.ProjectCode)}</span>
         <span class="badge bg-light text-dark border">${_rdEsc(t ? t.NameTH : p.ProductType)}</span></div>
       <div class="small text-truncate" title="${_rdEsc(p.ProjectName)}">${_rdEsc(p.ProjectName)}</div>
       <div class="d-flex flex-wrap gap-1 mt-1 align-items-center" style="font-size:.7rem">
-        ${last ? `<span class="text-muted">สูตร ${last.VersionNo} · ${_rdDay(last.CreatedAt)}</span>` : '<span class="text-muted">ยังไม่มีสูตร</span>'}
-        ${pend ? `<span class="badge bg-warning text-dark">รออนุมัติ ${pend}</span>` : ''}
-        ${appr ? '<span class="badge bg-success">มีสูตรอนุมัติแล้ว</span>' : ''}
+        <span class="text-muted">${vs.length ? `${vs.length} สูตร` : 'ยังไม่มีสูตร'} · ${_rdDay(last)}</span>
+        ${pend.length ? `<span class="badge bg-warning text-dark">รออนุมัติ: สูตร ${pend.map(v => v.VersionNo).join(', ')}</span>` : ''}
+        ${appr.length ? `<span class="badge bg-success">อนุมัติ: สูตร ${appr.map(v => v.VersionNo).join(', ')}</span>` : ''}
+        ${fresh.length ? '<span class="badge bg-info text-dark">ผลใหม่</span>' : ''}
+        ${due ? `<span class="badge bg-danger">Stability ถึงกำหนด ${due}</span>` : ''}
       </div></div>`;
   }).join('');
 }
@@ -10174,6 +10386,7 @@ function rdRender() {
 // ── โปรเจกต์ ──
 async function rdNewProject() {
   if (!_rdTypes.length) { Swal.fire({ icon: 'warning', title: 'ยังไม่มีประเภทโปรดักต์', text: 'รัน create_rd_tables.sql ใน Supabase ก่อน' }); return; }
+  if (!(await _rdConfirmDiscard())) return;
   const opts = _rdTypes.map(t => `<option value="${_rdEsc(t.TypeCode)}">${_rdEsc(t.NameTH)} / ${_rdEsc(t.NameEN || '')}</option>`).join('');
   const res = await Swal.fire({
     title: 'โปรเจกต์ใหม่',
@@ -10203,15 +10416,32 @@ async function rdNewProject() {
   rdOpenProject(code);
 }
 
-function rdOpenProject(code) {
+async function rdOpenProject(code) {
   const p = _rdProjects.find(x => x.ProjectCode === code);
   if (!p) return;
+  if (!(await _rdConfirmDiscard())) return;
   _rdCurCode = code;
   _rdView = 'editor';
+  _rdCompareSel.clear();
   const vs = _rdVersions(code);
   if (vs.length) _rdLoadVersionIntoDraft(vs[0]); else _rdDraftFromTemplate(p);
+  // มีร่างสำรองในเครื่องของโปรเจกต์นี้ที่ยังไม่ได้บันทึก (เช่น รีเฟรช/ปิดแท็บไปก่อน) — ถามว่าจะกู้คืนไหม
+  const bk = _rdBackupRead();
+  if (bk?.draft?.projectCode === code && _rdSig(_rdDeserialize(bk.draft)) !== _rdBaseSig) {
+    const r = await Swal.fire({
+      icon: 'question', title: 'พบสูตรที่แก้ไว้แต่ยังไม่ได้บันทึก', text: `แก้ไขล่าสุด ${_fmtDateTime(bk.at)} — กู้คืนมาแก้ต่อไหม?`,
+      showCancelButton: true, allowOutsideClick: false, confirmButtonText: 'กู้คืน', cancelButtonText: 'ไม่ใช้ (ลบร่างนี้)',
+    });
+    if (r.isConfirmed) { _rdDraft = _rdDeserialize(bk.draft); _rdBackupSig = null; } else _rdBackupClear();
+  }
+  _rdMarkSeen(code);
+  rdUpdateNavBadge();
   rdRenderProjectList();
   rdRender();
+  // เข้ามาจากตัวกรอง "รออนุมัติ"/"ผลใหม่" — เลื่อนไปที่รายการสูตรให้เลย
+  if (['pending', 'new', 'stab'].includes(document.getElementById('rd-f-status')?.value)) {
+    setTimeout(() => document.getElementById('rd-versions')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+  }
 }
 function _rdDraftFromTemplate(p) {
   const t = _rdType(p.ProductType);
@@ -10221,6 +10451,7 @@ function _rdDraftFromTemplate(p) {
     items: _rdArr(t?.BaseItems).map(b => ({ code: b.code, pct: _rdNum(b.pct), phase: b.phase || 'A' })),
     steps: _rdArr(t?.DefaultSteps).map(s => ({ ...s })), qc: _rdArr(t?.QCSpecs).map(q => ({ ...q })), note: '',
   };
+  _rdBaseSig = _rdSig();
 }
 function _rdLoadVersionIntoDraft(f) {
   const p = _rdProjects.find(x => x.ProjectCode === f.ProjectCode);
@@ -10230,10 +10461,12 @@ function _rdLoadVersionIntoDraft(f) {
     items: _rdArr(f.Items).map(i => ({ code: i.code, pct: _rdNum(i.pct), phase: i.phase || 'A', snap: i })),
     steps: _rdArr(f.Steps).map(s => ({ ...s })), qc: _rdArr(f.QCSpecs).map(q => ({ ...q })), note: f.Note || '',
   };
+  _rdBaseSig = _rdSig();
 }
-function rdEditVersion(code) {
+async function rdEditVersion(code) {
   const f = _rdFormulas.find(x => x.FormulaCode === code);
   if (!f) return;
+  if (!(await _rdConfirmDiscard())) return;
   _rdLoadVersionIntoDraft(f);
   _rdView = 'editor';
   rdRender();
@@ -10244,7 +10477,12 @@ function rdEditVersion(code) {
 function rdRenderEditor() {
   const el = document.getElementById('rd-editor');
   if (!_rdDraft) {
-    el.innerHTML = '<div class="glass-card text-center text-muted py-5"><i class="fas fa-flask fa-2x mb-2 d-block"></i>เลือกโปรเจกต์ทางซ้าย หรือกด "โปรเจกต์ใหม่" เพื่อเริ่มออกแบบสูตร</div>';
+    const bk = _rdBackupRead();
+    const bkP = bk && _rdProjects.find(p => p.ProjectCode === bk.draft?.projectCode);
+    el.innerHTML = (bkP ? `<div class="alert alert-warning d-flex align-items-center gap-2 mb-2"><i class="fas fa-clock-rotate-left"></i>
+        <div class="me-auto">มีสูตรของ <b>${_rdEsc(bkP.ProjectCode)} ${_rdEsc(bkP.ProjectName)}</b> ที่แก้ไว้แต่ยังไม่ได้บันทึก (${_fmtDateTime(bk.at)})</div>
+        <button class="btn btn-sm btn-warning" onclick="rdOpenProject('${_rdEsc(bkP.ProjectCode)}')">เปิดเพื่อกู้คืน</button></div>` : '')
+      + '<div class="glass-card text-center text-muted py-5"><i class="fas fa-flask fa-2x mb-2 d-block"></i>เลือกโปรเจกต์ทางซ้าย หรือกด "โปรเจกต์ใหม่" เพื่อเริ่มออกแบบสูตร</div>';
     return;
   }
   const d = _rdDraft, p = _rdCurProject(), t = _rdType(p?.ProductType);
@@ -10266,14 +10504,23 @@ function rdRenderEditor() {
     </div>
     <div id="rd-claims"></div>
   </div>
+  <div class="glass-card mb-2 py-2">
+    <div class="input-group input-group-sm">
+      <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+      <input type="text" class="form-control" id="rd-sug-q" value="${_rdEsc(_rdSugQuery)}" placeholder="ค้นหาสาร — ชื่อไทย / อังกฤษ / INCI / รหัส / สรรพคุณ (เช่น ดับกลิ่น) แล้วกด &quot;เพิ่ม&quot; (Enter = เพิ่มตัวแรก)"
+        oninput="_rdSugQuery=this.value;_rdRenderSuggestions()" onkeydown="if(event.key==='Enter'){event.preventDefault();rdSugAddFirst()}else if(event.key==='Escape'){this.value='';_rdSugQuery='';_rdRenderSuggestions()}">
+      <button class="btn btn-outline-secondary" type="button" title="ล้างคำค้นหา" onclick="_rdSugQuery='';document.getElementById('rd-sug-q').value='';_rdRenderSuggestions()"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
   <div class="row g-2 mb-2">
-    <div class="col-lg-6"><div class="glass-card h-100"><div class="fw-bold small mb-1"><i class="fas fa-cubes me-1 text-primary"></i>กลุ่มเบส (ขึ้นรูป) / Base</div><div id="rd-sug-base" class="rd-sug"></div></div></div>
+    <div class="col-lg-6"><div class="glass-card h-100"><div class="fw-bold small mb-1 d-flex align-items-center" id="rd-sug-base-head"></div><div id="rd-sug-base" class="rd-sug"></div></div></div>
     <div class="col-lg-6"><div class="glass-card h-100"><div class="fw-bold small mb-1"><i class="fas fa-wand-magic-sparkles me-1 text-success"></i>กลุ่มสรรพคุณเสริม / Actives</div><div id="rd-sug-act" class="rd-sug"></div></div></div>
   </div>
   <div class="glass-card mb-2">
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
       <div class="fw-bold me-auto"><span class="badge bg-primary me-1">1</span>กระดานสูตร / Formula
-        <span class="badge bg-light text-dark border ms-1">${d.fromVersion ? `แก้ต่อจากสูตร ${d.fromVersion}` : 'ฉบับร่างใหม่'}</span></div>
+        <span class="badge bg-light text-dark border ms-1">${d.fromVersion ? `แก้ต่อจากสูตร ${d.fromVersion}` : 'ฉบับร่างใหม่'}</span>
+        <span class="badge bg-warning text-dark ms-1 rd-dirty-flag" style="display:none"><i class="fas fa-pen me-1"></i>ยังไม่บันทึก</span></div>
       <select class="form-select form-select-sm" style="width:280px" id="rd-add-ing" onchange="rdAddItem(this.value)"></select>
     </div>
     <div class="table-responsive"><table class="table table-sm align-middle mb-0">
@@ -10307,8 +10554,19 @@ function rdRenderEditor() {
     </div>
   </div>
   <div class="glass-card mb-2">
-    <div class="fw-bold mb-1"><i class="fas fa-history me-1"></i>สูตรที่บันทึกไว้ / Saved versions</div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <div class="fw-bold me-auto"><i class="fas fa-history me-1"></i>สูตรที่บันทึกไว้ / Saved versions</div>
+      <span class="small text-muted">ติ๊ก 2 สูตรเพื่อเทียบ</span>
+      <button class="btn btn-sm btn-outline-primary py-0" id="rd-cmp-btn" onclick="rdCompareVersions()" disabled><i class="fas fa-code-compare me-1"></i>เทียบ 2 สูตร</button>
+    </div>
     <div id="rd-versions"></div>
+  </div>
+  <div class="rd-sticky">
+    <span class="small text-muted">รวม</span><b id="rd-sb-total">—</b>
+    <span class="small text-muted ms-2">ต้นทุน/แบตช์</span><b id="rd-sb-batch">—</b>
+    <span class="small text-muted ms-2">ต้นทุน/ชิ้น</span><b id="rd-sb-unit">—</b>
+    <span class="badge bg-warning text-dark rd-dirty-flag ms-2" style="display:none"><i class="fas fa-pen me-1"></i>ยังไม่บันทึก</span>
+    <button class="btn btn-success btn-sm fw-bold ms-auto" onclick="rdSaveVersion()"><i class="fas fa-save me-1"></i>บันทึกเป็นสูตรใหม่</button>
   </div>`;
   _rdRenderClaims();
   _rdRenderFormulaArea();
@@ -10346,14 +10604,57 @@ function _rdRenderSuggestions() {
         : `<button class="btn btn-sm btn-outline-primary py-0" onclick="rdAddItem('${_rdEsc(g.IngredientCode)}')">เพิ่ม</button>`}</div>`;
   const active = _rdIngredients.filter(g => g.IsActive !== false && _rdFits(g, type));
   const base = active.filter(g => g.Kind !== 'active');
-  document.getElementById('rd-sug-base').innerHTML = base.map(g => row(g, _rdEsc(g.RoleTH || 'เบส'))).join('')
-    || '<div class="text-muted small">ไม่มีสารกลุ่มเบสสำหรับประเภทนี้ในคลัง</div>';
+  // โหมดค้นหา (ช่อง #rd-sug-q): ค้นทั้งคลัง — ตัวที่ใช้กับประเภทนี้ขึ้นก่อน, active ไม่ต้องตรงสรรพคุณ
+  const hits = _rdSugMatches();
+  if (hits) {
+    const other = g => _rdFits(g, type) ? '' : '<span class="badge bg-light text-muted border">ประเภทอื่น</span> ';
+    const hb = hits.filter(g => g.Kind !== 'active'), ha = hits.filter(g => g.Kind === 'active');
+    document.getElementById('rd-sug-base-head').innerHTML = `<i class="fas fa-cubes me-1 text-primary"></i>กลุ่มเบส (ขึ้นรูป) / Base
+      <span class="small text-muted fw-normal ms-1">พบ ${hb.length} ตัว</span>`;
+    document.getElementById('rd-sug-base').innerHTML = hb.map(g => row(g, other(g) + _rdEsc(g.RoleTH || 'เบส'))).join('')
+      || '<div class="text-muted small">ไม่พบสารกลุ่มเบสที่ตรงคำค้น</div>';
+    document.getElementById('rd-sug-act').innerHTML = ha.map(g => row(g, other(g) + _rdEsc(_rdArr(g.Claims).map(_rdClaimName).join(', ') || 'สรรพคุณเสริม'))).join('')
+      || '<div class="text-muted small">ไม่พบสารสรรพคุณเสริมที่ตรงคำค้น</div>';
+    return;
+  }
+  // กลุ่มเบสพับไว้เป็นค่าเริ่มต้น — เทมเพลตลงกระดานให้แล้ว รายการนี้ไว้หยิบตัวเสริม/ตัวแทน
+  const inCnt = base.filter(g => inBoard.has(g.IngredientCode)).length;
+  document.getElementById('rd-sug-base-head').innerHTML = `<i class="fas fa-cubes me-1 text-primary"></i>กลุ่มเบส (ขึ้นรูป) / Base
+    <span class="small text-muted fw-normal ms-1">ในสูตร ${inCnt} จาก ${base.length}</span>
+    <button type="button" class="btn btn-sm btn-link py-0 ms-auto" onclick="_rdShowBaseSug=!_rdShowBaseSug;_rdRenderSuggestions()">${_rdShowBaseSug ? 'ซ่อน' : 'แสดงทั้งหมด'}</button>`;
+  document.getElementById('rd-sug-base').innerHTML = !_rdShowBaseSug
+    ? '<div class="text-muted small">เทมเพลตเบสลงกระดานให้แล้ว — กด "แสดงทั้งหมด" เพื่อดูสารเบสตัวอื่นในคลัง</div>'
+    : base.map(g => row(g, _rdEsc(g.RoleTH || 'เบส'))).join('') || '<div class="text-muted small">ไม่มีสารกลุ่มเบสสำหรับประเภทนี้ในคลัง</div>';
+  // active: บอกว่าตรงกี่สรรพคุณจากที่เลือก + สรรพคุณที่ตรงเป็นตัวหนา
+  const nSel = _rdDraft.claims.size;
   const acts = active.filter(g => g.Kind === 'active')
     .map(g => ({ g, s: _rdArr(g.Claims).filter(c => _rdDraft.claims.has(c)).length }))
     .filter(x => x.s > 0)
     .sort((a, b) => b.s - a.s || _rdNum(a.g.PricePerKg) - _rdNum(b.g.PricePerKg));
-  document.getElementById('rd-sug-act').innerHTML = acts.map(({ g }) => row(g, _rdEsc(_rdArr(g.Claims).map(_rdClaimName).join(', ')))).join('')
-    || `<div class="text-muted small">${_rdDraft.claims.size ? 'ไม่มีสารในคลังที่ตรงกับสรรพคุณที่เลือก' : 'เลือกสรรพคุณด้านบนเพื่อดูสารที่แนะนำ'}</div>`;
+  document.getElementById('rd-sug-act').innerHTML = acts.map(({ g, s }) => row(g,
+    `<span class="badge ${s === nSel ? 'bg-success' : 'bg-light text-dark border'}">ตรง ${s}/${nSel}</span> `
+    + _rdArr(g.Claims).map(c => _rdDraft.claims.has(c) ? `<b>${_rdEsc(_rdClaimName(c))}</b>` : _rdEsc(_rdClaimName(c))).join(', '))).join('')
+    || `<div class="text-muted small">${nSel ? 'ไม่มีสารในคลังที่ตรงกับสรรพคุณที่เลือก' : 'เลือกสรรพคุณด้านบนเพื่อดูสารที่แนะนำ'}</div>`;
+}
+
+// ข้อความที่ค้นได้ของสาร: ชื่อ/INCI/รหัส/หน้าที่ + สรรพคุณ (ชื่อไทย/อังกฤษของแท็ก) + รายละเอียดหน้าที่และสรรพคุณ
+// — พิมพ์ "ดับกลิ่น", "moist", "ผ่อนคลาย" ก็เจอสารที่มีสรรพคุณนั้น
+function _rdSearchText(g) {
+  const claims = _rdArr(g.Claims).map(c => { const x = _rdClaims.find(y => y.ClaimCode === c); return x ? `${x.NameTH} ${x.NameEN || ''}` : c; }).join(' ');
+  return `${g.IngredientCode} ${g.NameTH} ${g.NameEN || ''} ${g.INCI || ''} ${g.RoleTH || ''} ${claims} ${g.FunctionTH || ''}`.toLowerCase();
+}
+// ผลค้นหาสารในคลังตามช่อง #rd-sug-q (null = ไม่ได้ค้น) — ทุกคำต้องเจอ (คั่นด้วยช่องว่าง), ใช้กับประเภทนี้ขึ้นก่อน
+function _rdSugMatches() {
+  const words = String(_rdSugQuery || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const type = _rdCurProject()?.ProductType;
+  return _rdIngredients.filter(g => g.IsActive !== false && words.every(w => _rdSearchText(g).includes(w)))
+    .sort((a, b) => (_rdFits(b, type) - _rdFits(a, type)) || String(a.NameTH).localeCompare(String(b.NameTH), 'th'));
+}
+function rdSugAddFirst() {
+  const inBoard = new Set(_rdDraft.items.map(i => i.code));
+  const g = (_rdSugMatches() || []).find(x => !inBoard.has(x.IngredientCode));
+  if (g) rdAddItem(g.IngredientCode);
 }
 
 function _rdRenderAddOptions() {
@@ -10439,6 +10740,13 @@ function rdRecalc() {
     + kpi('ต้นทุน/ชิ้น (เฉพาะสาร)', `${_rdFmt(r.tu, 2)} ฿`)
     + kpi('ได้ประมาณ', `${r.units.toLocaleString('th-TH')} ชิ้น`)
     + (isMl ? kpi('ความถ่วงจำเพาะสูตร', _rdFmt(r.mixSG, 3), '', `≈ ${_rdFmt(r.gpu, 1)} ก./ชิ้น · แบตช์ ≈ ${_rdFmt(d.batchKg / r.mixSG, 2)} ลิตร`) : '');
+  const sbT = document.getElementById('rd-sb-total');
+  if (sbT) {
+    sbT.textContent = `${_rdFmt(r.tp, 1)}%`;
+    sbT.className = ok100 ? 'text-success' : 'text-danger';
+    document.getElementById('rd-sb-batch').textContent = `${_rdFmt(r.tb, 2)} ฿`;
+    document.getElementById('rd-sb-unit').textContent = `${_rdFmt(r.tu, 2)} ฿`;
+  }
   if (!ok100) warn.unshift(`รวมยังไม่ครบ 100% (${r.tp > 100 ? 'เกิน' : 'ขาด'} ${_rdFmt(Math.abs(100 - r.tp), 1)}%) — บันทึกได้ แต่ส่งขออนุมัติไม่ได้`);
   if (isMl && r.sgMissing) warn.push(`มี ${r.sgMissing} สารที่ยังไม่มีค่าความถ่วงจำเพาะ — คิดเป็น 1.00 ไปก่อน (ใส่ค่าได้ที่ "คลังสาร")`);
   const unconfirmed = d.items.filter(it => { const g = _rdIng(it.code); return g && _rdPriceBadge(g); }).length;
@@ -10473,9 +10781,16 @@ function rdRecalc() {
     </div>`;
   }
   const regHtml = regBad.map(w => `<div class="text-danger"><i class="fas fa-ban me-1"></i>${w} — ส่งขออนุมัติไม่ได้</div>`).join('');
+  // กฎตรวจความสมเหตุสมผลของสูตร (rd_rules)
+  const rules = _rdRuleResults(d.items, _rdCurProject()?.ProductType).filter(x => x.applies);
+  const ruleFails = rules.filter(x => !x.ok);
+  const ruleHtml = ruleFails.map(x => `<div class="${x.r.Severity === 'block' ? 'text-danger' : 'text-warning-emphasis'}">
+      <i class="fas ${x.r.Severity === 'block' ? 'fa-ban' : 'fa-circle-exclamation text-warning'} me-1"></i><b>${_rdEsc(x.r.NameTH)}</b>: ${_rdEsc(x.val)} (ควร ${_rdEsc(x.want)})
+      ${x.r.Message ? `<span class="d-block small ms-3 text-muted">${_rdEsc(x.r.Message)}</span>` : ''}${x.r.Severity === 'block' ? '<span class="small ms-3">— ส่งขออนุมัติไม่ได้</span>' : ''}</div>`).join('')
+    + (rules.length ? `<div class="small text-muted"><i class="fas fa-list-check me-1"></i>กฎตรวจสูตร: ผ่าน ${rules.length - ruleFails.length}/${rules.length} ข้อ</div>` : '');
   document.getElementById('rd-warn').innerHTML = regHtml + (warn.length
     ? warn.map(w => `<div class="text-warning-emphasis"><i class="fas fa-triangle-exclamation me-1 text-warning"></i>${w}</div>`).join('')
-    : (regBad.length ? '' : '<div class="text-success"><i class="fas fa-check-circle me-1"></i>สูตรครบ 100% และทุกสารอยู่ในช่วงแนะนำ</div>')) + balanceHtml;
+    : (regBad.length || ruleFails.length ? '' : '<div class="text-success"><i class="fas fa-check-circle me-1"></i>สูตรครบ 100% และทุกสารอยู่ในช่วงแนะนำ</div>')) + ruleHtml + balanceHtml;
 }
 function rdApplyBalance() {
   const s = _rdBalanceSuggest(_rdBalanceMode);
@@ -10515,20 +10830,20 @@ function _rdRenderQC() {
 
 async function rdSaveVersion() {
   const d = _rdDraft, p = _rdCurProject();
-  if (!d || !p) return;
-  if (!d.name.trim()) { Swal.fire({ icon: 'warning', title: 'กรุณาใส่ชื่อโปรเจกต์' }); return; }
-  if (!d.items.length) { Swal.fire({ icon: 'warning', title: 'ยังไม่มีสารในสูตร' }); return; }
-  if (!(d.batchKg > 0) || !(d.unitW > 0)) { Swal.fire({ icon: 'warning', title: 'ขนาดแบตช์และขนาดบรรจุ/ชิ้นต้องมากกว่า 0' }); return; }
+  if (!d || !p) return false;
+  if (!d.name.trim()) { Swal.fire({ icon: 'warning', title: 'กรุณาใส่ชื่อโปรเจกต์' }); return false; }
+  if (!d.items.length) { Swal.fire({ icon: 'warning', title: 'ยังไม่มีสารในสูตร' }); return false; }
+  if (!(d.batchKg > 0) || !(d.unitW > 0)) { Swal.fire({ icon: 'warning', title: 'ขนาดแบตช์และขนาดบรรจุ/ชิ้นต้องมากกว่า 0' }); return false; }
   const r = _rdCalc(d.items, d.batchKg, d.unitW, d.fillUnit);
   _showLoader();
   // เลขสูตรถัดไป query สดจาก DB (สองเครื่องบันทึกพร้อมกัน — UNIQUE(ProjectCode,VersionNo) กันอีกชั้น)
   const { data: mx, error: mxErr } = await _sb.from('rd_formulas').select('VersionNo')
     .eq('ProjectCode', d.projectCode).order('VersionNo', { ascending: false }).limit(1);
-  if (mxErr) { _hideLoader(); _err('อ่านเลขสูตรล่าสุดไม่สำเร็จ', mxErr.message); return; }
+  if (mxErr) { _hideLoader(); _err('อ่านเลขสูตรล่าสุดไม่สำเร็จ', mxErr.message); return false; }
   const no = ((mx && mx[0]?.VersionNo) || 0) + 1;
   const items = d.items.map(it => {
     const inf = _rdItemInfo(it);
-    return { code: it.code, nameTH: inf.nameTH, nameEN: inf.nameEN, kind: inf.kind, pct: _rdNum(it.pct), phase: it.phase, pricePerKg: inf.price, sg: _rdNum(inf.sg) || null, regMax: _rdNum(inf.regMax) || null };
+    return { code: it.code, nameTH: inf.nameTH, nameEN: inf.nameEN, kind: inf.kind, pct: _rdNum(it.pct), phase: it.phase, pricePerKg: inf.price, sg: _rdNum(inf.sg) || null, regMax: _rdNum(inf.regMax) || null, inci: inf.g?.INCI || it.snap?.inci || null };
   });
   const payload = {
     FormulaCode: `${d.projectCode}-F${no}`, ProjectCode: d.projectCode, VersionNo: no, FromVersion: d.fromVersion,
@@ -10543,7 +10858,7 @@ async function rdSaveVersion() {
     payload.MixSG = d.fillUnit === 'ml' ? +r.mixSG.toFixed(4) : null;
   }
   const { error } = await _sb.from('rd_formulas').insert(payload);
-  if (error) { _hideLoader(); _err('บันทึกสูตรไม่สำเร็จ', error.message); return; }
+  if (error) { _hideLoader(); _err('บันทึกสูตรไม่สำเร็จ', error.message); return false; }
   // ชื่อ/สรรพคุณของโปรเจกต์บันทึกไปพร้อมกับสูตร
   const claims = [...d.claims];
   if (p.ProjectName !== d.name.trim() || JSON.stringify(_rdArr(p.Claims)) !== JSON.stringify(claims)) {
@@ -10553,8 +10868,11 @@ async function rdSaveVersion() {
   _hideLoader();
   _logAudit('INSERT', 'rd_formulas', payload.FormulaCode, `บันทึกสูตร ${no} (${_rdFmt(r.tp, 1)}%, ${_rdFmt(r.tu, 2)} ฿/ชิ้น)`);
   d.fromVersion = no;
+  _rdBaseSig = _rdSig();   // บันทึกแล้ว = ไม่มีงานค้าง
+  _rdBackupClear();
   await rdLoadData();
   Swal.fire({ icon: 'success', title: `บันทึกเป็นสูตร ${no} แล้ว`, timer: 1400, showConfirmButton: false });
+  return true;
 }
 
 // ── รายการสูตร + สถานะอนุมัติ ──
@@ -10565,9 +10883,9 @@ function _rdRenderVersions() {
   if (!vs.length) { el.innerHTML = '<div class="text-muted small">ยังไม่มีสูตรที่บันทึก — ปรับสูตรบนกระดานแล้วกด "บันทึกเป็นสูตรใหม่"</div>'; return; }
   el.innerHTML = vs.map(f => {
     const code = _rdEsc(f.FormulaCode), st = f.Status;
-    let info = `${_fmtDateTime(f.CreatedAt)}${f.CreatedBy ? ` · ${_rdEsc(f.CreatedBy)}` : ''} · ${_rdArr(f.Items).length} สาร · ${_rdFmt(f.TotalPct, 1)}% · ${_rdFmt(f.CostPerUnit, 2)} ฿/ชิ้น`;
-    if (st === 'รออนุมัติ') info += ` · ส่งโดย ${_rdEsc(f.SubmittedBy || '-')} ${_fmtDateTime(f.SubmittedAt)}`;
-    if (st === 'อนุมัติแล้ว') info += ` · อนุมัติโดย ${_rdEsc(f.ApprovedBy || '-')} ${_fmtDateTime(f.ApprovedAt)}`;
+    let info = `${_fmtDateTime(f.CreatedAt)}${f.CreatedBy ? ` · ${_rdEsc(_rdPerson(f.CreatedBy))}` : ''} · ${_rdArr(f.Items).length} สาร · ${_rdFmt(f.TotalPct, 1)}% · ${_rdFmt(f.CostPerUnit, 2)} ฿/ชิ้น`;
+    if (st === 'รออนุมัติ') info += ` · ส่งโดย ${_rdEsc(_rdPerson(f.SubmittedBy) || '-')} ${_fmtDateTime(f.SubmittedAt)}`;
+    if (st === 'อนุมัติแล้ว') info += ` · อนุมัติโดย ${_rdEsc(_rdPerson(f.ApprovedBy) || '-')} ${_fmtDateTime(f.ApprovedAt)}`;
     if (st === 'ไม่อนุมัติ') info += ` · <span class="text-danger">เหตุผล: ${_rdEsc(f.RejectReason || '-')}</span>`;
     const b = (label, fn, cls = 'btn-outline-secondary', icon = '') => `<button class="btn btn-sm ${cls} py-0" onclick="${fn}">${icon ? `<i class="fas fa-${icon} me-1"></i>` : ''}${label}</button>`;
     const acts = [b(st === 'อนุมัติแล้ว' ? 'คัดลอกไปแก้' : 'เปิดแก้ไข', `rdEditVersion('${code}')`, 'btn-outline-primary', 'pen')];
@@ -10578,15 +10896,83 @@ function _rdRenderVersions() {
     }
     if (st === 'รออนุมัติ') acts.push(b('ถอนคำขอ', `rdWithdraw('${code}')`, 'btn-outline-secondary', 'rotate-left'));
     if (st === 'อนุมัติแล้ว' && isAdmin) acts.push(b('ยกเลิกอนุมัติ', `rdUnapprove('${code}')`, 'btn-outline-danger', 'lock-open'));
+    acts.push(b('ฉลาก INCI', `rdOpenLabel('${code}')`, 'btn-outline-secondary', 'tag'));
+    if (_rdLabReady) {
+      const tr = _rdTrialsOf(f.FormulaCode);
+      const tc = !tr.length ? 'btn-outline-secondary' : tr[0].Result === 'ผ่าน' ? 'btn-outline-success' : tr[0].Result === 'ไม่ผ่าน' ? 'btn-outline-danger' : 'btn-outline-warning';
+      acts.push(b(`ผลทดลอง ${tr.length}`, `rdOpenTrials('${code}')`, tc, 'flask-vial'));
+      const sc = _rdStab.filter(c => c.FormulaCode === f.FormulaCode);
+      const done = sc.filter(c => c.Status !== 'รอตรวจ').length, dueN = sc.filter(_rdStabIsDue).length;
+      acts.push(b(sc.length ? `Stability ${done}/${sc.length}${dueN ? ` · ถึงกำหนด ${dueN}` : ''}` : 'Stability', `rdOpenStability('${code}')`,
+        dueN ? 'btn-danger' : sc.some(c => c.Status === 'ไม่ผ่าน') ? 'btn-outline-danger' : 'btn-outline-secondary', 'temperature-half'));
+    }
     acts.push(b('ใบผลิต', `rdOpenPrint('${code}')`, 'btn-outline-dark', 'file-lines'));
     if (st === 'ร่าง' || st === 'ไม่อนุมัติ') acts.push(`<button class="btn btn-sm btn-link text-danger py-0" onclick="rdFormulaDelete('${code}')" title="ลบสูตรนี้"><i class="fas fa-trash"></i></button>`);
     return `<div class="rd-ver d-flex flex-wrap justify-content-between align-items-center gap-2 ${f.VersionNo === _rdDraft.fromVersion ? 'cur' : ''}">
-      <div><span class="fw-bold">สูตร ${f.VersionNo}</span> <span class="badge ${RD_STATUS_BADGE[st] || 'bg-secondary'}">${_rdEsc(st)}</span>
+      <div><input type="checkbox" class="form-check-input me-1" title="เลือกเพื่อเทียบ" ${_rdCompareSel.has(f.FormulaCode) ? 'checked' : ''} onchange="rdToggleCompare('${code}', this.checked)"><span class="fw-bold">สูตร ${f.VersionNo}</span> <span class="badge ${RD_STATUS_BADGE[st] || 'bg-secondary'}">${_rdEsc(st)}</span>
         ${st === 'อนุมัติแล้ว' ? '<i class="fas fa-lock text-muted small ms-1" title="ล็อกแล้ว แก้ไขต้องคัดลอกเป็นสูตรใหม่"></i>' : ''}
         ${f.FromVersion ? `<span class="small text-muted ms-1">แก้จากสูตร ${f.FromVersion}</span>` : ''}
         <div class="small text-muted">${info}</div></div>
       <div class="d-flex flex-wrap gap-1">${acts.join('')}</div></div>`;
   }).join('');
+  _rdUpdateCompareBtn();
+}
+
+// ── เทียบ 2 สูตร ──
+function rdToggleCompare(code, on) {
+  if (on) {
+    _rdCompareSel.add(code);
+    if (_rdCompareSel.size > 2) _rdCompareSel.delete([..._rdCompareSel][0]);   // เลือกเกิน 2 → เอาตัวที่เลือกก่อนสุดออก
+  } else _rdCompareSel.delete(code);
+  _rdRenderVersions();
+}
+function _rdUpdateCompareBtn() {
+  const btn = document.getElementById('rd-cmp-btn');
+  if (btn) btn.disabled = _rdCompareSel.size !== 2;
+}
+function rdCompareVersions() {
+  const [a, b] = [..._rdCompareSel].map(c => _rdFormulas.find(f => f.FormulaCode === c)).filter(Boolean).sort((x, y) => x.VersionNo - y.VersionNo);
+  if (!a || !b) return;
+  const unit = f => (f.FillUnit === 'ml' ? 'มล.' : 'ก.');
+  const diff = (x, y, d = 2, suf = '') => {
+    const dv = _rdNum(y) - _rdNum(x);
+    if (Math.abs(dv) < 1e-9) return '<span class="text-muted">—</span>';
+    return `<span class="${dv > 0 ? 'text-success' : 'text-danger'}">${dv > 0 ? '+' : ''}${_rdFmt(dv, d)}${suf}</span>`;
+  };
+  const sumRow = (label, va, vb, d, suf = '') => `<tr><td>${label}</td><td class="text-end">${_rdFmt(va, d)}${suf}</td><td class="text-end">${_rdFmt(vb, d)}${suf}</td><td class="text-end">${diff(va, vb, d, suf)}</td></tr>`;
+  // รวมรายการสารทั้งสองสูตร เรียงตาม Phase ของสูตรใหม่ (สารที่มีแค่ในสูตรเก่าต่อท้าย)
+  const ia = new Map(_rdArr(a.Items).map(i => [i.code, i])), ib = new Map(_rdArr(b.Items).map(i => [i.code, i]));
+  const codes = [..._rdArr(b.Items).map(i => i.code), ..._rdArr(a.Items).map(i => i.code).filter(c => !ib.has(c))];
+  const rows = codes.map(c => {
+    const x = ia.get(c), y = ib.get(c), it = y || x;
+    const tag = !x ? '<span class="badge bg-success ms-1">เพิ่มใหม่</span>' : !y ? '<span class="badge bg-danger ms-1">เอาออก</span>' : '';
+    const changed = !x || !y || Math.abs(_rdNum(x.pct) - _rdNum(y.pct)) > 1e-9 || x.phase !== y.phase;
+    return `<tr class="${changed ? 'table-warning' : ''}"><td>${_rdEsc(it.nameTH)}${tag}<span class="d-block small text-muted">${_rdEsc(it.nameEN || '')}</span></td>
+      <td class="text-end">${x ? `${_rdFmt(x.pct, 2)} <span class="small text-muted">(${_rdEsc(x.phase)})</span>` : '—'}</td>
+      <td class="text-end">${y ? `${_rdFmt(y.pct, 2)} <span class="small text-muted">(${_rdEsc(y.phase)})</span>` : '—'}</td>
+      <td class="text-end">${diff(x?.pct, y?.pct)}</td></tr>`;
+  }).join('');
+  const nChanged = codes.filter(c => { const x = ia.get(c), y = ib.get(c); return !x || !y || Math.abs(_rdNum(x.pct) - _rdNum(y.pct)) > 1e-9; }).length;
+  const same = (p, q) => JSON.stringify(_rdArr(p)) === JSON.stringify(_rdArr(q));
+  const head = f => `สูตร ${f.VersionNo} <span class="badge ${RD_STATUS_BADGE[f.Status] || 'bg-secondary'}">${_rdEsc(f.Status)}</span><div class="small text-muted fw-normal">${_rdDay(f.CreatedAt)}</div>`;
+  Swal.fire({
+    width: 960, title: `เทียบสูตร ${a.VersionNo} กับ สูตร ${b.VersionNo}`, confirmButtonText: 'ปิด',
+    html: `<div class="text-start small">
+      <table class="table table-sm align-middle"><thead><tr><th>สรุป</th><th class="text-end">${head(a)}</th><th class="text-end">${head(b)}</th><th class="text-end">ต่าง</th></tr></thead><tbody>
+        ${sumRow('รวม %', a.TotalPct, b.TotalPct, 2, '%')}
+        ${sumRow('ต้นทุน/แบตช์', a.CostPerBatch, b.CostPerBatch, 2, ' ฿')}
+        ${sumRow('ต้นทุน/ชิ้น', a.CostPerUnit, b.CostPerUnit, 2, ' ฿')}
+        ${sumRow('ขนาดแบตช์ (กก.)', a.BatchKg, b.BatchKg, 2)}
+        ${sumRow(`ขนาดบรรจุ/ชิ้น (${unit(b)})`, a.UnitWeightG, b.UnitWeightG, 0)}
+      </tbody></table>
+      <div class="fw-bold mb-1">รายการสาร — เปลี่ยน ${nChanged} รายการ (แถวสีเหลือง)</div>
+      <table class="table table-sm align-middle"><thead><tr><th>สาร</th><th class="text-end">สูตร ${a.VersionNo} %</th><th class="text-end">สูตร ${b.VersionNo} %</th><th class="text-end">ต่าง</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div class="text-muted">ขั้นตอนการผสม: ${same(a.Steps, b.Steps) ? 'เหมือนกัน' : '<b class="text-warning-emphasis">ต่างกัน</b>'} · เกณฑ์ QC: ${same(a.QCSpecs, b.QCSpecs) ? 'เหมือนกัน' : '<b class="text-warning-emphasis">ต่างกัน</b>'}
+        ${(a.Note || b.Note) && a.Note !== b.Note ? `<br>หมายเหตุสูตร ${a.VersionNo}: ${_rdEsc(a.Note || '—')}<br>หมายเหตุสูตร ${b.VersionNo}: ${_rdEsc(b.Note || '—')}` : ''}</div>
+      <div class="text-muted mt-1">ต้นทุนใช้ราคาที่บันทึกไว้ตอนบันทึกแต่ละสูตร (ราคาคลังที่เปลี่ยนทีหลังไม่กระทบ)</div>
+    </div>`,
+  });
 }
 
 // อัปเดตสถานะแบบมีเงื่อนไขสถานะเดิม (.eq Status) + .select() เช็คว่าเขียนได้จริง — RLS ปฏิเสธแบบเงียบ (0 แถว) ไม่ error
@@ -10594,17 +10980,23 @@ async function _rdSetStatus(code, fromStatus, patch, auditAction, okMsg) {
   _showLoader();
   const { data, error } = await _sb.from('rd_formulas').update(patch).eq('FormulaCode', code).eq('Status', fromStatus).select('_row_id');
   _hideLoader();
-  if (error) { _err('อัปเดตสถานะไม่สำเร็จ', error.message); return; }
-  if (!data || !data.length) { _err('อัปเดตสถานะไม่สำเร็จ', 'สถานะของสูตรนี้อาจถูกเปลี่ยนจากเครื่องอื่นแล้ว หรือคุณไม่มีสิทธิ์ — กดรีเฟรชแล้วลองใหม่'); return; }
+  if (error) { _err('อัปเดตสถานะไม่สำเร็จ', error.message); return false; }
+  if (!data || !data.length) { _err('อัปเดตสถานะไม่สำเร็จ', 'สถานะของสูตรนี้อาจถูกเปลี่ยนจากเครื่องอื่นแล้ว หรือคุณไม่มีสิทธิ์ — กดรีเฟรชแล้วลองใหม่'); return false; }
   _logAudit(auditAction, 'rd_formulas', code, okMsg);
   await rdLoadData();
   Swal.fire({ icon: 'success', title: okMsg, timer: 1300, showConfirmButton: false });
+  return true;
 }
 async function rdSubmitApproval(code) {
   const f = _rdFormulas.find(x => x.FormulaCode === code);
   if (!f) return;
   if (Math.abs(_rdNum(f.TotalPct) - 100) >= 0.05) {
     Swal.fire({ icon: 'warning', title: 'ส่งขออนุมัติไม่ได้', text: `สูตร ${f.VersionNo} รวม ${_rdFmt(f.TotalPct, 1)}% ยังไม่ครบ 100% — เปิดแก้ไขแล้วบันทึกเป็นสูตรใหม่` });
+    return;
+  }
+  const ruleBlocks = _rdRuleBlocks(f);
+  if (ruleBlocks.length) {
+    Swal.fire({ icon: 'error', title: 'ส่งขออนุมัติไม่ได้ — ไม่ผ่านกฎตรวจสูตร', html: `${ruleBlocks.map(_rdEsc).join('<br>')}<br><span class="small text-muted">เปิดแก้ไขแล้วบันทึกเป็นสูตรใหม่</span>` });
     return;
   }
   const reg = _rdRegViolations(f.Items);
@@ -10632,10 +11024,23 @@ async function rdApprove(code) {
     Swal.fire({ icon: 'error', title: 'อนุมัติไม่ได้ — เกินเพดานตามกฎหมาย', html: `${reg.map(_rdEsc).join('<br>')}<br><span class="small text-muted">กด "ไม่อนุมัติ" พร้อมเหตุผลให้ R&amp;D แก้สูตร</span>` });
     return;
   }
-  const ok = await Swal.fire({ icon: 'question', title: `อนุมัติสูตร ${f.VersionNo}?`, text: `${f.FormulaCode} — หลังอนุมัติสูตรจะถูกล็อก และพิมพ์ใบผลิตได้`, showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754' });
+  const ruleBlocks = _rdRuleBlocks(f);
+  if (ruleBlocks.length) {
+    Swal.fire({ icon: 'error', title: 'อนุมัติไม่ได้ — ไม่ผ่านกฎตรวจสูตร', html: `${ruleBlocks.map(_rdEsc).join('<br>')}<br><span class="small text-muted">กด "ไม่อนุมัติ" พร้อมเหตุผลให้ R&amp;D แก้สูตร</span>` });
+    return;
+  }
+  // สรุปหลักฐานประกอบการอนุมัติ: ผลทดลองล่าสุด + ความคงตัว + กฎที่เตือน
+  const tr = _rdTrialsOf(code), sc = _rdStab.filter(c => c.FormulaCode === code);
+  const warns = _rdRuleResults(f.Items, f.ProductType).filter(x => x.applies && !x.ok).map(x => x.r.NameTH);
+  const evid = !_rdLabReady ? '' : `<div class="text-start small mt-2">
+      <div><i class="fas fa-flask-vial me-1"></i>ผลทดลอง: ${tr.length ? `${tr.length} ครั้ง · ล่าสุด <b>${_rdEsc(tr[0].Result)}</b> (${_fmtDate(tr[0].TrialDate)})` : '<span class="text-danger">ยังไม่มีบันทึกผลทดลอง</span>'}</div>
+      <div><i class="fas fa-temperature-half me-1"></i>Stability: ${sc.length ? `ตรวจแล้ว ${sc.filter(c => c.Status !== 'รอตรวจ').length}/${sc.length} จุด · ไม่ผ่าน ${sc.filter(c => c.Status === 'ไม่ผ่าน').length}` : 'ยังไม่ได้เริ่มติดตาม'}</div>
+      ${warns.length ? `<div class="text-warning-emphasis"><i class="fas fa-circle-exclamation me-1"></i>กฎที่เตือน: ${warns.map(_rdEsc).join(', ')}</div>` : ''}</div>`;
+  const ok = await Swal.fire({ icon: 'question', title: `อนุมัติสูตร ${f.VersionNo}?`, html: `${_rdEsc(f.FormulaCode)} — หลังอนุมัติสูตรจะถูกล็อก และพิมพ์ใบผลิตได้${evid}`, showCancelButton: true, confirmButtonText: 'อนุมัติ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#198754' });
   if (!ok.isConfirmed) return;
-  _rdSetStatus(code, 'รออนุมัติ', { Status: 'อนุมัติแล้ว', ApprovedBy: _currentUser?.name || null, ApprovedAt: new Date().toISOString(), RejectReason: null },
+  const okA = await _rdSetStatus(code, 'รออนุมัติ', { Status: 'อนุมัติแล้ว', ApprovedBy: _currentUser?.name || null, ApprovedAt: new Date().toISOString(), RejectReason: null },
     'APPROVE', `อนุมัติสูตร ${f.VersionNo} แล้ว`);
+  if (okA) _rdSendResolved(f, 'approve');
 }
 async function rdReject(code) {
   const f = _rdFormulas.find(x => x.FormulaCode === code);
@@ -10646,8 +11051,9 @@ async function rdReject(code) {
     inputValidator: v => (!v || !v.trim()) ? 'กรุณาใส่เหตุผล' : undefined,
   });
   if (!res.isConfirmed) return;
-  _rdSetStatus(code, 'รออนุมัติ', { Status: 'ไม่อนุมัติ', ApprovedBy: _currentUser?.name || null, ApprovedAt: new Date().toISOString(), RejectReason: res.value.trim() },
+  const okR = await _rdSetStatus(code, 'รออนุมัติ', { Status: 'ไม่อนุมัติ', ApprovedBy: _currentUser?.name || null, ApprovedAt: new Date().toISOString(), RejectReason: res.value.trim() },
     'REJECT', `ไม่อนุมัติสูตร ${f.VersionNo}`);
+  if (okR) _rdSendResolved(f, 'reject', res.value.trim());
 }
 async function rdUnapprove(code) {
   const f = _rdFormulas.find(x => x.FormulaCode === code);
@@ -10702,10 +11108,413 @@ async function rdProjectDelete(code) {
   _hideLoader();
   if (pErr || !pd || !pd.length) { _err('ลบโปรเจกต์ไม่สำเร็จ', pErr ? pErr.message : 'ไม่มีสิทธิ์ลบ (ต้องเป็นหัวหน้างานขึ้นไป)'); await rdLoadData(); return; }
   _logAudit('DELETE', 'rd_projects', code, `ลบโปรเจกต์ ${p.ProjectName} (+${vs.length} สูตร)`);
+  if (_rdBackupRead()?.draft?.projectCode === code) _rdBackupClear();
+  if (_rdDraft?.projectCode === code) { _rdDraft = null; _rdBaseSig = null; }
   _rdCurCode = null;
-  _rdDraft = null;
   await rdLoadData();
   Swal.fire({ icon: 'success', title: `ลบโปรเจกต์ ${code} แล้ว`, timer: 1300, showConfirmButton: false });
+}
+
+// ══ กฎตรวจความสมเหตุสมผลของสูตร (rd_rules — ดู create_rd_lab_tables.sql สำหรับความหมายของแต่ละ RuleType) ══
+const RD_RULE_TYPES = { sum_range: '% รวมของกลุ่ม A อยู่ในช่วง', ratio_range: 'อัตราส่วน A ÷ B อยู่ในช่วง', requires: 'ถ้ามีกลุ่ม A ต้องมีกลุ่ม B' };
+function _rdRuleWant(r) {
+  const mn = r.MinVal == null ? null : _rdNum(r.MinVal), mx = r.MaxVal == null ? null : _rdNum(r.MaxVal);
+  const unit = r.RuleType === 'ratio_range' ? ' เท่า' : '%';
+  if (r.RuleType === 'requires') return `กลุ่ม B ≥ ${mn ?? 0}%`;
+  return mn != null && mx != null ? `${mn}–${mx}${unit}` : mn != null ? `≥ ${mn}${unit}` : mx != null ? `≤ ${mx}${unit}` : '—';
+}
+function _rdRuleResults(items, type) {
+  const list = _rdArr(items);
+  const pctOf = codes => list.reduce((s, it) => s + (codes.includes(it.code) ? _rdNum(it.pct) : 0), 0);
+  return _rdRules.filter(r => r.IsActive !== false && (!_rdArr(r.ProductTypes).length || _rdArr(r.ProductTypes).includes(type))).map(r => {
+    const A = _rdArr(r.GroupA), B = _rdArr(r.GroupB);
+    const mn = r.MinVal == null ? null : _rdNum(r.MinVal), mx = r.MaxVal == null ? null : _rdNum(r.MaxVal);
+    const inRange = v => (mn == null || v >= mn - 1e-9) && (mx == null || v <= mx + 1e-9);
+    let applies = false, ok = true, val = '';
+    if (r.RuleType === 'sum_range') {
+      const s = pctOf(A); applies = s > 0; ok = inRange(s); val = `รวม ${_rdFmt(s, 2)}%`;
+    } else if (r.RuleType === 'ratio_range') {
+      const sb = pctOf(B), sa = pctOf(A); applies = sb > 0; const ratio = sb > 0 ? sa / sb : 0;
+      ok = inRange(ratio); val = `อัตราส่วน ${_rdFmt(ratio, 2)} เท่า`;
+    } else if (r.RuleType === 'requires') {
+      applies = !A.length || pctOf(A) > _rdNum(r.Threshold);
+      const sb = pctOf(B); ok = sb >= (mn ?? 0.000001) - 1e-9; val = `กลุ่ม B มี ${_rdFmt(sb, 2)}%`;
+    }
+    return { r, applies, ok: !applies || ok, val, want: _rdRuleWant(r) };
+  });
+}
+// กฎระดับ "block" ที่สูตร (snapshot) ไม่ผ่าน — กันส่งขออนุมัติ/อนุมัติ
+function _rdRuleBlocks(f) {
+  return _rdRuleResults(f.Items, f.ProductType).filter(x => x.applies && !x.ok && x.r.Severity === 'block').map(x => `${x.r.NameTH}: ${x.val} (ควร ${x.want})`);
+}
+function rdOpenRules() {
+  if (!_rdLabReady) { Swal.fire({ icon: 'warning', title: 'ยังไม่ได้รัน create_rd_lab_tables.sql', text: 'รัน SQL นี้ใน Supabase ก่อนใช้กฎตรวจสูตร' }); return; }
+  _rdRuleEdit = null;
+  _rdRenderRules();
+  if (!_rdRulesModal) _rdRulesModal = new bootstrap.Modal(document.getElementById('rdRulesModal'));
+  _rdRulesModal.show();
+}
+function _rdIngNames(codes) { return _rdArr(codes).map(c => _rdIng(c)?.NameTH || c).join(', ') || '—'; }
+function _rdRenderRules() {
+  const body = document.getElementById('rd-rules-body');
+  if (_rdRuleEdit) { _rdRenderRuleForm(body); return; }
+  const types = t => _rdArr(t).map(c => _rdType(c)?.NameTH || c).join(', ') || 'ทุกประเภท';
+  body.innerHTML = `<div class="d-flex align-items-center mb-2"><div class="small text-muted me-auto">กฎเหล่านี้ตรวจสูตรบนกระดานทุกครั้งที่แก้ — "เตือน" แสดงคำเตือน, "บล็อก" ส่งขออนุมัติ/อนุมัติไม่ได้</div>
+      <button class="btn btn-sm btn-primary" onclick="_rdRuleEdit={};_rdRenderRules()"><i class="fas fa-plus me-1"></i>เพิ่มกฎ</button></div>
+    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>กฎ</th><th>ใช้กับ</th><th>เงื่อนไข</th><th style="width:70px">ระดับ</th><th style="width:60px">ใช้งาน</th><th style="width:60px"></th></tr></thead><tbody>
+    ${_rdRules.slice().sort((a, b) => String(a.RuleCode).localeCompare(String(b.RuleCode))).map(r => `<tr class="${r.IsActive === false ? 'text-muted' : ''}">
+      <td><b>${_rdEsc(r.NameTH)}</b><span class="d-block small text-muted">${_rdEsc(r.Message || '')}</span></td>
+      <td class="small">${_rdEsc(types(r.ProductTypes))}</td>
+      <td class="small">${_rdEsc(RD_RULE_TYPES[r.RuleType] || r.RuleType)} <b>${_rdEsc(_rdRuleWant(r))}</b>
+        <span class="d-block">A: ${_rdEsc(r.RuleType === 'requires' && !_rdArr(r.GroupA).length ? '(ทุกสูตร)' : _rdIngNames(r.GroupA))}</span>
+        ${r.RuleType !== 'sum_range' ? `<span class="d-block">B: ${_rdEsc(_rdIngNames(r.GroupB))}</span>` : ''}</td>
+      <td>${r.Severity === 'block' ? '<span class="badge bg-danger">บล็อก</span>' : '<span class="badge bg-warning text-dark">เตือน</span>'}</td>
+      <td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" ${r.IsActive !== false ? 'checked' : ''} onchange="rdRuleToggle('${_rdEsc(r.RuleCode)}', this.checked)"></div></td>
+      <td class="text-nowrap"><button class="btn btn-sm btn-link p-0 me-2" title="แก้ไข" onclick="_rdRuleEdit=_rdRules.find(x=>x.RuleCode==='${_rdEsc(r.RuleCode)}');_rdRenderRules()"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-sm btn-link text-danger p-0" title="ลบกฎ" onclick="rdRuleDelete('${_rdEsc(r.RuleCode)}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')
+      || '<tr><td colspan="6" class="text-center text-muted py-3">ยังไม่มีกฎ</td></tr>'}
+    </tbody></table></div>`;
+}
+function _rdRenderRuleForm(body) {
+  const r = _rdRuleEdit, ty = r.RuleType || 'sum_range';
+  const ingOpts = sel => _rdIngredients.slice().sort((a, b) => String(a.NameTH).localeCompare(String(b.NameTH), 'th'))
+    .map(g => `<option value="${_rdEsc(g.IngredientCode)}" ${_rdArr(sel).includes(g.IngredientCode) ? 'selected' : ''}>${_rdEsc(g.NameTH)} — ${_rdEsc(g.INCI || g.NameEN || '')}</option>`).join('');
+  const v = k => r[k] == null ? '' : _rdEsc(r[k]);
+  body.innerHTML = `<div class="row g-2">
+    <div class="col-md-8"><label class="form-label small mb-0 fw-bold">ชื่อกฎ *</label><input class="form-control form-control-sm" id="rd-rule-name" value="${v('NameTH')}"></div>
+    <div class="col-md-4"><label class="form-label small mb-0">ระดับ</label><select class="form-select form-select-sm" id="rd-rule-sev">
+      <option value="warn" ${r.Severity !== 'block' ? 'selected' : ''}>เตือน</option><option value="block" ${r.Severity === 'block' ? 'selected' : ''}>บล็อก (ส่ง/อนุมัติไม่ได้)</option></select></div>
+    <div class="col-12"><label class="form-label small mb-0">ใช้กับประเภท (ไม่ติ๊ก = ทุกประเภท)</label><div>${_rdTypes.map(t => `<div class="form-check form-check-inline">
+      <input class="form-check-input rd-rule-type" type="checkbox" value="${_rdEsc(t.TypeCode)}" id="rd-rule-t-${_rdEsc(t.TypeCode)}" ${_rdArr(r.ProductTypes).includes(t.TypeCode) ? 'checked' : ''}>
+      <label class="form-check-label small" for="rd-rule-t-${_rdEsc(t.TypeCode)}">${_rdEsc(t.NameTH)}</label></div>`).join('')}</div></div>
+    <div class="col-md-6"><label class="form-label small mb-0 fw-bold">ชนิดกฎ</label><select class="form-select form-select-sm" id="rd-rule-kind"
+      onchange="_rdRuleEdit={..._rdRuleReadForm(),RuleType:this.value};_rdRenderRules()">
+      ${Object.entries(RD_RULE_TYPES).map(([k, l]) => `<option value="${k}" ${ty === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="col-md-6 small text-muted d-flex align-items-end">${ty === 'sum_range' ? 'เช่น น้ำมันหอมระเหยรวมไม่เกิน 2%' : ty === 'ratio_range' ? 'เช่น เบกกิ้งโซดา ÷ กรดซิตริก 1.3–2.5 เท่า' : 'เช่น ถ้ามีน้ำ (> 0%) ต้องมีสารกันเสีย ≥ 0.5% — กลุ่ม A ว่าง = บังคับทุกสูตร'}</div>
+    <div class="col-md-6"><label class="form-label small mb-0">กลุ่ม A (กด Ctrl ค้างเพื่อเลือกหลายตัว)</label><select multiple size="8" class="form-select form-select-sm" id="rd-rule-a">${ingOpts(r.GroupA)}</select></div>
+    <div class="col-md-6" ${ty === 'sum_range' ? 'style="display:none"' : ''}><label class="form-label small mb-0">กลุ่ม B</label><select multiple size="8" class="form-select form-select-sm" id="rd-rule-b">${ingOpts(r.GroupB)}</select></div>
+    ${ty === 'requires'
+      ? `<div class="col-md-4"><label class="form-label small mb-0">เมื่อกลุ่ม A มากกว่า (%)</label><input type="number" step="0.01" class="form-control form-control-sm" id="rd-rule-th" value="${v('Threshold') || 0}"></div>
+         <div class="col-md-4"><label class="form-label small mb-0">กลุ่ม B ต้องมีอย่างน้อย (%)</label><input type="number" step="0.01" class="form-control form-control-sm" id="rd-rule-min" value="${v('MinVal')}"></div>`
+      : `<div class="col-md-4"><label class="form-label small mb-0">ต่ำสุด${ty === 'ratio_range' ? ' (เท่า)' : ' (%)'}</label><input type="number" step="0.01" class="form-control form-control-sm" id="rd-rule-min" value="${v('MinVal')}" placeholder="ว่าง = ไม่จำกัด"></div>
+         <div class="col-md-4"><label class="form-label small mb-0">สูงสุด${ty === 'ratio_range' ? ' (เท่า)' : ' (%)'}</label><input type="number" step="0.01" class="form-control form-control-sm" id="rd-rule-max" value="${v('MaxVal')}" placeholder="ว่าง = ไม่จำกัด"></div>`}
+    <div class="col-12"><label class="form-label small mb-0">คำอธิบาย/เหตุผล (แสดงตอนไม่ผ่าน)</label><textarea class="form-control form-control-sm" rows="2" id="rd-rule-msg">${v('Message')}</textarea></div>
+  </div>
+  <div class="d-flex justify-content-end gap-2 mt-3">
+    <button class="btn btn-secondary btn-sm" onclick="_rdRuleEdit=null;_rdRenderRules()">กลับ</button>
+    <button class="btn btn-primary btn-sm" onclick="rdRuleSubmit()"><i class="fas fa-save me-1"></i>บันทึกกฎ</button></div>`;
+}
+function _rdRuleReadForm() {
+  const val = id => document.getElementById(id)?.value?.trim() ?? '';
+  const num = id => { const s = val(id); return s === '' ? null : _rdNum(s); };
+  const multi = id => [...(document.getElementById(id)?.selectedOptions || [])].map(o => o.value);
+  return {
+    ...(_rdRuleEdit || {}), NameTH: val('rd-rule-name'), Severity: val('rd-rule-sev') || 'warn', RuleType: val('rd-rule-kind') || 'sum_range',
+    ProductTypes: [...document.querySelectorAll('#rd-rules-body .rd-rule-type:checked')].map(c => c.value),
+    GroupA: multi('rd-rule-a'), GroupB: multi('rd-rule-b'), MinVal: num('rd-rule-min'), MaxVal: num('rd-rule-max'),
+    Threshold: num('rd-rule-th'), Message: val('rd-rule-msg') || null,
+  };
+}
+async function rdRuleSubmit() {
+  const r = _rdRuleReadForm();
+  if (!r.NameTH) { Swal.fire({ icon: 'warning', title: 'กรุณาใส่ชื่อกฎ' }); return; }
+  if (r.RuleType !== 'requires' && !r.GroupA.length) { Swal.fire({ icon: 'warning', title: 'เลือกสารในกลุ่ม A อย่างน้อย 1 ตัว' }); return; }
+  if (r.RuleType !== 'sum_range' && !r.GroupB.length) { Swal.fire({ icon: 'warning', title: 'เลือกสารในกลุ่ม B อย่างน้อย 1 ตัว' }); return; }
+  if (r.RuleType !== 'requires' && r.MinVal == null && r.MaxVal == null) { Swal.fire({ icon: 'warning', title: 'ใส่ค่าต่ำสุดหรือสูงสุดอย่างน้อย 1 ช่อง' }); return; }
+  if (r.MinVal != null && r.MaxVal != null && r.MinVal > r.MaxVal) { Swal.fire({ icon: 'warning', title: 'ค่าต่ำสุดต้องไม่มากกว่าค่าสูงสุด' }); return; }
+  const payload = { NameTH: r.NameTH, Severity: r.Severity, RuleType: r.RuleType, ProductTypes: r.ProductTypes,
+    GroupA: r.GroupA, GroupB: r.RuleType === 'sum_range' ? [] : r.GroupB,
+    MinVal: r.MinVal, MaxVal: r.RuleType === 'requires' ? null : r.MaxVal, Threshold: r.RuleType === 'requires' ? (r.Threshold ?? 0) : null, Message: r.Message };
+  _showLoader();
+  let error, code = r.RuleCode;
+  if (code) ({ error } = await _sb.from('rd_rules').update({ ...payload, UpdatedAt: new Date().toISOString() }).eq('RuleCode', code));
+  else { code = `R-${Date.now().toString(36).toUpperCase()}`; ({ error } = await _sb.from('rd_rules').insert({ ...payload, RuleCode: code })); }
+  _hideLoader();
+  if (error) { _err('บันทึกกฎไม่สำเร็จ', error.message); return; }
+  _logAudit(r.RuleCode ? 'UPDATE' : 'INSERT', 'rd_rules', code, r.NameTH);
+  _rdRuleEdit = null;
+  await rdLoadData();
+  _rdRenderRules();
+}
+async function rdRuleToggle(code, on) {
+  const { error } = await _sb.from('rd_rules').update({ IsActive: on, UpdatedAt: new Date().toISOString() }).eq('RuleCode', code);
+  if (error) { _err('เปลี่ยนสถานะกฎไม่สำเร็จ', error.message); }
+  await rdLoadData();
+  _rdRenderRules();
+}
+async function rdRuleDelete(code) {
+  const r = _rdRules.find(x => x.RuleCode === code);
+  const ok = await Swal.fire({ icon: 'warning', title: `ลบกฎ "${r?.NameTH || code}"?`, text: 'ถ้าแค่อยากหยุดใช้ชั่วคราว ให้ปิดสวิตช์ "ใช้งาน" แทน', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!ok.isConfirmed) return;
+  const { data, error } = await _sb.from('rd_rules').delete().eq('RuleCode', code).select('_row_id');
+  if (error || !data?.length) { _err('ลบกฎไม่สำเร็จ', error ? error.message : 'ไม่มีสิทธิ์ลบ (ต้องเป็นหัวหน้างานขึ้นไป)'); return; }
+  _logAudit('DELETE', 'rd_rules', code, r?.NameTH || '');
+  await rdLoadData();
+  _rdRenderRules();
+}
+
+// ══ รายการส่วนผสมสำหรับฉลาก (INCI) ══
+// หลักการเขียนฉลากเครื่องสำอาง (ASEAN/อย.): เรียงตามปริมาณจากมากไปน้อย, สารที่ < 1% เรียงลำดับใดก็ได้ต่อท้าย,
+// สี (CI ...) ระบุท้ายสุดได้ — ชื่อผสม "A (and) B" แยกเป็นแต่ละชื่อ, ชื่อซ้ำรวม % กัน
+function _rdLabelList(f) {
+  const map = new Map(), missing = [];
+  _rdArr(f.Items).forEach(it => {
+    const inci = (_rdIng(it.code)?.INCI || it.inci || '').trim();
+    if (!inci) missing.push(it.nameTH || it.code);
+    String(inci || it.nameEN || it.nameTH).split(/\s*\(and\)\s*/i).map(s => s.trim()).filter(Boolean).forEach(name => {
+      const key = name.toLowerCase();
+      const cur = map.get(key) || { name, pct: 0 };
+      cur.pct += _rdNum(it.pct);
+      map.set(key, cur);
+    });
+  });
+  const all = [...map.values()].sort((a, b) => b.pct - a.pct);
+  const isColor = x => /^CI\s*\d/i.test(x.name);
+  const major = all.filter(x => !isColor(x) && x.pct >= 1), minor = all.filter(x => !isColor(x) && x.pct < 1), colors = all.filter(isColor);
+  return { major, minor, colors, missing, text: [...major, ...minor, ...colors].map(x => x.name).join(', ') };
+}
+function rdOpenLabel(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  if (!f) return;
+  const L = _rdLabelList(f), p = _rdProjects.find(x => x.ProjectCode === f.ProjectCode);
+  const rows = (list, grp) => list.map(x => `<tr><td>${_rdEsc(x.name)}</td><td class="text-end">${_rdFmt(x.pct, 3)}</td><td class="small text-muted">${grp}</td></tr>`).join('');
+  Swal.fire({
+    width: 820, title: `ส่วนผสมสำหรับฉลาก — สูตร ${f.VersionNo}`, showCancelButton: true, confirmButtonText: '<i class="fas fa-copy me-1"></i>คัดลอกรายการ', cancelButtonText: 'ปิด',
+    html: `<div class="text-start small">
+      <div class="text-muted mb-1">${_rdEsc(p?.ProjectName || f.ProjectCode)} · ${_rdEsc(f.FormulaCode)} · สถานะ ${_rdEsc(f.Status)}</div>
+      <div class="fw-bold">Ingredients:</div>
+      <div class="border rounded p-2 mb-2" style="background:#f8fafc;font-size:.95rem;user-select:all">${_rdEsc(L.text)}</div>
+      ${L.missing.length ? `<div class="text-danger mb-2"><i class="fas fa-triangle-exclamation me-1"></i>สารยังไม่มีชื่อ INCI (ใช้ชื่ออังกฤษแทน — ควรใส่ INCI ในคลังสาร): ${L.missing.map(_rdEsc).join(', ')}</div>` : ''}
+      <details><summary class="text-muted">ดู % ที่ใช้เรียงลำดับ (ข้อมูลภายใน ไม่ต้องพิมพ์บนฉลาก)</summary>
+        <table class="table table-sm mt-1"><thead><tr><th>INCI</th><th class="text-end">%</th><th>ลำดับ</th></tr></thead><tbody>
+          ${rows(L.major, '≥ 1% เรียงมาก→น้อย')}${rows(L.minor, '< 1% (เรียงลำดับใดก็ได้)')}${rows(L.colors, 'สี (ท้ายสุด)')}</tbody></table></details>
+      <div class="text-muted mt-2">ตรวจกับฝ่ายทะเบียนก่อนใช้จริง — ถ้าน้ำหอมมีสารก่อภูมิแพ้เกินเกณฑ์ ต้องเพิ่มชื่อสารนั้นต่อท้าย (ข้อมูลจากใบรับรองน้ำหอมของซัพพลายเออร์)</div>
+    </div>`,
+  }).then(r => {
+    if (!r.isConfirmed) return;
+    navigator.clipboard?.writeText(L.text).then(
+      () => Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'คัดลอกรายการส่วนผสมแล้ว', showConfirmButton: false, timer: 1500 }),
+      () => Swal.fire({ icon: 'info', title: 'คัดลอกอัตโนมัติไม่ได้', html: `เลือกข้อความแล้วกด Ctrl+C<br><textarea class="form-control mt-2" rows="4">${_rdEsc(L.text)}</textarea>` }));
+  });
+}
+
+// ══ ผลทดลอง (rd_trials + รูปใน Storage bucket rd-trial-photos) ══
+function _rdTrialsOf(code) {
+  return _rdTrials.filter(t => t.FormulaCode === code)
+    .sort((a, b) => String(b.TrialDate || '').localeCompare(String(a.TrialDate || '')) || String(b.CreatedAt || '').localeCompare(String(a.CreatedAt || '')));
+}
+function _rdQcSpecText(f, spec) {
+  const isMl = f.FillUnit === 'ml';
+  return String(spec || '').replaceAll('{W}', _rdFmt(f.UnitWeightG, 0)).replaceAll('{SG}', _rdFmt(isMl ? _rdNum(f.MixSG) || 1 : 1, 3));
+}
+async function rdOpenTrials(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  if (!f) return;
+  document.getElementById('rd-trials-title').innerHTML = `<i class="fas fa-flask-vial me-2"></i>ผลทดลอง — ${_rdEsc(f.FormulaCode)} (สูตร ${f.VersionNo})`;
+  if (!_rdTrialsModal) _rdTrialsModal = new bootstrap.Modal(document.getElementById('rdTrialsModal'));
+  _rdTrialsModal.show();
+  await _rdRenderTrials(code);
+}
+async function _rdRenderTrials(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  const trials = _rdTrialsOf(code);
+  // ขอ signed URL ของรูปที่ยังไม่มี (หมดอายุ 1 ชม. — ขอใหม่ทุกครั้งที่เปิดโมดัล)
+  const paths = trials.flatMap(t => _rdArr(t.PhotoPaths)).filter(p => !_rdTrialPhotoUrls[p]);
+  if (paths.length) {
+    const { data } = await _sb.storage.from(RD_TRIAL_BUCKET).createSignedUrls(paths, 3600);
+    (data || []).forEach(d => { if (d.signedUrl) _rdTrialPhotoUrls[d.path] = d.signedUrl; });
+  }
+  const resBadge = r => `<span class="badge ${r === 'ผ่าน' ? 'bg-success' : r === 'ไม่ผ่าน' ? 'bg-danger' : 'bg-warning text-dark'}">${_rdEsc(r)}</span>`;
+  const list = trials.map(t => `<div class="border rounded p-2 mb-2">
+      <div class="d-flex align-items-center gap-2"><b>${_fmtDate(t.TrialDate)}</b>${resBadge(t.Result)}<span class="small text-muted">โดย ${_rdEsc(_rdPerson(t.CreatedBy) || '-')}</span>
+        <button class="btn btn-sm btn-link text-danger ms-auto p-0" title="ลบผลทดลองนี้" onclick="rdTrialDelete(${t._row_id}, '${_rdEsc(code)}')"><i class="fas fa-trash"></i></button></div>
+      ${_rdArr(t.Metrics).length ? `<table class="table table-sm mb-1 mt-1"><thead><tr><th>หัวข้อ</th><th>มาตรฐาน</th><th>ผลวัด</th><th style="width:60px">ผล</th></tr></thead><tbody>
+        ${_rdArr(t.Metrics).map(m => `<tr><td>${_rdEsc(m.item)}</td><td class="small text-muted">${_rdEsc(m.spec)}</td><td>${_rdEsc(m.value || '—')}</td>
+          <td>${m.pass === true ? '<i class="fas fa-check text-success"></i>' : m.pass === false ? '<i class="fas fa-xmark text-danger"></i>' : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${t.Notes ? `<div class="small">${_rdEsc(t.Notes)}</div>` : ''}
+      ${_rdArr(t.PhotoPaths).length ? `<div class="d-flex flex-wrap gap-1 mt-1">${_rdArr(t.PhotoPaths).map(p => _rdTrialPhotoUrls[p]
+        ? `<a href="${_rdTrialPhotoUrls[p]}" target="_blank"><img src="${_rdTrialPhotoUrls[p]}" style="height:84px;border-radius:6px;object-fit:cover" alt="รูปผลทดลอง"></a>` : '').join('')}</div>` : ''}
+    </div>`).join('') || '<div class="text-muted small mb-2">ยังไม่มีบันทึกผลทดลองของสูตรนี้</div>';
+  const qc = _rdArr(f.QCSpecs);
+  document.getElementById('rd-trials-body').innerHTML = `
+    <div class="row g-3">
+      <div class="col-lg-6"><div class="fw-bold mb-2">ประวัติผลทดลอง (${trials.length} ครั้ง)</div>${list}</div>
+      <div class="col-lg-6"><div class="border rounded p-2" style="background:#faf5ff">
+        <div class="fw-bold mb-2"><i class="fas fa-plus me-1"></i>บันทึกผลทดลองใหม่</div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label small mb-0">วันที่ทดลอง</label><input type="date" class="form-control form-control-sm" id="rd-tr-date" value="${_planWeekLocalDateStr(new Date())}"></div>
+          <div class="col-6"><label class="form-label small mb-0">ผลรวม</label><select class="form-select form-select-sm" id="rd-tr-result">
+            <option>ผ่าน</option><option selected>ปรับปรุง</option><option>ไม่ผ่าน</option></select></div>
+        </div>
+        ${qc.length ? `<table class="table table-sm mt-2 mb-1"><thead><tr><th>หัวข้อ QC</th><th>ผลวัด</th><th style="width:70px">ผ่าน?</th></tr></thead><tbody>
+          ${qc.map((q, i) => `<tr><td class="small">${_rdEsc(q.item)}<span class="d-block text-muted">${_rdEsc(_rdQcSpecText(f, q.spec))}</span></td>
+            <td><input class="form-control form-control-sm rd-tr-val" data-i="${i}" placeholder="เช่น 3 นาที"></td>
+            <td><select class="form-select form-select-sm rd-tr-pass" data-i="${i}"><option value="">—</option><option value="1">ผ่าน</option><option value="0">ไม่ผ่าน</option></select></td></tr>`).join('')}
+          </tbody></table>` : '<div class="small text-muted mt-2">สูตรนี้ไม่มีเกณฑ์ QC — บันทึกผลในหมายเหตุได้</div>'}
+        <label class="form-label small mb-0">หมายเหตุ / สิ่งที่สังเกต</label>
+        <textarea class="form-control form-control-sm" rows="3" id="rd-tr-notes" placeholder="เช่น ฟู่เร็วไป กลิ่นจางหลัง 2 ชม. — ครั้งหน้าลองลดกรด"></textarea>
+        <label class="form-label small mb-0 mt-2">รูป (สูงสุด 6 รูป)</label>
+        <input type="file" class="form-control form-control-sm" id="rd-tr-photos" accept="image/*" multiple>
+        <div class="d-flex justify-content-end mt-2"><button class="btn btn-sm text-white" style="background:#7c3aed" onclick="rdTrialSubmit('${_rdEsc(code)}')"><i class="fas fa-save me-1"></i>บันทึกผลทดลอง</button></div>
+      </div></div>
+    </div>`;
+}
+async function rdTrialSubmit(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  const date = document.getElementById('rd-tr-date').value;
+  if (!date) { Swal.fire({ icon: 'warning', title: 'กรุณาใส่วันที่ทดลอง' }); return; }
+  const files = [...(document.getElementById('rd-tr-photos').files || [])];
+  if (files.length > 6) { Swal.fire({ icon: 'warning', title: 'เลือกรูปได้สูงสุด 6 รูป' }); return; }
+  if (files.some(x => !x.type.startsWith('image/'))) { Swal.fire({ icon: 'warning', title: 'เลือกไฟล์รูปภาพเท่านั้น' }); return; }
+  const qc = _rdArr(f.QCSpecs);
+  const metrics = qc.map((q, i) => {
+    const value = document.querySelector(`#rd-trials-body .rd-tr-val[data-i="${i}"]`)?.value.trim() || '';
+    const p = document.querySelector(`#rd-trials-body .rd-tr-pass[data-i="${i}"]`)?.value;
+    return { item: q.item, spec: _rdQcSpecText(f, q.spec), value, pass: p === '1' ? true : p === '0' ? false : null };
+  }).filter(m => m.value || m.pass !== null);
+  _showLoader();
+  const paths = [];
+  for (let i = 0; i < files.length; i++) {
+    try {
+      const blob = await _empResizeImage(files[i], 1280);
+      const path = `${code}/${Date.now()}_${i}.jpg`;
+      const up = await _sb.storage.from(RD_TRIAL_BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
+      if (up.error) throw up.error;
+      paths.push(path);
+    } catch (e) {
+      _hideLoader();
+      if (paths.length) await _sb.storage.from(RD_TRIAL_BUCKET).remove(paths);   // อัปโหลดไม่ครบ — ไม่ทิ้งรูปค้างในบัคเก็ต
+      _err('อัปโหลดรูปไม่สำเร็จ (ยังไม่ได้บันทึกผลทดลอง)', e.message || String(e));
+      return;
+    }
+  }
+  const { error } = await _sb.from('rd_trials').insert({
+    FormulaCode: code, TrialDate: date, Result: document.getElementById('rd-tr-result').value, Metrics: metrics,
+    Notes: document.getElementById('rd-tr-notes').value.trim() || null, PhotoPaths: paths, CreatedBy: _currentUser?.name || null,
+  });
+  _hideLoader();
+  if (error) {
+    if (paths.length) await _sb.storage.from(RD_TRIAL_BUCKET).remove(paths);
+    _err('บันทึกผลทดลองไม่สำเร็จ', error.message);
+    return;
+  }
+  _logAudit('INSERT', 'rd_trials', code, `ผลทดลอง ${date}: ${document.getElementById('rd-tr-result').value}`);
+  await rdLoadData();
+  await _rdRenderTrials(code);
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกผลทดลองแล้ว', showConfirmButton: false, timer: 1500 });
+}
+async function rdTrialDelete(rowId, code) {
+  const t = _rdTrials.find(x => x._row_id === rowId);
+  if (!t) return;
+  const ok = await Swal.fire({ icon: 'warning', title: `ลบผลทดลองวันที่ ${_fmtDate(t.TrialDate)}?`, text: 'รูปที่แนบจะถูกลบด้วย กู้คืนไม่ได้', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!ok.isConfirmed) return;
+  const { data, error } = await _sb.from('rd_trials').delete().eq('_row_id', rowId).select('_row_id');
+  if (error || !data?.length) { _err('ลบผลทดลองไม่สำเร็จ', error ? error.message : 'ไม่มีสิทธิ์ลบ (ต้องเป็นหัวหน้างานขึ้นไป)'); return; }
+  if (_rdArr(t.PhotoPaths).length) await _sb.storage.from(RD_TRIAL_BUCKET).remove(_rdArr(t.PhotoPaths));
+  _logAudit('DELETE', 'rd_trials', code, `ผลทดลอง ${t.TrialDate}`);
+  await rdLoadData();
+  await _rdRenderTrials(code);
+}
+
+// ══ ติดตามความคงตัว (rd_stability_checks — 1 แถว = สูตร × สภาวะ × สัปดาห์) ══
+function _rdStabIsDue(c) { return c.Status === 'รอตรวจ' && String(c.DueDate) <= _planWeekLocalDateStr(new Date()); }
+function rdOpenStability(code) {
+  const f = _rdFormulas.find(x => x.FormulaCode === code);
+  if (!f) return;
+  document.getElementById('rd-stab-title').innerHTML = `<i class="fas fa-temperature-half me-2"></i>ความคงตัว (Stability) — ${_rdEsc(f.FormulaCode)} (สูตร ${f.VersionNo})`;
+  _rdRenderStability(code);
+  if (!_rdStabModal) _rdStabModal = new bootstrap.Modal(document.getElementById('rdStabModal'));
+  _rdStabModal.show();
+}
+function _rdRenderStability(code) {
+  const body = document.getElementById('rd-stab-body');
+  const checks = _rdStab.filter(c => c.FormulaCode === code);
+  if (!checks.length) {
+    body.innerHTML = `<div class="small text-muted mb-2">เริ่มติดตามความคงตัว: เก็บตัวอย่างไว้ในแต่ละสภาวะ แล้วตรวจตามสัปดาห์ที่กำหนด — ระบบจะเตือนเมื่อถึงวันตรวจ (ป้ายแดงที่เมนู R&amp;D)</div>
+      <div class="row g-2">
+        <div class="col-md-3"><label class="form-label small mb-0 fw-bold">วันเริ่มเก็บตัวอย่าง</label><input type="date" class="form-control form-control-sm" id="rd-st-start" value="${_planWeekLocalDateStr(new Date())}"></div>
+        <div class="col-md-9"><label class="form-label small mb-0 fw-bold">สภาวะที่เก็บ</label><div>
+          ${RD_STAB_CONDITIONS.map((c, i) => `<div class="form-check form-check-inline"><input class="form-check-input rd-st-cond" type="checkbox" value="${_rdEsc(c)}" id="rd-st-c${i}" ${i < 3 ? 'checked' : ''}>
+            <label class="form-check-label small" for="rd-st-c${i}">${_rdEsc(c)}</label></div>`).join('')}
+          <input class="form-control form-control-sm mt-1" id="rd-st-extra" placeholder="สภาวะอื่น (คั่นด้วย ,) เช่น สลับร้อน-เย็น"></div></div>
+        <div class="col-md-6"><label class="form-label small mb-0 fw-bold">ตรวจที่สัปดาห์</label><input class="form-control form-control-sm" id="rd-st-weeks" value="${RD_STAB_WEEKS.join(', ')}"></div>
+        <div class="col-md-6 d-flex align-items-end justify-content-end"><button class="btn btn-sm btn-warning" onclick="rdStabStart('${_rdEsc(code)}')"><i class="fas fa-play me-1"></i>เริ่มติดตาม</button></div>
+      </div>`;
+    return;
+  }
+  const conds = [...new Set(checks.map(c => c.Condition))];
+  const weeks = [...new Set(checks.map(c => c.Week))].sort((a, b) => a - b);
+  const done = checks.filter(c => c.Status !== 'รอตรวจ').length, fail = checks.filter(c => c.Status === 'ไม่ผ่าน').length, due = checks.filter(_rdStabIsDue).length;
+  const cell = c => {
+    if (!c) return '<td></td>';
+    const st = c.Status, isDue = _rdStabIsDue(c);
+    const cls = st === 'ผ่าน' ? 'bg-success-subtle' : st === 'ไม่ผ่าน' ? 'bg-danger-subtle' : isDue ? 'bg-warning-subtle' : '';
+    return `<td class="${cls}" style="cursor:pointer;${isDue ? 'outline:2px solid #dc3545;outline-offset:-2px' : ''}" onclick="rdStabCheck(${c._row_id}, '${_rdEsc(code)}')" title="${_rdEsc(c.Note || 'คลิกเพื่อบันทึกผล')}">
+      <div class="fw-bold small">${st === 'ผ่าน' ? '<i class="fas fa-check text-success"></i> ผ่าน' : st === 'ไม่ผ่าน' ? '<i class="fas fa-xmark text-danger"></i> ไม่ผ่าน' : isDue ? '<span class="text-danger">ถึงกำหนด</span>' : '<span class="text-muted">รอตรวจ</span>'}</div>
+      <div class="small text-muted">${_fmtDate(c.DueDate)}</div>${c.Note ? `<div class="small text-truncate" style="max-width:120px">${_rdEsc(c.Note)}</div>` : ''}</td>`;
+  };
+  body.innerHTML = `<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <span class="badge bg-secondary">ตรวจแล้ว ${done}/${checks.length}</span>${fail ? `<span class="badge bg-danger">ไม่ผ่าน ${fail}</span>` : ''}${due ? `<span class="badge bg-warning text-dark">ถึงกำหนด ${due}</span>` : ''}
+      <span class="small text-muted">คลิกช่องเพื่อบันทึกผล</span>
+      <button class="btn btn-sm btn-link text-danger ms-auto" onclick="rdStabDelete('${_rdEsc(code)}')"><i class="fas fa-trash me-1"></i>ลบการติดตามทั้งหมด</button></div>
+    <div class="table-responsive"><table class="table table-bordered table-sm align-middle text-center mb-0">
+      <thead><tr><th class="text-start">สภาวะ</th>${weeks.map(w => `<th>สัปดาห์ที่ ${w}</th>`).join('')}</tr></thead>
+      <tbody>${conds.map(cd => `<tr><td class="text-start small fw-bold">${_rdEsc(cd)}</td>${weeks.map(w => cell(checks.find(c => c.Condition === cd && c.Week === w))).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="small text-muted mt-2">สิ่งที่ควรดูทุกจุดตรวจ: สี กลิ่น ลักษณะเนื้อ การแยกชั้น/ตกตะกอน น้ำหนัก/ปริมาตร (บาธบอม: ความแข็ง การฟู่ ผิวบวม · สเปรย์: ความใส pH)</div>`;
+}
+async function rdStabStart(code) {
+  const start = document.getElementById('rd-st-start').value;
+  const conds = [...document.querySelectorAll('#rd-stab-body .rd-st-cond:checked')].map(c => c.value)
+    .concat(document.getElementById('rd-st-extra').value.split(',').map(s => s.trim()).filter(Boolean));
+  const weeks = [...new Set(document.getElementById('rd-st-weeks').value.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => n > 0 && n <= 104))].sort((a, b) => a - b);
+  if (!start) { Swal.fire({ icon: 'warning', title: 'กรุณาใส่วันเริ่ม' }); return; }
+  if (!conds.length) { Swal.fire({ icon: 'warning', title: 'เลือกสภาวะอย่างน้อย 1 อย่าง' }); return; }
+  if (!weeks.length) { Swal.fire({ icon: 'warning', title: 'ใส่สัปดาห์ที่จะตรวจ เช่น 1, 2, 4, 8, 12' }); return; }
+  const base = new Date(start + 'T00:00:00');
+  const rows = conds.flatMap(cd => weeks.map(w => {
+    const d = new Date(base); d.setDate(d.getDate() + w * 7);
+    return { FormulaCode: code, Condition: cd, Week: w, DueDate: _planWeekLocalDateStr(d) };
+  }));
+  _showLoader();
+  const { error } = await _sb.from('rd_stability_checks').insert(rows);
+  _hideLoader();
+  if (error) { _err('เริ่มติดตามไม่สำเร็จ', error.message); return; }
+  _logAudit('INSERT', 'rd_stability_checks', code, `เริ่ม Stability ${conds.length} สภาวะ × ${weeks.length} จุด`);
+  await rdLoadData();
+  _rdRenderStability(code);
+}
+async function rdStabCheck(rowId, code) {
+  const c = _rdStab.find(x => x._row_id === rowId);
+  if (!c) return;
+  const res = await Swal.fire({
+    title: `${c.Condition} · สัปดาห์ที่ ${c.Week}`,
+    html: `<div class="text-start small text-muted mb-2">กำหนดตรวจ ${_fmtDate(c.DueDate)}${c.CheckedAt ? ` · บันทึกล่าสุด ${_fmtDateTime(c.CheckedAt)} โดย ${_rdEsc(_rdPerson(c.CheckedBy))}` : ''}</div>
+      <select id="rd-sc-status" class="form-select mb-2">${['รอตรวจ', 'ผ่าน', 'ไม่ผ่าน'].map(s => `<option ${s === c.Status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <textarea id="rd-sc-note" class="form-control" rows="3" placeholder="สิ่งที่พบ เช่น สีเข้มขึ้นเล็กน้อย กลิ่นปกติ ไม่แยกชั้น">${_rdEsc(c.Note || '')}</textarea>`,
+    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+    preConfirm: () => {
+      const st = document.getElementById('rd-sc-status').value, note = document.getElementById('rd-sc-note').value.trim();
+      if (st === 'ไม่ผ่าน' && !note) { Swal.showValidationMessage('ไม่ผ่าน — กรุณาบันทึกสิ่งที่พบ'); return false; }
+      return { st, note };
+    },
+  });
+  if (!res.isConfirmed) return;
+  const { st, note } = res.value;
+  const patch = st === 'รอตรวจ' ? { Status: st, Note: note || null, CheckedBy: null, CheckedAt: null }
+    : { Status: st, Note: note || null, CheckedBy: _currentUser?.name || null, CheckedAt: new Date().toISOString() };
+  const { error } = await _sb.from('rd_stability_checks').update(patch).eq('_row_id', rowId);
+  if (error) { _err('บันทึกผลไม่สำเร็จ', error.message); return; }
+  await rdLoadData();
+  _rdRenderStability(code);
+}
+async function rdStabDelete(code) {
+  const ok = await Swal.fire({ icon: 'warning', title: 'ลบการติดตามความคงตัวทั้งหมดของสูตรนี้?', text: 'ผลที่บันทึกไว้ทุกจุดจะหายไป กู้คืนไม่ได้', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc3545' });
+  if (!ok.isConfirmed) return;
+  const { data, error } = await _sb.from('rd_stability_checks').delete().eq('FormulaCode', code).select('_row_id');
+  if (error || !data?.length) { _err('ลบไม่สำเร็จ', error ? error.message : 'ไม่มีสิทธิ์ลบ (ต้องเป็นหัวหน้างานขึ้นไป)'); return; }
+  _logAudit('DELETE', 'rd_stability_checks', code, 'ลบการติดตาม Stability ทั้งหมด');
+  await rdLoadData();
+  _rdRenderStability(code);
 }
 
 // ── ใบสูตรการผลิต (พิมพ์ได้เฉพาะสูตรที่อนุมัติแล้ว — ฉบับยังไม่อนุมัติแสดงพรีวิวพร้อมลายน้ำเท่านั้น) ──
@@ -10768,8 +11577,8 @@ function _rdPrintHTML(f) {
       <tr><th>หัวข้อ</th><th>มาตรฐาน</th><th>ผลตรวจ</th><th>ผล</th></tr>${qc}</table>
     ${f.Note ? `<div style="margin-top:8px"><span style="color:#64748b">หมายเหตุ:</span> ${_rdEsc(f.Note)}</div>` : ''}
     <div class="rd-print-sign">
-      ${sign('ผู้จัดทำสูตร (R&amp;D)', f.CreatedBy, _rdDay(f.CreatedAt))}
-      ${sign('ผู้อนุมัติ', ok ? f.ApprovedBy : '', ok ? _rdDay(f.ApprovedAt) : '')}
+      ${sign('ผู้จัดทำสูตร (R&amp;D)', _rdPerson(f.CreatedBy), _rdDay(f.CreatedAt))}
+      ${sign('ผู้อนุมัติ', ok ? _rdPerson(f.ApprovedBy) : '', ok ? _rdDay(f.ApprovedAt) : '')}
       ${sign('ผู้ผลิต', '', '')}
       ${sign('ผู้ตรวจ QC', '', '')}
     </div>
@@ -10797,11 +11606,12 @@ function rdRenderLibrary() {
     el.innerHTML = `<div class="glass-card">
       <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
         <div class="fw-bold me-auto"><i class="fas fa-vials me-1"></i>คลังสาร / Ingredient library</div>
-        <input type="text" id="rd-lib-search" class="form-control form-control-sm" style="width:220px" placeholder="ค้นหาชื่อ / INCI / รหัส..." oninput="rdRenderLibraryRows()">
+        <input type="text" id="rd-lib-search" class="form-control form-control-sm" style="width:220px" placeholder="ค้นหาชื่อ / INCI / รหัส / สรรพคุณ..." oninput="rdRenderLibraryRows()">
         <select id="rd-lib-kind" class="form-select form-select-sm" style="width:150px" onchange="rdRenderLibraryRows()">
           <option value="">ทุกกลุ่ม</option><option value="base">กลุ่มเบส</option><option value="active">สรรพคุณเสริม</option></select>
         <select id="rd-lib-price" class="form-select form-select-sm" style="width:170px" onchange="rdRenderLibraryRows()">
           <option value="">ทุกสถานะราคา</option><option value="warn">ราคายังไม่ยืนยัน/เก่า</option></select>
+        <button class="btn btn-sm btn-outline-secondary" onclick="rdOpenRules()" title="กฎตรวจความสมเหตุสมผลของสูตร — แก้/เพิ่มได้"><i class="fas fa-list-check me-1"></i>กฎตรวจสูตร</button>
         <button class="btn btn-sm btn-outline-success" onclick="rdExportLibraryXLSX()" title="ดาวน์โหลดคลังสารทั้งหมดเป็น Excel — ใช้เป็นแม่แบบแก้แล้วนำเข้ากลับได้"><i class="fas fa-file-arrow-down me-1"></i>ดาวน์โหลด Excel</button>
         <button class="btn btn-sm btn-success" onclick="document.getElementById('rd-import-file').click()"><i class="fas fa-file-arrow-up me-1"></i>นำเข้า Excel</button>
         <input type="file" id="rd-import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="rdImportFile(this)">
@@ -10822,7 +11632,7 @@ function rdRenderLibraryRows() {
   const kind = document.getElementById('rd-lib-kind')?.value || '';
   const priceF = document.getElementById('rd-lib-price')?.value || '';
   const rows = _rdIngredients.filter(g =>
-    (!q || `${g.IngredientCode} ${g.NameTH} ${g.NameEN || ''} ${g.INCI || ''}`.toLowerCase().includes(q))
+    (!q || q.split(/\s+/).every(w => _rdSearchText(g).includes(w)))
     && (!kind || (kind === 'active' ? g.Kind === 'active' : g.Kind !== 'active'))
     && (!priceF || _rdPriceBadge(g)));
   tb.innerHTML = rows.map(g => `<tr class="${g.IsActive === false ? 'text-muted' : ''}">
@@ -42101,7 +42911,8 @@ function userrolesRenderTable() {
     <tr>
       <td>${username}</td>
       <td class="text-muted small">${r.Email || '—'}</td>
-      <td>${r.DisplayName || '—'}</td>
+      <td><input class="form-control form-control-sm" value="${(r.DisplayName || '').replace(/"/g, '&quot;')}" placeholder="ชื่อ-นามสกุล"
+        title="ชื่อที่แสดงในเอกสาร เช่น ลายเซ็นใบสูตรการผลิต R&D" onchange="userrolesUpdateDisplayName('${r.id}', this.value)"></td>
       <td>
         <select class="form-select form-select-sm" onchange="userrolesUpdateRole('${r.id}', this.value)">
           ${['operator','supervisor','admin'].map(v => `<option value="${v}" ${r.Role===v?'selected':''}>${roleLabel[v]}</option>`).join('')}
@@ -42126,6 +42937,18 @@ async function userrolesUpdateRole(userId, newRole) {
   _logAudit('EDIT', 'user_roles', r?.Email || userId, `เปลี่ยนสิทธิ์เป็น ${newRole}`);
   Swal.fire({ toast:true, position:'top-end', icon:'success', title:'เปลี่ยนสิทธิ์แล้ว', showConfirmButton:false, timer:1500 });
   userrolesLoadData();
+}
+
+// ชื่อที่แสดง (DisplayName) — ใช้แทนอีเมลในเอกสาร เช่น ลายเซ็นใบสูตรการผลิต R&D (เพิ่ม 2026-10-24) — RLS อนุญาตเฉพาะแอดมิน
+async function userrolesUpdateDisplayName(userId, name) {
+  const r = _userrolesData.find(d => d.id === userId);
+  const v = String(name || '').trim() || null;
+  if ((r?.DisplayName || null) === v) return;
+  const { data, error } = await _sb.from('user_roles').update({ "DisplayName": v, "UpdatedAt": new Date().toISOString() }).eq('id', userId).select('id');
+  if (error || !data?.length) { _err('บันทึกชื่อไม่สำเร็จ', error ? error.message : 'ไม่มีสิทธิ์แก้ไข'); userrolesLoadData(); return; }
+  if (r) r.DisplayName = v;
+  _logAudit('EDIT', 'user_roles', r?.Email || userId, `ชื่อที่แสดง: ${v || '(ว่าง)'}`);
+  Swal.fire({ toast:true, position:'top-end', icon:'success', title:'บันทึกชื่อแล้ว', showConfirmButton:false, timer:1500 });
 }
 
 // ══════════════════════════════════════════════
@@ -42515,6 +43338,7 @@ function _realtimeSubscribe() {
     // แจ้งเตือนเฉพาะ "คนที่ขอ" เมื่อคำขอแก้ไข (MR/CO/เบิกผลิต/Defect-Retain) ของเขาถูกอนุมัติ/ปฏิเสธ —
     // ดูหมายเหตุยาวที่ _realtimeNotifyEditReqResolved ด้านล่าง
     .on('broadcast', { event: 'editreq_resolved' }, (msg) => _realtimeNotifyEditReqResolved(msg.payload))
+    .on('broadcast', { event: 'rd_resolved' }, (msg) => _rdNotifyResolved(msg.payload))   // ผลอนุมัติสูตร R&D → เครื่องคนที่ส่ง
     .subscribe();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && _currentUser) _realtimeScheduleRefresh(); // กลับมาเปิดแท็บ ให้เช็คของใหม่ทันที เผื่อพลาด event ตอนแท็บถูกซ่อนอยู่
@@ -42645,7 +43469,7 @@ document.addEventListener('DOMContentLoaded', function() {
           _fgoutUpdateWaitingBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีรายการเบิก FG รอจัดส่ง (แค่ครั้งเดียวตอน login)
           purchasereqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีใบขอซื้อรออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin เพราะมีแค่ admin ที่อนุมัติได้)
           _coUpdateNavBadge(true);
-          rdUpdateNavBadge(); // สูตร R&D รออนุมัติ (เห็นเฉพาะ admin)
+          rdUpdateNavBadge(true); // สูตร R&D รออนุมัติ (admin) / ผลอนุมัติใหม่ + เด้งเตือนจุดตรวจ Stability ถึงกำหนด (ครั้งเดียวตอน login)
           _editreqUpdateNavBadge(true); // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไขค้างอนุมัติจากหน้าใดๆ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
           _laborutilUpdateNavBadge(true); // เด้งเตือนครั้งเดียวตอน login ถ้ามีเวลาแรงงานไม่ครบ (หัวหน้างานขึ้นไป) // true = เด้ง Swal เตือนทันทีถ้ามีคำขอแก้ไข CO รออนุมัติ (แค่ครั้งเดียวตอน login, เห็นเฉพาะ admin)
         }
