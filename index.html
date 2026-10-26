@@ -11703,7 +11703,11 @@ async function rdRenameVersion(code) {
   const { error } = await _sb.rpc('rd_rename_formula', { p_code: code, p_name: name });
   _hideLoader();
   if (error) {
-    _err('ตั้งชื่อสูตรไม่สำเร็จ', /rd_rename_formula|function/i.test(error.message) ? 'ต้องรัน add_rd_formula_names.sql ใน Supabase ก่อน' : error.message);
+    // ฟังก์ชันยังไม่มี (ยังไม่รัน SQL / PostgREST ยังไม่รีโหลด schema) = PGRST202 หรือข้อความ "Could not find the function" — อย่างอื่นแสดงข้อความจริง
+    const missing = error.code === 'PGRST202' || /could not find the function|schema cache/i.test(error.message);
+    _err('ตั้งชื่อสูตรไม่สำเร็จ', missing
+      ? `ยังไม่พบฟังก์ชัน rd_rename_formula — รัน add_rd_formula_names.sql ใน Supabase (ถ้ารันแล้ว ให้รันอีกครั้ง ไฟล์จะสั่งรีโหลด schema ให้) [${error.message}]`
+      : error.message);
     return;
   }
   _logAudit('UPDATE', 'rd_formulas', code, `ตั้งชื่อสูตร ${f.VersionNo}: ${name || '(ไม่มีชื่อ)'}`);
