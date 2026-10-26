@@ -1109,6 +1109,8 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
   /* รายงานขาด/ลา/มาสาย แบบปฏิทิน = A4 แนวนอน (named page — ห้ามประกาศ @page ธรรมดาซ้ำ จะไปทับ root อื่น),
      แบบสรุป = แนวตั้ง A4 ใช้ @page ปกติ; margin:0 เสมอ ให้ padding ของ .leave-page คุมเอง */
   @page leavecal{size:A4 landscape;margin:0}
+  /* การ์ดสูตร R&D (rdOpenArtwork) = A5 แนวนอน — named page ผูกกับ .rd-aw-page (page:rdaw) */
+  @page rdaw{size:A5 landscape;margin:0}
   .leave-page.cal{page:leavecal}
   #leave-print-root .leave-page{box-shadow:none !important;margin:0 !important}
   #planweek-print-root .planweek-page{box-shadow:none !important;margin:0 !important}
@@ -1642,7 +1644,42 @@ table.mrrpt-summary tr.mrrpt-summary-total td{background:#1e3a8a;color:#fff;font
 .rd-print-page{width:210mm;min-height:296mm;box-sizing:border-box;padding:12mm;background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.4);
   font-family:Sarabun,sans-serif;color:#1e293b;font-size:11px;position:relative;overflow:hidden;display:flex;flex-direction:column}
 /* การ์ด AW (อินโฟกราฟิกสูตร — rdOpenArtwork): A4 แนวตั้ง โทนพาสเทล ฟอนต์ลายมือ Mali */
-.rd-aw-page{height:296mm;padding:14mm 13mm;font-family:Mali,Sarabun,sans-serif;color:#3f3f46;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rd-aw-page{width:210mm;height:148mm;min-height:0;padding:6mm 7mm 4mm;font-family:Mali,Sarabun,sans-serif;color:#3f3f46;-webkit-print-color-adjust:exact;print-color-adjust:exact;page:rdaw}
+/* การ์ด A5 แนวนอน: ซ้าย = ใบสูตร (มี %/Phase), ขวา = การ์ด AW */
+.rd-aw5{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1.08fr;gap:4mm;height:calc(148mm - 16mm)}
+.rd-aw5-recipe{background:rgba(255,255,255,.93);border-radius:14px;padding:4mm 4.5mm;display:flex;flex-direction:column;overflow:hidden;font-family:Sarabun,sans-serif}
+.rd-aw5-rh{display:flex;align-items:center;gap:5px;font-size:13px;font-family:Mali,Sarabun,sans-serif}
+.rd-aw5-code{margin-left:auto;font-size:9px;color:#71717a;font-family:Sarabun,sans-serif}
+.rd-aw5-meta{font-size:9px;color:#52525b;margin:1mm 0 1.5mm}
+.rd-aw5-tbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.rd-aw5-tbl th{font-size:8.5px;color:#71717a;font-weight:600;border-bottom:1.5px solid #d4d4d8;padding:.6mm 1mm;text-align:left}
+.rd-aw5-tbl td{padding:.55mm 1mm;border-bottom:1px dotted #e4e4e7;vertical-align:top;line-height:1.2}
+.rd-aw5-tbl tfoot td{border-bottom:0;border-top:1.5px solid #d4d4d8;font-weight:700}
+.rd-aw5-phsep td{border-top:1.5px solid #e4e4e7}
+.rd-aw5-ph span{display:inline-block;min-width:5mm;text-align:center;border-radius:6px;font-weight:700;font-size:.9em}
+.rd-aw5-en{display:block;font-size:.78em;color:#71717a}
+.rd-aw5-approve{margin-top:auto;padding-top:1.5mm;font-size:8.5px;color:#15803d;display:flex;align-items:center;gap:3px}
+.rd-aw5-card{display:flex;flex-direction:column;gap:2.5mm;min-width:0}
+.rd-aw5-head{display:flex;align-items:center;gap:3mm;background:rgba(255,255,255,.88);border-radius:14px;padding:3mm}
+.rd-aw5-prod{width:18mm;height:18mm;border-radius:50%;border:1.5px dashed;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rd-aw5-title{font-size:19px;font-weight:700;line-height:1.1;color:#27272a}
+.rd-aw5-sub{font-size:10.5px;font-weight:600;color:#52525b}
+.rd-aw5-tag{font-size:9.5px;font-weight:600;margin-top:.8mm}
+.rd-aw5-claims{display:flex;flex-wrap:wrap;gap:1.5mm}
+.rd-aw5-claim,.rd-aw5-fam{display:inline-flex;align-items:center;gap:3px;border:1.2px solid;border-radius:999px;padding:.6mm 2.5mm .6mm 1.5mm;font-size:10px;font-weight:700;background:#fff}
+.rd-aw5-grid{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm}
+.rd-aw5-box{background:rgba(255,255,255,.88);border-radius:12px;padding:2.5mm 3mm;font-size:9.5px}
+.rd-aw5-h{font-weight:700;font-size:11px;display:flex;align-items:center;gap:3px;margin-bottom:1mm;color:#27272a}
+.rd-aw5-ing{display:flex;gap:3px;align-items:flex-start;line-height:1.2;margin-bottom:.8mm}
+.rd-aw5-ing .rd-aw5-en{display:inline}
+.rd-aw5-fams{display:flex;flex-wrap:wrap;gap:1.2mm}
+.rd-aw5-fam{font-size:9.5px}
+.rd-aw5-tone{margin-top:1.5mm;display:inline-block;font-size:8.5px;font-weight:600;background:#27272a;color:#fff;border-radius:999px;padding:.5mm 2.5mm}
+.rd-aw5-pyr{display:flex;align-items:center;gap:3mm;flex:1;min-height:0}
+.rd-aw5-tier{display:flex;flex-wrap:wrap;align-items:center;gap:1mm;padding:.8mm 0;border-bottom:1px dotted #e4e4e7;font-size:9.5px}
+.rd-aw5-tier:last-child{border-bottom:0}
+.rd-aw5-pill{background:#fff;border:1px solid #e4e4e7;border-radius:999px;padding:0 2mm;font-size:9px}
+.rd-aw5-foot{position:relative;z-index:1;text-align:center;font-size:7.5px;color:#fff;margin-top:1.2mm;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .rd-aw-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .rd-aw-inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:5mm;height:100%}
 .rd-aw-head{display:flex;align-items:center;gap:6mm;background:rgba(255,255,255,.86);border-radius:22px;padding:6mm;box-shadow:0 2px 0 rgba(0,0,0,.04)}
@@ -2222,6 +2259,17 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     </a>
     <a href="#" class="nav-link mb-1" id="nav-holdstock" onclick="showPage('holdstock',this)" title="สต็อก Defect/Retain">
       <i class="fas fa-triangle-exclamation me-2"></i><span>สต็อก Defect/Retain</span>
+    </a>
+    </div>
+
+    <hr class="my-2">
+    <!-- QC Group (qc.js) -->
+    <div class="nav-group-header" onclick="toggleNavGroup('qc')">
+      <span>QC</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-qc"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-qc">
+    <a href="#" class="nav-link mb-1" id="nav-qc" onclick="showPage('qc',this)" title="ควบคุมคุณภาพ (QC)">
+      <i class="fas fa-clipboard-check me-2"></i><span>ควบคุมคุณภาพ</span>
     </a>
     </div>
 
@@ -5342,6 +5390,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
               <select id="holdstock-action-disposal" class="form-select">
                 <option value="ทำลาย">ทำลาย</option>
                 <option value="คืนลูกค้า">คืนลูกค้า</option>
+                <option value="คืนซัพพลายเออร์">คืนซัพพลายเออร์</option>
                 <option value="อื่นๆ">อื่นๆ</option>
               </select>
               <small class="text-muted">ใช้เลือกรายการเพื่อออกเอกสาร (ใบทำลาย/ใบส่งคืน) ทีหลังได้ที่ปุ่ม "ออกรายงาน"</small>
@@ -5361,7 +5410,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <div class="modal-dialog modal-dialog-centered modal-xl">
       <div class="modal-content">
         <div class="modal-header" style="background:#1e3a8a;color:white">
-          <h5 class="modal-title"><i class="fas fa-file-invoice me-2"></i>ออกรายงาน Defect (ทำลาย/ส่งคืนลูกค้า)</h5>
+          <h5 class="modal-title"><i class="fas fa-file-invoice me-2"></i>ออกรายงาน Defect (ทำลาย/ส่งคืนลูกค้า/ส่งคืนซัพพลายเออร์)</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
 
@@ -5371,10 +5420,11 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
         </div>
 
         <div class="mrrpt-step" id="holdstockreport-customer-step" style="display:none">
-          <div class="mrrpt-step-title"><span class="n">2</span>ข้อมูลลูกค้า (สำหรับใบส่งคืน)</div>
+          <div class="mrrpt-step-title"><span class="n">2</span><span id="holdstockreport-customer-step-title">ข้อมูลลูกค้า (สำหรับใบส่งคืน)</span></div>
+          <div id="holdstockreport-supplier-hint" class="small mb-2" style="display:none"></div>
           <div class="row g-2">
             <div class="col-md-6">
-              <label class="form-label small mb-0">ชื่อบริษัทลูกค้า</label>
+              <label class="form-label small mb-0" id="holdstockreport-customer-name-label">ชื่อบริษัทลูกค้า</label>
               <input type="text" id="holdstockreport-customer-name" class="form-control form-control-sm" list="holdstockreport-customer-datalist" autocomplete="off" oninput="holdstockReportCustomerInput(this.value)">
               <datalist id="holdstockreport-customer-datalist"></datalist>
             </div>
@@ -5437,6 +5487,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
               <select id="holdstock-bulkscrap-disposal" class="form-select">
                 <option value="ทำลาย">ทำลาย</option>
                 <option value="คืนลูกค้า">คืนลูกค้า</option>
+                <option value="คืนซัพพลายเออร์">คืนซัพพลายเออร์</option>
                 <option value="อื่นๆ">อื่นๆ</option>
               </select>
             </div>
@@ -8983,6 +9034,15 @@ function _fmtDate(d) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+// วันหมดอายุบนเอกสารพิมพ์ทุกใบ (ใบส่งสินค้า/ใบส่งเบิกเบ็ดเตล็ด/รายงานรับวัตถุดิบ/การ์ดสต็อก/รายงาน Lot Scan/
+// ใบ Released) แสดงแค่ เดือน/ปี เช่น 10/2026 — ตามคำขอผู้ใช้ 2026-10-26 (หน้าจอในแอปยังโชว์วันเต็มตาม _fmtDate)
+function _fmtExpMY(d) {
+  if (!d) return '—';
+  const parts = String(d).split('T')[0].split('-');
+  if (parts.length !== 3) return d;
+  return `${parts[1]}/${parts[0]}`;
+}
+
 // dd/mm/yyyy HH:MM — ใช้กับ timestamp เต็ม (เช่น CompletedAt) ที่ต้องโชว์เวลาด้วย ไม่ใช่แค่วันที่
 function _fmtDateTime(d) {
   if (!d) return '—';
@@ -10025,6 +10085,7 @@ const _PAGE_LOADERS = {
   'fgout'    : loadFGOutData,
   'misc'     : loadMiscData,
   'holdstock' : holdstockLoadData,
+  'qc'        : () => window.qcLoadPage && qcLoadPage(),   // qc.js
   'plan'     : planLoadData,
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
@@ -12876,15 +12937,23 @@ function _rdArtworkHTML(f) {
   const p = _rdProjects.find(x => x.ProjectCode === f.ProjectCode), t = _rdType(f.ProductType);
   const items = _rdArr(f.Items).filter(it => _rdNum(it.pct) > 0);
   const mood = _rdDraftMood({ items, claims: new Set(_rdArr(p?.Claims)) });
-  const fams = [...mood.fams], claims = _rdArr(p?.Claims);
+  const fams = [...mood.fams];
   const famObjs = fams.map(_rdFam).filter(Boolean);
-  const main = famObjs[0]?.color || '#7c3aed', second = famObjs[1]?.color || (claims[0] ? _rdClaimColor(claims[0]) : '#0ea5e9');
+  const main = famObjs[0]?.color || '#7c3aed', second = famObjs[1]?.color || (_rdArr(p?.Claims)[0] ? _rdClaimColor(_rdArr(p?.Claims)[0]) : '#0ea5e9');
   const toneTxt = mood.tone === 'หรู' ? 'Luxury · โทนหรู' : mood.tone === 'ธรรมชาติ' ? 'Pure essential oils · น้ำมันหอมระเหยแท้' : 'Everyday · โทนสบายๆ';
   const tagline = fams.slice(0, 3).map(k => RD_FAM_MOOD[k]).filter(Boolean).join(' · ') || 'สูตรใหม่จากห้องแล็บ';
-  // สารสำคัญ = active ที่ไม่ใช่กลิ่น (ไม่มี → ใช้น้ำมันหอมระเหย)
+  // สารสำคัญ = active ที่ไม่ใช่กลิ่น → น้ำมันเบส/บัตเตอร์ที่มีสรรพคุณ (แครีเออร์ออยล์) → น้ำมันหอมระเหย
   const ing = it => _rdIng(it.code) || { NameTH: it.nameTH, NameEN: it.nameEN, Claims: [] };
-  let actives = items.filter(it => { const g = _rdIng(it.code); return g?.Kind === 'active' && !_rdIsScent(g); });
-  if (!actives.length) actives = items.filter(it => _rdIng(it.code)?.Kind === 'active');
+  const isCarrier = g => g && g.Kind !== 'active' && !_rdIsScent(g) && _rdArr(g.Claims).length > 0
+    && (g.FuncGroup === 'oil' || /น้ำมันเบส|carrier|บัตเตอร์|butter|emollient/i.test(`${g.RoleTH || ''} ${g.NameEN || ''}`));
+  const actives = [
+    ...items.filter(it => { const g = _rdIng(it.code); return g?.Kind === 'active' && !_rdIsScent(g); }),
+    ...items.filter(it => isCarrier(_rdIng(it.code))),
+    ...items.filter(it => { const g = _rdIng(it.code); return g?.Kind === 'active' && _rdIsScent(g); }),
+  ];
+  // สรรพคุณ = ที่โปรเจกต์ตั้งไว้ก่อน แล้วเติมสรรพคุณจากสารสำคัญ (รวมแครีเออร์ออยล์/น้ำมันหอมระเหย) ที่ยังไม่มี
+  const claims = [...new Set([..._rdArr(p?.Claims), ...actives.flatMap(it => _rdArr(_rdIng(it.code)?.Claims))])]
+    .filter(c => _rdClaims.some(x => x.ClaimCode === c));
   // พีระมิด: รายชื่อกลิ่นต่อชั้น (ไม่แสดง %)
   const tiers = { top: [], mid: [], base: [] };
   items.forEach(it => {
@@ -12920,41 +12989,53 @@ function _rdArtworkHTML(f) {
       <span class="rd-aw-en">${k === 'top' ? 'Top note' : k === 'mid' ? 'Heart note' : 'Base note'}</span>
       <div class="rd-aw-tier-list">${tiers[k].map(g => `<span>${scentName(g)}</span>`).join('') || '<span class="rd-aw-en">—</span>'}</div></div>`;
   const approved = f.Status === 'อนุมัติแล้ว';
+  // ── ซ้าย: ใบสูตร (ชื่อสาร + Phase + %) — เรียงตาม Phase แล้วตามลำดับในสูตร ──
+  const rows = items.slice().sort((a, b) => _rdPhaseOrder(a.phase) - _rdPhaseOrder(b.phase));
+  const fs = rows.length > 18 ? 8.5 : rows.length > 13 ? 9.5 : 10.5;   // สารเยอะ = ตัวเล็กลงให้พอดีครึ่งหน้า
+  const tp = rows.reduce((s, it) => s + _rdNum(it.pct), 0);
+  const isMl = f.FillUnit === 'ml';
+  const recipe = `<div class="rd-aw5-recipe" style="font-size:${fs}px">
+      <div class="rd-aw5-rh">${_rdAwIcon('flask', main, 18)} <b>ใบสูตร</b> <span class="rd-aw-en">Formula</span>
+        <span class="rd-aw5-code">${_rdEsc(f.FormulaCode)}</span></div>
+      <div class="rd-aw5-meta">${_rdEsc(_rdVerLabel(f))} · แบตช์ ${_rdFmt(f.BatchKg, 2)} กก. · ${isMl ? `${_rdFmt(f.UnitWeightG, 0)} มล.` : `${_rdFmt(f.UnitWeightG, 0)} ก.`}/ชิ้น</div>
+      <table class="rd-aw5-tbl"><thead><tr><th style="width:9mm">Phase</th><th>สาร / Ingredient</th><th style="width:13mm;text-align:right">%</th></tr></thead><tbody>
+        ${rows.map((it, i) => { const g = ing(it), ph = it.phase || '-', newPh = i === 0 || (rows[i - 1].phase || '-') !== ph;
+          return `<tr class="${newPh && i ? 'rd-aw5-phsep' : ''}"><td class="rd-aw5-ph">${newPh ? `<span style="background:${_rdTint(main, .25)}">${_rdEsc(ph)}</span>` : ''}</td>
+            <td>${_rdEsc(String(g.NameTH).replace(/\s*\[[^\]]*\]\s*$/, ''))}<span class="rd-aw5-en">${_rdEsc(g.NameEN || '')}</span></td>
+            <td style="text-align:right;font-weight:700">${_rdFmt(it.pct, 2)}</td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td></td><td style="text-align:right">รวม</td><td style="text-align:right">${_rdFmt(tp, 2)}</td></tr></tfoot></table>
+      <div class="rd-aw5-approve">${approved ? `${_rdAwIcon('anti', '#16a34a', 13)} อนุมัติโดย ${_rdEsc(_rdPerson(f.ApprovedBy) || '-')} · ${_rdDay(f.ApprovedAt)}` : 'ตัวอย่าง — สูตรยังไม่อนุมัติ'}</div>
+    </div>`;
+  // ── ขวา: การ์ด AW (ไม่มี %) ──
+  const card = `<div class="rd-aw5-card">
+      <div class="rd-aw5-head">
+        <div class="rd-aw5-prod" style="background:${_rdTint(main, .18)};border-color:${_rdTint(main, .5)}">${_rdAwIcon(RD_AW_ICONS[f.ProductType] ? f.ProductType : 'flask', main, 44, 2)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="rd-aw-kicker" style="color:${main};font-size:9px">${_rdEsc(t?.NameTH || f.ProductType)} · ${_rdEsc(t?.NameEN || '')}</div>
+          <div class="rd-aw5-title">${_rdEsc(p?.ProjectName || f.ProjectCode)}</div>
+          ${f.VersionName ? `<div class="rd-aw5-sub">${_rdEsc(f.VersionName)}</div>` : ''}
+          <div class="rd-aw5-tag" style="color:${second}">“ ${_rdEsc(tagline)} ”</div>
+        </div>
+      </div>
+      ${claims.length ? `<div class="rd-aw5-claims">${claims.map(c => { const cl = _rdClaims.find(x => x.ClaimCode === c), col = _rdClaimColor(c);
+        return `<span class="rd-aw5-claim" style="background:${_rdTint(col, .16)};border-color:${_rdTint(col, .5)};color:${col}">${_rdAwIcon(RD_CLAIM_ICON[c] || 'sparkle', col, 15)} ${_rdEsc(cl?.NameTH || c)}</span>`; }).join('')}</div>` : ''}
+      <div class="rd-aw5-grid">
+        <div class="rd-aw5-box"><div class="rd-aw5-h">${_rdAwIcon('fresh', '#16a34a', 13)} สารสำคัญ</div>
+          ${actives.map(it => { const g = ing(it); return `<div class="rd-aw5-ing">${_rdAwIcon('herbal', '#16a34a', 12)} <span><b>${_rdEsc(String(g.NameTH).replace(/\s*\[[^\]]*\]\s*$/, '').replace(/^น้ำมันหอมระเหย\s*/, 'น้ำมัน'))}</b>${_rdArr(g.Claims).length ? `<span class="rd-aw5-en"> ${_rdArr(g.Claims).map(_rdClaimName).map(_rdEsc).join(', ')}</span>` : ''}</span></div>`; }).join('') || '<div class="rd-aw5-en">—</div>'}</div>
+        <div class="rd-aw5-box"><div class="rd-aw5-h">${_rdAwIcon('floral', main, 13)} โทนกลิ่น</div>
+          <div class="rd-aw5-fams">${famObjs.map(fm => `<span class="rd-aw5-fam" style="background:${_rdTint(fm.color, .15)};color:${fm.color};border-color:${_rdTint(fm.color, .5)}">${_rdAwIcon(fm.code, fm.color, 13)} ${_rdEsc(fm.th)}</span>`).join('') || '<span class="rd-aw5-en">ไม่มีกลิ่น</span>'}</div>
+          <div class="rd-aw5-tone">${_rdEsc(toneTxt)}</div></div>
+      </div>
+      ${tiers.top.length + tiers.mid.length + tiers.base.length ? `<div class="rd-aw5-box rd-aw5-pyr">
+        <div style="width:30mm;flex-shrink:0">${pyr.replace('width="62mm"', 'width="30mm"')}</div>
+        <div style="flex:1;min-width:0">${['top', 'mid', 'base'].map(k => `<div class="rd-aw5-tier"><span class="rd-aw-dot" style="background:${RD_NOTE_LABEL[k].color}"></span><b>${RD_NOTE_LABEL[k].th}</b>
+          ${tiers[k].map(g => `<span class="rd-aw5-pill">${scentName(g)}</span>`).join('') || '<span class="rd-aw5-en">—</span>'}</div>`).join('')}</div></div>` : ''}
+    </div>`;
   return `<div class="rd-print-page rd-aw-page" style="background:${bg}">
     ${doodles}
-    <div class="rd-aw-inner">
-      <div class="rd-aw-head">
-        <div class="rd-aw-prod" style="background:${_rdTint(main, .18)};border-color:${_rdTint(main, .5)}">${_rdAwIcon(RD_AW_ICONS[f.ProductType] ? f.ProductType : 'flask', main, 92, 2)}</div>
-        <div style="flex:1;min-width:0">
-          <div class="rd-aw-kicker" style="color:${main}">${_rdAwIcon('sparkle', main, 16)} ${_rdEsc(t?.NameTH || f.ProductType)} · ${_rdEsc(t?.NameEN || '')}</div>
-          <div class="rd-aw-title">${_rdEsc(p?.ProjectName || f.ProjectCode)}</div>
-          ${f.VersionName ? `<div class="rd-aw-sub">${_rdEsc(f.VersionName)}</div>` : ''}
-          <div class="rd-aw-tagline" style="color:${second}">“ ${_rdEsc(tagline)} ”</div>
-        </div>
-      </div>
-      ${claims.length ? `<div class="rd-aw-sec"><div class="rd-aw-h">${_rdAwIcon('sparkle', main, 18)} สรรพคุณ <span class="rd-aw-en">Benefits</span></div>
-        <div class="rd-aw-claims">${claims.map(claimCard).join('')}</div></div>` : ''}
-      <div class="rd-aw-grid">
-        <div class="rd-aw-box">
-          <div class="rd-aw-h">${_rdAwIcon('fresh', '#16a34a', 18)} สารสำคัญ <span class="rd-aw-en">Key ingredients</span></div>
-          ${actives.map(it => { const g = ing(it); return `<div class="rd-aw-ing">${_rdAwIcon('herbal', '#16a34a', 20)}<div><b>${_rdEsc(String(g.NameTH).replace(/\s*\[[^\]]*\]\s*$/, ''))}</b>
-            <div class="rd-aw-en">${_rdEsc(g.NameEN || '')}${_rdArr(g.Claims).length ? ` · ${_rdArr(g.Claims).map(_rdClaimName).map(_rdEsc).join(', ')}` : ''}</div></div></div>`; }).join('') || '<div class="rd-aw-en">—</div>'}
-        </div>
-        <div class="rd-aw-box">
-          <div class="rd-aw-h">${_rdAwIcon('floral', main, 18)} โทนกลิ่น <span class="rd-aw-en">Scent mood</span></div>
-          <div class="rd-aw-fams">${famObjs.map(fm => `<div class="rd-aw-fam" style="background:${_rdTint(fm.color, .14)};color:${fm.color};border-color:${_rdTint(fm.color, .45)}">${_rdAwIcon(fm.code, fm.color, 22)} ${_rdEsc(fm.th)}<span class="rd-aw-en" style="color:${fm.color}">${_rdEsc(fm.en)}</span></div>`).join('') || '<div class="rd-aw-en">ไม่มีกลิ่น</div>'}</div>
-          <div class="rd-aw-tone">${_rdEsc(toneTxt)}</div>
-        </div>
-      </div>
-      ${tiers.top.length + tiers.mid.length + tiers.base.length ? `<div class="rd-aw-box rd-aw-pyr">
-        <div class="rd-aw-h">${_rdAwIcon('woody', '#92400e', 18)} พีระมิดกลิ่น <span class="rd-aw-en">Fragrance pyramid</span></div>
-        <div style="display:flex;align-items:center;gap:6mm">${pyr}<div style="flex:1">${tierRow('top')}${tierRow('mid')}${tierRow('base')}</div></div></div>` : ''}
-      <div class="rd-aw-foot">
-        <span>${approved ? `${_rdAwIcon('anti', '#16a34a', 14)} อนุมัติสูตรแล้ว ${_rdDay(f.ApprovedAt)}` : 'ตัวอย่าง — สูตรยังไม่อนุมัติ'}</span>
-        <span>${_rdEsc(f.FormulaCode)} · ${_rdEsc(_rdVerLabel(f))}</span>
-        <span>การ์ดเพื่อการสื่อสาร ไม่ใช่เอกสารการผลิต</span>
-      </div>
-    </div></div>`;
+    <div class="rd-aw5">${recipe}${card}</div>
+    <div class="rd-aw5-foot">${_rdEsc(f.FormulaCode)} · ${_rdEsc(_rdVerLabel(f))} · การ์ดสูตร R&D (มี % — เอกสารภายใน)</div>
+  </div>`;
 }
 function rdOpenArtwork(code) {
   const f = _rdFormulas.find(x => x.FormulaCode === code);
@@ -17311,7 +17392,7 @@ function mrReportRenderPreview() {
     const cost = parseFloat(r.UnitCost||0);
     return `<tr>
       <td class="ord">${i+1}</td><td>${r.MaterialCode||''}</td><td style="white-space:nowrap">${r.MaterialName||''}</td><td style="white-space:nowrap">${r.Lot||''}</td>
-      <td style="white-space:nowrap;padding-right:2px">${_fmtDate(r.ExpDate)}</td><td class="text-end qty-emph" style="padding-left:2px">${qty.toLocaleString()}</td><td style="white-space:nowrap">${r.UOM||''}</td>
+      <td style="white-space:nowrap;padding-right:2px">${_fmtExpMY(r.ExpDate)}</td><td class="text-end qty-emph" style="padding-left:2px">${qty.toLocaleString()}</td><td style="white-space:nowrap">${r.UOM||''}</td>
       <td class="text-end">฿${cost.toLocaleString()}</td>
       <td>${r.Remark||''}</td>
     </tr>`;
@@ -19698,7 +19779,7 @@ async function dlvbillRenderPreview() {
         if (l.fullBoxes > 0) {
           const q = l.fullBoxes * calc.packSize;
           const exp = expOf(l.lotKey);
-          bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel} — ${calc.packSize.toLocaleString()} ${g.uom||''} × ${l.fullBoxes.toLocaleString()} กล่อง</td><td class="exp">${exp?_fmtDate(exp):'—'}</td><td class="qty">${q.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
+          bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel} — ${calc.packSize.toLocaleString()} ${g.uom||''} × ${l.fullBoxes.toLocaleString()} กล่อง</td><td class="exp">${exp?_fmtExpMY(exp):'—'}</td><td class="qty">${q.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
         }
       });
       calc.mixBoxes.forEach(m => {
@@ -19708,21 +19789,21 @@ async function dlvbillRenderPreview() {
           return `Lot.${lot ? lot.lotLabel : lk} (${m.alloc[lk]})`;
         }).join(' + ');
         // วันหมดอายุของกล่องผสม — รวม Lot ต่างกันอาจหมดอายุคนละวัน แสดงทุกวันที่ไม่ซ้ำกัน คั่นด้วย "/" (เหมือน Lot เดียวก็โชว์วันเดียว)
-        const expDates = [...new Set(lotKeys.map(lk => expOf(lk)).filter(Boolean).map(d => _fmtDate(d)))];
+        const expDates = [...new Set(lotKeys.map(lk => expOf(lk)).filter(Boolean).map(d => _fmtExpMY(d)))];
         const sum = Object.values(m.alloc).reduce((a, b) => a + b, 0);
         bodyRows += `<tr class="dlvbill-mix-row"><td></td><td>กล่องผสม: ${parts}</td><td class="exp">${expDates.length ? expDates.join(' / ') : '—'}</td><td class="qty">${sum.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
       });
       calc.lots.forEach(l => {
         if (l.unassigned > 0) {
           const exp = expOf(l.lotKey);
-          bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel} (เศษ)</td><td class="exp">${exp?_fmtDate(exp):'—'}</td><td class="qty">${l.unassigned.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
+          bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel} (เศษ)</td><td class="exp">${exp?_fmtExpMY(exp):'—'}</td><td class="qty">${l.unassigned.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
         }
       });
     } else {
       // ไม่ระบุจำนวนต่อกล่อง — พิมพ์แบบเดิม (จำนวนรวมต่อ Lot ตรงๆ ไม่แบ่งกล่อง)
       calc.lots.forEach(l => {
         const exp = expOf(l.lotKey);
-        bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel}</td><td class="exp">${exp?_fmtDate(exp):'—'}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
+        bodyRows += `<tr class="dlvbill-lot-row"><td></td><td>Lot.${l.lotLabel}</td><td class="exp">${exp?_fmtExpMY(exp):'—'}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
       });
     }
 
@@ -32273,7 +32354,8 @@ function _morelSetExpDate(isoDate, isAuto) {
   const exp = new Date(y, m - 1, d);
   const mfg = new Date(y - 2, m - 1, d); // MFG Date = EXP Date ลบ 2 ปี ตามที่ผู้ใช้ยืนยัน
   const fmt = dt => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
-  _morelExpFormatted = fmt(exp);
+  // EXP Date บนสติกเกอร์แสดงแค่ เดือน/ปี (เหมือนเอกสารพิมพ์ทุกใบ — ดู _fmtExpMY)
+  _morelExpFormatted = `${String(exp.getMonth() + 1).padStart(2, '0')}/${exp.getFullYear()}`;
   _morelMfgFormatted = fmt(mfg);
   if (isAuto) document.getElementById('morel-exp-box').innerHTML = `<div class="ro">${_morelExpFormatted}</div>`;
   document.getElementById('morel-mfg-box').innerHTML = `<div class="ro">${_morelMfgFormatted}</div>`;
@@ -36908,7 +36990,12 @@ function issueSearchMaterial(q) {
   dd.style.display = 'block';
 }
 
-function issueSelectMaterial(code, name, lot, uom, balance) {
+async function issueSelectMaterial(code, name, lot, uom, balance) {
+  // QC (qc.js): เตือน/บล็อก Lot ที่ยังไม่ผ่านตรวจรับ — fail-open ถ้า qc.js โหลดไม่ได้/ยังไม่รัน SQL
+  if (window.qcGuardIssueLot && lot && !(await qcGuardIssueLot(code, lot))) {
+    document.getElementById('issue-mat-dropdown').style.display = 'none';
+    return;
+  }
   document.getElementById('issue-f-mat-search').value = name;
   document.getElementById('issue-f-mat-code').value   = code;
   document.getElementById('issue-f-mat-name').value   = name;
@@ -38593,16 +38680,20 @@ async function miscSlipRenderPreview() {
 
   const { groups, order } = _miscSlipBuildGroups(rows);
 
+  // หมายเหตุย้ายไปแถวล่างสุดของตาราง (2026-10-26) — ถ้าทุกแถวหมายเหตุเดียวกันหมด โชว์ครั้งเดียว,
+  // ไม่งั้นแยกตามลำดับรายการ/Lot เฉพาะแถวที่มีหมายเหตุ
+  const remarkItems = [];
   let itemNo = 0;
   const groupHtml = order.map(key => {
     const g = groups[key];
     itemNo++;
     const total = g.lots.reduce((s, l) => s + l.qty, 0);
+    g.lots.forEach(l => { if (l.remark) remarkItems.push({ no: itemNo, lot: l.lotLabel, remark: l.remark }); });
     const bodyRows = g.lots.map(l => {
       const exp = expMap[`${g.code||''}||${l.lotKey}`];
-      const extra = [l.category, l.remark].filter(Boolean).join(' — ');
+      const extra = l.category;
       const label = `Lot.${l.lotLabel}${extra ? ` (${extra})` : ''}`;
-      return `<tr class="dlvbill-lot-row"><td></td><td>${label}</td><td class="exp">${exp?_fmtDate(exp):'—'}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
+      return `<tr class="dlvbill-lot-row"><td></td><td>${label}</td><td class="exp">${exp?_fmtExpMY(exp):'—'}</td><td class="qty">${l.qty.toLocaleString()}</td><td>${g.uom||''}</td></tr>`;
     }).join('');
     return `
       <tr class="dlvbill-prod-row"><td class="num">${itemNo}</td><td>${g.name||''}${g.code?` (${g.code})`:''}</td><td class="exp"></td><td class="qty"></td><td></td></tr>
@@ -38610,6 +38701,16 @@ async function miscSlipRenderPreview() {
       <tr class="dlvbill-total-row"><td></td><td>รวม</td><td class="exp"></td><td class="qty">${total.toLocaleString()}</td><td>${g.uom||''}</td></tr>
     `;
   }).join('');
+
+  const totalLotRows = order.reduce((s, k) => s + groups[k].lots.length, 0);
+  const distinctRemarks = [...new Set(remarkItems.map(x => x.remark.trim()))];
+  let remarkHtml = '';
+  if (remarkItems.length) {
+    const body = (distinctRemarks.length === 1 && remarkItems.length === totalLotRows)
+      ? _rdEsc(distinctRemarks[0])
+      : remarkItems.map(x => `${x.no}. Lot.${_rdEsc(x.lot)} — ${_rdEsc(x.remark)}`).join('<br>');
+    remarkHtml = `<tr class="dlvbill-remark-row"><td colspan="5" style="text-align:left;padding:6px 8px;border-top:1px solid #cbd5e1"><b>หมายเหตุ:</b> ${body}</td></tr>`;
+  }
 
   const docNo = _miscSlipConfirmed ? _miscSlipConfirmedNo : '(ยังไม่ยืนยัน)';
   const docDate = _fmtDate(_planWeekLocalDateStr(new Date()));
@@ -38653,7 +38754,7 @@ async function miscSlipRenderPreview() {
           <th class="exp" style="width:15%">วันหมดอายุ<br>(Exp. Date)</th>
           <th class="qty" style="width:13%">จำนวน<br>(Quantity)</th><th style="width:12%">หน่วย<br>(Unit)</th>
         </tr></thead>
-        <tbody>${groupHtml}</tbody>
+        <tbody>${groupHtml}${remarkHtml}</tbody>
       </table>
 
       ${coRefs.length ? `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>` : ''}
@@ -39706,7 +39807,7 @@ function holdstockRenderPendingReportBox() {
         <td class="text-end">${(parseFloat(m.Qty) || 0).toLocaleString()}</td>
         <td>${_hasRole('supervisor')
           ? `<select class="form-select form-select-sm" style="min-width:110px" onchange="holdstockPendingChangeMethod(${m._row_id}, this)">
-              ${['ทำลาย','คืนลูกค้า','อื่นๆ'].concat(m.DisposalMethod && !['ทำลาย','คืนลูกค้า','อื่นๆ'].includes(m.DisposalMethod) ? [m.DisposalMethod] : [])
+              ${['ทำลาย','คืนลูกค้า','คืนซัพพลายเออร์','อื่นๆ'].concat(m.DisposalMethod && !['ทำลาย','คืนลูกค้า','คืนซัพพลายเออร์','อื่นๆ'].includes(m.DisposalMethod) ? [m.DisposalMethod] : [])
                 .map(o => `<option value="${o}" ${o === m.DisposalMethod ? 'selected' : ''}>${o}</option>`).join('')}
             </select>`
           : (m.DisposalMethod || '—')}</td><td>${m.Reason || ''}</td>
@@ -39764,12 +39865,90 @@ function holdstockReportOpenModal(explicitIds) {
     return;
   }
   if (!_holdstockReportModal) _holdstockReportModal = new bootstrap.Modal(document.getElementById('holdstockReportModal'));
-  document.getElementById('holdstockreport-customer-step').style.display = methods[0] === 'คืนลูกค้า' ? '' : 'none';
+  _holdstockReportApplyRecipientMode(methods[0]);
   document.getElementById('holdstockreport-customer-name').value = '';
   document.getElementById('holdstockreport-customer-address').value = '';
   holdstockReportOnScopeChange();
   holdstockReportRenderHistory();
   _holdstockReportModal.show();
+  if (methods[0] === 'คืนซัพพลายเออร์') _holdstockReportPrefillSupplier(rows);
+}
+
+// กล่องผู้รับ (step 2) ใช้คอลัมน์ ReportCustomerName/Address เดิมร่วมกันทั้ง "คืนลูกค้า" และ "คืนซัพพลายเออร์"
+// (เอกสาร 1 ใบมีวิธีจัดการเดียว เลยไม่ชนกัน) — เปลี่ยนแค่ป้ายกำกับ + รายชื่อใน datalist ตามวิธีจัดการ
+function _holdstockReportApplyRecipientMode(method) {
+  const isSup = method === 'คืนซัพพลายเออร์';
+  document.getElementById('holdstockreport-customer-step').style.display = (method === 'คืนลูกค้า' || isSup) ? '' : 'none';
+  document.getElementById('holdstockreport-customer-step-title').textContent = isSup ? 'ข้อมูลซัพพลายเออร์ (สำหรับใบส่งคืนผู้ขาย)' : 'ข้อมูลลูกค้า (สำหรับใบส่งคืน)';
+  document.getElementById('holdstockreport-customer-name-label').textContent = isSup ? 'ชื่อซัพพลายเออร์' : 'ชื่อบริษัทลูกค้า';
+  document.getElementById('holdstockreport-supplier-hint').style.display = 'none';
+  _holdstockRecipientMode = isSup ? 'SUPPLIER' : 'CUSTOMER';
+  _holdstockRenderRecipientDatalist();
+  if (isSup && !_holdstockSupplierHistory.length) _holdstockLoadSupplierHistory();
+}
+
+let _holdstockRecipientMode = 'CUSTOMER';
+function _holdstockRecipientList() {
+  return _holdstockRecipientMode === 'SUPPLIER' ? _holdstockSupplierHistory : _holdstockCustomerHistory;
+}
+function _holdstockRenderRecipientDatalist() {
+  const dl = document.getElementById('holdstockreport-customer-datalist');
+  if (dl) dl.innerHTML = _holdstockRecipientList().map(c => `<option value="${String(c.CustomerName).replace(/"/g, '&quot;')}"></option>`).join('');
+}
+
+// รายชื่อซัพพลายเออร์ — ใบส่งคืนผู้ขายที่เคยออก (มีที่อยู่ติดมา ใส่ก่อน) + ซัพพลายเออร์หลักใน Master วัตถุดิบ
+// ใช้ shape {CustomerName, CustomerAddress} เดียวกับ _holdstockCustomerHistory เพื่อใช้ช่อง/ฟังก์ชันเดิมร่วมกัน
+let _holdstockSupplierHistory = [];
+async function _holdstockLoadSupplierHistory() {
+  const [rptRes, matRes] = await Promise.all([
+    _sb.from('hold_stock_moves').select('ReportCustomerName,ReportCustomerAddress').eq('DisposalMethod', 'คืนซัพพลายเออร์')
+      .not('ReportCustomerName', 'is', null).order('_row_id', { ascending: false }).limit(300),
+    _sb.from('materials').select('SUPPLIER').not('SUPPLIER', 'is', null),
+  ]);
+  const fromReports = (rptRes.data || []).map(r => ({ CustomerName: r.ReportCustomerName, CustomerAddress: r.ReportCustomerAddress || '' }));
+  const fromMaster = (matRes.data || []).map(r => ({ CustomerName: (r.SUPPLIER || '').trim(), CustomerAddress: '' })).filter(r => r.CustomerName);
+  _holdstockSupplierHistory = _miscDedupeCustomers([...fromReports, ...fromMaster]);
+  if (_holdstockRecipientMode === 'SUPPLIER') _holdstockRenderRecipientDatalist();
+}
+
+// หาซัพพลายเออร์ของแต่ละรายการจากประวัติรับวัตถุดิบ (mr_receive: MaterialCode + Lot) → ถ้าไม่เจอ Lot ใช้ซัพหลักใน
+// Master วัตถุดิบแทน — FG ผลิตเองไม่มีซัพ ข้ามไป เก็บผลไว้ใน r._supplier / r._supplierLot (ไม่เขียนลง DB)
+async function _holdstockLookupSuppliers(rows) {
+  const codes = [...new Set(rows.filter(r => r.ItemType !== 'FG' && r.ItemCode).map(r => r.ItemCode))];
+  if (!codes.length) return;
+  const [mrRes, matRes] = await Promise.all([
+    _sb.from('mr_receive').select('MaterialCode,Lot,Supplier,MfgLotNo,Date').in('MaterialCode', codes).order('Date', { ascending: false }),
+    _sb.from('materials').select('MaterialCode,SUPPLIER').in('MaterialCode', codes),
+  ]);
+  const masterSup = {};
+  (matRes.data || []).forEach(m => { if (m.SUPPLIER) masterSup[m.MaterialCode] = m.SUPPLIER.trim(); });
+  rows.forEach(r => {
+    if (r.ItemType === 'FG' || !r.ItemCode) return;
+    const lot = String(r.Lot || '').trim().toLowerCase();
+    const hit = (mrRes.data || []).find(x => x.MaterialCode === r.ItemCode && lot && String(x.Lot || '').trim().toLowerCase() === lot && x.Supplier);
+    r._supplier = hit ? hit.Supplier.trim() : (masterSup[r.ItemCode] || '');
+    r._supplierLot = hit?.MfgLotNo || '';
+  });
+}
+
+async function _holdstockReportPrefillSupplier(rows) {
+  await _holdstockLookupSuppliers(rows);
+  if (!_holdstockSupplierHistory.length) await _holdstockLoadSupplierHistory();
+  const sups = [...new Set(rows.map(r => r._supplier).filter(Boolean))];
+  const hint = document.getElementById('holdstockreport-supplier-hint');
+  const nameEl = document.getElementById('holdstockreport-customer-name');
+  if (sups.length === 1 && !nameEl.value.trim()) {
+    nameEl.value = sups[0];
+    holdstockReportCustomerInput(sups[0]);   // เติมที่อยู่จากใบส่งคืนผู้ขายที่เคยออก (ถ้ามี)
+  }
+  const noSup = rows.filter(r => !r._supplier);
+  const msgs = [];
+  if (sups.length === 1) msgs.push(`<span class="text-success"><i class="fas fa-check-circle me-1"></i>ดึงซัพพลายเออร์จากประวัติรับวัตถุดิบ: <b>${sups[0]}</b></span>`);
+  if (sups.length > 1) msgs.push(`<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>รายการที่เลือกมาจากหลายซัพพลายเออร์ (${sups.join(', ')}) — ควรแยกออกใบละ 1 ซัพ</span>`);
+  if (noSup.length) msgs.push(`<span class="text-warning-emphasis"><i class="fas fa-info-circle me-1"></i>ไม่พบซัพพลายเออร์ของ: ${noSup.map(r => `${r.ItemName || r.ItemCode} (Lot ${r.Lot || '—'})`).join(', ')} — กรอกเองได้</span>`);
+  hint.innerHTML = msgs.join('<br>');
+  hint.style.display = msgs.length ? '' : 'none';
+  holdstockReportRenderPreview();
 }
 
 // move/hold_stock บางรายการ UOM ว่าง (บันทึกตอนย้ายเข้า) — ดึงหน่วยจาก Master (materials / stock_fg) มาเติมตอนออกเอกสาร
@@ -39787,13 +39966,12 @@ async function _holdstockLoadCustomerHistory() {
   ]);
   const fromReports = (rptRes.data || []).map(r => ({ CustomerName: r.ReportCustomerName, CustomerAddress: r.ReportCustomerAddress || '' }));
   _holdstockCustomerHistory = _miscDedupeCustomers([...fromReports, ...(coRes.data || []), ...(miscRes.data || [])]);
-  const dl = document.getElementById('holdstockreport-customer-datalist');
-  if (dl) dl.innerHTML = _holdstockCustomerHistory.map(c => `<option value="${String(c.CustomerName).replace(/"/g, '&quot;')}"></option>`).join('');
+  if (_holdstockRecipientMode === 'CUSTOMER') _holdstockRenderRecipientDatalist();
 }
 
 function holdstockReportCustomerInput(val) {
-  // ชื่อตรงกับลูกค้าเดิม (เลือกจากรายการ) → เติมที่อยู่ให้ ยังแก้เองได้
-  const hit = _holdstockCustomerHistory.find(c => c.CustomerName === val);
+  // ชื่อตรงกับลูกค้า/ซัพเดิม (เลือกจากรายการ) → เติมที่อยู่ให้ ยังแก้เองได้
+  const hit = _holdstockRecipientList().find(c => c.CustomerName === val);
   if (hit && hit.CustomerAddress) document.getElementById('holdstockreport-customer-address').value = hit.CustomerAddress;
   holdstockReportRenderPreview();
 }
@@ -39962,7 +40140,10 @@ async function holdstockReportReprint(reportNo) {
   if (!_holdstockReportModal) _holdstockReportModal = new bootstrap.Modal(document.getElementById('holdstockReportModal'));
 
   const customerRow = (moveRows || []).find(r => r.ReportCustomerName);
-  document.getElementById('holdstockreport-customer-step').style.display = customerRow ? '' : 'none';
+  const reprintMethod = (moveRows || [])[0]?.DisposalMethod;
+  _holdstockReportApplyRecipientMode(reprintMethod);
+  document.getElementById('holdstockreport-customer-step').style.display = (customerRow || reprintMethod === 'คืนซัพพลายเออร์') ? '' : 'none';
+  if (reprintMethod === 'คืนซัพพลายเออร์') _holdstockLookupSuppliers(moveRows || []).then(() => holdstockReportRenderPreview());
   document.getElementById('holdstockreport-customer-name').value = customerRow?.ReportCustomerName || '';
   document.getElementById('holdstockreport-customer-address').value = customerRow?.ReportCustomerAddress || '';
   document.getElementById('holdstockreport-selected-summary').innerHTML = (moveRows || []).map(r =>
@@ -40047,7 +40228,9 @@ function _holdstockReportBuildGroups(rows) {
   rows.forEach(r => {
     const key = `${r.ItemCode}|${r.ItemName}`;
     if (!groups[key]) { groups[key] = { code: r.ItemCode, name: r.ItemName, uom: r.UOM || _holdstockUomCache[r.ItemCode] || '', lots: [] }; order.push(key); }
-    groups[key].lots.push({ lotLabel: r.Lot || '—', qty: parseFloat(r.Qty) || 0, reason: r.Reason || '' });
+    // ใบคืนซัพ: ต่อท้าย Lot ของผู้ผลิต (MfgLotNo จากใบรับ) ให้ซัพตรวจย้อนกลับได้
+    const lotLabel = (r.Lot || '—') + (r.DisposalMethod === 'คืนซัพพลายเออร์' && r._supplierLot ? ` / Lot ผู้ผลิต ${r._supplierLot}` : '');
+    groups[key].lots.push({ lotLabel, qty: parseFloat(r.Qty) || 0, reason: r.Reason || '' });
   });
   return { groups, order };
 }
@@ -40066,8 +40249,10 @@ function holdstockReportRenderPreview() {
   }
 
   const method = rows[0].DisposalMethod;
-  const isReturn = method === 'คืนลูกค้า';
-  const title = isReturn ? 'ใบส่งคืนสินค้าเสีย / Defect Return Note' : 'ใบรับรองการทำลาย / Certificate of Destruction';
+  const isSupReturn = method === 'คืนซัพพลายเออร์';
+  const isReturn = method === 'คืนลูกค้า' || isSupReturn;
+  const title = isSupReturn ? 'ใบส่งคืนสินค้า/วัตถุดิบแก่ผู้ขาย / Supplier Return Note'
+    : isReturn ? 'ใบส่งคืนสินค้าเสีย / Defect Return Note' : 'ใบรับรองการทำลาย / Certificate of Destruction';
   const customerName = document.getElementById('holdstockreport-customer-name').value.trim();
   const customerAddress = document.getElementById('holdstockreport-customer-address').value.trim();
 
@@ -40113,7 +40298,7 @@ function holdstockReportRenderPreview() {
 
       ${isReturn ? `
       <div class="dlvbill-cust-box">
-        <div class="dlvbill-cust-row"><span class="lbl">ชื่อบริษัทลูกค้า (Company Name)</span><span class="val">${customerName || '—'}</span></div>
+        <div class="dlvbill-cust-row"><span class="lbl">${isSupReturn ? 'ชื่อซัพพลายเออร์ (Supplier Name)' : 'ชื่อบริษัทลูกค้า (Company Name)'}</span><span class="val">${customerName || '—'}</span></div>
         <div class="dlvbill-cust-row"><span class="lbl">ที่อยู่ (Address)</span><span class="val">${customerAddress || '—'}</span></div>
       </div>` : ''}
 
@@ -40126,11 +40311,12 @@ function holdstockReportRenderPreview() {
       </table>
 
       <div class="dlvbill-notes">
-        <div>หมายเหตุ: ${isReturn ? 'สินค้ารายการข้างต้นเป็นสินค้าชำรุด/ไม่ผ่านมาตรฐาน ขอส่งคืนตามรายละเอียดนี้' : 'สินค้ารายการข้างต้นได้ทำการทำลายตามขั้นตอนของบริษัทเรียบร้อยแล้ว'}</div>
+        <div>หมายเหตุ: ${isSupReturn ? 'สินค้า/วัตถุดิบรายการข้างต้นชำรุด/ไม่ผ่านมาตรฐาน ขอส่งคืนผู้ขายตามรายละเอียดนี้'
+          : isReturn ? 'สินค้ารายการข้างต้นเป็นสินค้าชำรุด/ไม่ผ่านมาตรฐาน ขอส่งคืนตามรายละเอียดนี้' : 'สินค้ารายการข้างต้นได้ทำการทำลายตามขั้นตอนของบริษัทเรียบร้อยแล้ว'}</div>
       </div>
 
       <div class="dlvbill-footer">
-        <div class="dlvbill-sign"><div class="line">${isReturn ? 'ผู้รับคืนสินค้า' : 'ผู้ทำลาย'}</div><div class="date">วันที่ ...../...../.....</div></div>
+        <div class="dlvbill-sign"><div class="line">${isSupReturn ? 'ผู้รับคืน (ซัพพลายเออร์)' : isReturn ? 'ผู้รับคืนสินค้า' : 'ผู้ทำลาย'}</div><div class="date">วันที่ ...../...../.....</div></div>
         <div class="dlvbill-sign"><div class="line">${isReturn ? 'ผู้ส่งคืนสินค้า' : 'ผู้ตรวจสอบ'}</div><div class="date">วันที่ ...../...../.....</div></div>
         <div class="dlvbill-sign"><div class="line">ผู้อนุมัติ</div><div class="date">วันที่ ...../...../.....</div></div>
       </div>
@@ -41751,7 +41937,7 @@ function _stockcardBuildPrintHTML(rep) {
       </div>
       <table class="stockcard-print-table" style="margin-bottom:8px">
         <tr><td style="width:15%"><b>Lot</b></td><td>${lot}</td>
-            <td style="width:15%"><b>วันหมดอายุ</b></td><td>${_fmtDate(pl.expDate)||'—'}</td></tr>
+            <td style="width:15%"><b>วันหมดอายุ</b></td><td>${_fmtExpMY(pl.expDate)||'—'}</td></tr>
         <tr><td><b>ยอดยกมา</b></td><td>${pl.openingBal.toLocaleString()} ${rep.uom||''}</td>
             <td><b>คงเหลือ</b></td><td><b>${pl.closing.toLocaleString()} ${rep.uom||''}</b></td></tr>
         ${rep.mode==='mat' ? `<tr><td><b>ราคา/หน่วย</b></td><td>฿${pl.unitCost.toLocaleString()}</td>
@@ -42329,7 +42515,7 @@ function _lotscanRenderMaterialPrint(d) {
         <div class="name">${materialName}</div>
       </div>
       <div><div class="lot">Lot ${lot}</div>
-        <div style="font-size:10.5px;color:#64748b;margin-top:2px">ผลิต ${mfgFormatted || '—'}<br>หมดอายุ ${_fmtDate(expDate)}</div></div>
+        <div style="font-size:10.5px;color:#64748b;margin-top:2px">ผลิต ${mfgFormatted || '—'}<br>หมดอายุ ${_fmtExpMY(expDate)}</div></div>
       <div class="kpi"><div class="num">${sb ? (parseFloat(sb.QtyBalance)||0).toLocaleString() : '—'} ${uom}</div><div class="lbl">คงเหลือปัจจุบัน</div></div>
     </div>
     <div class="lotreport-section-title">รับเข้าคลัง (MR Receive)</div>
@@ -42357,7 +42543,7 @@ function _lotscanRenderFGPrint(d) {
 
   const materialRowsHtml = materialRows.length ? materialRows.map(m => `
     <tr><td>${m.MaterialCode} — ${m.MaterialName||''}</td>
-      <td>${m.Lot||'—'}</td><td>${m.mfgLotNo||'—'}</td><td>${_fmtDate(m.expDate)}</td><td>${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</td></tr>`).join('')
+      <td>${m.Lot||'—'}</td><td>${m.mfgLotNo||'—'}</td><td>${_fmtExpMY(m.expDate)}</td><td>${(parseFloat(m.Qty)||0).toLocaleString()} ${m.UOM||''}</td></tr>`).join('')
     : _lotscanReportEmptyRow(5, 'ไม่พบข้อมูลวัตถุดิบที่ใช้ผลิต');
 
   const withdrawRows = wdRows.length ? wdRows.map(r => {
@@ -42378,7 +42564,7 @@ function _lotscanRenderFGPrint(d) {
         <div class="name">${productName}</div>
       </div>
       <div><div class="lot">Lot ${lotFg}</div>
-        <div style="font-size:10.5px;color:#64748b;margin-top:2px">หมดอายุ ${_fmtDate(expireDate)}</div></div>
+        <div style="font-size:10.5px;color:#64748b;margin-top:2px">หมดอายุ ${_fmtExpMY(expireDate)}</div></div>
       <div class="kpi"><div class="num">${fgRows.reduce((s,r)=>s+(parseFloat(r.QtyFG)||0),0).toLocaleString()} ${fgRows[0]?.UOM||''}</div><div class="lbl">รับเข้ารวม</div></div>
       <div class="kpi"><div class="num">${fgStock ? (parseFloat(fgStock.FGBalance)||0).toLocaleString() : '—'} ${fgStock?.UOM || fgRows[0]?.UOM || ''}</div><div class="lbl">คงเหลือปัจจุบัน</div></div>
     </div>
@@ -44961,5 +45147,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- factory-layout.js = ห้อง↔ไลน์ + เครื่องจักร ใช้ร่วมกับแอปมือถือ — ต้องโหลดก่อน floorpulse.js เสมอ -->
 <script src="factory-layout.js?v=20261022a"></script>
 <script src="floorpulse.js?v=20261022f"></script>
+<script src="qc.js?v=20261026a"></script>
 </body>
 </html>
