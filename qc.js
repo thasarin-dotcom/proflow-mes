@@ -24,8 +24,8 @@ function _qcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => 
 function _qcAdmin() { return typeof _hasRole === 'function' && _hasRole('admin'); }
 function _qcKey(code, lot) { return String(code || '') + '|' + String(lot || ''); }
 function _qcBadge(result) {
-  const m = { PASS: 'success', REJECT: 'danger', CONDITIONAL: 'warning text-dark', pending: 'secondary', legacy: 'light text-dark border' };
-  const l = result === 'pending' ? 'รอตรวจ' : result === 'legacy' ? 'ก่อนเริ่มใช้ QC' : (QC_RESULT_LABEL[result] || result);
+  const m = { PASS: 'success', REJECT: 'danger', CONDITIONAL: 'warning text-dark', pending: 'secondary', legacy: 'light text-dark border', AWAITING: 'info text-dark', RETURNED: 'dark' };
+  const l = result === 'pending' ? 'รอตรวจ' : result === 'legacy' ? 'ก่อนเริ่มใช้ QC' : result === 'AWAITING' ? 'รอ QC อนุมัติ' : result === 'RETURNED' ? 'ส่งกลับแก้ไข' : (QC_RESULT_LABEL[result] || result);
   return `<span class="badge bg-${m[result] || 'secondary'}">${l}</span>`;
 }
 
@@ -46,6 +46,7 @@ function _qcEnsurePage() {
     <div class="sticky-toolbar"><div class="glass-card py-2 mb-2">
       <ul class="nav nav-pills gap-1" id="qc-tabs">
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="pending" onclick="qcSetTab('pending');return false">รอตรวจ <span class="badge bg-danger ms-1" id="qc-pending-count">0</span></a></li>
+        <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="approve" onclick="qcSetTab('approve');return false">รออนุมัติ <span class="badge bg-info text-dark ms-1" id="qc-approve-count">0</span></a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="insp" onclick="qcSetTab('insp');return false">ใบตรวจ</a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="ncr" onclick="qcSetTab('ncr');return false">NCR <span class="badge bg-warning text-dark ms-1" id="qc-ncr-count">0</span></a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="spec" onclick="qcSetTab('spec');return false">มาตรฐานตรวจ (Spec)</a></li>
@@ -99,7 +100,7 @@ async function _qcLoadAll() {
     if (!r.MaterialCode || !r.Lot) return;
     const k = _qcKey(r.MaterialCode, r.Lot);
     if (_qcStatusMap[k]) return;
-    const a = agg[k] || (agg[k] = { ...r, Qty: 0 });
+    const a = agg[k] || (agg[k] = { ...r, Qty: 0, returned: _qcReturned[k] || null });
     a.Qty += parseFloat(r.Qty) || 0;
     if (r.Date > a.Date) { a.Date = r.Date; a._row_id = r._row_id; }
   });
@@ -107,36 +108,47 @@ async function _qcLoadAll() {
   _qcStatusAt = Date.now();
 }
 
+let _qcReturned = {};   // "code|lot" → ใบตรวจล่าสุดที่ Admin ส่งกลับ (Lot กลับไปอยู่แท็บรอตรวจ)
 function _qcBuildStatusMap() {
-  _qcStatusMap = {};
+  _qcStatusMap = {}; _qcReturned = {};
+  const seen = {};
   // เรียงใหม่→เก่า: ตัวแรกที่เจอคือใบตรวจล่าสุด
   _qcInspections.forEach(i => {
     const k = _qcKey(i.MaterialCode, i.Lot);
-    if (!_qcStatusMap[k]) _qcStatusMap[k] = { result: i.Result, inspId: i._row_id };
+    if (seen[k]) return;
+    seen[k] = true;
+    if (i.Status === 'RETURNED') { _qcReturned[k] = i; return; }
+    // รออนุมัติ = ยังไม่ผ่าน (AWAITING); ใบเดิมที่ไม่มีคอลัมน์ Status ถือว่าอนุมัติแล้ว
+    _qcStatusMap[k] = { result: i.Status === 'PENDING_APPROVAL' ? 'AWAITING' : i.Result, inspId: i._row_id };
   });
 }
+function _qcInspBadge(i) { return _qcBadge(i.Status === 'PENDING_APPROVAL' ? 'AWAITING' : i.Status === 'RETURNED' ? 'RETURNED' : i.Result); }
 
 function qcSetTab(tab) {
   _qcTab = tab;
   document.querySelectorAll('#qc-tabs .nav-link').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
   const el = document.getElementById('qc-pending-count'); if (el) el.textContent = _qcPendingLots.length;
   const nc = document.getElementById('qc-ncr-count'); if (nc) nc.textContent = _qcNcrs.filter(n => n.Status !== 'CLOSED').length;
+  const nApprove = _qcInspections.filter(i => i.Status === 'PENDING_APPROVAL').length;
+  const ac = document.getElementById('qc-approve-count'); if (ac) ac.textContent = nApprove;
+  _qcSetNavBadge(nApprove);
   const body = document.getElementById('qc-body');
   if (!_qcReady) {
     body.innerHTML = `<div class="alert alert-warning">ยังไม่ได้สร้างตาราง QC — รัน <code>create_qc_phase1.sql</code> ใน Supabase SQL Editor ก่อน</div>`;
     return;
   }
-  ({ pending: _qcRenderPending, insp: _qcRenderInsp, ncr: _qcRenderNcr, spec: _qcRenderSpec, settings: _qcRenderSettings }[tab] || _qcRenderPending)(body);
+  ({ pending: _qcRenderPending, approve: _qcRenderApprove, insp: _qcRenderInsp, ncr: _qcRenderNcr, spec: _qcRenderSpec, settings: _qcRenderSettings }[tab] || _qcRenderPending)(body);
 }
 
 // ── แท็บ: รอตรวจ ──
 function _qcRenderPending(body) {
   const adm = _qcAdmin();
   const rows = _qcPendingLots.map((r, i) => `<tr>
-      <td>${_qcEsc(r.Date)}</td><td><span class="badge bg-secondary">${_qcEsc(r.MaterialCode)}</span> ${_qcEsc(r.MaterialName)}</td>
+      <td>${_qcEsc(r.Date)}</td><td><span class="badge bg-secondary">${_qcEsc(r.MaterialCode)}</span> ${_qcEsc(r.MaterialName)}
+        ${r.returned ? `<div class="small text-danger"><i class="fas fa-rotate-left me-1"></i>QC ส่งกลับแก้ไข: ${_qcEsc(r.returned.ApproveRemark || '—')}</div>` : ''}</td>
       <td>${_qcEsc(r.Lot)}</td><td>${_qcEsc(r.MfgLotNo || '—')}</td><td class="text-end">${(r.Qty || 0).toLocaleString()} ${_qcEsc(r.UOM || '')}</td>
       <td>${_qcEsc(r.Supplier || '—')}</td>
-      <td>${adm ? `<button class="btn btn-sm btn-primary" onclick="qcOpenInspect(${i})"><i class="fas fa-clipboard-check me-1"></i>ตรวจ</button>` : '<span class="text-muted small">รอแอดมินตรวจ</span>'}</td></tr>`).join('');
+      <td><button class="btn btn-sm btn-primary" onclick="qcOpenInspect(${i})"><i class="fas fa-clipboard-check me-1"></i>${adm ? 'ตรวจ' : 'บันทึกผลตรวจ'}</button></td></tr>`).join('');
   body.innerHTML = `<div class="glass-card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
     <thead><tr><th>วันที่รับ</th><th>วัตถุดิบ</th><th>Lot</th><th>Lot ผู้ผลิต</th><th class="text-end">จำนวน</th><th>ซัพ</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td colspan="7" class="text-center text-muted py-4">ไม่มี Lot ที่รอตรวจ 🎉</td></tr>'}</tbody></table></div>
@@ -197,13 +209,13 @@ function qcOpenInspect(idx) {
       </div>
       <table class="table table-sm align-middle"><thead><tr><th>รายการตรวจ</th><th>เกณฑ์</th><th>ผลที่วัดได้</th><th>ผล</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="row g-2">
-        <div class="col-md-5"><label class="form-label small mb-0">ผลการตัดสิน</label>
+        <div class="col-md-5"><label class="form-label small mb-0">${_qcAdmin() ? 'ผลการตัดสิน' : 'ผลที่เสนอ (Admin QC จะเป็นผู้อนุมัติ)'}</label>
           <select id="qc-i-result" class="form-select"><option value="PASS">ผ่าน (Released)</option><option value="CONDITIONAL">ผ่านแบบมีเงื่อนไข</option><option value="REJECT">ไม่ผ่าน (Reject)</option></select>
           <small class="text-muted" id="qc-i-suggest"></small></div>
         <div class="col-md-7"><label class="form-label small mb-0">หมายเหตุ</label><input type="text" id="qc-i-remark" class="form-control"></div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button><button class="btn btn-primary" onclick="qcSaveInspect()"><i class="fas fa-save me-1"></i>บันทึกผลตรวจ</button></div>`;
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button><button class="btn btn-primary" onclick="qcSaveInspect()">${_qcAdmin() ? '<i class="fas fa-save me-1"></i>บันทึกผลตรวจ' : '<i class="fas fa-paper-plane me-1"></i>ส่งให้ QC อนุมัติ'}</button></div>`;
   _qcInspModal.show();
 }
 
@@ -245,8 +257,9 @@ function qcCalcResult() {
   else document.getElementById('qc-i-suggest').textContent = 'กรอกผลให้ครบทุกรายการ';
 }
 
+// Admin = บันทึกแล้วอนุมัติทันที (APPROVED); พนักงานคลัง = ส่งให้ Admin QC อนุมัติ (PENDING_APPROVAL — Lot ยังไม่ถือว่าผ่าน)
 async function qcSaveInspect() {
-  if (!_qcAdmin()) return;
+  const adm = _qcAdmin();
   const { lot, items } = _qcCurInsp;
   qcCalcResult();
   if (items.some(it => it._pass == null)) { Swal.fire({ icon: 'warning', title: 'กรอกผลตรวจให้ครบทุกรายการก่อน' }); return; }
@@ -261,7 +274,9 @@ async function qcSaveInspect() {
     Lot: lot.Lot, MR_RowId: lot._row_id, Qty: lot.Qty, UOM: lot.UOM, Supplier: lot.Supplier,
     CoAReceived: document.getElementById('qc-i-coa').checked, Result: result,
     Remark: document.getElementById('qc-i-remark').value || null, Inspector: _currentUser?.email || null,
+    Status: adm ? 'APPROVED' : 'PENDING_APPROVAL',
   };
+  if (adm) { head.ApprovedBy = _currentUser?.email || null; head.ApprovedAt = new Date().toISOString(); }
   // ค่าจากเอกสาร CoA — ใส่เฉพาะเมื่อกรอก/สแกนมา (ต้องรัน alter_qc_inspections_add_coa_fields.sql ก่อนถึงจะบันทึกคอลัมน์เหล่านี้ได้)
   const dv = id => document.getElementById(id).value.trim() || null;
   const doc = { CoA_MfgLotNo: dv('qc-d-lot'), CoA_MfgDate: dv('qc-d-mfg'), CoA_ExpDate: dv('qc-d-exp'), CoA_DocNo: dv('qc-d-no'), CoA_Product: dv('qc-d-prod'), CoA_Supplier: dv('qc-d-sup') };
@@ -275,21 +290,21 @@ async function qcSaveInspect() {
   const r2 = await _sb.from('qc_inspection_results').insert(rows);
   _hideLoader();
   if (r2.error) { _err('บันทึกผลรายรายการไม่สำเร็จ', r2.error.message); return; }
-  _logAudit('QC_INSPECT', 'qc_inspections', `${lot.MaterialCode}/${lot.Lot}`, `IQC ${QC_RESULT_LABEL[result]}`);
+  _logAudit(adm ? 'QC_INSPECT' : 'QC_SUBMIT', 'qc_inspections', `${lot.MaterialCode}/${lot.Lot}`, `IQC ${adm ? '' : 'เสนอ '}${QC_RESULT_LABEL[result]}`);
   _qcInspModal.hide();
-  if (result !== 'PASS') {
+  if (adm && result !== 'PASS') {
     const failed = items.filter(it => it._pass === false).map(it => it.Parameter).join(', ');
     await qcOpenNcr(null, { inspId: ins.data._row_id, lot, desc: failed ? `ไม่ผ่าน: ${failed}` : '' });
   }
   await qcLoadPage();
-  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกผลตรวจแล้ว', showConfirmButton: false, timer: 2000 });
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: adm ? 'บันทึกผลตรวจแล้ว' : 'ส่งให้ Admin QC อนุมัติแล้ว', showConfirmButton: false, timer: 2500 });
 }
 
 // ── แท็บ: ประวัติใบตรวจ ──
 function _qcRenderInsp(body) {
   const rows = _qcInspections.map(i => `<tr><td>${_qcEsc(i.InspDate)}</td><td>${_qcEsc(i.InspType)}</td>
     <td><span class="badge bg-secondary">${_qcEsc(i.MaterialCode)}</span> ${_qcEsc(i.MaterialName)}</td><td>${_qcEsc(i.Lot)}</td>
-    <td>${_qcBadge(i.Result)}</td><td>${i.CoAReceived ? '✔' : '—'}</td><td class="small">${_qcEsc(i.Inspector || '')}</td><td class="small">${_qcEsc(i.Remark || '')}</td>
+    <td>${_qcInspBadge(i)}</td><td>${i.CoAReceived ? '✔' : '—'}</td><td class="small">${_qcEsc(i.Inspector || '')}</td><td class="small">${_qcEsc(i.Remark || '')}</td>
     <td><button class="btn btn-sm btn-outline-secondary" onclick="qcViewInsp(${i._row_id})">ดู</button></td></tr>`).join('');
   body.innerHTML = `<div class="glass-card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
     <thead><tr><th>วันที่</th><th>ชนิด</th><th>วัตถุดิบ</th><th>Lot</th><th>ผล</th><th>CoA</th><th>ผู้ตรวจ</th><th>หมายเหตุ</th><th></th></tr></thead>
@@ -460,7 +475,7 @@ async function qcLotStatus(code, lot) {
 async function qcGuardIssueLot(code, lot) {
   const s = await qcLotStatus(code, lot);
   if (s.status === 'PASS' || s.status === 'legacy' || s.status === 'unknown') return true;
-  const label = s.status === 'pending' ? 'ยังไม่ได้ตรวจ QC' : s.status === 'REJECT' ? 'ตรวจแล้ว "ไม่ผ่าน" (Reject)' : 'ผ่านแบบมีเงื่อนไข';
+  const label = s.status === 'pending' ? 'ยังไม่ได้ตรวจ QC' : s.status === 'AWAITING' ? 'ตรวจแล้ว แต่รอ Admin QC อนุมัติ' : s.status === 'REJECT' ? 'ตรวจแล้ว "ไม่ผ่าน" (Reject)' : 'ผ่านแบบมีเงื่อนไข';
   if (s.status === 'CONDITIONAL' && !s.enforce) { /* เตือนอย่างเดียว */ }
   if (s.enforce && s.status !== 'CONDITIONAL') {
     await Swal.fire({ icon: 'error', title: 'เบิก Lot นี้ไม่ได้', text: `Lot ${lot} ${label}` });
@@ -468,6 +483,140 @@ async function qcGuardIssueLot(code, lot) {
   }
   const r = await Swal.fire({ icon: 'warning', title: `Lot ${lot} ${label}`, text: 'ยืนยันจะเบิก Lot นี้ต่อหรือไม่?', showCancelButton: true, confirmButtonText: 'เบิกต่อ', cancelButtonText: 'เลือก Lot อื่น' });
   return r.isConfirmed;
+}
+
+// ════════════════════════════════════════════════════
+// ขั้นตอนอนุมัติ: คลังบันทึก/ส่งผลตรวจ → Admin QC เห็นที่แท็บ "รออนุมัติ" + ป้ายแดงที่เมนู QC → อนุมัติ/ส่งกลับแก้ไข
+// (สถานะใบตรวจ PENDING_APPROVAL/APPROVED/RETURNED — alter_qc_inspections_add_approval.sql)
+// ════════════════════════════════════════════════════
+let _qcApproveCtx = null;
+let _qcLastApproveCount = null;
+
+function _qcSetNavBadge(n) {
+  const el = document.getElementById('nav-qc-badge'); if (!el) return;
+  const show = _qcAdmin() && n > 0;
+  el.style.display = show ? '' : 'none';
+  el.textContent = n;
+}
+// เช็คใบที่รออนุมัติเป็นระยะ (เฉพาะ Admin) — มีใบใหม่เข้ามาให้เด้ง toast
+async function qcRefreshBadge() {
+  try {
+    if (!_currentUser || !_qcAdmin()) { _qcSetNavBadge(0); return; }
+    const { count, error } = await _sb.from('qc_inspections').select('_row_id', { count: 'exact', head: true }).eq('Status', 'PENDING_APPROVAL');
+    if (error) return;   // ยังไม่ได้รัน SQL อนุมัติ/ตาราง — เงียบไว้
+    _qcSetNavBadge(count || 0);
+    const ac = document.getElementById('qc-approve-count'); if (ac) ac.textContent = count || 0;
+    if (_qcLastApproveCount != null && count > _qcLastApproveCount) {
+      Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `มีใบตรวจรอ QC อนุมัติ ${count} ใบ`, showConfirmButton: false, timer: 4000 });
+    }
+    _qcLastApproveCount = count || 0;
+  } catch (e) { console.error('qcRefreshBadge', e); }
+}
+setTimeout(qcRefreshBadge, 5000);
+setInterval(qcRefreshBadge, 45000);
+
+function _qcRenderApprove(body) {
+  const adm = _qcAdmin();
+  const list = _qcInspections.filter(i => i.Status === 'PENDING_APPROVAL').sort((a, b) => (a.CreatedAt < b.CreatedAt ? -1 : 1));
+  const rows = list.map(i => `<tr>
+    <td class="small">${_qcEsc(new Date(i.CreatedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }))}</td>
+    <td><span class="badge bg-secondary">${_qcEsc(i.MaterialCode)}</span> ${_qcEsc(i.MaterialName)}</td><td>${_qcEsc(i.Lot)}</td>
+    <td>${_qcBadge(i.Result)} <small class="text-muted">(ที่เสนอ)</small></td><td class="small">${_qcEsc(i.Inspector || '')}</td><td class="small">${_qcEsc(i.Remark || '')}</td>
+    <td>${adm ? `<button class="btn btn-sm btn-primary" onclick="qcOpenApprove(${i._row_id})"><i class="fas fa-stamp me-1"></i>ตรวจสอบ/อนุมัติ</button>` : '<span class="text-muted small">รอ Admin QC</span>'}</td></tr>`).join('');
+  body.innerHTML = `<div class="glass-card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>ส่งเมื่อ</th><th>วัตถุดิบ</th><th>Lot</th><th>ผล</th><th>ผู้บันทึก</th><th>หมายเหตุ</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" class="text-center text-muted py-4">ไม่มีใบตรวจที่รออนุมัติ</td></tr>'}</tbody></table></div>
+    <small class="text-muted">Lot ที่อยู่ในรายการนี้ยังไม่ถือว่าผ่าน QC จนกว่า Admin จะอนุมัติ</small></div>`;
+}
+
+async function qcOpenApprove(id) {
+  if (!_qcAdmin()) return;
+  const i = _qcInspections.find(x => x._row_id === id); if (!i) return;
+  _showLoader();
+  const [rRes, mRes] = await Promise.all([
+    _sb.from('qc_inspection_results').select('*').eq('InspectionId', id).order('_row_id'),
+    i.MR_RowId ? _sb.from('mr_receive').select('MfgLotNo,ExpDate').eq('_row_id', i.MR_RowId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  _hideLoader();
+  const results = rRes.data || [], mr = mRes.data || {};
+  _qcApproveCtx = { i, results };
+  const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const warn = [];
+  if (i.CoA_MfgLotNo && mr.MfgLotNo && norm(i.CoA_MfgLotNo) !== norm(mr.MfgLotNo)) warn.push(`Lot ผู้ผลิตตาม CoA (${_qcEsc(i.CoA_MfgLotNo)}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(mr.MfgLotNo)})`);
+  if (i.CoA_ExpDate && mr.ExpDate && String(mr.ExpDate).slice(0, 10) !== String(i.CoA_ExpDate).slice(0, 10)) warn.push(`วันหมดอายุตาม CoA (${_qcEsc(String(i.CoA_ExpDate).slice(0, 10))}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(String(mr.ExpDate).slice(0, 10))})`);
+  if (i.CoA_ExpDate && String(i.CoA_ExpDate).slice(0, 10) < new Date().toISOString().slice(0, 10)) warn.push('วันหมดอายุตาม CoA ผ่านไปแล้ว');
+  const rrows = results.map(r => `<tr><td>${_qcEsc(r.Parameter)}</td><td class="small text-muted">${r.ParamType === 'numeric' ? `${r.MinValue ?? '−∞'} – ${r.MaxValue ?? '+∞'} ${_qcEsc(r.Unit || '')}` : 'ผ่าน/ไม่ผ่าน'}</td>
+    <td>${r.Measured != null ? r.Measured + ' ' + _qcEsc(r.Unit || '') : '—'}</td><td>${r.Pass ? '<span class="text-success fw-bold">ผ่าน</span>' : '<span class="text-danger fw-bold">ไม่ผ่าน</span>'}</td></tr>`).join('');
+  const info = (l, v) => `<div class="col-6 col-md-3"><div class="small text-muted">${l}</div><div>${_qcEsc(v || '—')}</div></div>`;
+  document.getElementById('qcInspModalBody').innerHTML = `
+    <div class="modal-header"><h5 class="modal-title"><i class="fas fa-stamp me-2"></i>อนุมัติผลตรวจ ${_qcEsc(i.MaterialName)} — Lot ${_qcEsc(i.Lot)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-2 mb-2">
+        ${info('ผู้บันทึก', i.Inspector)}${info('ส่งเมื่อ', new Date(i.CreatedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }))}
+        ${info('จำนวน', (i.Qty || 0).toLocaleString() + ' ' + (i.UOM || ''))}${info('ซัพ', i.Supplier)}
+        ${info('Lot ผู้ผลิต (CoA)', i.CoA_MfgLotNo)}${info('วันผลิต (CoA)', i.CoA_MfgDate)}${info('วันหมดอายุ (CoA)', i.CoA_ExpDate)}${info('เลขที่ CoA', i.CoA_DocNo)}
+        ${info('ชื่อสินค้าตาม CoA', i.CoA_Product)}${info('ผู้ผลิตตาม CoA', i.CoA_Supplier)}${info('ได้รับ CoA', i.CoAReceived ? 'ใช่' : 'ไม่')}${info('หมายเหตุจากคลัง', i.Remark)}
+      </div>
+      ${warn.map(w => `<div class="alert alert-danger py-1 small mb-1"><i class="fas fa-triangle-exclamation me-1"></i>${w}</div>`).join('')}
+      <table class="table table-sm align-middle mt-2"><thead><tr><th>รายการตรวจ</th><th>เกณฑ์</th><th>ผลที่วัดได้</th><th>ผล</th></tr></thead><tbody>${rrows || '<tr><td colspan="4" class="text-muted">ไม่มีรายการ</td></tr>'}</tbody></table>
+      <div class="row g-2">
+        <div class="col-md-5"><label class="form-label small mb-0">การตัดสินของ Admin QC</label>
+          <select id="qc-a-result" class="form-select"><option value="PASS" ${i.Result === 'PASS' ? 'selected' : ''}>ผ่าน (Released)</option><option value="CONDITIONAL" ${i.Result === 'CONDITIONAL' ? 'selected' : ''}>ผ่านแบบมีเงื่อนไข</option><option value="REJECT" ${i.Result === 'REJECT' ? 'selected' : ''}>ไม่ผ่าน (Reject)</option></select>
+          <small class="text-muted">คลังเสนอ: ${QC_RESULT_LABEL[i.Result] || i.Result}</small></div>
+        <div class="col-md-7"><label class="form-label small mb-0">หมายเหตุ Admin (ถ้าส่งกลับ ต้องระบุเหตุผล)</label><input id="qc-a-remark" class="form-control"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary me-auto" data-bs-dismiss="modal">ปิด</button>
+      <button class="btn btn-outline-warning" onclick="qcReturnInspection(${id})"><i class="fas fa-rotate-left me-1"></i>ส่งกลับแก้ไข</button>
+      <button class="btn btn-primary" onclick="qcApproveInspection(${id})"><i class="fas fa-check me-1"></i>อนุมัติ</button></div>`;
+  _qcInspModal.show();
+}
+
+async function qcApproveInspection(id) {
+  if (!_qcAdmin() || !_qcApproveCtx || _qcApproveCtx.i._row_id !== id) return;
+  const { i, results } = _qcApproveCtx;
+  const decision = document.getElementById('qc-a-result').value;
+  if (decision === 'PASS' && results.some(r => r.Pass === false)) {
+    const c = await Swal.fire({ icon: 'warning', title: 'มีรายการไม่ผ่านแต่เลือก "ผ่าน"', text: 'ยืนยันอนุมัติปล่อยผ่านหรือไม่?', showCancelButton: true, confirmButtonText: 'ยืนยันอนุมัติ', cancelButtonText: 'กลับไปแก้' });
+    if (!c.isConfirmed) return;
+  }
+  _showLoader();
+  // .eq Status กันอนุมัติซ้ำ/ชนกับ Admin อีกคน
+  const { data, error } = await _sb.from('qc_inspections').update({
+    Status: 'APPROVED', Result: decision, ApprovedBy: _currentUser?.email || null, ApprovedAt: new Date().toISOString(),
+    ApproveRemark: document.getElementById('qc-a-remark').value.trim() || null,
+  }).eq('_row_id', id).eq('Status', 'PENDING_APPROVAL').select('_row_id');
+  _hideLoader();
+  if (error) { _err('อนุมัติไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { await Swal.fire({ icon: 'info', title: 'ใบตรวจนี้ถูกดำเนินการไปแล้ว' }); _qcInspModal.hide(); await qcLoadPage(); return; }
+  _logAudit('QC_APPROVE', 'qc_inspections', `${i.MaterialCode}/${i.Lot}`, `อนุมัติ: ${QC_RESULT_LABEL[decision]} (คลังเสนอ ${QC_RESULT_LABEL[i.Result]})`);
+  _qcInspModal.hide();
+  if (decision !== 'PASS') {
+    const failed = results.filter(r => r.Pass === false).map(r => r.Parameter).join(', ');
+    await qcOpenNcr(null, { inspId: id, lot: { MaterialCode: i.MaterialCode, MaterialName: i.MaterialName, Lot: i.Lot, Qty: i.Qty, UOM: i.UOM, Supplier: i.Supplier }, desc: failed ? `ไม่ผ่าน: ${failed}` : '' });
+  }
+  await qcLoadPage();
+  Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อนุมัติแล้ว', showConfirmButton: false, timer: 2000 });
+}
+
+async function qcReturnInspection(id) {
+  if (!_qcAdmin() || !_qcApproveCtx || _qcApproveCtx.i._row_id !== id) return;
+  let reason = document.getElementById('qc-a-remark').value.trim();
+  if (!reason) {
+    const r = await Swal.fire({ title: 'ส่งกลับแก้ไข', input: 'textarea', inputLabel: 'ระบุเหตุผลให้พนักงานคลังเห็น', inputValidator: v => (!v.trim() ? 'ต้องระบุเหตุผล' : undefined), showCancelButton: true, confirmButtonText: 'ส่งกลับ', cancelButtonText: 'ยกเลิก' });
+    if (!r.isConfirmed) return;
+    reason = r.value.trim();
+  }
+  _showLoader();
+  const { data, error } = await _sb.from('qc_inspections').update({
+    Status: 'RETURNED', ApprovedBy: _currentUser?.email || null, ApprovedAt: new Date().toISOString(), ApproveRemark: reason,
+  }).eq('_row_id', id).eq('Status', 'PENDING_APPROVAL').select('_row_id');
+  _hideLoader();
+  if (error) { _err('ส่งกลับไม่สำเร็จ', error.message); return; }
+  if (!data || !data.length) { await Swal.fire({ icon: 'info', title: 'ใบตรวจนี้ถูกดำเนินการไปแล้ว' }); }
+  else _logAudit('QC_RETURN', 'qc_inspections', `${_qcApproveCtx.i.MaterialCode}/${_qcApproveCtx.i.Lot}`, reason);
+  _qcInspModal.hide();
+  await qcLoadPage();
 }
 
 // สร้างหน้าตั้งแต่โหลดสคริปต์ — showPage() จะ add class 'active' ให้เฉพาะ element ที่มีอยู่แล้วตอนกดเมนู
