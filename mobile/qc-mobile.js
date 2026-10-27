@@ -26,6 +26,12 @@ const QCM = {
 (function () {
   const st = document.createElement('style');
   st.textContent = `
+  #qcm-root, #qcm-sheet { --border:#e5e7eb; --bg:#f8fafc; --blue:#1e3a8a; }
+  #qcm-root .mchips { display:flex; gap:6px; overflow-x:auto; }
+  #qcm-root .mchip { flex:0 0 auto; min-height:38px; display:inline-flex; align-items:center; font-size:.82rem; padding:8px 14px; border-radius:999px; background:#fff; border:1px solid var(--border); color:#475569; cursor:pointer; }
+  #qcm-root .mchip.on { background:#1e3a8a; border-color:#1e3a8a; color:#fff; }
+  #qcm-root .mbadge { display:inline-block; font-size:.74rem; font-weight:600; padding:3px 10px; border-radius:999px; }
+  #qcm-root .mb-gray { background:#f1f5f9; color:#475569; } #qcm-root .mb-green { background:#ecfdf5; color:#15803d; } #qcm-root .mb-amber { background:#fffbeb; color:#92400e; } #qcm-root .mb-red { background:#fef2f2; color:#b91c1c; }
   .qcm-seg { display:flex; gap:6px; background:#e2e8f0; padding:5px; border-radius:14px; margin-bottom:12px; }
   .qcm-seg button { flex:1; border:none; background:transparent; border-radius:10px; min-height:48px; font-weight:700; font-size:.95rem; color:#475569; display:flex; align-items:center; justify-content:center; gap:6px; }
   .qcm-seg button.on { background:#fff; color:#1e3a8a; box-shadow:0 1px 4px rgba(0,0,0,.12); }
@@ -47,7 +53,7 @@ const QCM = {
   .qcm-card .qcm-btn { margin-top:6px; width:100%; }
   .qcm-empty { grid-column:1/-1; text-align:center; color:#94a3b8; padding:44px 12px; }
   /* แผ่นตรวจรับเต็มจอ */
-  #qcm-sheet { position:fixed; inset:0; z-index:300; background:var(--bg); display:none; flex-direction:column; }
+  #qcm-sheet { position:fixed; inset:0; z-index:1040; background:var(--bg); display:none; flex-direction:column; }
   #qcm-sheet.open { display:flex; }
   #qcm-sheet .sh-head { flex-shrink:0; background:#1e3a8a; color:#fff; padding:max(10px,env(safe-area-inset-top)) 14px 10px; display:flex; align-items:center; gap:10px; }
   #qcm-sheet .sh-head .t { flex:1; min-width:0; } #qcm-sheet .sh-head .t b { display:block; font-size:1.02rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -82,7 +88,7 @@ const QCM = {
   .qcm-info { background:#eff6ff; color:#1e40af; border-radius:10px; padding:8px 12px; font-size:.84rem; margin-bottom:10px; }
   .qcm-stat { font-size:.84rem; margin-top:8px; }
   .qcm-kv { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; } .qcm-kv .k { font-size:.74rem; color:#94a3b8; } .qcm-kv .v { font-weight:600; word-break:break-word; }
-  #qcm-scanner { position:fixed; inset:0; z-index:400; background:#000; display:none; flex-direction:column; }
+  #qcm-scanner { position:fixed; inset:0; z-index:1045; background:#000; display:none; flex-direction:column; }
   #qcm-scanner.open { display:flex; } #qcm-scanner video { flex:1; min-height:0; width:100%; object-fit:cover; }
   #qcm-scanner .bar { background:#0f172a; color:#fff; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; align-items:center; }
   #qcm-scanner .bar span { flex:1; font-size:.9rem; }`;
@@ -543,3 +549,19 @@ async function qcmReturn(id) {
 
 // Tesseract โหลดไว้แล้วใน <head> ของ index.html — กัน _qcOcrCanvas (qc-coa.js) โหลดซ้ำอีกชุด
 if (window.Tesseract && typeof _qcLibP !== 'undefined') _qcLibP[QC_TESS_SRC] = Promise.resolve();
+
+// ── ใช้ในแอปหลัก (โหมดแท็บเลตคลัง WH01 → tile "ตรวจรับ QC" → _whOpenDesktopPage('qcwh')) ──
+// แอปมือถือ (mobile/index.html) มี #mpage-qc อยู่แล้ว; แอปหลักไม่มี จึงสร้างหน้า #page-qcwh ให้ตอนโหลดสคริปต์
+// (ต้องมีตั้งแต่ก่อนกด tile เพราะ showPage() เปิดได้เฉพาะ element ที่มีอยู่แล้ว) + ลงทะเบียน loader เข้า _PAGE_LOADERS
+(function () {
+  if (document.getElementById('mpage-qc')) return;                    // แอปมือถือ — ไม่ต้องทำอะไร
+  const host = document.getElementById('page-holdstock')?.parentNode;
+  if (!host || document.getElementById('page-qcwh')) return;
+  const div = document.createElement('div');
+  div.className = 'page-view'; div.id = 'page-qcwh';
+  div.innerHTML = `<div class="page-header"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h4 class="fw-bold mb-0" style="color:white"><i class="fas fa-vial-circle-check me-2"></i>ตรวจรับ QC</h4></div></div>
+    <div class="scroll-content"><div id="qcm-root"><div style="text-align:center;color:#94a3b8;padding:40px"><i class="fas fa-spinner fa-spin"></i></div></div></div>`;
+  host.appendChild(div);
+  if (typeof _PAGE_LOADERS !== 'undefined') _PAGE_LOADERS['qcwh'] = () => qcmLoad();
+})();

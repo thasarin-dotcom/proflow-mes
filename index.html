@@ -7991,6 +7991,9 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
             <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fg')"><i class="fas fa-cubes"></i><span>รับ FG</span></button>
             <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('fgout')"><i class="fas fa-truck"></i><span>เบิก FG</span></button>
             <button class="wh-tile wh-tile-action" onclick="_whOpenDesktopPage('misc')"><i class="fas fa-box-open"></i><span>เบิกเบ็ดเตล็ด</span></button>
+            <!-- ตรวจรับ QC (mobile/qc-mobile.js): รายการ Bulk ที่รับเข้า → สแกน CoA → ส่งให้ Admin QC อนุมัติ; ป้ายเลข = จำนวน Lot ที่รอตรวจ -->
+            <button class="wh-tile wh-tile-action" style="position:relative" onclick="_whOpenDesktopPage('qcwh')"><i class="fas fa-vial-circle-check"></i><span>ตรวจรับ QC</span>
+              <b id="qcm-badge" style="display:none;position:absolute;top:8px;right:10px;background:#ef4444;color:#fff;border-radius:999px;min-width:24px;height:24px;padding:0 6px;font-size:.78rem;align-items:center;justify-content:center"></b></button>
           </div>
           <div class="wh-section-label">ข้อมูล (ดูอย่างเดียว)</div>
           <div class="wh-tile-grid mb-3">
@@ -45114,6 +45117,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
         document.getElementById('whTabletView').style.display = 'flex';
         if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
+        if (typeof qcmInitBadge === 'function') qcmInitBadge();   // mobile/qc-mobile.js — ป้ายเลข tile "ตรวจรับ QC"
       } else {
         // มือถือ (จอเล็ก จอสัมผัส) — พาไปแอปมือถือ (/mobile/) ที่ออกแบบมาสำหรับจอนี้ แทนหน้าเดสก์ท็อปที่ใช้ยาก
         // session อยู่ใน localStorage โดเมนเดียวกัน แอปมือถือจึงล็อกอินต่อได้เลยไม่ต้องกรอกใหม่ — กด "เปิดแบบเต็ม"
@@ -45150,5 +45154,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="floorpulse.js?v=20261022f"></script>
 <script src="qc.js?v=20261027b"></script>
 <script src="qc-coa.js?v=20261027c"></script>
+<script src="mobile/qc-mobile.js?v=20261027e"></script>
 </body>
 </html>
