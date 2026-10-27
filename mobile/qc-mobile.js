@@ -81,6 +81,10 @@ const QCM = {
   .qcm-item .ctl .qcm-btn { min-height:50px; min-width:86px; padding:0 10px; }
   .qcm-item .ctl .qcm-btn.sel-ok { background:#16a34a; color:#fff; } .qcm-item .ctl .qcm-btn.sel-no { background:#dc2626; color:#fff; }
   .qcm-item .ctl.auto { background:#fff8c4; border-radius:10px; padding:2px; }
+  .qcm-coahead, .qcm-coarow { display:grid; grid-template-columns:1.4fr 1fr 1fr 64px 52px; gap:8px; align-items:center; }
+  .qcm-coahead { font-size:.74rem; color:#94a3b8; margin-bottom:4px; } .qcm-coarow { margin-bottom:8px; }
+  .qcm-coarow .st { text-align:center; font-weight:700; font-size:.86rem; }
+  @media (max-width:760px) { .qcm-coahead { display:none; } .qcm-coarow { grid-template-columns:1fr 1fr 56px 52px; } .qcm-coarow > :first-child { grid-column:1 / -1; } }
   .qcm-item .pv { min-width:62px; text-align:right; font-weight:700; font-size:.88rem; }
   .qcm-resbtns { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .qcm-resbtns .qcm-btn.on.PASS { background:#16a34a; color:#fff; } .qcm-resbtns .qcm-btn.on.CONDITIONAL { background:#f59e0b; color:#fff; } .qcm-resbtns .qcm-btn.on.REJECT { background:#dc2626; color:#fff; }
@@ -275,7 +279,7 @@ function qcmOpenInspect(idx) {
   const spec = _qcmSpecFor(lot.MaterialCode);
   const items = spec.length ? spec.map(s => ({ Parameter: s.Parameter, ParamType: s.ParamType, MinValue: s.MinValue, MaxValue: s.MaxValue, Unit: s.Unit, Method: s.Method }))
     : QCM_DEFAULT_ITEMS.map(p => ({ Parameter: p, ParamType: 'passfail' }));
-  QCM.cur = { lot, items, queue: [], result: 'PASS', busy: false, hasSpec: spec.length > 0 };
+  QCM.cur = { lot, items, queue: [], result: 'PASS', busy: false, hasSpec: spec.length > 0, coaRows: [] };
   const adm = !!_currentUser?.isAdmin;
   const rows = items.map((it, i) => {
     const crit = it.ParamType === 'numeric' ? `เกณฑ์ ${it.MinValue != null ? it.MinValue : '−∞'} – ${it.MaxValue != null ? it.MaxValue : '+∞'} ${_qcEsc(it.Unit || '')}` : _qcEsc(it.Method || 'ผ่าน / ไม่ผ่าน');
@@ -311,11 +315,14 @@ function qcmOpenInspect(idx) {
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.95rem"><input type="checkbox" id="qcm-coa" style="width:22px;height:22px">ได้รับ CoA จากซัพ</label>
         <div id="qcm-warn"></div>
       </div>
-      <div class="qcm-step"><h6><span class="no">3</span>ผลตรวจ</h6>
+      <div class="qcm-step"><h6><span class="no">3</span>รายการทดสอบ · Spec · ผล ตามเอกสาร CoA <small style="font-weight:400;color:#94a3b8">(เก็บเป็นข้อมูล — แก้ไข/เพิ่ม/ลบได้)</small></h6>
+        <div id="qcm-coa-box"></div>
+      </div>
+      <div class="qcm-step"><h6><span class="no">4</span>ผลตรวจของเรา <small style="font-weight:400;color:#94a3b8">(ตาม Spec ที่ตั้งไว้ในระบบ)</small></h6>
         ${QCM.cur.hasSpec ? '' : '<div class="qcm-info">วัตถุดิบนี้ยังไม่มี Spec — ใช้เช็คลิสต์พื้นฐาน (Admin เพิ่ม Spec ได้ที่หน้า QC บนคอม)</div>'}
         ${rows}
       </div>
-      <div class="qcm-step"><h6><span class="no">4</span>${adm ? 'ผลการตัดสิน' : 'ผลที่เสนอให้ QC'}</h6>
+      <div class="qcm-step"><h6><span class="no">5</span>${adm ? 'ผลการตัดสิน' : 'ผลที่เสนอให้ QC'}</h6>
         <div class="qcm-resbtns" id="qcm-resbtns">${['PASS', 'CONDITIONAL', 'REJECT'].map(r => `<button type="button" class="qcm-btn ghost ${r}" onclick="qcmSetResult('${r}')">${QCM_RESULT[r]}</button>`).join('')}</div>
         <div class="qcm-stat" id="qcm-suggest" style="color:#64748b"></div>
         <label class="f" style="margin-top:10px;font-size:.78rem;color:#64748b">หมายเหตุ</label><input class="qcm-in" id="qcm-remark" placeholder="เช่น ลักษณะผิดปกติ / บรรจุภัณฑ์บุบ">
@@ -324,6 +331,7 @@ function qcmOpenInspect(idx) {
     <div class="sh-foot"><button class="qcm-btn ghost" onclick="qcmCloseSheet()">ยกเลิก</button>
       <button class="qcm-btn ${adm ? 'green' : 'primary'}" id="qcm-submit" onclick="qcmSubmit()">${adm ? '<i class="fas fa-check"></i>บันทึกและอนุมัติ' : '<i class="fas fa-paper-plane"></i>ส่งให้ QC อนุมัติ'}</button></div>`;
   document.getElementById('qcm-sheet').classList.add('open');
+  qcmRenderCoa();
   qcmCalc();
 }
 function qcmCloseSheet() {
@@ -358,13 +366,17 @@ async function qcmRead() {
       text += (q.isPdf ? await _qcReadPdf(q.file) : await _qcOcrCanvas(await _qcPrepCanvas(q.file, q.rot), label)) + '\n';
     }
     if (text.replace(/\s/g, '').length < 20) { _qcScanMsg('<span style="color:#dc2626">อ่านข้อความไม่ได้ — ลองหมุนรูปให้ตรง ถ่ายใหม่ให้สว่าง/ชัด หรือเลือกเป็น PDF</span>'); return; }
-    qcmApplyExtract(_qcExtractCoA(text, cur.items));
+    qcmApplyExtract(_qcExtractCoA(text, cur.items), text);
     cur.queue.forEach(q => q.url && URL.revokeObjectURL(q.url)); cur.queue = []; qcmRenderQueue();   // อ่านสำเร็จ — ทิ้งรูป/ไฟล์
   } catch (e) { console.error(e); _qcScanMsg(`<span style="color:#dc2626">อ่านเอกสารไม่สำเร็จ: ${_qcEsc(e.message || e)}</span>`); }
   finally { cur.busy = false; b.disabled = false; }
 }
-function qcmApplyExtract(ex) {
+function qcmApplyExtract(ex, text) {
   const f = ex.fields, lot = QCM.cur.lot;
+  // ตารางผลวิเคราะห์ตามเอกสาร (รายการทดสอบ · Spec · ผล) — อ่านใหม่ทุกครั้งที่สแกน (ทับของเดิม; ถ้าอ่านไม่ได้เลยคงของเดิมไว้)
+  const coaRows = _qcParseCoATable(text || '');
+  if (coaRows.length) QCM.cur.coaRows = coaRows;
+  qcmRenderCoa();
   const setv = (id, v) => { const el = document.getElementById(id); if (el && v) { el.value = v; el.classList.add('auto'); } };
   setv('qcm-d-lot', f.lot); setv('qcm-d-mfg', f.mfg); setv('qcm-d-exp', f.exp); setv('qcm-d-no', f.docNo); setv('qcm-d-prod', f.product); setv('qcm-d-sup', f.supplier);
   let filled = 0;
@@ -374,6 +386,18 @@ function qcmApplyExtract(ex) {
     el.value = String(ex.values[i]); el.dataset.auto = '1';
     if (it.ParamType === 'numeric') el.classList.add('auto'); filled++;
   });
+  // รายการตามผลตรวจของเรา (Spec ในระบบ) ที่ยังว่าง → เติมจากแถวในตาราง CoA ที่ชื่อตรงกัน
+  QCM.cur.items.forEach((it, i) => {
+    const el = document.getElementById('qcm-m-' + i);
+    if (!el || el.value !== '') return;
+    const rx = _qcLabelRegex(it.Parameter); if (!rx) return;
+    const row = QCM.cur.coaRows.find(r => rx.test(r.Parameter)); if (!row) return;
+    const ev = _qcEvalCoARow(row);
+    if (it.ParamType === 'numeric' && ev.num != null) el.value = String(ev.num);
+    else if (it.ParamType !== 'numeric' && ev.pass != null) el.value = ev.pass ? '1' : '0';
+    else return;
+    el.dataset.auto = '1'; if (it.ParamType === 'numeric') el.classList.add('auto'); filled++;
+  });
   document.getElementById('qcm-coa').checked = true;
   qcmCalc();
   const warn = [];
@@ -382,7 +406,38 @@ function qcmApplyExtract(ex) {
   if (f.exp && f.exp < new Date().toISOString().slice(0, 10)) warn.push('⚠ วันหมดอายุตาม CoA ผ่านไปแล้ว');
   document.getElementById('qcm-warn').innerHTML = warn.map(w => `<div class="qcm-warn">${w}</div>`).join('');
   const found = ['lot', 'mfg', 'exp', 'docNo', 'product', 'supplier'].filter(k => f[k]).length;
-  _qcScanMsg(`<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · ผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
+  _qcScanMsg(`<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · รายการในตาราง CoA ${QCM.cur.coaRows.length} แถว · เติมผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
+}
+
+// ── ตารางผลวิเคราะห์ตามเอกสาร CoA (รายการทดสอบ · Spec · ผล) ──
+function qcmRenderCoa() {
+  const box = document.getElementById('qcm-coa-box'); if (!box || !QCM.cur) return;
+  const rows = QCM.cur.coaRows;
+  box.innerHTML = (rows.length ? `<div class="qcm-coahead"><div>รายการทดสอบ</div><div>Spec (เกณฑ์)</div><div>ผลตามเอกสาร</div><div style="text-align:center">ผล</div><div></div></div>` : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
+    + rows.map((r, i) => `<div class="qcm-coarow">
+        <input class="qcm-in" value="${_qcEsc(r.Parameter)}" placeholder="รายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)">
+        <input class="qcm-in" value="${_qcEsc(r.SpecText)}" placeholder="เช่น 5.5 - 7.0" oninput="qcmCoaEdit(${i},'SpecText',this.value)">
+        <input class="qcm-in" value="${_qcEsc(r.ResultText)}" placeholder="เช่น 6.2 / Complies" oninput="qcmCoaEdit(${i},'ResultText',this.value)">
+        <div class="st" id="qcm-coast-${i}"></div>
+        <button type="button" class="qcm-btn ghost sq" style="min-height:48px" onclick="qcmCoaDel(${i})"><i class="fas fa-trash"></i></button></div>`).join('')
+    + `<button type="button" class="qcm-btn ghost" style="width:100%;margin-top:8px" onclick="qcmCoaAdd()"><i class="fas fa-plus"></i>เพิ่มรายการ</button>`;
+  rows.forEach((_, i) => qcmCoaStatus(i));
+}
+function qcmCoaStatus(i) {
+  const r = QCM.cur.coaRows[i], el = document.getElementById('qcm-coast-' + i); if (!r || !el) return;
+  const ev = _qcEvalCoARow(r);
+  el.innerHTML = ev.pass == null ? '<span style="color:#94a3b8">—</span>' : ev.pass ? '<span style="color:#16a34a">ผ่าน</span>' : '<span style="color:#dc2626">ไม่ผ่าน</span>';
+}
+function qcmCoaEdit(i, k, v) { QCM.cur.coaRows[i][k] = v; qcmCoaStatus(i); qcmCalc(); }
+function qcmCoaAdd() { QCM.cur.coaRows.push({ Parameter: '', SpecText: '', ResultText: '', Unit: '' }); qcmRenderCoa(); }
+function qcmCoaDel(i) { QCM.cur.coaRows.splice(i, 1); qcmRenderCoa(); qcmCalc(); }
+// แถวที่จะบันทึกลง qc_coa_results (ข้ามแถวที่ยังไม่มีชื่อรายการ)
+function _qcmCoaPayload(inspId, rows) {
+  return rows.filter(r => String(r.Parameter || '').trim()).map((r, n) => {
+    const ev = _qcEvalCoARow(r);
+    return { InspectionId: inspId, Seq: n + 1, Parameter: r.Parameter.trim(), SpecText: r.SpecText || null, SpecMin: ev.min, SpecMax: ev.max,
+      ResultText: r.ResultText || null, ResultNum: ev.num, Unit: r.Unit || null, Pass: ev.pass };
+  });
 }
 
 // ── ผลตรวจรายรายการ ──
@@ -407,8 +462,11 @@ function qcmCalc() {
     document.getElementById('qcm-pv-' + i).innerHTML = pass == null ? '—' : pass ? '<span style="color:#16a34a">ผ่าน</span>' : '<span style="color:#dc2626">ไม่ผ่าน</span>';
     if (pass === false) anyFail = true;
   });
+  const coaFail = cur.coaRows.filter(r => _qcEvalCoARow(r).pass === false).map(r => r.Parameter);   // รายการในเอกสาร CoA ที่ไม่ผ่านเกณฑ์ของซัพเอง
+  if (coaFail.length) anyFail = true;
   const sug = document.getElementById('qcm-suggest');
-  if (anyFail) { cur.result = 'REJECT'; sug.textContent = 'มีรายการไม่ผ่าน — แนะนำ "ไม่ผ่าน"'; }
+  if (coaFail.length) { cur.result = 'REJECT'; sug.textContent = `CoA ระบุไม่ผ่านเกณฑ์: ${coaFail.slice(0, 3).join(', ')}${coaFail.length > 3 ? '…' : ''} — แนะนำ "ไม่ผ่าน"`; }
+  else if (anyFail) { cur.result = 'REJECT'; sug.textContent = 'มีรายการไม่ผ่าน — แนะนำ "ไม่ผ่าน"'; }
   else if (!anyBlank) { cur.result = 'PASS'; sug.textContent = 'ทุกรายการผ่าน'; }
   else sug.textContent = 'กรอกผลให้ครบทุกรายการ';
   qcmSetResult(cur.result, true);
@@ -445,12 +503,21 @@ async function qcmSubmit() {
   }));
   const r2 = await _sb.from('qc_inspection_results').insert(rows);
   if (r2.error) { _hideLoader(); cur.busy = false; document.getElementById('qcm-submit').disabled = false; _err('บันทึกผลรายรายการไม่สำเร็จ', r2.error.message); return; }
-  if (adm && cur.result !== 'PASS') await _qcmCreateNcr(ins.data._row_id, lot, items.filter(it => it._pass === false).map(it => it.Parameter).join(', '));
+  // รายการทดสอบ·Spec·ผล ตามเอกสาร CoA → qc_coa_results (ล้มเหลวไม่ทำให้ใบตรวจหาย — แจ้งเตือนให้รัน SQL)
+  let coaWarn = '';
+  const coaPayload = _qcmCoaPayload(ins.data._row_id, cur.coaRows);
+  if (coaPayload.length) {
+    const r3 = await _sb.from('qc_coa_results').insert(coaPayload);
+    if (r3.error) { console.error('qc_coa_results', r3.error); coaWarn = 'บันทึกรายการจาก CoA ไม่สำเร็จ (ให้ Admin รัน alter_qc_add_coa_results.sql)'; }
+  }
+  const failedNames = items.filter(it => it._pass === false).map(it => it.Parameter).concat(coaPayload.filter(r => r.Pass === false).map(r => r.Parameter));
+  if (adm && cur.result !== 'PASS') await _qcmCreateNcr(ins.data._row_id, lot, failedNames.join(', '));
   _hideLoader();
   _qcmAudit(adm ? 'QC_INSPECT' : 'QC_SUBMIT', `${lot.MaterialCode}/${lot.Lot}`, `IQC ${adm ? '' : 'เสนอ '}${QCM_RESULT[cur.result]}`);
   qcmCloseSheet();
   await qcmLoad(true); qcmRenderAll();
-  Swal.fire({ toast: true, position: 'top', icon: 'success', title: adm ? 'บันทึกผลตรวจแล้ว' : 'ส่งให้ Admin QC อนุมัติแล้ว', showConfirmButton: false, timer: 2500 });
+  if (coaWarn) Swal.fire({ icon: 'warning', title: 'ส่งใบตรวจแล้ว แต่…', text: coaWarn });
+  else Swal.fire({ toast: true, position: 'top', icon: 'success', title: adm ? 'บันทึกผลตรวจแล้ว' : 'ส่งให้ Admin QC อนุมัติแล้ว', showConfirmButton: false, timer: 2500 });
 }
 
 async function _qcmAudit(action, ref, detail) {
@@ -476,13 +543,17 @@ async function qcmOpenApprove(id) {
   if (!_currentUser?.isAdmin) return;
   const i = QCM.insp.find(x => x._row_id === id); if (!i) return;
   _showLoader();
-  const [rRes, mRes] = await Promise.all([
+  const [rRes, mRes, cRes] = await Promise.all([
     _sb.from('qc_inspection_results').select('*').eq('InspectionId', id).order('_row_id'),
     i.MR_RowId ? _sb.from('mr_receive').select('MfgLotNo,ExpDate').eq('_row_id', i.MR_RowId).maybeSingle() : Promise.resolve({ data: null }),
+    _sb.from('qc_coa_results').select('*').eq('InspectionId', id).order('Seq'),
   ]);
   _hideLoader();
-  const results = rRes.data || [], mr = mRes.data || {};
-  QCM.appr = { i, results, decision: i.Result };
+  const results = rRes.data || [], mr = mRes.data || {}, coa = cRes.data || [];
+  QCM.appr = { i, results, coa, decision: i.Result };
+  const hasSpecNow = QCM.specs.some(s => s.MaterialCode === i.MaterialCode);
+  const coaRows = coa.map(r => `<div class="qcm-item"><div><div class="nm">${_qcEsc(r.Parameter)}</div><div class="cr">Spec: ${_qcEsc(r.SpecText || '—')}${r.Unit ? ' ' + _qcEsc(r.Unit) : ''}</div></div>
+      <div style="text-align:right"><b>${_qcEsc(r.ResultText || '—')}</b> ${r.Pass == null ? '<span style="color:#94a3b8">—</span>' : r.Pass ? '<span style="color:#16a34a;font-weight:700">ผ่าน</span>' : '<span style="color:#dc2626;font-weight:700">ไม่ผ่าน</span>'}</div></div>`).join('');
   const warn = [];
   if (i.CoA_MfgLotNo && mr.MfgLotNo && _qcmNorm(i.CoA_MfgLotNo) !== _qcmNorm(mr.MfgLotNo)) warn.push(`Lot ผู้ผลิตตาม CoA (${_qcEsc(i.CoA_MfgLotNo)}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(mr.MfgLotNo)})`);
   if (i.CoA_ExpDate && mr.ExpDate && String(mr.ExpDate).slice(0, 10) !== String(i.CoA_ExpDate).slice(0, 10)) warn.push(`วันหมดอายุตาม CoA (${_qcEsc(String(i.CoA_ExpDate).slice(0, 10))}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(String(mr.ExpDate).slice(0, 10))})`);
@@ -498,7 +569,9 @@ async function qcmOpenApprove(id) {
         ${kv('Lot ผู้ผลิต', i.CoA_MfgLotNo)}${kv('วันผลิต', i.CoA_MfgDate)}${kv('วันหมดอายุ', i.CoA_ExpDate)}${kv('เลขที่ CoA', i.CoA_DocNo)}
         ${kv('ชื่อสินค้า', i.CoA_Product)}${kv('ผู้ผลิต/ซัพ', i.CoA_Supplier)}${kv('ได้รับ CoA', i.CoAReceived ? 'ใช่' : 'ไม่')}${kv('หมายเหตุจากคลัง', i.Remark)}</div>
         ${warn.map(w => `<div class="qcm-warn"><i class="fas fa-triangle-exclamation me-1"></i>${w}</div>`).join('')}</div>
-      <div class="qcm-step"><h6>ผลตรวจรายรายการ</h6>${rrows || '<div class="meta">ไม่มีรายการ</div>'}</div>
+      <div class="qcm-step"><h6>รายการทดสอบ · Spec · ผล ตามเอกสาร CoA</h6>${coaRows || '<div class="meta">ไม่มีรายการจากเอกสาร</div>'}
+        ${coa.length && !hasSpecNow ? `<button class="qcm-btn ghost" style="width:100%;margin-top:10px" onclick="qcmImportSpec(${id})"><i class="fas fa-file-import"></i>ใช้รายการนี้เป็น Spec ของวัตถุดิบนี้ (ยังไม่มี Spec)</button>` : ''}</div>
+      <div class="qcm-step"><h6>ผลตรวจของเรา</h6>${rrows || '<div class="meta">ไม่มีรายการ</div>'}</div>
       <div class="qcm-step"><h6>การตัดสินของ Admin QC <small style="font-weight:400;color:#94a3b8">(คลังเสนอ: ${QCM_RESULT[i.Result]})</small></h6>
         <div class="qcm-resbtns" id="qcm-resbtns">${['PASS', 'CONDITIONAL', 'REJECT'].map(r => `<button type="button" class="qcm-btn ghost ${r} ${r === i.Result ? 'on' : ''}" onclick="qcmApprDecision('${r}')">${QCM_RESULT[r]}</button>`).join('')}</div>
         <label class="f" style="margin-top:10px;font-size:.78rem;color:#64748b">หมายเหตุ (ถ้าส่งกลับ ต้องระบุเหตุผล)</label><input class="qcm-in" id="qcm-a-remark"></div>
@@ -506,6 +579,25 @@ async function qcmOpenApprove(id) {
     <div class="sh-foot"><button class="qcm-btn warn" style="flex:0 0 auto" onclick="qcmReturn(${id})"><i class="fas fa-rotate-left"></i>ส่งกลับแก้ไข</button>
       <button class="qcm-btn green" onclick="qcmApprove(${id})"><i class="fas fa-check"></i>อนุมัติ</button></div>`;
   document.getElementById('qcm-sheet').classList.add('open');
+}
+// สร้าง Spec ของวัตถุดิบ (qc_spec_items) จากรายการในเอกสาร CoA — ใช้เมื่อวัตถุดิบนี้ยังไม่มี Spec (Admin เท่านั้นตาม RLS)
+async function qcmImportSpec(id) {
+  const a = QCM.appr; if (!a || a.i._row_id !== id || !a.coa.length) return;
+  if (QCM.specs.some(s => s.MaterialCode === a.i.MaterialCode)) { Swal.fire({ icon: 'info', title: 'วัตถุดิบนี้มี Spec แล้ว' }); return; }
+  const c = await Swal.fire({ icon: 'question', title: 'สร้าง Spec จากเอกสาร?', text: `ใช้ ${a.coa.length} รายการจาก CoA เป็นมาตรฐานตรวจของ ${a.i.MaterialName} (แก้ไขภายหลังได้ที่หน้า QC > มาตรฐานตรวจ)`, showCancelButton: true, confirmButtonText: 'สร้าง Spec', cancelButtonText: 'ยกเลิก' });
+  if (!c.isConfirmed) return;
+  const rows = a.coa.map((r, n) => {
+    const numeric = (r.SpecMin != null || r.SpecMax != null);
+    return { MaterialCode: a.i.MaterialCode, Seq: n + 1, Parameter: r.Parameter, ParamType: numeric ? 'numeric' : 'passfail', MinValue: r.SpecMin, MaxValue: r.SpecMax, Unit: r.Unit || null, Method: r.SpecText || null };
+  });
+  _showLoader();
+  const { error } = await _sb.from('qc_spec_items').insert(rows);
+  _hideLoader();
+  if (error) { _err('สร้าง Spec ไม่สำเร็จ', error.message); return; }
+  QCM.specs = QCM.specs.concat(rows);
+  _qcmAudit('QC_SPEC_IMPORT', a.i.MaterialCode, `${rows.length} รายการจาก CoA ${a.i.CoA_DocNo || ''}`);
+  Swal.fire({ toast: true, position: 'top', icon: 'success', title: `สร้าง Spec ${rows.length} รายการแล้ว`, showConfirmButton: false, timer: 2500 });
+  qcmOpenApprove(id);
 }
 function qcmApprDecision(r) {
   QCM.appr.decision = r;
