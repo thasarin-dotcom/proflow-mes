@@ -340,6 +340,7 @@ button, input, select { font-family: inherit; }
       <div style="font-weight:700;margin-bottom:8px;padding-left:8px;border-left:4px solid #3b82f6" id="plancal-day-title">เลือกวันที่เพื่อดูรายละเอียด</div>
       <div id="plancal-day-cards"></div>
     </div>
+    <div class="mpage" id="mpage-qc"><div id="qcm-root"><div class="mspinner"><i class="fas fa-spinner fa-spin"></i></div></div></div>
     <div class="mpage" id="mpage-approvals">
       <div class="mtoolbar">
         <div class="mchips" id="appr-type-chips"></div>
@@ -416,6 +417,7 @@ button, input, select { font-family: inherit; }
     <button class="active" data-page="prodstatus" onclick="mShowPage('prodstatus')"><i class="fas fa-industry"></i>ผลิต</button>
     <button data-page="plancal" onclick="mShowPage('plancal')"><i class="fas fa-calendar-days"></i>แผน</button>
     <button data-page="approvals" id="nav-approvals" style="display:none" onclick="mShowPage('approvals')"><i class="fas fa-clipboard-check"></i>อนุมัติ<span class="nbadge" id="appr-badge">0</span></button>
+    <button data-page="qc" onclick="mShowPage('qc')"><i class="fas fa-vial-circle-check"></i>QC<span class="nbadge" id="qcm-badge">0</span></button>
     <button data-page="stock" onclick="mShowPage('stock')"><i class="fas fa-boxes-stacked"></i>วัตถุดิบ</button>
     <button data-page="fgstock" onclick="mShowPage('fgstock')"><i class="fas fa-box"></i>FG</button>
     <button data-page="lotscan" onclick="mShowPage('lotscan')"><i class="fas fa-qrcode"></i>Lot Scan</button>
@@ -496,13 +498,13 @@ async function mLogout() {
 // ══════════════════════════════════════════════
 const _mPageTitles = {
   prodstatus: 'ภาพรวมการผลิต', stock: 'สต็อกวัตถุดิบ', fgstock: 'สต็อก FG', lotscan: 'Lot Scan',
-  plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ',
+  plancal: 'แผนผลิต (ปฏิทิน)', approvals: 'รายการขออนุมัติ', qc: 'ตรวจรับ QC',
 };
-const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false, plancal: false, approvals: false };
+const _mPageLoaded = { prodstatus: false, stock: false, fgstock: false, lotscan: false, plancal: false, approvals: false, qc: false };
 // ปุ่มรีเฟรชบนแถบบน — โหลดข้อมูลหน้าที่เปิดอยู่ใหม่ (เดิมต้องปิดแอปเปิดใหม่ เพราะแต่ละหน้าโหลดแค่ครั้งแรกที่เข้า)
 const _mPageLoaders = {
   prodstatus: () => loadProdStatusData(), stock: () => loadStockData(), fgstock: () => loadFGStockData(),
-  plancal: () => plancalLoad(), approvals: () => apprLoad(), lotscan: () => (typeof lotscanSearch === 'function' && document.getElementById('lotscan-f-code').value.trim() ? lotscanSearch() : null),
+  plancal: () => plancalLoad(), approvals: () => apprLoad(), qc: () => qcmLoad(), lotscan: () => (typeof lotscanSearch === 'function' && document.getElementById('lotscan-f-code').value.trim() ? lotscanSearch() : null),
 };
 async function mRefresh() {
   const btn = document.getElementById('mRefreshBtn');
@@ -525,7 +527,9 @@ function mShowPage(name) {
     if (name === 'lotscan') lotscanInit();
     if (name === 'plancal') plancalLoad();
     if (name === 'approvals') apprLoad();
+    if (name === 'qc') qcmLoad();
   } else if (name === 'approvals') apprLoad(); // รายการขออนุมัติเปลี่ยนบ่อย โหลดใหม่ทุกครั้งที่เข้า
+  else if (name === 'qc') qcmLoad();           // รายการรอตรวจ/รออนุมัติเปลี่ยนบ่อย — โหลดใหม่ทุกครั้งที่เข้า
 }
 
 // ══════════════════════════════════════════════
@@ -1960,6 +1964,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isAdmin: session.user.app_metadata?.role === 'admin' };
       document.getElementById('nav-approvals').style.display = _currentUser.isAdmin ? '' : 'none';
       if (_currentUser.isAdmin) _apprFetch().then(rows => { _apprRows = rows; apprUpdateBadge(); }).catch(() => {});
+      if (typeof qcmInitBadge === 'function') qcmInitBadge();   // qc-mobile.js — ป้ายเลขเมนู QC + แจ้งเตือน Admin
       document.getElementById('loginGate').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       document.getElementById('mUserName').textContent = _currentUser.name;
@@ -1974,5 +1979,8 @@ document.addEventListener('DOMContentLoaded', function() {
   _installRefreshBtn();
 });
 </script>
+<!-- QC (ตรวจรับวัตถุดิบ): qc-coa.js (ตัวอ่าน CoA ใช้ร่วมกับแอปหลัก, อยู่โฟลเดอร์แม่) ต้องมาก่อน qc-mobile.js — เปลี่ยนไฟล์แล้วเลื่อน ?v= -->
+<script src="../qc-coa.js?v=20261027c"></script>
+<script src="qc-mobile.js?v=20261027d"></script>
 </body>
 </html>

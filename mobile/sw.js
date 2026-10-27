@@ -4,7 +4,7 @@
 // • หน้า index.html: network-first (ได้เวอร์ชันล่าสุดเสมอเมื่อออนไลน์) แล้วสำรองจาก cache
 // • ไลบรารี/ฟอนต์/ไอคอนจาก CDN + ไฟล์ static: stale-while-revalidate
 // • Supabase (*.supabase.co) และ method ที่ไม่ใช่ GET: ไม่แตะเลย (เดิม cache ผลลัพธ์ API Supabase ไว้ด้วย — เปลืองที่และอาจโชว์ข้อมูลเก่า)
-const CACHE = 'proflow-mobile-v2';
+const CACHE = 'proflow-mobile-v3';
 const SHELL = ['./index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
