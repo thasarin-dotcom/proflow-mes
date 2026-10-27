@@ -81,11 +81,15 @@ const QCM = {
   .qcm-item .ctl .qcm-btn { min-height:50px; min-width:86px; padding:0 10px; }
   .qcm-item .ctl .qcm-btn.sel-ok { background:#16a34a; color:#fff; } .qcm-item .ctl .qcm-btn.sel-no { background:#dc2626; color:#fff; }
   .qcm-item .ctl.auto { background:#fff8c4; border-radius:10px; padding:2px; }
-  .qcm-coahead, .qcm-coarow { display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr 60px 52px; gap:8px; align-items:center; }
-  .qcm-coahead { font-size:.74rem; color:#94a3b8; margin-bottom:4px; } .qcm-coarow { margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #f1f5f9; }
-  .qcm-coarow .st { text-align:center; font-weight:700; font-size:.86rem; }
-  .qcm-coarow .mth { display:flex; flex-direction:column; gap:4px; } .qcm-in.sm { min-height:38px; font-size:14px; }
-  @media (max-width:860px) { .qcm-coahead { display:none; } .qcm-coarow { grid-template-columns:1fr 1fr 56px 52px; } .qcm-coarow > :first-child, .qcm-coarow > .mth { grid-column:1 / -1; } }
+  .qcm-coacard { border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px; background:#fff; overflow:hidden; }
+  .qcm-coacard .hd { display:flex; align-items:center; gap:8px; padding:8px 10px; background:#f8fafc; border-bottom:1px solid #eef2f7; }
+  .qcm-coacard .hd .n { flex:0 0 26px; height:26px; border-radius:50%; background:#1e3a8a; color:#fff; font-size:.78rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+  .qcm-coacard .hd .nm { flex:1; min-width:0; font-weight:700; }
+  .qcm-coacard .hd .st { flex:0 0 auto; min-width:62px; text-align:center; font-weight:700; font-size:.88rem; }
+  .qcm-coacard .hd .qcm-btn.sq { min-height:46px; min-width:46px; }
+  .qcm-coacard .bd { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 10px; padding:10px; }
+  .qcm-fld label { display:block; font-size:.72rem; color:#94a3b8; margin:0 0 2px 2px; }
+  @media (min-width:1100px) { .qcm-coacard .bd { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   .qcm-item .pv { min-width:62px; text-align:right; font-weight:700; font-size:.88rem; }
   .qcm-resbtns { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .qcm-resbtns .qcm-btn.on.PASS { background:#16a34a; color:#fff; } .qcm-resbtns .qcm-btn.on.CONDITIONAL { background:#f59e0b; color:#fff; } .qcm-resbtns .qcm-btn.on.REJECT { background:#dc2626; color:#fff; }
@@ -370,7 +374,7 @@ async function qcmRead() {
       const q = cur.queue[i], label = `หน้า ${i + 1}/${cur.queue.length}`;
       _qcScanMsg(`<i class="fas fa-spinner fa-spin me-1"></i>กำลังอ่าน${label}...`);
       if (q.isPdf) { const before = canvases.length, t = await _qcReadPdf(q.file, canvases); if (canvases.length > before) text += t + '\n'; else pdfText += t + '\n'; }
-      else { const cv = await _qcPrepCanvas(q.file, q.rot); canvases.push(cv); text += (await _qcOcrCanvas(cv, label, '6')) + '\n'; }
+      else { const cv = _qcDeskew(await _qcPrepCanvas(q.file, q.rot)); canvases.push(cv); text += (await _qcOcrCanvas(cv, label, '6')) + '\n'; }
     }
     text = pdfText + text;
     if (text.replace(/\s/g, '').length < 20) { _qcScanMsg('<span style="color:#dc2626">อ่านข้อความไม่ได้ — ลองหมุนรูปให้ตรง ถ่ายใหม่ให้สว่าง/ชัด หรือเลือกเป็น PDF</span>'); qcmShowRaw(text); return; }
@@ -440,15 +444,21 @@ function qcmApplyExtract(ex, text) {
 function qcmRenderCoa() {
   const box = document.getElementById('qcm-coa-box'); if (!box || !QCM.cur) return;
   const rows = QCM.cur.coaRows;
-  box.innerHTML = (rows.length ? `<div class="qcm-coahead"><div>รายการทดสอบ</div><div>Spec (เกณฑ์)</div><div>วิธีตรวจ · อ้างอิง</div><div>ผลตามเอกสาร</div><div style="text-align:center">ผล</div><div></div></div>` : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
-    + rows.map((r, i) => `<div class="qcm-coarow">
-        <input class="qcm-in" value="${_qcEsc(r.Parameter)}" placeholder="รายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)">
-        <input class="qcm-in" value="${_qcEsc(r.SpecText)}" placeholder="เช่น 5.5 - 7.0" oninput="qcmCoaEdit(${i},'SpecText',this.value)">
-        <div class="mth"><input class="qcm-in" value="${_qcEsc(r.Method || '')}" placeholder="วิธีตรวจ" oninput="qcmCoaEdit(${i},'Method',this.value)"><input class="qcm-in sm" value="${_qcEsc(r.RefNo || '')}" placeholder="เลขอ้างอิง" oninput="qcmCoaEdit(${i},'RefNo',this.value)"></div>
-        <input class="qcm-in" value="${_qcEsc(r.ResultText)}" placeholder="เช่น 6.2 / Complies" oninput="qcmCoaEdit(${i},'ResultText',this.value)">
-        <div class="st" id="qcm-coast-${i}"></div>
-        <button type="button" class="qcm-btn ghost sq" style="min-height:48px" onclick="qcmCoaDel(${i})"><i class="fas fa-trash"></i></button></div>`).join('')
-    + `<button type="button" class="qcm-btn ghost" style="width:100%;margin-top:8px" onclick="qcmCoaAdd()"><i class="fas fa-plus"></i>เพิ่มรายการ</button>`;
+  // แต่ละรายการเป็น "การ์ด": แถวบน = ชื่อรายการ + ผ่าน/ไม่ผ่าน + ปุ่มลบ; ใต้ลงมาเป็นช่องมีป้ายกำกับ 2 คอลัมน์ (Spec | ผล, วิธีตรวจ | อ้างอิง) — อ่านง่ายทั้งแนวตั้ง/แนวนอน
+  const fld = (i, k, label, ph, val, cls) => `<div class="qcm-fld"><label>${label}</label><input class="qcm-in ${cls || ''}" value="${_qcEsc(val || '')}" placeholder="${ph}" oninput="qcmCoaEdit(${i},'${k}',this.value)"></div>`;
+  box.innerHTML = (rows.length ? '' : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
+    + rows.map((r, i) => `<div class="qcm-coacard">
+        <div class="hd"><span class="n">${i + 1}</span>
+          <input class="qcm-in nm" value="${_qcEsc(r.Parameter)}" placeholder="ชื่อรายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)">
+          <div class="st" id="qcm-coast-${i}"></div>
+          <button type="button" class="qcm-btn ghost sq" onclick="qcmCoaDel(${i})" title="ลบรายการนี้"><i class="fas fa-trash"></i></button></div>
+        <div class="bd">
+          ${fld(i, 'SpecText', 'Spec (เกณฑ์)', 'เช่น 5.5 - 7.0', r.SpecText)}
+          ${fld(i, 'ResultText', 'ผลตามเอกสาร', 'เช่น 6.2 / Complies', r.ResultText)}
+          ${fld(i, 'Method', 'วิธีตรวจ', 'เช่น Visual of Standard', r.Method)}
+          ${fld(i, 'RefNo', 'เลขอ้างอิงวิธี', 'เช่น QCW-07-00', r.RefNo)}
+        </div></div>`).join('')
+    + `<button type="button" class="qcm-btn ghost" style="width:100%;margin-top:4px" onclick="qcmCoaAdd()"><i class="fas fa-plus"></i>เพิ่มรายการ</button>`;
   rows.forEach((_, i) => qcmCoaStatus(i));
 }
 function qcmCoaStatus(i) {

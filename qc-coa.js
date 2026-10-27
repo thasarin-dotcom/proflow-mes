@@ -83,6 +83,68 @@ async function _qcPrepCanvas(src, rot = 0) {
   return c;
 }
 
+// ตรวจมุมเอียงของกระดาษ (รูปถ่าย) ด้วยโปรไฟล์ความเข้มรายแถว: หมุนภาพย่อ −5°…+5° เลือกมุมที่ผลรวมแต่ละแถวต่างกันมากสุด (บรรทัดตัวอักษรตรงแนวนอน) แล้วหมุนภาพจริงชดเชย
+function _qcDeskew(src) {
+  try {
+    const k = Math.min(1, 700 / Math.max(src.width, src.height));
+    const sw = Math.max(50, Math.round(src.width * k)), sh = Math.max(50, Math.round(src.height * k));
+    const sm = document.createElement('canvas'); sm.width = sw; sm.height = sh;
+    const sg = sm.getContext('2d', { willReadFrequently: true });
+    sg.drawImage(src, 0, 0, sw, sh);
+    const bin = _qcBinarize(sm);          // ขาว-ดำแบบปรับตามแสงรอบจุด — พื้นหลังโต๊ะ/เงาไม่ถูกนับเป็น "หมึก" (เดิมใช้เกณฑ์ตายตัวทำให้รูปถ่ายที่พื้นหลังเข้มวัดมุมพลาด)
+    let best = 0, bestScore = -1;
+    const x0 = Math.round(sw * 0.1), x1 = Math.round(sw * 0.9), y0 = Math.round(sh * 0.08), y1 = Math.round(sh * 0.92);   // ตัดขอบภาพที่มักเป็นพื้นหลัง
+    for (let a = -6; a <= 6.001; a += 0.5) {
+      sg.setTransform(1, 0, 0, 1, 0, 0); sg.fillStyle = '#fff'; sg.fillRect(0, 0, sw, sh);
+      sg.translate(sw / 2, sh / 2); sg.rotate(a * Math.PI / 180); sg.drawImage(bin, -sw / 2, -sh / 2, sw, sh);
+      const d = sg.getImageData(0, 0, sw, sh).data, rows = new Float64Array(sh);
+      for (let y = y0; y < y1; y++) { let s = 0; for (let x = x0; x < x1; x++) s += d[(y * sw + x) * 4] < 128 ? 1 : 0; rows[y] = s; }
+      let mean = 0; for (let y = 0; y < sh; y++) mean += rows[y]; mean /= sh;
+      let v = 0; for (let y = 0; y < sh; y++) v += (rows[y] - mean) * (rows[y] - mean);
+      if (v > bestScore) { bestScore = v; best = a; }
+    }
+    if (Math.abs(best) < 0.5) return src;
+    const out = document.createElement('canvas'); out.width = src.width; out.height = src.height;
+    const og = out.getContext('2d'); og.fillStyle = '#fff'; og.fillRect(0, 0, out.width, out.height);
+    og.translate(out.width / 2, out.height / 2); og.rotate(best * Math.PI / 180); og.drawImage(src, -src.width / 2, -src.height / 2);
+    return out;
+  } catch (e) { console.warn('deskew', e); return src; }
+}
+
+// ประกอบข้อความ "ตามแถว" จากตำแหน่งคำของ OCR (bbox): จัดกลุ่มคำตามแนวนอน (y) แล้วเรียงตาม x; ช่องว่างกว้าง = ขอบคอลัมน์ (ใส่ช่องว่าง 2 ช่อง)
+// แก้ปัญหา OCR อ่านตารางทีละคอลัมน์ ("Appearance Odor Color" ติดกัน แยกจากเกณฑ์/ผล) ทำให้แถวขาดหาย
+function _qcTextFromWords(words) {
+  const ws = (words || []).filter(w => w && w.text && w.text.trim() && w.bbox && (w.confidence == null || w.confidence > 15));
+  if (ws.length < 5) return '';
+  const hs = ws.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b), medH = hs[Math.floor(hs.length / 2)] || 20;
+  ws.forEach(w => { w._yc = (w.bbox.y0 + w.bbox.y1) / 2; });
+  ws.sort((a, b) => a._yc - b._yc);
+  // จัดแถวแบบ "ตามเพื่อนบ้าน": คำใหม่เข้าแถวที่มีคำอยู่ใกล้ (ห่างแนวนอนไม่เกิน ~10 เท่าความสูงตัวอักษร) และระดับ y ใกล้กัน —
+  // บรรทัดที่เอียงเล็กน้อยก็ยังต่อเป็นแถวเดียวได้ (ไม่ใช้ค่าเฉลี่ย y ของทั้งแถว) ส่วนบรรทัดอื่นที่ y ใกล้แต่อยู่ไกลทางซ้ายขวาจะไม่ถูกรวม
+  const rows = [];
+  for (const w of ws) {
+    let target = null, bestDy = Infinity;
+    for (let k = rows.length - 1; k >= 0 && k >= rows.length - 14; k--) {
+      for (const u of rows[k].words) {
+        const dy = Math.abs(w._yc - u._yc), dx = Math.max(0, w.bbox.x0 - u.bbox.x1, u.bbox.x0 - w.bbox.x1);
+        if (dy < medH * 0.6 && dx < medH * 10 && dy < bestDy) { bestDy = dy; target = rows[k]; }
+      }
+    }
+    if (target) target.words.push(w); else rows.push({ words: [w] });
+  }
+  rows.forEach(r => { r.yc = r.words.reduce((s, w) => s + w._yc, 0) / r.words.length; });
+  rows.sort((a, b) => a.yc - b.yc);
+  return rows.map(r => {
+    r.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    let line = '', prev = null;
+    for (const w of r.words) {
+      if (prev) { const gap = w.bbox.x0 - prev.bbox.x1, cw = (prev.bbox.x1 - prev.bbox.x0) / Math.max(1, prev.text.length); line += gap > cw * 2.2 + 4 ? '  ' : ' '; }
+      line += w.text; prev = w;
+    }
+    return line;
+  }).join('\n');
+}
+
 // psm: '3' = อัตโนมัติ (ค่าเริ่มต้น) · '6' = บล็อกข้อความเดียว (เหมาะกับตาราง: อ่านเป็นบรรทัดตามแถว) — ทั้งคู่เปิด preserve_interword_spaces
 // เพื่อคงช่องว่างระหว่างคอลัมน์ (ตัวแยกตารางใช้ช่องว่าง ≥2 เป็นขอบคอลัมน์)
 async function _qcOcrCanvas(canvas, label, psm) {
@@ -95,8 +157,11 @@ async function _qcOcrCanvas(canvas, label, psm) {
   try {
     worker = await Tesseract.createWorker('tha+eng', 1, { logger });
     await worker.setParameters({ tessedit_pageseg_mode: psm || '3', preserve_interword_spaces: '1' });
-    const r = await worker.recognize(canvas);
-    return r.data.text || '';
+    const r = await worker.recognize(canvas, {}, { text: true, blocks: true });
+    // ข้อความที่ประกอบตามแถวจากตำแหน่งคำ (ตัวอ่านตารางใช้) + ข้อความดิบของ OCR ต่อท้าย (ตัวอ่านช่องทั่วไป/สำรอง)
+    const d = r.data, words = d.words || (d.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => (p.lines || []).flatMap(l => l.words || [])));
+    const rebuilt = _qcTextFromWords(words);
+    return rebuilt ? rebuilt + '\n' + (d.text || '') : (d.text || '');
   } catch (e) {
     console.warn('createWorker ไม่สำเร็จ ใช้ recognize ตรงๆ แทน', e);
     const r = await Tesseract.recognize(canvas, 'tha+eng', { logger });
@@ -289,7 +354,7 @@ function _qcExtractCoA(text, items) {
   f.exp = _qcParseDate(grab(new RegExp(String.raw`(?:\bexp(?:iry|ire[sd]?|iration)?\b\.?|best\s*before|use\s*by|retest(?:\s*date)?|วันหมดอายุ|หมดอายุ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'exp');
   f.docNo = grab(/\b(?:coa|certificate|report|document|doc)\b\.?\s*(?:no\.?|number|#)\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i);
   // ชื่อสินค้า "ตามเอกสารของซัพ" (อาจไม่ตรงกับชื่อที่เราตั้งในระบบ) — เก็บไว้เทียบ/ทำข้อมูลชื่อจากซัพ
-  f.product = (grab(/(?:product\s*name|name\s*of\s*(?:the\s*)?(?:product|material)|trade\s*name|commercial\s*name|inci\s*name|material\s*name|item\s*name|sample\s*name|product|material|item|sample|description|ชื่อสินค้า|ชื่อผลิตภัณฑ์|ชื่อวัตถุดิบ|ผลิตภัณฑ์)\s*[:\-]\s*([^\n]+)/i) || '').split(/\s{2,}|\|/)[0].trim().slice(0, 100) || null;
+  f.product = (grab(/(?:product\s*name|name\s*of\s*(?:the\s*)?(?:product|material)|trade\s*name|commercial\s*name|inci\s*name|material\s*name|item\s*name|sample\s*name|product|material|item|sample|description|ชื่อสินค้า|ชื่อผลิตภัณฑ์|ชื่อวัตถุดิบ|ผลิตภัณฑ์)\s*[:\-]\s*([^\n]+)/i) || '').split('|')[0].split(/\s+(?=(?:manufacturer|supplier|lot|batch|mfd|mfg|exp|date)\b)/i)[0].replace(/\s+/g, ' ').trim().slice(0, 100) || null;
   f.supplier = (grab(/(?:manufacturer|supplier|vendor|produced\s*by|ผู้ผลิต|ผู้จำหน่าย)\s*[:\-]?\s*(.+)/i)
     || grab(/((?:บริษัท|บจก\.?|หจก\.?)\s*[^\n]{3,70})/)
     || grab(/([A-Z][A-Za-z0-9&.,' \-]{3,60}\s(?:Co\.?,?\s*Ltd\.?|Company|Limited|Inc\.?|Corp\.?))/) || '').slice(0, 100) || null;
@@ -402,13 +467,16 @@ function _qcParseCoAColumns(lines) {
       if (pos.length >= 3) { hi = i; cols = pos.map(p => p[0]); break; }
     }
   }
-  if (hi < 0) return [];
+  // ไม่เจอหัวตาราง (OCR อ่านหัวไม่ออก) → ลองจับแถวที่ลงท้ายด้วยเลขอ้างอิงวิธี (เช่น QCW-07-00) และมี ≥4 ช่อง: รายการ|เกณฑ์|วิธี|ผล|อ้างอิง
+  const headerless = hi < 0;
+  if (headerless) cols = ['name', 'spec', 'method', 'result', 'ref'];
   const rows = [], seen = new Set();
   for (let i = hi + 1; i < lines.length && rows.length < 40; i++) {
     const raw = lines[i];
-    if (/^\W*(\*|analysis\s*by|approved\s*by|\(miss|\(mr|note|remark)/i.test(raw) || /quality\s*(control|assurance)/i.test(raw)) break;   // จบตาราง
+    if (rows.length && (/^\W*(\*|analysis\s*by|approved\s*by|\(miss|\(mr|note|remark)/i.test(raw) || /quality\s*(control|assurance)/i.test(raw))) break;   // จบตาราง
     let cells = raw.split(/\s*\|\s*|\s{2,}/).map(c => c.trim()).filter(c => c && !/^[-—_=.~I]+$/.test(c));
     if (cells.length < 2) continue;
+    if (headerless && !(cells.length >= 4 && /^[A-Z]{2,6}\s?-?\s?\d{2}(?:\s?-\s?\d{1,3})+$/.test(cells[cells.length - 1]))) continue;
     let ref = '', method = '';
     if (cols.includes('ref') && _QC_REF_RE.test(cells[cells.length - 1])) ref = cells.pop();
     else if (_QC_REF_RE.test(cells[cells.length - 1]) && /\d/.test(cells[cells.length - 1]) && /^[A-Z]{2,6}/.test(cells[cells.length - 1])) ref = cells.pop();
