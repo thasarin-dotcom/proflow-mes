@@ -84,7 +84,7 @@ async function _qcReadPdf(file) {
     const lines = {};
     tc.items.forEach(it => { const y = Math.round(it.transform[5] / 3); (lines[y] = lines[y] || []).push(it); });
     Object.keys(lines).sort((a, b) => b - a).forEach(y => {
-      text += lines[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ') + '\n';
+      text += lines[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join('  ') + '\n';   // เว้น 2 ช่อง = ขอบคอลัมน์ (ตัวแยกตารางผลวิเคราะห์ใช้)
     });
   }
   if (text.replace(/\s/g, '').length > 80) return text;   // PDF มีตัวอักษรจริง
@@ -267,4 +267,107 @@ function _qcApplyExtract(ex) {
   document.getElementById('qc-d-warn').innerHTML = warn.map(w => `<div class="${w.startsWith('⚠') ? 'text-danger' : 'text-muted'}">${w}</div>`).join('');
   const found = ['lot', 'mfg', 'exp', 'docNo', 'product', 'supplier'].filter(k => f[k]).length;
   _qcScanMsg(`<span class="text-success"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · ผลตรวจ ${filled}/${_qcCurInsp.items.length} รายการ</span> <span class="text-muted">— ช่องสีเหลืองคือค่าที่ดึงจากเอกสาร ตรวจทานให้ตรงกับกระดาษก่อนบันทึก</span>`);
+}
+
+// ════════════════════════════════════════════════════
+// ตารางผลวิเคราะห์ใน CoA: รายการทดสอบ · Spec (เกณฑ์ตามเอกสาร) · ผล → แถว {Parameter, SpecText, ResultText, Unit}
+// ใช้ข้อความดิบ (SpecText/ResultText) เป็นหลัก แล้วคำนวณ min/max/ตัวเลข/ผ่านไม่ผ่านจากข้อความด้วย _qcEvalCoARow
+// (ผู้ใช้แก้ข้อความในช่องได้ ค่าที่คำนวณจึงตามแก้ทันที) — parser เป็น heuristic ผู้ตรวจต้องทวนเสมอ
+// ════════════════════════════════════════════════════
+const _QC_UNIT_RE = /(cfu\s*\/\s*m?l|cfu\s*\/\s*g|mg\s*KOH\s*\/\s*g|meq\s*\/\s*kg|mg\s*\/\s*kg|g\s*\/\s*(?:ml|cm3|cm³)|mPa\s*[·.]?\s*s|ppm|ppb|cP|%|°\s*C)/i;
+const _QC_BAD_RE = /(not\s*compl\w*|non[- ]?conform\w*|fail\w*|reject\w*|ไม่ผ่าน|ไม่ตรง)/i;
+const _QC_OK_RE = /(not\s*detected|n\.?\s?d\.?(?![a-z])|negative|absent|complies|complying|conforms?|comply|pass(?:es|ed)?|ผ่าน|เป็นไปตาม(?:ข้อกำหนด)?|ตรงตาม|ไม่พบ|ปกติ)/i;
+const _QC_POS_RE = /(positive|detected)/i;
+const _QC_PARAM_START = /^(appearance|colou?r|odou?r|scent|fragrance|ph|specific\s*gravity|density|refractive\s*index|acid\s*value|peroxide\s*value|saponification\s*value|iodine\s*value|moisture|water\s*content|viscosity|melting\s*point|boiling\s*point|flash\s*point|heavy\s*metals?|lead|arsenic|mercury|cadmium|total\s*(?:plate|bacterial|viable)\s*count|yeast(?:\s*(?:and|&)\s*mou?ld[s]?)?|mou?ld[s]?|e\.?\s?coli|s\.?\s?aureus|p\.?\s?aeruginosa|c\.?\s?albicans|salmonella|assay|purity|solubility|ลักษณะ|สี|กลิ่น|ความถ่วงจำเพาะ|ความหนืด|ความชื้น|ค่ากรด|ค่าเปอร์ออกไซด์|โลหะหนัก|ตะกั่ว|สารหนู|ปรอท|แคดเมียม|จุลินทรีย์|ยีสต์และรา)(?![A-Za-z])/i;
+const _QC_NOT_PARAM = /\b(date|lot|batch|no\.?|exp|mfg|page|tel|fax|doc|report|issued|tested|signed|certificate)\b/i;
+const _QC_NUMTOK = String.raw`(?:[<>≤≥]=?\s*)?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)`;
+
+function _qcNumStr(x) { x = String(x); return /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(x) ? x.replace(/,/g, '') : x.replace(',', '.'); }
+
+// เกณฑ์ตัวเลขจากข้อความ Spec: ช่วง "5.5 - 7.0", เพดาน "< 1000"/"NMT 2"/"ไม่เกิน 2", พื้น "> 98"/"NLT 98"
+function _qcParseSpecText(s) {
+  s = String(s || '').trim();
+  const N = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)`;
+  let m = s.match(new RegExp(N + String.raw`\s*(?:-|–|—|~|to|ถึง)\s*` + N, 'i'));
+  if (m) return { min: +_qcNumStr(m[1]), max: +_qcNumStr(m[2]) };
+  m = s.match(new RegExp(String.raw`(?:<=?|≤|NMT|max(?:imum)?\.?|not\s*more\s*than|ไม่เกิน)\s*` + N, 'i'));
+  if (m) return { min: null, max: +_qcNumStr(m[1]) };
+  m = s.match(new RegExp(String.raw`(?:>=?|≥|NLT|min(?:imum)?\.?|not\s*less\s*than|ไม่น้อยกว่า)\s*` + N, 'i'));
+  if (m) return { min: +_qcNumStr(m[1]), max: null };
+  return { min: null, max: null };
+}
+
+// ประเมินแถว: ผลเป็นตัวเลข+มีเกณฑ์ตัวเลข → เทียบช่วง; ไม่งั้นดูคำ (Complies/Pass/Negative = ผ่าน, Fail/Not comply = ไม่ผ่าน, Positive/Detected = ไม่ผ่าน)
+function _qcEvalCoARow(row) {
+  const sp = _qcParseSpecText(row.SpecText), rt = String(row.ResultText || '').trim();
+  const nm = rt.match(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?/);
+  const num = nm && !/^[A-Za-z]{2,}/.test(rt) ? +_qcNumStr(nm[0]) : null;
+  let pass = null;
+  if (num != null && (sp.min != null || sp.max != null)) pass = !(sp.min != null && num < sp.min) && !(sp.max != null && num > sp.max);
+  else if (_qcStrip(rt) && _QC_BAD_RE.test(rt)) pass = false;
+  else if (_QC_OK_RE.test(rt)) pass = true;
+  else if (_QC_POS_RE.test(rt)) pass = false;
+  return { min: sp.min, max: sp.max, num, pass };
+}
+function _qcStrip(s) { return String(s || '').trim(); }
+
+function _qcPickResult(after) {
+  const m = after.match(new RegExp(_QC_NUMTOK));
+  if (m) return m[0].replace(/\s+/g, '');
+  let last = null; const rx = new RegExp(_QC_OK_RE.source + '|' + _QC_BAD_RE.source + '|' + _QC_POS_RE.source, 'ig'); let k;
+  while ((k = rx.exec(after))) last = k[0];
+  return last || '';
+}
+
+function _qcParseCoATable(text) {
+  const rows = [], seen = new Set();
+  const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.replace(/\s{3,}/g, '  ').trim()).filter(Boolean);
+  for (let line of lines) {
+    line = line.replace(/^\s*\d{1,2}\s*[.)]\s+/, '').replace(/\|/g, '  ');
+    if (line.length < 4 || line.length > 220) continue;
+    let name = null, rest = null;
+    const kw = line.match(_QC_PARAM_START);
+    if (kw) {
+      name = kw[0]; rest = line.slice(kw[0].length);
+      const q = rest.match(/^\s*(\([^)]*\)|@\s*\d+\s*°?\s*C?)/);       // (25°C) / @25°C / (cfu/g)
+      if (q) { name += q[0]; rest = rest.slice(q[0].length); }
+    } else {
+      const g = line.match(/^([A-Za-zก-๙][A-Za-zก-๙ .,&\/()%\-]{2,45}?)\s+(?=[<>≤≥]|\d)/);
+      if (!g || _QC_NOT_PARAM.test(g[1])) continue;
+      name = g[1]; rest = line.slice(g[0].length);
+      if (!/\d\s*(?:-|–|—|~|to)\s*\d|[<>≤≥]/i.test(rest)) continue;    // ไม่ใช่แถวตาราง (ต้องมีเกณฑ์ช่วง/เปรียบเทียบ)
+      if (!new RegExp(_QC_NUMTOK).test(rest.replace(/\d+(?:[.,]\d+)?\s*(?:-|–|—|~|to)\s*\d+(?:[.,]\d+)?/i, ''))) continue;
+    }
+    name = name.replace(/\s+/g, ' ').replace(/[:.\s]+$/, '').trim();
+    rest = rest.replace(/^[\s:.\-–]+/, '');
+    const unitM = rest.match(_QC_UNIT_RE);
+    const unit = unitM ? unitM[0].replace(/\s+/g, '') : '';
+    let spec = '', result = '', m;
+    if ((m = rest.match(/(\d+(?:[.,]\d+)?\s*(?:-|–|—|~|to|ถึง)\s*\d+(?:[.,]\d+)?)/i))) {
+      spec = m[1]; result = _qcPickResult(rest.slice(m.index + m[0].length));
+    } else if ((m = rest.match(/((?:not\s*more\s*than|not\s*less\s*than|<=?|≤|>=?|≥|NMT|NLT|max\.?|min\.?|ไม่เกิน|ไม่น้อยกว่า)\s*\d+(?:[.,]\d+)?)/i))) {
+      spec = m[1]; result = _qcPickResult(rest.slice(m.index + m[0].length));
+    } else {
+      let last = null; const rx = new RegExp(_QC_OK_RE.source + '|' + _QC_BAD_RE.source + '|' + _QC_POS_RE.source, 'ig'); let k;
+      while ((k = rx.exec(rest))) last = { w: k[0], i: k.index };
+      if (last) { result = last.w; spec = rest.slice(0, last.i).trim(); }
+      else {
+        const nums = [...rest.matchAll(new RegExp(_QC_NUMTOK, 'g'))];
+        if (nums.length) { const lastN = nums[nums.length - 1]; result = lastN[0].replace(/\s+/g, ''); spec = rest.slice(0, lastN.index).trim(); }
+        else {
+          // ข้อความล้วน เช่น "Pale yellow  Pale yellow" (เกณฑ์ = ผล ซ้ำกัน) → แบ่งครึ่ง
+          const w = rest.trim().split(/\s+/), h = w.length / 2;
+          if (w.length >= 2 && w.length % 2 === 0 && w.slice(0, h).join(' ').toLowerCase() === w.slice(h).join(' ').toLowerCase()) { spec = w.slice(0, h).join(' '); result = w.slice(h).join(' '); }
+          else spec = rest.trim();
+        }
+      }
+    }
+    if (!spec && !result) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ Parameter: name, SpecText: spec.replace(/\s+/g, ' ').trim(), ResultText: result, Unit: unit });
+    if (rows.length >= 40) break;
+  }
+  return rows;
 }
