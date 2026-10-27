@@ -81,10 +81,11 @@ const QCM = {
   .qcm-item .ctl .qcm-btn { min-height:50px; min-width:86px; padding:0 10px; }
   .qcm-item .ctl .qcm-btn.sel-ok { background:#16a34a; color:#fff; } .qcm-item .ctl .qcm-btn.sel-no { background:#dc2626; color:#fff; }
   .qcm-item .ctl.auto { background:#fff8c4; border-radius:10px; padding:2px; }
-  .qcm-coahead, .qcm-coarow { display:grid; grid-template-columns:1.4fr 1fr 1fr 64px 52px; gap:8px; align-items:center; }
-  .qcm-coahead { font-size:.74rem; color:#94a3b8; margin-bottom:4px; } .qcm-coarow { margin-bottom:8px; }
+  .qcm-coahead, .qcm-coarow { display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr 60px 52px; gap:8px; align-items:center; }
+  .qcm-coahead { font-size:.74rem; color:#94a3b8; margin-bottom:4px; } .qcm-coarow { margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #f1f5f9; }
   .qcm-coarow .st { text-align:center; font-weight:700; font-size:.86rem; }
-  @media (max-width:760px) { .qcm-coahead { display:none; } .qcm-coarow { grid-template-columns:1fr 1fr 56px 52px; } .qcm-coarow > :first-child { grid-column:1 / -1; } }
+  .qcm-coarow .mth { display:flex; flex-direction:column; gap:4px; } .qcm-in.sm { min-height:38px; font-size:14px; }
+  @media (max-width:860px) { .qcm-coahead { display:none; } .qcm-coarow { grid-template-columns:1fr 1fr 56px 52px; } .qcm-coarow > :first-child, .qcm-coarow > .mth { grid-column:1 / -1; } }
   .qcm-item .pv { min-width:62px; text-align:right; font-weight:700; font-size:.88rem; }
   .qcm-resbtns { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .qcm-resbtns .qcm-btn.on.PASS { background:#16a34a; color:#fff; } .qcm-resbtns .qcm-btn.on.CONDITIONAL { background:#f59e0b; color:#fff; } .qcm-resbtns .qcm-btn.on.REJECT { background:#dc2626; color:#fff; }
@@ -360,25 +361,31 @@ async function qcmRead() {
   const cur = QCM.cur; if (!cur || cur.busy || !cur.queue.length) return;
   cur.busy = true; const b = document.getElementById('qcm-readbtn'); b.disabled = true;
   try {
-    let text = '';
-    const canvases = [];   // เก็บภาพที่เตรียมแล้วไว้อ่านซ้ำรอบ 2 (โหมดตาราง) ถ้ารอบแรกไม่เจอรายการทดสอบ — อยู่ในหน่วยความจำเท่านั้น
+    // รอบที่ 1: อ่านด้วย "โหมดตาราง" (PSM 6 — อ่านเป็นแถว คงช่องว่างคอลัมน์) ซึ่งให้ตารางที่ตรงกว่าโหมดอัตโนมัติ (ทดสอบกับ CoA จริงฉบับ The Rest)
+    // ถ้ายังได้รายการทดสอบ <3 แถว → รอบ 2: ภาพขาว-ดำปรับตามแสง (ช่วยรูปถ่ายมีเงา) → รอบ 3: โหมดอัตโนมัติ; รวมช่องที่ได้ทุกรอบ ใช้ตารางจากรอบที่ได้แถวมากสุด
+    // ภาพที่เตรียมแล้วเก็บในหน่วยความจำเท่านั้น (PDF ที่มีตัวอักษรในไฟล์อ่านตรงๆ ไม่ผ่าน OCR)
+    let text = '', pdfText = '';
+    const canvases = [];
     for (let i = 0; i < cur.queue.length; i++) {
       const q = cur.queue[i], label = `หน้า ${i + 1}/${cur.queue.length}`;
       _qcScanMsg(`<i class="fas fa-spinner fa-spin me-1"></i>กำลังอ่าน${label}...`);
-      if (q.isPdf) text += (await _qcReadPdf(q.file)) + '\n';
-      else { const cv = await _qcPrepCanvas(q.file, q.rot); canvases.push(cv); text += (await _qcOcrCanvas(cv, label, '3')) + '\n'; }
+      if (q.isPdf) { const before = canvases.length, t = await _qcReadPdf(q.file, canvases); if (canvases.length > before) text += t + '\n'; else pdfText += t + '\n'; }
+      else { const cv = await _qcPrepCanvas(q.file, q.rot); canvases.push(cv); text += (await _qcOcrCanvas(cv, label, '6')) + '\n'; }
     }
+    text = pdfText + text;
     if (text.replace(/\s/g, '').length < 20) { _qcScanMsg('<span style="color:#dc2626">อ่านข้อความไม่ได้ — ลองหมุนรูปให้ตรง ถ่ายใหม่ให้สว่าง/ชัด หรือเลือกเป็น PDF</span>'); qcmShowRaw(text); return; }
-    let ex = _qcExtractCoA(text, cur.items), tableText = text;
-    // รอบ 2: ไม่เจอรายการทดสอบ (<3 แถว) → อ่านรูปซ้ำแบบ "โหมดตาราง" (อ่านเป็นแถว) แล้วใช้ผลที่ได้แถวมากกว่า + เติมช่องที่รอบแรกยังว่าง
-    if (canvases.length && _qcParseCoATable(text).length < 3) {
-      let text2 = '';
-      for (let i = 0; i < canvases.length; i++) text2 += (await _qcOcrCanvas(canvases[i], `หน้า ${i + 1}/${canvases.length} (รอบ 2 โหมดตาราง)`, '6')) + '\n';
-      if (_qcParseCoATable(text2).length > _qcParseCoATable(text).length) tableText = text2;
-      const ex2 = _qcExtractCoA(text2, cur.items);
+    let ex = _qcExtractCoA(text, cur.items), tableText = text, best = _qcParseCoATable(text).length;
+    const strategies = [['6', true, 'ภาพปรับแสง'], ['3', false, 'โหมดอัตโนมัติ']];
+    for (let s = 0; s < strategies.length && best < 3 && canvases.length; s++) {
+      const [psm, bin, name] = strategies[s];
+      let t2 = '';
+      for (let i = 0; i < canvases.length; i++) t2 += (await _qcOcrCanvas(bin ? _qcBinarize(canvases[i]) : canvases[i], `หน้า ${i + 1}/${canvases.length} (รอบ ${s + 2}: ${name})`, psm)) + '\n';
+      const n2 = _qcParseCoATable(t2).length;
+      if (n2 > best) { best = n2; tableText = t2; }
+      const ex2 = _qcExtractCoA(t2, cur.items);
       Object.keys(ex2.fields).forEach(k => { if (!ex.fields[k] && ex2.fields[k]) ex.fields[k] = ex2.fields[k]; });
       Object.keys(ex2.values).forEach(k => { if (ex.values[k] == null) ex.values[k] = ex2.values[k]; });
-      text += '\n──── อ่านรอบ 2 (โหมดตาราง) ────\n' + text2;
+      text += `\n──── อ่านรอบ ${s + 2} (${name}) ────\n` + t2;
     }
     qcmShowRaw(text);
     qcmApplyExtract(ex, tableText);
@@ -433,10 +440,11 @@ function qcmApplyExtract(ex, text) {
 function qcmRenderCoa() {
   const box = document.getElementById('qcm-coa-box'); if (!box || !QCM.cur) return;
   const rows = QCM.cur.coaRows;
-  box.innerHTML = (rows.length ? `<div class="qcm-coahead"><div>รายการทดสอบ</div><div>Spec (เกณฑ์)</div><div>ผลตามเอกสาร</div><div style="text-align:center">ผล</div><div></div></div>` : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
+  box.innerHTML = (rows.length ? `<div class="qcm-coahead"><div>รายการทดสอบ</div><div>Spec (เกณฑ์)</div><div>วิธีตรวจ · อ้างอิง</div><div>ผลตามเอกสาร</div><div style="text-align:center">ผล</div><div></div></div>` : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
     + rows.map((r, i) => `<div class="qcm-coarow">
         <input class="qcm-in" value="${_qcEsc(r.Parameter)}" placeholder="รายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)">
         <input class="qcm-in" value="${_qcEsc(r.SpecText)}" placeholder="เช่น 5.5 - 7.0" oninput="qcmCoaEdit(${i},'SpecText',this.value)">
+        <div class="mth"><input class="qcm-in" value="${_qcEsc(r.Method || '')}" placeholder="วิธีตรวจ" oninput="qcmCoaEdit(${i},'Method',this.value)"><input class="qcm-in sm" value="${_qcEsc(r.RefNo || '')}" placeholder="เลขอ้างอิง" oninput="qcmCoaEdit(${i},'RefNo',this.value)"></div>
         <input class="qcm-in" value="${_qcEsc(r.ResultText)}" placeholder="เช่น 6.2 / Complies" oninput="qcmCoaEdit(${i},'ResultText',this.value)">
         <div class="st" id="qcm-coast-${i}"></div>
         <button type="button" class="qcm-btn ghost sq" style="min-height:48px" onclick="qcmCoaDel(${i})"><i class="fas fa-trash"></i></button></div>`).join('')
@@ -449,14 +457,14 @@ function qcmCoaStatus(i) {
   el.innerHTML = ev.pass == null ? '<span style="color:#94a3b8">—</span>' : ev.pass ? '<span style="color:#16a34a">ผ่าน</span>' : '<span style="color:#dc2626">ไม่ผ่าน</span>';
 }
 function qcmCoaEdit(i, k, v) { QCM.cur.coaRows[i][k] = v; qcmCoaStatus(i); qcmCalc(); }
-function qcmCoaAdd() { QCM.cur.coaRows.push({ Parameter: '', SpecText: '', ResultText: '', Unit: '' }); qcmRenderCoa(); }
+function qcmCoaAdd() { QCM.cur.coaRows.push({ Parameter: '', SpecText: '', ResultText: '', Unit: '', Method: '', RefNo: '' }); qcmRenderCoa(); }
 function qcmCoaDel(i) { QCM.cur.coaRows.splice(i, 1); qcmRenderCoa(); qcmCalc(); }
 // แถวที่จะบันทึกลง qc_coa_results (ข้ามแถวที่ยังไม่มีชื่อรายการ)
 function _qcmCoaPayload(inspId, rows) {
   return rows.filter(r => String(r.Parameter || '').trim()).map((r, n) => {
     const ev = _qcEvalCoARow(r);
     return { InspectionId: inspId, Seq: n + 1, Parameter: r.Parameter.trim(), SpecText: r.SpecText || null, SpecMin: ev.min, SpecMax: ev.max,
-      ResultText: r.ResultText || null, ResultNum: ev.num, Unit: r.Unit || null, Pass: ev.pass };
+      ResultText: r.ResultText || null, ResultNum: ev.num, Unit: r.Unit || null, Pass: ev.pass, Method: r.Method || null, RefNo: r.RefNo || null };
   });
 }
 
@@ -527,7 +535,9 @@ async function qcmSubmit() {
   let coaWarn = '';
   const coaPayload = _qcmCoaPayload(ins.data._row_id, cur.coaRows);
   if (coaPayload.length) {
-    const r3 = await _sb.from('qc_coa_results').insert(coaPayload);
+    let r3 = await _sb.from('qc_coa_results').insert(coaPayload);
+    // ยังไม่ได้รัน alter_qc_coa_results_add_method.sql (ไม่มีคอลัมน์ Method/RefNo) → ลองใหม่โดยตัดสองช่องนี้ออก ข้อมูลหลักยังบันทึกได้
+    if (r3.error && /Method|RefNo/i.test(r3.error.message || '')) r3 = await _sb.from('qc_coa_results').insert(coaPayload.map(({ Method, RefNo, ...rest }) => rest));
     if (r3.error) { console.error('qc_coa_results', r3.error); coaWarn = 'บันทึกรายการจาก CoA ไม่สำเร็จ (ให้ Admin รัน alter_qc_add_coa_results.sql)'; }
   }
   const failedNames = items.filter(it => it._pass === false).map(it => it.Parameter).concat(coaPayload.filter(r => r.Pass === false).map(r => r.Parameter));
@@ -572,7 +582,7 @@ async function qcmOpenApprove(id) {
   const results = rRes.data || [], mr = mRes.data || {}, coa = cRes.data || [];
   QCM.appr = { i, results, coa, decision: i.Result };
   const hasSpecNow = QCM.specs.some(s => s.MaterialCode === i.MaterialCode);
-  const coaRows = coa.map(r => `<div class="qcm-item"><div><div class="nm">${_qcEsc(r.Parameter)}</div><div class="cr">Spec: ${_qcEsc(r.SpecText || '—')}${r.Unit ? ' ' + _qcEsc(r.Unit) : ''}</div></div>
+  const coaRows = coa.map(r => `<div class="qcm-item"><div><div class="nm">${_qcEsc(r.Parameter)}</div><div class="cr">Spec: ${_qcEsc(r.SpecText || '—')}${r.Unit ? ' ' + _qcEsc(r.Unit) : ''}${r.Method ? ' · วิธี: ' + _qcEsc(r.Method) : ''}${r.RefNo ? ' (' + _qcEsc(r.RefNo) + ')' : ''}</div></div>
       <div style="text-align:right"><b>${_qcEsc(r.ResultText || '—')}</b> ${r.Pass == null ? '<span style="color:#94a3b8">—</span>' : r.Pass ? '<span style="color:#16a34a;font-weight:700">ผ่าน</span>' : '<span style="color:#dc2626;font-weight:700">ไม่ผ่าน</span>'}</div></div>`).join('');
   const warn = [];
   if (i.CoA_MfgLotNo && mr.MfgLotNo && _qcmNorm(i.CoA_MfgLotNo) !== _qcmNorm(mr.MfgLotNo)) warn.push(`Lot ผู้ผลิตตาม CoA (${_qcEsc(i.CoA_MfgLotNo)}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(mr.MfgLotNo)})`);
@@ -608,7 +618,7 @@ async function qcmImportSpec(id) {
   if (!c.isConfirmed) return;
   const rows = a.coa.map((r, n) => {
     const numeric = (r.SpecMin != null || r.SpecMax != null);
-    return { MaterialCode: a.i.MaterialCode, Seq: n + 1, Parameter: r.Parameter, ParamType: numeric ? 'numeric' : 'passfail', MinValue: r.SpecMin, MaxValue: r.SpecMax, Unit: r.Unit || null, Method: r.SpecText || null };
+    return { MaterialCode: a.i.MaterialCode, Seq: n + 1, Parameter: r.Parameter, ParamType: numeric ? 'numeric' : 'passfail', MinValue: r.SpecMin, MaxValue: r.SpecMax, Unit: r.Unit || null, Method: [r.SpecText, r.Method ? 'วิธี: ' + r.Method : '', r.RefNo ? '(' + r.RefNo + ')' : ''].filter(Boolean).join(' ') || null };
   });
   _showLoader();
   const { error } = await _sb.from('qc_spec_items').insert(rows);

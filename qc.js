@@ -315,7 +315,7 @@ function _qcRenderInsp(body) {
 function _qcCoaTableHtml(rows) {
   if (!rows.length) return '<div class="small text-muted mb-2">ไม่มีรายการจากเอกสาร CoA</div>';
   return `<table class="table table-sm align-middle"><thead><tr><th>รายการทดสอบ</th><th>Spec</th><th>ผลตามเอกสาร</th><th>ผล</th></tr></thead><tbody>${rows.map(r =>
-    `<tr><td>${_qcEsc(r.Parameter)}</td><td class="small">${_qcEsc(r.SpecText || '—')} ${_qcEsc(r.Unit || '')}</td><td>${_qcEsc(r.ResultText || '—')}</td>
+    `<tr><td>${_qcEsc(r.Parameter)}${r.Method ? `<div class="small text-muted">วิธี: ${_qcEsc(r.Method)}${r.RefNo ? ' (' + _qcEsc(r.RefNo) + ')' : ''}</div>` : ''}</td><td class="small">${_qcEsc(r.SpecText || '—')} ${_qcEsc(r.Unit || '')}</td><td>${_qcEsc(r.ResultText || '—')}</td>
      <td>${r.Pass == null ? '<span class="text-muted">—</span>' : r.Pass ? '<span class="text-success fw-bold">ผ่าน</span>' : '<span class="text-danger fw-bold">ไม่ผ่าน</span>'}</td></tr>`).join('')}</tbody></table>`;
 }
 

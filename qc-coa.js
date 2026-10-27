@@ -104,7 +104,33 @@ async function _qcOcrCanvas(canvas, label, psm) {
   } finally { try { if (worker) await worker.terminate(); } catch (e) {} }
 }
 
-async function _qcReadPdf(file) {
+// ทำภาพขาว-ดำแบบปรับตามความสว่างรอบจุด (adaptive threshold) — ช่วยรูปถ่ายกระดาษที่แสงไม่เท่ากัน/มีเงา (ใช้ในรอบอ่านซ้ำ)
+function _qcBinarize(src) {
+  const w = src.width, h = src.height, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.drawImage(src, 0, 0);
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  const gray = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) gray[i] = d[i * 4];                       // ภาพเป็นเกรย์แล้ว (R=G=B)
+  const integral = new Float64Array((w + 1) * (h + 1));
+  for (let y = 1; y <= h; y++) { let row = 0; for (let x = 1; x <= w; x++) { row += gray[(y - 1) * w + (x - 1)]; integral[y * (w + 1) + x] = integral[(y - 1) * (w + 1) + x] + row; } }
+  const r = Math.max(12, Math.round(Math.min(w, h) / 40));
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
+      const sum = integral[(y1 + 1) * (w + 1) + x1 + 1] - integral[y0 * (w + 1) + x1 + 1] - integral[(y1 + 1) * (w + 1) + x0] + integral[y0 * (w + 1) + x0];
+      const mean = sum / ((x1 - x0 + 1) * (y1 - y0 + 1));
+      const v = gray[y * w + x] < mean - 12 ? 0 : 255;
+      const k = (y * w + x) * 4; d[k] = d[k + 1] = d[k + 2] = v;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+// outCanvases (ถ้าส่งมา): เก็บภาพของหน้าที่ต้อง OCR ไว้ให้รอบอ่านซ้ำ (PDF ที่มีตัวอักษรอยู่แล้วไม่ต้อง)
+async function _qcReadPdf(file, outCanvases) {
   await _qcLoadScript(QC_PDFJS_SRC);
   pdfjsLib.GlobalWorkerOptions.workerSrc = QC_PDFJS_WORKER;
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -126,7 +152,9 @@ async function _qcReadPdf(file) {
     const c = document.createElement('canvas');
     c.width = vp.width; c.height = vp.height;
     await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-    text += (await _qcOcrCanvas(await _qcPrepCanvas(c), `หน้า ${p}/${pages}`)) + '\n';
+    const pc = await _qcPrepCanvas(c);
+    if (outCanvases) outCanvases.push(pc);
+    text += (await _qcOcrCanvas(pc, `หน้า ${p}/${pages}`, '6')) + '\n';
   }
   return text;
 }
@@ -257,7 +285,7 @@ function _qcExtractCoA(text, items) {
     || grab(/(?:เลขที่ผลิต|ล็อต|ลอต)\s*(?:ที่)?\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i);
   // วันผลิต/หมดอายุ: ป้าย Mfd/Mfg/Mfd.date/Production date/วันผลิต · Exp/Expiry/Best before/วันหมดอายุ
   // รูปแบบ dd/mm/yyyy, dd-mm-yy, ddmmyy, ddmmyyyy, mm/yyyy, mmyyyy, Oct 2026, 14 Oct 2028 (ดู _qcParseDate)
-  f.mfg = _qcParseDate(grab(new RegExp(String.raw`(?:\bm[fk][dg]\b\.?|manufactur\w*|\bprod(?:uction)?\b\.?|date\s*of\s*manufacture|วันผลิต|ผลิตเมื่อ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'mfg');
+  f.mfg = _qcParseDate(grab(new RegExp(String.raw`(?:\bm[fkil1][dg]\b\.?|manufactur\w*|\bprod(?:uction)?\b\.?|date\s*of\s*manufacture|วันผลิต|ผลิตเมื่อ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'mfg');
   f.exp = _qcParseDate(grab(new RegExp(String.raw`(?:\bexp(?:iry|ire[sd]?|iration)?\b\.?|best\s*before|use\s*by|retest(?:\s*date)?|วันหมดอายุ|หมดอายุ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'exp');
   f.docNo = grab(/\b(?:coa|certificate|report|document|doc)\b\.?\s*(?:no\.?|number|#)\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i);
   // ชื่อสินค้า "ตามเอกสารของซัพ" (อาจไม่ตรงกับชื่อที่เราตั้งในระบบ) — เก็บไว้เทียบ/ทำข้อมูลชื่อจากซัพ
@@ -311,7 +339,7 @@ function _qcApplyExtract(ex) {
 // ════════════════════════════════════════════════════
 const _QC_UNIT_RE = /(cfu\s*\/\s*m?l|cfu\s*\/\s*g|mg\s*KOH\s*\/\s*g|meq\s*\/\s*kg|mg\s*\/\s*kg|g\s*\/\s*(?:ml|cm3|cm³)|mPa\s*[·.]?\s*s|ppm|ppb|cP|%|°\s*C)/i;
 const _QC_BAD_RE = /(not\s*compl\w*|non[- ]?conform\w*|fail\w*|reject\w*|ไม่ผ่าน|ไม่ตรง)/i;
-const _QC_OK_RE = /(not\s*detected|n\.?\s?d\.?(?![a-z])|negative|absent|complies|complying|conforms?|comply|pass(?:es|ed)?|ผ่าน|เป็นไปตาม(?:ข้อกำหนด)?|ตรงตาม|ไม่พบ|ปกติ)/i;
+const _QC_OK_RE = /(match(?:es)?\s*(?:to\s*|with\s*)?(?:the\s*)?standard|meets?\s*(?:the\s*)?(?:standard|spec\w*)|within\s*(?:limit|spec\w*)|in\s*spec\w*|satisfactory|acceptable|not\s*detected|n\.?\s?d\.?(?![a-z])|negative|absent|complies|complying|conforms?|comply|pass(?:es|ed)?|ผ่าน|เป็นไปตาม(?:ข้อกำหนด)?|ตรงตาม|ไม่พบ|ปกติ)/i;
 const _QC_POS_RE = /(positive|detected)/i;
 const _QC_PARAM_START = /^(appearance|colou?r|odou?r|scent|fragrance|ph|specific\s*gravity|density|refractive\s*index|acid\s*value|peroxide\s*value|saponification\s*value|iodine\s*value|moisture|water\s*content|viscosity|melting\s*point|boiling\s*point|flash\s*point|heavy\s*metals?|lead|arsenic|mercury|cadmium|total\s*(?:plate|bacterial|viable)\s*count|yeast(?:\s*(?:and|&)\s*mou?ld[s]?)?|mou?ld[s]?|e\.?\s?coli|s\.?\s?aureus|p\.?\s?aeruginosa|c\.?\s?albicans|salmonella|assay|purity|solubility|ลักษณะ|สี|กลิ่น|ความถ่วงจำเพาะ|ความหนืด|ความชื้น|ค่ากรด|ค่าเปอร์ออกไซด์|โลหะหนัก|ตะกั่ว|สารหนู|ปรอท|แคดเมียม|จุลินทรีย์|ยีสต์และรา)(?![A-Za-z])/i;
 const _QC_NOT_PARAM = /\b(date|lot|batch|no\.?|exp|mfg|page|tel|fax|doc|report|issued|tested|signed|certificate)\b/i;
@@ -342,6 +370,11 @@ function _qcEvalCoARow(row) {
   else if (_qcStrip(rt) && _QC_BAD_RE.test(rt)) pass = false;
   else if (_QC_OK_RE.test(rt)) pass = true;
   else if (_QC_POS_RE.test(rt)) pass = false;
+  else if (sp.min == null && sp.max == null && rt) {
+    // เกณฑ์เป็นข้อความ: ผลเขียนซ้ำเกณฑ์เดียวกัน (เช่น Spec "Yellow" / ผล "Yellow") = ผ่าน; ต่างกัน = ประเมินเองไม่ได้ (ให้คนตัดสิน)
+    const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9ก-๛]/g, '');
+    if (norm(row.SpecText) && norm(row.SpecText) === norm(rt)) pass = true;
+  }
   return { min: sp.min, max: sp.max, num, pass };
 }
 function _qcStrip(s) { return String(s || '').trim(); }
@@ -354,9 +387,63 @@ function _qcPickResult(after) {
   return last || '';
 }
 
+// ── ตารางแบบมีหัวคอลัมน์ เช่น  Test Parameters | Specification | Method | Result | Reference ──
+// หาแถวหัวตาราง (มีคำว่า Specification และ Result) → เรียงคอลัมน์ตามลำดับที่เจอ → แถวถัดไปแยกเป็นช่องด้วย "|" หรือช่องว่าง ≥2
+// ถ้า OCR ทำช่องติดกัน (เช่น "Color Yellow", "5-500 Viscometer") แยกซ้ำด้วยเลขอ้างอิง (QCW-07-00) / คำชื่อวิธีตรวจ / คำชื่อรายการ
+const _QC_REF_RE = /^[A-Za-z]{2,6}\s?-?\s?\d{2,4}(?:\s?-\s?\d{1,3})*$/;
+const _QC_METHOD_RE = /\b(visual(?:\s*(?:of|to)?\s*standard)?|smell|odou?r\s*test|[a-z]*\s?viscometer|refractometer|ph\s*meter|[a-z]*meter|titration|hplc|gc(?:-ms)?|balance|observation|sensory|organoleptic|microscop\w*|culture|plate\s*count)\b/i;
+function _qcParseCoAColumns(lines) {
+  let hi = -1, cols = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/specif/i.test(l) && /result/i.test(l)) {
+      const pos = [['name', l.search(/test\s*param\w*|test\s*item|parameter|item|รายการ/i)], ['spec', l.search(/specif\w*|standard\s*limit|limit/i)],
+        ['method', l.search(/method|วิธี/i)], ['result', l.search(/result|ผล/i)], ['ref', l.search(/refer\w*|ref\./i)]].filter(p => p[1] >= 0).sort((a, b) => a[1] - b[1]);
+      if (pos.length >= 3) { hi = i; cols = pos.map(p => p[0]); break; }
+    }
+  }
+  if (hi < 0) return [];
+  const rows = [], seen = new Set();
+  for (let i = hi + 1; i < lines.length && rows.length < 40; i++) {
+    const raw = lines[i];
+    if (/^\W*(\*|analysis\s*by|approved\s*by|\(miss|\(mr|note|remark)/i.test(raw) || /quality\s*(control|assurance)/i.test(raw)) break;   // จบตาราง
+    let cells = raw.split(/\s*\|\s*|\s{2,}/).map(c => c.trim()).filter(c => c && !/^[-—_=.~I]+$/.test(c));
+    if (cells.length < 2) continue;
+    let ref = '', method = '';
+    if (cols.includes('ref') && _QC_REF_RE.test(cells[cells.length - 1])) ref = cells.pop();
+    else if (_QC_REF_RE.test(cells[cells.length - 1]) && /\d/.test(cells[cells.length - 1]) && /^[A-Z]{2,6}/.test(cells[cells.length - 1])) ref = cells.pop();
+    if (cols.includes('method')) {
+      for (let k = 1; k < cells.length; k++) {
+        const mm = cells[k].match(_QC_METHOD_RE);
+        if (!mm) continue;
+        const before = cells[k].slice(0, mm.index).trim(), after = cells[k].slice(mm.index).trim();
+        if (before) { cells.splice(k, 1, before, after); k++; }        // "5-500 Viscometer" → spec + method
+        method = cells[k]; cells.splice(k, 1); break;
+      }
+    }
+    let name, spec = '', result = '';
+    if (cells.length >= 3) { name = cells[0]; spec = cells[1]; result = cells.slice(2).join(' '); }
+    else if (cells.length === 2) {                                      // "Color Yellow" + ผล → แยกชื่อรายการออกจากเกณฑ์
+      const kw = cells[0].match(_QC_PARAM_START);
+      if (kw) { name = kw[0]; let rest = cells[0].slice(kw[0].length); const q = rest.match(/^\s*(\([^)]*\)|@\s*\d+\s*°?\s*C?)/); if (q) { name += q[0]; rest = rest.slice(q[0].length); } spec = rest.trim(); }
+      else { const w = cells[0].split(/\s+/); name = w[0]; spec = w.slice(1).join(' '); }
+      result = cells[1];
+    } else continue;
+    name = name.replace(/\s+/g, ' ').replace(/[:.\s]+$/, '').trim();
+    if (!spec.trim() || !result.trim()) continue;      // แถวจริงต้องมีทั้งเกณฑ์และผล — ตัดแถวขยะที่ OCR สร้างจากเส้นตาราง/ลายเซ็น
+    if (!name || !/[A-Za-zก-ฮ]{3,}/.test(name) || _QC_NOT_PARAM.test(name) || seen.has(name.toLowerCase())) continue;   // ข้ามแถวขยะจาก OCR (เช่น "L", "EE")
+    seen.add(name.toLowerCase());
+    const unitM = (spec + ' ' + result).match(_QC_UNIT_RE);
+    rows.push({ Parameter: name, SpecText: spec.replace(/\s+/g, ' ').trim(), ResultText: result.replace(/\s+/g, ' ').trim(), Unit: unitM ? unitM[0].replace(/\s+/g, '') : '', Method: method, RefNo: ref });
+  }
+  return rows;
+}
+
 function _qcParseCoATable(text) {
   const rows = [], seen = new Set();
   const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.replace(/\s{3,}/g, '  ').trim()).filter(Boolean);
+  const colRows = _qcParseCoAColumns(String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean));
+  if (colRows.length >= 2) return colRows;      // เจอหัวตารางและอ่านแถวได้ → ใช้แบบมีคอลัมน์
   for (let line of lines) {
     line = line.replace(/^\s*\d{1,2}\s*[.)]\s+/, '').replace(/\|/g, '  ');
     if (line.length < 4 || line.length > 220) continue;

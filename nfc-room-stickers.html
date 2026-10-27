@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ป้าย NFC หน้าห้อง</title>
+<!--
+  ป้ายติดหน้าห้อง สำหรับนำร่อง NFC (2026-10-22) — เปิดไฟล์นี้ในเบราว์เซอร์แล้วสั่งพิมพ์ (A4)
+  แต่ละป้าย = ลิงก์ที่ต้องเขียนลงแท็ก NFC (แอป "NFC Tools" → Write → Add a record → URL) + QR สำรองสำหรับมือถือที่ไม่มี NFC
+  ลิงก์เป็นแบบเดียวกันทั้งแท็กและ QR: https://proflow-mes.vercel.app/?nfc=<room id> (room id ตาม factory-layout.js)
+  ไม่ต้องอัปโหลดไฟล์นี้ขึ้นเว็บ (แค่ใช้พิมพ์) — แต่อัปโหลดได้ไม่เสียหาย
+-->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="factory-layout.js"></script>
+<style>
+  :root { --ink: #0f172a; --blue: #1e3a8a; --muted: #64748b; --line: #cbd5e1; }
+  body { margin: 0; background: #fff; color: var(--ink); font-family: 'Sarabun', 'Leelawadee UI', sans-serif; }
+  .bar { padding: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  .bar h1 { font-size: 18px; margin: 0; flex: 1; min-width: 200px; }
+  .bar label { font-size: 14px; display: flex; gap: 6px; align-items: center; }
+  .bar button { background: var(--blue); color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(88mm, 1fr)); gap: 6mm; padding: 10mm; }
+  .tag { border: 1.5px dashed var(--line); border-radius: 4mm; padding: 6mm; display: flex; gap: 5mm; align-items: center; break-inside: avoid; }
+  .tag .qr { width: 32mm; height: 32mm; flex-shrink: 0; }
+  .tag .qr svg { width: 100%; height: 100%; display: block; }
+  .tag h2 { margin: 0 0 1mm; font-size: 17pt; color: var(--blue); }
+  .tag .line { font-size: 9pt; color: var(--muted); margin-bottom: 2mm; }
+  .tag .how { font-size: 9pt; line-height: 1.35; }
+  .tag .url { font-family: monospace; font-size: 7.5pt; color: var(--muted); word-break: break-all; margin-top: 2mm; }
+  .pilot { display: inline-block; background: #fef3c7; color: #92400e; font-size: 8pt; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 4px; vertical-align: middle; }
+  @media print { .bar { display: none; } .sheet { padding: 0; } @page { size: A4; margin: 10mm; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>ป้าย NFC / QR หน้าห้อง</h1>
+  <label><input type="checkbox" id="only-pilot" checked onchange="render()"> เฉพาะห้องนำร่อง (บรรจุแชมพู)</label>
+  <button onclick="window.print()">พิมพ์</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+const BASE = 'https://proflow-mes.vercel.app/?nfc=';
+const PILOT = ['fillsh'];
+function qrSvg(text) { const q = qrcode(0, 'M'); q.addData(text); q.make(); return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); }
+function render() {
+  const only = document.getElementById('only-pilot').checked;
+  const ids = [...Object.keys(FP_ROOM_LINE), 'packbox'].filter(id => !only || PILOT.includes(id));
+  document.getElementById('sheet').innerHTML = ids.map(id => {
+    const url = BASE + id;
+    const line = id === 'packbox' ? FP_PACK_SUBLINES.map(s => s.label).join(' · ') : FP_ROOM_LINE[id];
+    return `<div class="tag">
+      <div class="qr">${qrSvg(url)}</div>
+      <div>
+        <h2>${FP_ROOM_LABEL[id]}${PILOT.includes(id) ? '<span class="pilot">นำร่อง</span>' : ''}</h2>
+        <div class="line">${line}</div>
+        <div class="how">📱 <b>แตะมือถือที่ป้าย</b> หรือสแกน QR<br>ลงเวลา · อัปเดตยอด · แจ้งหยุดงาน</div>
+        <div class="url">${url}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+render();
+</script>
+</body>
+</html>
