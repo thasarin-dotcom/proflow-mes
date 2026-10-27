@@ -23,8 +23,30 @@ function _qcScanMsg(html) { const el = document.getElementById('qc-scan-status')
 // ── วันที่ ──
 const _QC_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
   'ม.ค': 1, 'ก.พ': 2, 'มี.ค': 3, 'เม.ย': 4, 'พ.ค': 5, 'มิ.ย': 6, 'ก.ค': 7, 'ส.ค': 8, 'ก.ย': 9, 'ต.ค': 10, 'พ.ย': 11, 'ธ.ค': 12 };
-const _QC_DATE_RE = '(\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}\\s*[-/ ]?\\s*[A-Za-z\\u0E01-\\u0E2E.]{3,5}\\s*[-/ .,]?\\s*\\d{2,4})';
-function _qcParseDate(str) {
+const _QC_DATE_RE = String.raw`(\d{1,2}\s*[\/\-.]\s*\d{1,2}\s*[\/\-.]\s*\d{2,4}|\d{4}\s*[\/\-.]\s*\d{1,2}\s*[\/\-.]\s*\d{1,2}|\d{1,2}\s*[-/ .]?\s*[A-Za-zก-ฮ.]{3,9}\s*[-/ .,]?\s*\d{2,4}|[A-Za-z]{3,9}\.?\s*[-/ .,]?\s*\d{4}|\d{1,2}\s*[\/\-.]\s*\d{4}|\d{8}|\d{6}|\d{1,2}\s*[\/\-.]\s*\d{2}(?!\d))`;
+
+// แปลงข้อความวันที่ → yyyy-mm-dd. kind = 'mfg' | 'exp' (ใช้ตอนมีแค่เดือน/ปี: mfg → วันที่ 1, exp → วันสุดท้ายของเดือน)
+// รูปแบบที่รองรับ: dd/mm/yyyy · dd-mm-yy · yyyy-mm-dd · 14 Oct 2028 · ddmmyy · ddmmyyyy · mm/yyyy · mmyyyy · mm/yy · Oct 2026 (พ.ศ. แปลงให้)
+// ตัวเลข 6 หลัก: ถ้า 4 หลักท้ายเป็นปี (20xx/25xx) และ 2 หลักแรกเป็นเดือน → mmyyyy, ไม่งั้น ddmmyy
+function _qcParseDate(str, kind) {
+  if (!str) return null;
+  const s = String(str).trim().replace(/\s*([\/\-.])\s*/g, '$1');
+  const fixY = y => (y < 100 ? y + 2000 : y > 2400 ? y - 543 : y);
+  const iso = (y, m, d) => (m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 2000 && y <= 2100) ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null;
+  const monthOnly = (y, m) => (m >= 1 && m <= 12) ? iso(y, m, kind === 'exp' ? new Date(y, m, 0).getDate() : 1) : null;
+  const yearLike = x => /^(20\d\d|25\d\d)$/.test(x);
+  let mm;
+  if (/^\d{8}$/.test(s)) return iso(fixY(+s.slice(4)), +s.slice(2, 4), +s.slice(0, 2));
+  if (/^\d{6}$/.test(s)) {
+    if (yearLike(s.slice(2)) && +s.slice(0, 2) >= 1 && +s.slice(0, 2) <= 12) return monthOnly(fixY(+s.slice(2)), +s.slice(0, 2));
+    return iso(fixY(+s.slice(4)), +s.slice(2, 4), +s.slice(0, 2));
+  }
+  if ((mm = s.match(/^(\d{1,2})[\/\-.](\d{4})$/))) return monthOnly(fixY(+mm[2]), +mm[1]);
+  if ((mm = s.match(/^(\d{1,2})[\/\-.](\d{2})$/))) return monthOnly(fixY(+mm[2]), +mm[1]);
+  if ((mm = s.match(/^([A-Za-z]{3,9})\.?[\s\-\/.,]*(\d{2,4})$/)) && _QC_MONTHS[mm[1].toLowerCase().slice(0, 3)]) return monthOnly(fixY(+mm[2]), _QC_MONTHS[mm[1].toLowerCase().slice(0, 3)]);
+  return _qcParseDateBase(s);
+}
+function _qcParseDateBase(str) {
   if (!str) return null;
   str = String(str).trim();
   let d, m, y, mm;
@@ -61,15 +83,25 @@ async function _qcPrepCanvas(src, rot = 0) {
   return c;
 }
 
-async function _qcOcrCanvas(canvas, label) {
+// psm: '3' = อัตโนมัติ (ค่าเริ่มต้น) · '6' = บล็อกข้อความเดียว (เหมาะกับตาราง: อ่านเป็นบรรทัดตามแถว) — ทั้งคู่เปิด preserve_interword_spaces
+// เพื่อคงช่องว่างระหว่างคอลัมน์ (ตัวแยกตารางใช้ช่องว่าง ≥2 เป็นขอบคอลัมน์)
+async function _qcOcrCanvas(canvas, label, psm) {
   await _qcLoadScript(QC_TESS_SRC);
-  const r = await Tesseract.recognize(canvas, 'tha+eng', {
-    logger: m => {
-      if (!m.status) return;
-      _qcScanMsg(`<i class="fas fa-spinner fa-spin me-1"></i>${label} ${_qcEsc(m.status)}${m.progress != null ? ' ' + Math.round(m.progress * 100) + '%' : ''} <span class="text-muted">(ครั้งแรกต้องโหลดชุดภาษาไทย อาจใช้เวลาสักครู่)</span>`);
-    },
-  });
-  return r.data.text || '';
+  const logger = m => {
+    if (!m.status) return;
+    _qcScanMsg(`<i class="fas fa-spinner fa-spin me-1"></i>${label} ${_qcEsc(m.status)}${m.progress != null ? ' ' + Math.round(m.progress * 100) + '%' : ''} <span class="text-muted">(ครั้งแรกต้องโหลดชุดภาษาไทย อาจใช้เวลาสักครู่)</span>`);
+  };
+  let worker = null;
+  try {
+    worker = await Tesseract.createWorker('tha+eng', 1, { logger });
+    await worker.setParameters({ tessedit_pageseg_mode: psm || '3', preserve_interword_spaces: '1' });
+    const r = await worker.recognize(canvas);
+    return r.data.text || '';
+  } catch (e) {
+    console.warn('createWorker ไม่สำเร็จ ใช้ recognize ตรงๆ แทน', e);
+    const r = await Tesseract.recognize(canvas, 'tha+eng', { logger });
+    return r.data.text || '';
+  } finally { try { if (worker) await worker.terminate(); } catch (e) {} }
 }
 
 async function _qcReadPdf(file) {
@@ -223,10 +255,13 @@ function _qcExtractCoA(text, items) {
   const f = out.fields;
   f.lot = grab(/\b(?:lot|batch)\b\s*(?:no\.?|number|#)?\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i)
     || grab(/(?:เลขที่ผลิต|ล็อต|ลอต)\s*(?:ที่)?\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i);
-  f.mfg = _qcParseDate(grab(new RegExp('(?:mfg\\.?|manufactur\\w*|prod(?:uction)?\\.?|วันผลิต)\\s*(?:date)?\\s*[:.\\-]?\\s*' + _QC_DATE_RE, 'i')));
-  f.exp = _qcParseDate(grab(new RegExp('(?:exp\\w*\\.?|best\\s*before|use\\s*by|วันหมดอายุ)\\s*(?:date)?\\s*[:.\\-]?\\s*' + _QC_DATE_RE, 'i')));
+  // วันผลิต/หมดอายุ: ป้าย Mfd/Mfg/Mfd.date/Production date/วันผลิต · Exp/Expiry/Best before/วันหมดอายุ
+  // รูปแบบ dd/mm/yyyy, dd-mm-yy, ddmmyy, ddmmyyyy, mm/yyyy, mmyyyy, Oct 2026, 14 Oct 2028 (ดู _qcParseDate)
+  f.mfg = _qcParseDate(grab(new RegExp(String.raw`(?:\bm[fk][dg]\b\.?|manufactur\w*|\bprod(?:uction)?\b\.?|date\s*of\s*manufacture|วันผลิต|ผลิตเมื่อ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'mfg');
+  f.exp = _qcParseDate(grab(new RegExp(String.raw`(?:\bexp(?:iry|ire[sd]?|iration)?\b\.?|best\s*before|use\s*by|retest(?:\s*date)?|วันหมดอายุ|หมดอายุ)\s*(?:date|dt\.?|on)?\s*[:.\-=]?\s*` + _QC_DATE_RE, 'i')), 'exp');
   f.docNo = grab(/\b(?:coa|certificate|report|document|doc)\b\.?\s*(?:no\.?|number|#)\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i);
-  f.product = (grab(/(?:product(?:\s*name)?|material|item|sample|ชื่อสินค้า|ผลิตภัณฑ์)\s*[:\-]\s*(.+)/i) || '').slice(0, 100) || null;
+  // ชื่อสินค้า "ตามเอกสารของซัพ" (อาจไม่ตรงกับชื่อที่เราตั้งในระบบ) — เก็บไว้เทียบ/ทำข้อมูลชื่อจากซัพ
+  f.product = (grab(/(?:product\s*name|name\s*of\s*(?:the\s*)?(?:product|material)|trade\s*name|commercial\s*name|inci\s*name|material\s*name|item\s*name|sample\s*name|product|material|item|sample|description|ชื่อสินค้า|ชื่อผลิตภัณฑ์|ชื่อวัตถุดิบ|ผลิตภัณฑ์)\s*[:\-]\s*([^\n]+)/i) || '').split(/\s{2,}|\|/)[0].trim().slice(0, 100) || null;
   f.supplier = (grab(/(?:manufacturer|supplier|vendor|produced\s*by|ผู้ผลิต|ผู้จำหน่าย)\s*[:\-]?\s*(.+)/i)
     || grab(/((?:บริษัท|บจก\.?|หจก\.?)\s*[^\n]{3,70})/)
     || grab(/([A-Z][A-Za-z0-9&.,' \-]{3,60}\s(?:Co\.?,?\s*Ltd\.?|Company|Limited|Inc\.?|Corp\.?))/) || '').slice(0, 100) || null;
@@ -327,6 +362,13 @@ function _qcParseCoATable(text) {
     if (line.length < 4 || line.length > 220) continue;
     let name = null, rest = null;
     const kw = line.match(_QC_PARAM_START);
+    // แถวที่ชื่อรายการไม่อยู่ในรายการคำที่รู้จัก แต่ลงท้ายด้วยผลแบบคำ เช่น "Odor  Characteristic  Complies"
+    const tail = !kw && line.match(/^([A-Za-zก-๙][A-Za-zก-๙ .,&\/()%\-]{2,40}?)\s{2,}(.+?)\s+(complies|conforms?|pass(?:es)?|negative|absent|not\s*detected|ผ่าน|ตรงตาม)\s*$/i);
+    if (tail && !_QC_NOT_PARAM.test(tail[1])) {
+      const key0 = tail[1].trim().toLowerCase();
+      if (!seen.has(key0)) { seen.add(key0); rows.push({ Parameter: tail[1].trim(), SpecText: tail[2].trim(), ResultText: tail[3].trim(), Unit: '' }); }
+      continue;
+    }
     if (kw) {
       name = kw[0]; rest = line.slice(kw[0].length);
       const q = rest.match(/^\s*(\([^)]*\)|@\s*\d+\s*°?\s*C?)/);       // (25°C) / @25°C / (cfu/g)

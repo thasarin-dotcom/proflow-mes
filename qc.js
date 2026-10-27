@@ -201,7 +201,7 @@ function qcOpenInspect(idx) {
           <div class="col-md-3"><label class="form-label small mb-0">วันผลิต</label><input type="date" id="qc-d-mfg" class="form-control form-control-sm"></div>
           <div class="col-md-3"><label class="form-label small mb-0">วันหมดอายุ</label><input type="date" id="qc-d-exp" class="form-control form-control-sm"></div>
           <div class="col-md-3"><label class="form-label small mb-0">เลขที่เอกสาร CoA</label><input id="qc-d-no" class="form-control form-control-sm"></div>
-          <div class="col-md-6"><label class="form-label small mb-0">ชื่อสินค้าตาม CoA</label><input id="qc-d-prod" class="form-control form-control-sm"></div>
+          <div class="col-md-6"><label class="form-label small mb-0">ชื่อสินค้าจากซัพ (ตาม CoA)</label><input id="qc-d-prod" class="form-control form-control-sm"></div>
           <div class="col-md-6"><label class="form-label small mb-0">ผู้ผลิต/ซัพตาม CoA</label><input id="qc-d-sup" class="form-control form-control-sm"></div>
         </div>
         <div id="qc-d-warn" class="small mt-1"></div>
@@ -311,12 +311,21 @@ function _qcRenderInsp(body) {
     <tbody>${rows || '<tr><td colspan="9" class="text-center text-muted py-4">ยังไม่มีใบตรวจ</td></tr>'}</tbody></table></div></div>`;
 }
 
+// ตารางผลวิเคราะห์ตามเอกสาร CoA (qc_coa_results — alter_qc_add_coa_results.sql) แบบอ่านอย่างเดียว
+function _qcCoaTableHtml(rows) {
+  if (!rows.length) return '<div class="small text-muted mb-2">ไม่มีรายการจากเอกสาร CoA</div>';
+  return `<table class="table table-sm align-middle"><thead><tr><th>รายการทดสอบ</th><th>Spec</th><th>ผลตามเอกสาร</th><th>ผล</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td>${_qcEsc(r.Parameter)}</td><td class="small">${_qcEsc(r.SpecText || '—')} ${_qcEsc(r.Unit || '')}</td><td>${_qcEsc(r.ResultText || '—')}</td>
+     <td>${r.Pass == null ? '<span class="text-muted">—</span>' : r.Pass ? '<span class="text-success fw-bold">ผ่าน</span>' : '<span class="text-danger fw-bold">ไม่ผ่าน</span>'}</td></tr>`).join('')}</tbody></table>`;
+}
+
 async function qcViewInsp(id) {
   const i = _qcInspections.find(x => x._row_id === id); if (!i) return;
   const { data } = await _sb.from('qc_inspection_results').select('*').eq('InspectionId', id).order('_row_id');
+  const coaRes = await _sb.from('qc_coa_results').select('*').eq('InspectionId', id).order('Seq');
   const rows = (data || []).map(r => `<tr><td>${_qcEsc(r.Parameter)}</td><td>${r.Measured != null ? r.Measured + ' ' + _qcEsc(r.Unit || '') : '—'}</td><td>${r.Pass ? '<span class="text-success">ผ่าน</span>' : '<span class="text-danger">ไม่ผ่าน</span>'}</td></tr>`).join('');
   Swal.fire({ title: `${_qcEsc(i.MaterialName)} — Lot ${_qcEsc(i.Lot)}`, width: 600,
-    html: `<div class="text-start small mb-2">${_qcEsc(i.InspDate)} · ${_qcBadge(i.Result)} · ผู้ตรวจ ${_qcEsc(i.Inspector || '—')}</div><table class="table table-sm text-start"><tbody>${rows}</tbody></table>` });
+    html: `<div class="text-start small mb-2">${_qcEsc(i.InspDate)} · ${_qcBadge(i.Result)} · ผู้ตรวจ ${_qcEsc(i.Inspector || '—')}</div><div class="text-start fw-bold small">รายการทดสอบ · Spec · ผล ตามเอกสาร CoA</div><div class="text-start">${_qcCoaTableHtml(coaRes.data || [])}</div><div class="text-start fw-bold small">ผลตรวจของเรา</div><table class="table table-sm text-start"><tbody>${rows}</tbody></table>`, width: 760 });
 }
 
 // ── NCR ──
@@ -533,12 +542,14 @@ async function qcOpenApprove(id) {
   if (!_qcAdmin()) return;
   const i = _qcInspections.find(x => x._row_id === id); if (!i) return;
   _showLoader();
-  const [rRes, mRes] = await Promise.all([
+  const [rRes, mRes, cRes] = await Promise.all([
     _sb.from('qc_inspection_results').select('*').eq('InspectionId', id).order('_row_id'),
     i.MR_RowId ? _sb.from('mr_receive').select('MfgLotNo,ExpDate').eq('_row_id', i.MR_RowId).maybeSingle() : Promise.resolve({ data: null }),
+    _sb.from('qc_coa_results').select('*').eq('InspectionId', id).order('Seq'),
   ]);
   _hideLoader();
   const results = rRes.data || [], mr = mRes.data || {};
+  const coaTable = _qcCoaTableHtml(cRes.data || []);
   _qcApproveCtx = { i, results };
   const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const warn = [];
@@ -558,7 +569,9 @@ async function qcOpenApprove(id) {
         ${info('ชื่อสินค้าตาม CoA', i.CoA_Product)}${info('ผู้ผลิตตาม CoA', i.CoA_Supplier)}${info('ได้รับ CoA', i.CoAReceived ? 'ใช่' : 'ไม่')}${info('หมายเหตุจากคลัง', i.Remark)}
       </div>
       ${warn.map(w => `<div class="alert alert-danger py-1 small mb-1"><i class="fas fa-triangle-exclamation me-1"></i>${w}</div>`).join('')}
-      <table class="table table-sm align-middle mt-2"><thead><tr><th>รายการตรวจ</th><th>เกณฑ์</th><th>ผลที่วัดได้</th><th>ผล</th></tr></thead><tbody>${rrows || '<tr><td colspan="4" class="text-muted">ไม่มีรายการ</td></tr>'}</tbody></table>
+      <div class="fw-bold small mt-2">รายการทดสอบ · Spec · ผล ตามเอกสาร CoA</div>${coaTable}
+      <div class="fw-bold small mt-2">ผลตรวจของเรา (ตาม Spec ในระบบ)</div>
+      <table class="table table-sm align-middle"><thead><tr><th>รายการตรวจ</th><th>เกณฑ์</th><th>ผลที่วัดได้</th><th>ผล</th></tr></thead><tbody>${rrows || '<tr><td colspan="4" class="text-muted">ไม่มีรายการ</td></tr>'}</tbody></table>
       <div class="row g-2">
         <div class="col-md-5"><label class="form-label small mb-0">การตัดสินของ Admin QC</label>
           <select id="qc-a-result" class="form-select"><option value="PASS" ${i.Result === 'PASS' ? 'selected' : ''}>ผ่าน (Released)</option><option value="CONDITIONAL" ${i.Result === 'CONDITIONAL' ? 'selected' : ''}>ผ่านแบบมีเงื่อนไข</option><option value="REJECT" ${i.Result === 'REJECT' ? 'selected' : ''}>ไม่ผ่าน (Reject)</option></select>

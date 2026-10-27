@@ -301,6 +301,7 @@ function qcmOpenInspect(idx) {
         <div class="qcm-thumbs" id="qcm-thumbs"></div>
         <button class="qcm-btn green" id="qcm-readbtn" style="display:none;width:100%;margin-top:10px" onclick="qcmRead()"><i class="fas fa-magnifying-glass"></i>อ่านเอกสาร</button>
         <div class="qcm-stat" id="qc-scan-status"></div>
+        <details id="qcm-raw" style="display:none;margin-top:8px"><summary style="color:#64748b;font-size:.84rem;padding:6px 0">ดูข้อความที่อ่านได้จากเอกสาร</summary><pre id="qcm-rawtext" style="white-space:pre-wrap;max-height:240px;overflow:auto;font-size:.74rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin:0"></pre></details>
         <div class="meta" style="font-size:.74rem;color:#94a3b8;margin-top:6px">อ่านในเครื่องนี้เท่านั้น ไม่เก็บรูป/ไฟล์ — เก็บเฉพาะค่าที่ดึงได้ (ครั้งแรกต้องโหลดชุดภาษาไทย อาจใช้เวลาสักครู่)</div>
       </div>
       <div class="qcm-step"><h6><span class="no">2</span>ข้อมูลจากเอกสาร <small style="font-weight:400;color:#94a3b8">(ช่องสีเหลือง = ดึงจากเอกสาร ตรวจให้ตรงกับกระดาษ)</small></h6>
@@ -309,7 +310,7 @@ function qcmOpenInspect(idx) {
           <div><label class="f">วันผลิต</label><input class="qcm-in" type="date" id="qcm-d-mfg"></div>
           <div><label class="f">วันหมดอายุ</label><input class="qcm-in" type="date" id="qcm-d-exp"></div>
           <div><label class="f">เลขที่เอกสาร CoA</label><input class="qcm-in" id="qcm-d-no"></div>
-          <div><label class="f">ชื่อสินค้าตาม CoA</label><input class="qcm-in" id="qcm-d-prod"></div>
+          <div style="grid-column:span 2"><label class="f">ชื่อสินค้าจากซัพ (ตามเอกสาร CoA) <span style="color:#94a3b8">— ชื่อของเรา: ${_qcEsc(lot.MaterialName)}</span></label><input class="qcm-in" id="qcm-d-prod" placeholder="ชื่อที่ซัพเรียก ถ้าต่างจากชื่อของเรา"></div>
           <div><label class="f">ผู้ผลิต/ซัพตาม CoA</label><input class="qcm-in" id="qcm-d-sup"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.95rem"><input type="checkbox" id="qcm-coa" style="width:22px;height:22px">ได้รับ CoA จากซัพ</label>
@@ -360,16 +361,35 @@ async function qcmRead() {
   cur.busy = true; const b = document.getElementById('qcm-readbtn'); b.disabled = true;
   try {
     let text = '';
+    const canvases = [];   // เก็บภาพที่เตรียมแล้วไว้อ่านซ้ำรอบ 2 (โหมดตาราง) ถ้ารอบแรกไม่เจอรายการทดสอบ — อยู่ในหน่วยความจำเท่านั้น
     for (let i = 0; i < cur.queue.length; i++) {
       const q = cur.queue[i], label = `หน้า ${i + 1}/${cur.queue.length}`;
       _qcScanMsg(`<i class="fas fa-spinner fa-spin me-1"></i>กำลังอ่าน${label}...`);
-      text += (q.isPdf ? await _qcReadPdf(q.file) : await _qcOcrCanvas(await _qcPrepCanvas(q.file, q.rot), label)) + '\n';
+      if (q.isPdf) text += (await _qcReadPdf(q.file)) + '\n';
+      else { const cv = await _qcPrepCanvas(q.file, q.rot); canvases.push(cv); text += (await _qcOcrCanvas(cv, label, '3')) + '\n'; }
     }
-    if (text.replace(/\s/g, '').length < 20) { _qcScanMsg('<span style="color:#dc2626">อ่านข้อความไม่ได้ — ลองหมุนรูปให้ตรง ถ่ายใหม่ให้สว่าง/ชัด หรือเลือกเป็น PDF</span>'); return; }
-    qcmApplyExtract(_qcExtractCoA(text, cur.items), text);
+    if (text.replace(/\s/g, '').length < 20) { _qcScanMsg('<span style="color:#dc2626">อ่านข้อความไม่ได้ — ลองหมุนรูปให้ตรง ถ่ายใหม่ให้สว่าง/ชัด หรือเลือกเป็น PDF</span>'); qcmShowRaw(text); return; }
+    let ex = _qcExtractCoA(text, cur.items), tableText = text;
+    // รอบ 2: ไม่เจอรายการทดสอบ (<3 แถว) → อ่านรูปซ้ำแบบ "โหมดตาราง" (อ่านเป็นแถว) แล้วใช้ผลที่ได้แถวมากกว่า + เติมช่องที่รอบแรกยังว่าง
+    if (canvases.length && _qcParseCoATable(text).length < 3) {
+      let text2 = '';
+      for (let i = 0; i < canvases.length; i++) text2 += (await _qcOcrCanvas(canvases[i], `หน้า ${i + 1}/${canvases.length} (รอบ 2 โหมดตาราง)`, '6')) + '\n';
+      if (_qcParseCoATable(text2).length > _qcParseCoATable(text).length) tableText = text2;
+      const ex2 = _qcExtractCoA(text2, cur.items);
+      Object.keys(ex2.fields).forEach(k => { if (!ex.fields[k] && ex2.fields[k]) ex.fields[k] = ex2.fields[k]; });
+      Object.keys(ex2.values).forEach(k => { if (ex.values[k] == null) ex.values[k] = ex2.values[k]; });
+      text += '\n──── อ่านรอบ 2 (โหมดตาราง) ────\n' + text2;
+    }
+    qcmShowRaw(text);
+    qcmApplyExtract(ex, tableText);
     cur.queue.forEach(q => q.url && URL.revokeObjectURL(q.url)); cur.queue = []; qcmRenderQueue();   // อ่านสำเร็จ — ทิ้งรูป/ไฟล์
   } catch (e) { console.error(e); _qcScanMsg(`<span style="color:#dc2626">อ่านเอกสารไม่สำเร็จ: ${_qcEsc(e.message || e)}</span>`); }
   finally { cur.busy = false; b.disabled = false; }
+}
+// ข้อความดิบที่อ่านได้ — เปิดดูได้ เผื่อตรวจว่า OCR อ่านอะไรมา/ส่งให้ผู้พัฒนาปรับตัวแยกตาราง
+function qcmShowRaw(text) {
+  const d = document.getElementById('qcm-raw'), p = document.getElementById('qcm-rawtext');
+  if (d && p) { p.textContent = text || ''; d.style.display = ''; }
 }
 function qcmApplyExtract(ex, text) {
   const f = ex.fields, lot = QCM.cur.lot;
@@ -406,7 +426,7 @@ function qcmApplyExtract(ex, text) {
   if (f.exp && f.exp < new Date().toISOString().slice(0, 10)) warn.push('⚠ วันหมดอายุตาม CoA ผ่านไปแล้ว');
   document.getElementById('qcm-warn').innerHTML = warn.map(w => `<div class="qcm-warn">${w}</div>`).join('');
   const found = ['lot', 'mfg', 'exp', 'docNo', 'product', 'supplier'].filter(k => f[k]).length;
-  _qcScanMsg((window._qcCoaStale ? `<div style="color:#b45309">⚠ ไฟล์ qc-coa.js บนเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า — ตารางรายการทดสอบจะยังไม่ขึ้น (ให้อัปโหลด qc-coa.js ใหม่ไว้โฟลเดอร์เดียวกับ index.html หลัก แล้วรีเฟรช)</div>` : "") + `<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · รายการในตาราง CoA ${QCM.cur.coaRows.length} แถว · เติมผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
+  _qcScanMsg((window._qcCoaStale ? `<div style="color:#b45309">⚠ ไฟล์ qc-coa.js บนเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า — ตารางรายการทดสอบจะยังไม่ขึ้น (ให้อัปโหลด qc-coa.js ใหม่ไว้โฟลเดอร์เดียวกับ index.html หลัก แล้วรีเฟรช)</div>` : "") + `<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · ${QCM.cur.coaRows.length ? `รายการในตาราง CoA ${QCM.cur.coaRows.length} แถว` : '<b style="color:#b45309">ไม่พบรายการทดสอบ (ดู "ข้อความที่อ่านได้" หรือกด เพิ่มรายการ เอง)</b>'} ·เติมผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
 }
 
 // ── ตารางผลวิเคราะห์ตามเอกสาร CoA (รายการทดสอบ · Spec · ผล) ──
@@ -567,7 +587,7 @@ async function qcmOpenApprove(id) {
     <div class="sh-body"><div class="sh-inner">
       <div class="qcm-step"><h6>ข้อมูลจากเอกสาร CoA</h6><div class="qcm-kv">
         ${kv('Lot ผู้ผลิต', i.CoA_MfgLotNo)}${kv('วันผลิต', i.CoA_MfgDate)}${kv('วันหมดอายุ', i.CoA_ExpDate)}${kv('เลขที่ CoA', i.CoA_DocNo)}
-        ${kv('ชื่อสินค้า', i.CoA_Product)}${kv('ผู้ผลิต/ซัพ', i.CoA_Supplier)}${kv('ได้รับ CoA', i.CoAReceived ? 'ใช่' : 'ไม่')}${kv('หมายเหตุจากคลัง', i.Remark)}</div>
+        ${kv('ชื่อจากซัพ (ตาม CoA)', i.CoA_Product)}${kv('ชื่อของเรา', i.MaterialName)}${kv('ผู้ผลิต/ซัพ', i.CoA_Supplier)}${kv('ได้รับ CoA', i.CoAReceived ? 'ใช่' : 'ไม่')}${kv('หมายเหตุจากคลัง', i.Remark)}</div>
         ${warn.map(w => `<div class="qcm-warn"><i class="fas fa-triangle-exclamation me-1"></i>${w}</div>`).join('')}</div>
       <div class="qcm-step"><h6>รายการทดสอบ · Spec · ผล ตามเอกสาร CoA</h6>${coaRows || '<div class="meta">ไม่มีรายการจากเอกสาร</div>'}
         ${coa.length && !hasSpecNow ? `<button class="qcm-btn ghost" style="width:100%;margin-top:10px" onclick="qcmImportSpec(${id})"><i class="fas fa-file-import"></i>ใช้รายการนี้เป็น Spec ของวัตถุดิบนี้ (ยังไม่มี Spec)</button>` : ''}</div>
