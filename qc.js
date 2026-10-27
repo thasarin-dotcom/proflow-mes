@@ -17,6 +17,7 @@ let _qcStatusMap = {};        // "code|lot" → { result, inspId }
 let _qcStatusAt = 0;
 let _qcTab = 'pending';
 let _qcReady = true;          // false = ยังไม่ได้รัน create_qc_phase1.sql
+let _qcMaterials = [];
 let _qcInspModal = null, _qcNcrModal = null, _qcCurInsp = null;
 
 function _qcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -42,17 +43,25 @@ function _qcEnsurePage() {
         <button class="btn btn-light btn-sm fw-bold text-primary shadow-sm" onclick="qcLoadPage()"><i class="fas fa-sync me-1"></i>รีเฟรช</button>
       </div>
     </div>
-    <div class="glass-card py-2 mb-2">
+    <div class="sticky-toolbar"><div class="glass-card py-2 mb-2">
       <ul class="nav nav-pills gap-1" id="qc-tabs">
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="pending" onclick="qcSetTab('pending');return false">รอตรวจ <span class="badge bg-danger ms-1" id="qc-pending-count">0</span></a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="insp" onclick="qcSetTab('insp');return false">ใบตรวจ</a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="ncr" onclick="qcSetTab('ncr');return false">NCR <span class="badge bg-warning text-dark ms-1" id="qc-ncr-count">0</span></a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="spec" onclick="qcSetTab('spec');return false">มาตรฐานตรวจ (Spec)</a></li>
         <li class="nav-item"><a href="#" class="nav-link py-1" data-tab="settings" onclick="qcSetTab('settings');return false">ตั้งค่า</a></li>
-      </ul>
+      </ul></div>
     </div>
-    <div id="qc-body"></div>
-    <div class="modal fade" id="qcInspModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content" id="qcInspModalBody"></div></div></div>
+    <div class="scroll-content" id="qc-body"></div>
+    <style>
+      /* แท็บเลต/จอสัมผัส: ปุ่ม-ช่องกรอกใหญ่พอแตะ (≥44px) + โมดัลตรวจรับเต็มจอบนจอ <1200px */
+      #qcInspModal .btn, #qcInspModal .form-control, #qcInspModal .form-select { min-height: 44px; font-size: 1rem; }
+      #qcInspModal .qc-pf .btn { min-width: 84px; }
+      #qcInspModal .qc-thumb { position: relative; width: 108px; }
+      #qcInspModal .qc-thumb img { width: 108px; height: 108px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; transition: transform .15s; }
+      #qcInspModal .qc-thumb .btn { min-height: 36px; padding: 2px 8px; }
+    </style>
+    <div class="modal fade" id="qcInspModal" tabindex="-1"><div class="modal-dialog modal-xl modal-fullscreen-xl-down modal-dialog-scrollable"><div class="modal-content" id="qcInspModalBody"></div></div></div>
     <div class="modal fade" id="qcNcrModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content" id="qcNcrModalBody"></div></div></div>`;
   host.appendChild(div);
   _qcInspModal = new bootstrap.Modal(document.getElementById('qcInspModal'));
@@ -61,6 +70,7 @@ function _qcEnsurePage() {
 
 async function qcLoadPage() {
   _qcEnsurePage();
+  const _b = document.getElementById("qc-body"); if (_b) _b.innerHTML = "<div class=\"glass-card text-center text-muted py-4\"><i class=\"fas fa-spinner fa-spin me-2\"></i>กำลังโหลดข้อมูล...</div>";
   _showLoader();
   try {
     await _qcLoadAll();
@@ -78,11 +88,12 @@ async function _qcLoadAll() {
     _sb.from('qc_spec_items').select('*').order('MaterialCode').order('Seq'),
     _sb.from('qc_ncr').select('*').order('_row_id', { ascending: false }).limit(500),
   ]);
+  if (!_qcMaterials.length) { const m = await _fetchAllPaged('materials', 'MaterialCode,MaterialName'); _qcMaterials = m.data || m || []; if (!Array.isArray(_qcMaterials)) _qcMaterials = []; }
   _qcInspections = iRes.data || []; _qcSpecItems = spRes.data || []; _qcNcrs = nRes.data || [];
   _qcBuildStatusMap();
   // Lot ที่รับตั้งแต่ go_live และยังไม่มีใบตรวจ
   const start = _qcSettings.go_live_date || '1900-01-01';
-  const mr = await _fetchAllPagedRange('mr_receive', '_row_id,Date,MaterialCode,MaterialName,Lot,Qty,UOM,Supplier,MfgLotNo', 'Date', start, '9999-12-31');
+  const mr = await _fetchAllPagedRange('mr_receive', '_row_id,Date,MaterialCode,MaterialName,Lot,Qty,UOM,Supplier,MfgLotNo,ExpDate', 'Date', start, '9999-12-31');
   const agg = {};
   (mr.data || []).forEach(r => {
     if (!r.MaterialCode || !r.Lot) return;
@@ -138,6 +149,7 @@ function _qcSpecFor(code) { return _qcSpecItems.filter(s => s.MaterialCode === c
 function qcOpenInspect(idx) {
   const lot = _qcPendingLots[idx]; if (!lot) return;
   _qcCurInsp = { lot, items: [] };
+  if (typeof qcClearScanQueue === 'function') qcClearScanQueue();
   const spec = _qcSpecFor(lot.MaterialCode);
   const items = spec.length ? spec.map(s => ({ Parameter: s.Parameter, ParamType: s.ParamType, MinValue: s.MinValue, MaxValue: s.MaxValue, Unit: s.Unit, Method: s.Method }))
     : QC_DEFAULT_ITEMS.map(p => ({ Parameter: p, ParamType: 'passfail' }));
@@ -147,9 +159,12 @@ function qcOpenInspect(idx) {
       ? `${it.MinValue != null ? it.MinValue : '−∞'} – ${it.MaxValue != null ? it.MaxValue : '+∞'} ${_qcEsc(it.Unit || '')}`
       : _qcEsc(it.Method || 'ผ่าน/ไม่ผ่าน');
     const input = it.ParamType === 'numeric'
-      ? `<input type="number" step="any" class="form-control form-control-sm" id="qc-m-${i}" oninput="qcCalcResult()">`
-      : `<select class="form-select form-select-sm" id="qc-m-${i}" onchange="qcCalcResult()"><option value="">—</option><option value="1">ผ่าน</option><option value="0">ไม่ผ่าน</option></select>`;
-    return `<tr><td>${_qcEsc(it.Parameter)}</td><td class="small text-muted">${crit}</td><td style="width:140px">${input}</td><td style="width:70px" id="qc-p-${i}">—</td></tr>`;
+      ? `<input type="number" step="any" inputmode="decimal" class="form-control" id="qc-m-${i}" oninput="qcCalcResult()">`
+      // ผ่าน/ไม่ผ่านเป็นปุ่มใหญ่แตะง่าย (ค่าเก็บใน input ซ่อน id เดิม เพื่อให้ตรรกะคำนวณผลใช้ต่อได้)
+      : `<div class="btn-group qc-pf w-100" id="qc-pfg-${i}"><input type="hidden" id="qc-m-${i}" value="">
+           <button type="button" class="btn btn-outline-success" onclick="qcSetPF(${i},'1')">ผ่าน</button>
+           <button type="button" class="btn btn-outline-danger" onclick="qcSetPF(${i},'0')">ไม่ผ่าน</button></div>`;
+    return `<tr><td>${_qcEsc(it.Parameter)}</td><td class="small text-muted">${crit}</td><td style="width:${it.ParamType === 'numeric' ? 150 : 210}px">${input}</td><td style="width:70px" id="qc-p-${i}">—</td></tr>`;
   }).join('');
   document.getElementById('qcInspModalBody').innerHTML = `
     <div class="modal-header"><h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>ตรวจรับ ${_qcEsc(lot.MaterialName)} — Lot ${_qcEsc(lot.Lot)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -158,6 +173,27 @@ function qcOpenInspect(idx) {
       <div class="row g-2 mb-2">
         <div class="col-md-4"><label class="form-label small mb-0">วันที่ตรวจ</label><input type="date" id="qc-i-date" class="form-control form-control-sm" value="${new Date().toISOString().slice(0, 10)}"></div>
         <div class="col-md-4 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="qc-i-coa"><label class="form-check-label" for="qc-i-coa">ได้รับ CoA จากซัพ</label></div></div>
+      </div>
+      <div class="border rounded p-2 mb-2 bg-light">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <b class="small"><i class="fas fa-camera me-1"></i>สแกนเอกสาร CoA</b>
+          <label class="btn btn-outline-primary mb-0"><i class="fas fa-camera me-1"></i>ถ่ายรูป (ทีละหน้า)<input type="file" accept="image/*" capture="environment" hidden onchange="qcAddScanFiles(this)"></label>
+          <label class="btn btn-outline-secondary mb-0"><i class="fas fa-upload me-1"></i>เลือกรูป/PDF<input type="file" accept="image/*,application/pdf" multiple hidden onchange="qcAddScanFiles(this)"></label>
+          <small class="text-muted">อ่านข้อมูลในเครื่องนี้เท่านั้น — ไม่เก็บรูป/ไฟล์ไว้ที่ใด เก็บเฉพาะค่าที่ดึงได้ (ตรวจแก้ได้ก่อนบันทึก)</small>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-2" id="qc-scan-queue"></div>
+        <div class="mt-2" id="qc-scan-actions" style="display:none"><button type="button" class="btn btn-primary" onclick="qcRunScan()"><i class="fas fa-magnifying-glass me-1"></i>อ่านเอกสาร</button></div>
+        <div class="small mt-1" id="qc-scan-status"></div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-3"><label class="form-label small mb-0">Lot ผู้ผลิต (ตาม CoA)</label><input id="qc-d-lot" class="form-control form-control-sm"></div>
+          <div class="col-md-3"><label class="form-label small mb-0">วันผลิต</label><input type="date" id="qc-d-mfg" class="form-control form-control-sm"></div>
+          <div class="col-md-3"><label class="form-label small mb-0">วันหมดอายุ</label><input type="date" id="qc-d-exp" class="form-control form-control-sm"></div>
+          <div class="col-md-3"><label class="form-label small mb-0">เลขที่เอกสาร CoA</label><input id="qc-d-no" class="form-control form-control-sm"></div>
+          <div class="col-md-6"><label class="form-label small mb-0">ชื่อสินค้าตาม CoA</label><input id="qc-d-prod" class="form-control form-control-sm"></div>
+          <div class="col-md-6"><label class="form-label small mb-0">ผู้ผลิต/ซัพตาม CoA</label><input id="qc-d-sup" class="form-control form-control-sm"></div>
+        </div>
+        <div id="qc-d-warn" class="small mt-1"></div>
+        <details class="small mt-1" id="qc-scan-raw" style="display:none"><summary class="text-muted">ดูข้อความที่อ่านได้</summary><pre class="mb-0" id="qc-scan-rawtext" style="white-space:pre-wrap;max-height:160px;overflow:auto"></pre></details>
       </div>
       <table class="table table-sm align-middle"><thead><tr><th>รายการตรวจ</th><th>เกณฑ์</th><th>ผลที่วัดได้</th><th>ผล</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="row g-2">
@@ -171,10 +207,26 @@ function qcOpenInspect(idx) {
   _qcInspModal.show();
 }
 
+// ปุ่ม ผ่าน/ไม่ผ่าน (แตะซ้ำที่ปุ่มเดิม = ล้างค่า)
+function qcSetPF(i, v) {
+  const el = document.getElementById('qc-m-' + i);
+  el.value = el.value === v ? '' : v;
+  el.dataset.auto = '';   // ผู้ตรวจยืนยันเอง — เลิกขึ้นสีเหลือง "ดึงจากเอกสาร"
+  qcCalcResult();
+}
+function qcSyncPF(i) {
+  const g = document.getElementById('qc-pfg-' + i); if (!g) return;
+  const el = document.getElementById('qc-m-' + i), v = el.value, b = g.querySelectorAll('button');
+  b[0].classList.toggle('btn-success', v === '1'); b[0].classList.toggle('btn-outline-success', v !== '1');
+  b[1].classList.toggle('btn-danger', v === '0'); b[1].classList.toggle('btn-outline-danger', v !== '0');
+  g.style.background = el.dataset.auto === '1' ? '#fff8c4' : '';
+}
+
 // ประเมินผลรายแถว + แนะนำผลรวม (ผู้ตรวจเปลี่ยนเองได้)
 function qcCalcResult() {
   let anyFail = false, anyBlank = false;
   _qcCurInsp.items.forEach((it, i) => {
+    qcSyncPF(i);
     const v = document.getElementById('qc-m-' + i).value;
     const cell = document.getElementById('qc-p-' + i);
     let pass = null;
@@ -210,6 +262,10 @@ async function qcSaveInspect() {
     CoAReceived: document.getElementById('qc-i-coa').checked, Result: result,
     Remark: document.getElementById('qc-i-remark').value || null, Inspector: _currentUser?.email || null,
   };
+  // ค่าจากเอกสาร CoA — ใส่เฉพาะเมื่อกรอก/สแกนมา (ต้องรัน alter_qc_inspections_add_coa_fields.sql ก่อนถึงจะบันทึกคอลัมน์เหล่านี้ได้)
+  const dv = id => document.getElementById(id).value.trim() || null;
+  const doc = { CoA_MfgLotNo: dv('qc-d-lot'), CoA_MfgDate: dv('qc-d-mfg'), CoA_ExpDate: dv('qc-d-exp'), CoA_DocNo: dv('qc-d-no'), CoA_Product: dv('qc-d-prod'), CoA_Supplier: dv('qc-d-sup') };
+  if (Object.values(doc).some(Boolean)) Object.assign(head, doc);
   const ins = await _sb.from('qc_inspections').insert(head).select('_row_id').single();
   if (ins.error) { _hideLoader(); _err('บันทึกใบตรวจไม่สำเร็จ', ins.error.message); return; }
   const rows = items.map((it, i) => ({
@@ -321,11 +377,11 @@ function _qcRenderSpec(body) {
   const adm = _qcAdmin();
   const byMat = {};
   _qcSpecItems.forEach(s => (byMat[s.MaterialCode] = byMat[s.MaterialCode] || []).push(s));
-  const cards = Object.entries(byMat).map(([code, items]) => `<tr><td><span class="badge bg-secondary">${_qcEsc(code)}</span></td>
+  const cards = Object.entries(byMat).map(([code, items]) => `<tr><td><span class="badge bg-secondary">${_qcEsc(code)}</span> ${_qcEsc((_qcMaterials.find(m => m.MaterialCode === code) || {}).MaterialName || '')}</td>
     <td class="small">${items.map(s => _qcEsc(s.Parameter) + (s.ParamType === 'numeric' ? ` (${s.MinValue ?? ''}–${s.MaxValue ?? ''} ${_qcEsc(s.Unit || '')})` : '')).join(' · ')}</td>
     <td>${adm ? `<button class="btn btn-sm btn-outline-primary" onclick="qcEditSpec('${_qcEsc(code)}')">แก้ไข</button>` : ''}</td></tr>`).join('');
   body.innerHTML = `<div class="glass-card">
-    ${adm ? `<div class="d-flex gap-2 mb-2"><input id="qc-spec-new" class="form-control form-control-sm" style="max-width:260px" placeholder="รหัสวัตถุดิบ (MaterialCode)"><button class="btn btn-sm btn-primary" onclick="qcEditSpec(document.getElementById('qc-spec-new').value.trim())"><i class="fas fa-plus me-1"></i>เพิ่ม/แก้ Spec</button></div>` : ''}
+    ${adm ? `<div class="d-flex gap-2 mb-2 flex-wrap"><input id="qc-spec-new" list="qc-mat-list" class="form-control form-control-sm" style="max-width:340px" placeholder="พิมพ์ค้นหารหัส/ชื่อวัตถุดิบ แล้วเลือกจากรายการ" autocomplete="off" onkeydown="if(event.key==='Enter')qcAddSpecFromInput()"><datalist id="qc-mat-list">${_qcMaterials.map(m => `<option value="${_qcEsc(m.MaterialCode)}">${_qcEsc(m.MaterialName || '')}</option>`).join('')}</datalist><button class="btn btn-sm btn-primary" onclick="qcAddSpecFromInput()"><i class="fas fa-plus me-1"></i>เพิ่ม/แก้ Spec</button></div>` : ''}
     <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>วัตถุดิบ</th><th>รายการตรวจ</th><th></th></tr></thead>
     <tbody>${cards || '<tr><td colspan="3" class="text-center text-muted py-4">ยังไม่มี Spec — วัตถุดิบที่ไม่มี Spec จะใช้เช็คลิสต์พื้นฐาน 4 ข้อ</td></tr>'}</tbody></table></div></div>`;
 }
@@ -412,4 +468,19 @@ async function qcGuardIssueLot(code, lot) {
   }
   const r = await Swal.fire({ icon: 'warning', title: `Lot ${lot} ${label}`, text: 'ยืนยันจะเบิก Lot นี้ต่อหรือไม่?', showCancelButton: true, confirmButtonText: 'เบิกต่อ', cancelButtonText: 'เลือก Lot อื่น' });
   return r.isConfirmed;
+}
+
+// สร้างหน้าตั้งแต่โหลดสคริปต์ — showPage() จะ add class 'active' ให้เฉพาะ element ที่มีอยู่แล้วตอนกดเมนู
+// (ถ้ารอสร้างใน qcLoadPage หน้าจะว่างเปล่าจนกว่าจะกดซ้ำ)
+_qcEnsurePage();
+
+// ปุ่ม "เพิ่ม/แก้ Spec": รับรหัสจากช่องค้นหา (datalist) — แจ้งเตือนถ้าว่าง/ไม่พบในมาสเตอร์ (เดิมเงียบเฉยๆ ทำให้ดูเหมือนปุ่มกดไม่ได้)
+async function qcAddSpecFromInput() {
+  const code = (document.getElementById('qc-spec-new')?.value || '').trim();
+  if (!code) { Swal.fire({ icon: 'info', title: 'เลือกวัตถุดิบก่อน', text: 'พิมพ์รหัสหรือชื่อในช่องค้นหา แล้วเลือกจากรายการที่ขึ้นมา' }); return; }
+  if (_qcMaterials.length && !_qcMaterials.some(m => m.MaterialCode === code)) {
+    const r = await Swal.fire({ icon: 'warning', title: `ไม่พบรหัส "${_qcEsc(code)}" ในมาสเตอร์วัตถุดิบ`, text: 'ต้องการสร้าง Spec ให้รหัสนี้ต่อหรือไม่?', showCancelButton: true, confirmButtonText: 'สร้างต่อ', cancelButtonText: 'ยกเลิก' });
+    if (!r.isConfirmed) return;
+  }
+  qcEditSpec(code);
 }
