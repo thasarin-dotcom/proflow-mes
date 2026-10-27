@@ -406,7 +406,7 @@ function qcmApplyExtract(ex, text) {
   if (f.exp && f.exp < new Date().toISOString().slice(0, 10)) warn.push('⚠ วันหมดอายุตาม CoA ผ่านไปแล้ว');
   document.getElementById('qcm-warn').innerHTML = warn.map(w => `<div class="qcm-warn">${w}</div>`).join('');
   const found = ['lot', 'mfg', 'exp', 'docNo', 'product', 'supplier'].filter(k => f[k]).length;
-  _qcScanMsg(`<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · รายการในตาราง CoA ${QCM.cur.coaRows.length} แถว · เติมผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
+  _qcScanMsg((window._qcCoaStale ? `<div style="color:#b45309">⚠ ไฟล์ qc-coa.js บนเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า — ตารางรายการทดสอบจะยังไม่ขึ้น (ให้อัปโหลด qc-coa.js ใหม่ไว้โฟลเดอร์เดียวกับ index.html หลัก แล้วรีเฟรช)</div>` : "") + `<span style="color:#15803d"><i class="fas fa-check-circle me-1"></i>อ่านได้ ข้อมูลเอกสาร ${found}/6 ช่อง · รายการในตาราง CoA ${QCM.cur.coaRows.length} แถว · เติมผลตรวจ ${filled}/${QCM.cur.items.length} รายการ</span>`);
 }
 
 // ── ตารางผลวิเคราะห์ตามเอกสาร CoA (รายการทดสอบ · Spec · ผล) ──
@@ -657,3 +657,11 @@ if (window.Tesseract && typeof _qcLibP !== 'undefined') _qcLibP[QC_TESS_SRC] = P
   host.appendChild(div);
   if (typeof _PAGE_LOADERS !== 'undefined') _PAGE_LOADERS['qcwh'] = () => qcmLoad();
 })();
+
+// ถ้า qc-coa.js บนเซิร์ฟเวอร์เป็นเวอร์ชันเก่า (ยังไม่ได้อัปโหลดไฟล์ใหม่ หรือ cache ค้าง) จะไม่มีตัวอ่านตารางผลวิเคราะห์ —
+// ใส่ตัวแทนที่ไม่ทำอะไร กันหน้าตรวจรับพังทั้งหน้า แล้วแจ้งเตือนชัดๆ ตอนสแกน (ส่วนอื่นยังใช้งานได้ปกติ)
+if (typeof _qcParseCoATable !== 'function') {
+  window._qcCoaStale = true;
+  window._qcParseCoATable = () => [];
+  window._qcEvalCoARow = () => ({ min: null, max: null, num: null, pass: null });
+}
