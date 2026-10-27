@@ -88,9 +88,7 @@ const QCM = {
   .qcm-coacard .hd .st { flex:0 0 auto; min-width:62px; text-align:center; font-weight:700; font-size:.88rem; }
   .qcm-coacard .hd .qcm-btn.sq { min-height:46px; min-width:46px; }
   .qcm-coacard .bd { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 10px; padding:10px; }
-  .qcm-fld label { display:block; font-size:.72rem; color:#94a3b8; margin:0 0 2px 2px; }
-  @media (min-width:1100px) { .qcm-coacard .bd { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
-  .qcm-item .pv { min-width:62px; text-align:right; font-weight:700; font-size:.88rem; }
+  .qcm-fld label { display:block; font-size:.72rem; color:#94a3b8; margin:0 0 2px 2px; }  .qcm-item .pv { min-width:62px; text-align:right; font-weight:700; font-size:.88rem; }
   .qcm-resbtns { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .qcm-resbtns .qcm-btn.on.PASS { background:#16a34a; color:#fff; } .qcm-resbtns .qcm-btn.on.CONDITIONAL { background:#f59e0b; color:#fff; } .qcm-resbtns .qcm-btn.on.REJECT { background:#dc2626; color:#fff; }
   .qcm-warn { background:#fef2f2; color:#b91c1c; border-radius:10px; padding:8px 12px; font-size:.84rem; margin-top:8px; }
@@ -449,14 +447,12 @@ function qcmRenderCoa() {
   box.innerHTML = (rows.length ? '' : '<div class="qcm-info">ยังไม่มีรายการ — สแกนเอกสารด้านบน หรือกด "เพิ่มรายการ" เพื่อกรอกเอง</div>')
     + rows.map((r, i) => `<div class="qcm-coacard">
         <div class="hd"><span class="n">${i + 1}</span>
-          <input class="qcm-in nm" value="${_qcEsc(r.Parameter)}" placeholder="ชื่อรายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)">
+          <div class="qcm-fld" style="flex:1;min-width:0"><label>Test Parameters</label><input class="qcm-in nm" value="${_qcEsc(r.Parameter)}" placeholder="ชื่อรายการทดสอบ" oninput="qcmCoaEdit(${i},'Parameter',this.value)"></div>
           <div class="st" id="qcm-coast-${i}"></div>
           <button type="button" class="qcm-btn ghost sq" onclick="qcmCoaDel(${i})" title="ลบรายการนี้"><i class="fas fa-trash"></i></button></div>
         <div class="bd">
-          ${fld(i, 'SpecText', 'Spec (เกณฑ์)', 'เช่น 5.5 - 7.0', r.SpecText)}
-          ${fld(i, 'ResultText', 'ผลตามเอกสาร', 'เช่น 6.2 / Complies', r.ResultText)}
-          ${fld(i, 'Method', 'วิธีตรวจ', 'เช่น Visual of Standard', r.Method)}
-          ${fld(i, 'RefNo', 'เลขอ้างอิงวิธี', 'เช่น QCW-07-00', r.RefNo)}
+          ${fld(i, 'SpecText', 'Specification', 'เช่น 5.5 - 7.0', r.SpecText)}
+          ${fld(i, 'ResultText', 'Result', 'เช่น 6.2 / Complies', r.ResultText)}
         </div></div>`).join('')
     + `<button type="button" class="qcm-btn ghost" style="width:100%;margin-top:4px" onclick="qcmCoaAdd()"><i class="fas fa-plus"></i>เพิ่มรายการ</button>`;
   rows.forEach((_, i) => qcmCoaStatus(i));
@@ -474,7 +470,7 @@ function _qcmCoaPayload(inspId, rows) {
   return rows.filter(r => String(r.Parameter || '').trim()).map((r, n) => {
     const ev = _qcEvalCoARow(r);
     return { InspectionId: inspId, Seq: n + 1, Parameter: r.Parameter.trim(), SpecText: r.SpecText || null, SpecMin: ev.min, SpecMax: ev.max,
-      ResultText: r.ResultText || null, ResultNum: ev.num, Unit: r.Unit || null, Pass: ev.pass, Method: r.Method || null, RefNo: r.RefNo || null };
+      ResultText: r.ResultText || null, ResultNum: ev.num, Unit: r.Unit || null, Pass: ev.pass };
   });
 }
 
@@ -546,8 +542,6 @@ async function qcmSubmit() {
   const coaPayload = _qcmCoaPayload(ins.data._row_id, cur.coaRows);
   if (coaPayload.length) {
     let r3 = await _sb.from('qc_coa_results').insert(coaPayload);
-    // ยังไม่ได้รัน alter_qc_coa_results_add_method.sql (ไม่มีคอลัมน์ Method/RefNo) → ลองใหม่โดยตัดสองช่องนี้ออก ข้อมูลหลักยังบันทึกได้
-    if (r3.error && /Method|RefNo/i.test(r3.error.message || '')) r3 = await _sb.from('qc_coa_results').insert(coaPayload.map(({ Method, RefNo, ...rest }) => rest));
     if (r3.error) { console.error('qc_coa_results', r3.error); coaWarn = 'บันทึกรายการจาก CoA ไม่สำเร็จ (ให้ Admin รัน alter_qc_add_coa_results.sql)'; }
   }
   const failedNames = items.filter(it => it._pass === false).map(it => it.Parameter).concat(coaPayload.filter(r => r.Pass === false).map(r => r.Parameter));
@@ -592,7 +586,7 @@ async function qcmOpenApprove(id) {
   const results = rRes.data || [], mr = mRes.data || {}, coa = cRes.data || [];
   QCM.appr = { i, results, coa, decision: i.Result };
   const hasSpecNow = QCM.specs.some(s => s.MaterialCode === i.MaterialCode);
-  const coaRows = coa.map(r => `<div class="qcm-item"><div><div class="nm">${_qcEsc(r.Parameter)}</div><div class="cr">Spec: ${_qcEsc(r.SpecText || '—')}${r.Unit ? ' ' + _qcEsc(r.Unit) : ''}${r.Method ? ' · วิธี: ' + _qcEsc(r.Method) : ''}${r.RefNo ? ' (' + _qcEsc(r.RefNo) + ')' : ''}</div></div>
+  const coaRows = coa.map(r => `<div class="qcm-item"><div><div class="nm">${_qcEsc(r.Parameter)}</div><div class="cr">Spec: ${_qcEsc(r.SpecText || '—')}${r.Unit ? ' ' + _qcEsc(r.Unit) : ''}</div></div>
       <div style="text-align:right"><b>${_qcEsc(r.ResultText || '—')}</b> ${r.Pass == null ? '<span style="color:#94a3b8">—</span>' : r.Pass ? '<span style="color:#16a34a;font-weight:700">ผ่าน</span>' : '<span style="color:#dc2626;font-weight:700">ไม่ผ่าน</span>'}</div></div>`).join('');
   const warn = [];
   if (i.CoA_MfgLotNo && mr.MfgLotNo && _qcmNorm(i.CoA_MfgLotNo) !== _qcmNorm(mr.MfgLotNo)) warn.push(`Lot ผู้ผลิตตาม CoA (${_qcEsc(i.CoA_MfgLotNo)}) ไม่ตรงกับตอนรับเข้า (${_qcEsc(mr.MfgLotNo)})`);
@@ -628,7 +622,7 @@ async function qcmImportSpec(id) {
   if (!c.isConfirmed) return;
   const rows = a.coa.map((r, n) => {
     const numeric = (r.SpecMin != null || r.SpecMax != null);
-    return { MaterialCode: a.i.MaterialCode, Seq: n + 1, Parameter: r.Parameter, ParamType: numeric ? 'numeric' : 'passfail', MinValue: r.SpecMin, MaxValue: r.SpecMax, Unit: r.Unit || null, Method: [r.SpecText, r.Method ? 'วิธี: ' + r.Method : '', r.RefNo ? '(' + r.RefNo + ')' : ''].filter(Boolean).join(' ') || null };
+    return { MaterialCode: a.i.MaterialCode, Seq: n + 1, Parameter: r.Parameter, ParamType: numeric ? 'numeric' : 'passfail', MinValue: r.SpecMin, MaxValue: r.SpecMax, Unit: r.Unit || null, Method: r.SpecText || null };
   });
   _showLoader();
   const { error } = await _sb.from('qc_spec_items').insert(rows);
