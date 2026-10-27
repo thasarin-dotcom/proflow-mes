@@ -45115,9 +45115,14 @@ document.addEventListener('DOMContentLoaded', function() {
       _realtimeSubscribe(); // เปิดฟัง Realtime ทุกตาราง (ดูคอมเมนต์ที่ _realtimeSubscribe) — subscribe ครั้งเดียวพอทั้ง 2 โหมด (ปกติ/แท็บเลตคลัง)
       if (_currentUser.isWarehouse) {
         // โหมดแท็บเลตคลัง (WH01) — เต็มจอทับ sidebar/main-content ปกติ ไม่ผ่าน showPage('home',...)
-        document.getElementById('whTabletView').style.display = 'flex';
-        if (!_bootstrapped) { _bootstrapped = true; loadWhTabletData(); }
-        if (typeof qcmInitBadge === 'function') qcmInitBadge();   // mobile/qc-mobile.js — ป้ายเลข tile "ตรวจรับ QC"
+        // onAuthStateChange ยิงซ้ำได้อีกหลายครั้งหลัง login (เช่น เบราว์เซอร์ต่ออายุ token ตอนกลับมาจากกล้อง/แอปอื่น) —
+        // เดิมบรรทัดนี้สั่งโชว์หน้าแท็บเลตคลังทับทุกครั้ง ทำให้ถ่ายรูป CoA เสร็จแล้วถูก "เด้งออก" จากหน้าตรวจรับ
+        // (หน้า/ฟอร์มที่เปิดอยู่ยังค้างอยู่ข้างหลัง) → โชว์เฉพาะตอนไม่ได้เปิดหน้า desktop จาก tile อยู่
+        if (!document.body.classList.contains('wh-desktop-mode')) document.getElementById('whTabletView').style.display = 'flex';
+        if (!_bootstrapped) {
+          _bootstrapped = true; loadWhTabletData();
+          if (typeof qcmInitBadge === 'function') qcmInitBadge();   // mobile/qc-mobile.js — ป้ายเลข tile "ตรวจรับ QC" (ครั้งเดียวพอ)
+        }
       } else {
         // มือถือ (จอเล็ก จอสัมผัส) — พาไปแอปมือถือ (/mobile/) ที่ออกแบบมาสำหรับจอนี้ แทนหน้าเดสก์ท็อปที่ใช้ยาก
         // session อยู่ใน localStorage โดเมนเดียวกัน แอปมือถือจึงล็อกอินต่อได้เลยไม่ต้องกรอกใหม่ — กด "เปิดแบบเต็ม"
