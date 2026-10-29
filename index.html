@@ -19294,7 +19294,13 @@ function _dlvbillBuildGroups(rows) {
   rows.forEach(r => {
     const key = _dlvbillGroupKey(r);
     if (!groups[key]) { groups[key] = { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lots: [] }; order.push(key); }
-    groups[key].lots.push({ lotKey: r.Lot_FG || '', lotLabel: r.Lot_FG || '—', qty: parseFloat(r.QtyDelivered) || 0 });
+    // Lot เดียวกันแต่คนละแถว delivery (เช่นคนละ PO/CO) รวมเป็นแถว Lot เดียว — จัดกล่องต่อ Lot ไม่แยกตาม PO
+    // (ยอดแยกตาม PO ดูที่ _billPoBreakdown) ไม่งั้นแต่ละแถวจะมีเศษของตัวเอง ทั้งที่รวมกันอาจหารกล่องลงตัว
+    const lotKey = r.Lot_FG || '';
+    const qty = parseFloat(r.QtyDelivered) || 0;
+    const existing = groups[key].lots.find(l => l.lotKey === lotKey);
+    if (existing) existing.qty += qty;
+    else groups[key].lots.push({ lotKey, lotLabel: r.Lot_FG || '—', qty });
   });
   return { groups, order };
 }
