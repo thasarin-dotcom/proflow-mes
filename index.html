@@ -17991,6 +17991,7 @@ async function fgBulkDelete() {
 let _fgoutData    = [];
 let _fgoutStockFG = [];
 let _fgoutCOList  = [];   // CO ที่สถานะ สั่งผลิตแล้ว / ส่งบางส่วน
+let _fgoutCOAll   = [];   // CO ทั้งหมด (ไม่กรอง) — ใช้เติม option ของ CO เดิมตอนแก้ไขแถวเบิกที่ CO ปิด/เบิกครบแล้ว
 let _fgoutModal   = null;
 
 async function loadFGOutData() {
@@ -18016,6 +18017,7 @@ async function loadFGOutData() {
 
   _fgoutData    = outRes.data  || [];
   _fgoutStockFG = stockRes.data || [];
+  _fgoutCOAll   = coRes.data || [];
   // FG คงเหลือรวมทุก Lot ต่อ ProductCode (จาก stock_fg ที่ดึงมาแล้วด้านบน ไม่ต้อง query ใหม่) — ใช้เช็คเคส CO ที่
   // ยังไม่มี MO เลย (ยังไม่สั่งผลิต) แต่ดันมีของเหลือในสต็อกพอให้เบิกได้ทันที (เช่น สต็อกเหลือจากรอบผลิตอื่นของ
   // สินค้ารหัสเดียวกัน) — ดูหมายเหตุ "รอสั่งผลิต" ด้านล่าง
@@ -18637,18 +18639,37 @@ function fgoutOpenModal(rowId = null) {
     document.getElementById('fgout-f-remark').value           = r.Remark||'';
 
     if (mode === 'customer') {
-      // Set CO ref select
+      // CO เดิมของแถวนี้ต้องไม่หลุด — _fgoutCOList กรองเฉพาะ CO ที่ยังเบิกไม่ครบ/ยังไม่ปิดงาน ถ้าแถวนี้เป็นของ CO ที่เบิกครบ
+      // หรือปิดแล้ว จะไม่มี option ให้เลือก (coSel.value = ... จึงกลายเป็นว่าง แล้ว fgoutCOSelect() ล้างชื่อ/รหัส/UOM/Lot
+      // ทิ้งหมด) → เติม option ของ CO นี้เองจากข้อมูล CO ทั้งหมด (fallback ข้อมูลในแถวเบิกเอง)
       const coSel = document.getElementById('fgout-f-co-ref');
-      if (r.CO_Ref) coSel.value = r.CO_Ref;
-      // Set lot in select (add option if not present)
+      if (r.CO_Ref) {
+        if (!Array.from(coSel.options).find(o => o.value === r.CO_Ref)) {
+          const c = _fgoutCOAll.find(x => x.Order_ID === r.CO_Ref) || {};
+          const o = document.createElement('option');
+          o.value = r.CO_Ref;
+          o.dataset.rowid = c._row_id || '';
+          o.dataset.prodcode = c.ProductCode || r.ProductCode || '';
+          o.dataset.prodname = c.ProductName || r.ProductName || '';
+          o.dataset.customer = c.CustomerName || r.CustomerName || '';
+          o.dataset.uom = c.UOM || r.UOM || '';
+          o.dataset.orderqty = c.OrderQty || 0;
+          o.dataset.status = c.Status || '';
+          o.textContent = `${r.CO_Ref} — ${o.dataset.customer} | ${o.dataset.prodname} [รายการเดิม]`;
+          coSel.appendChild(o);
+        }
+        coSel.value = r.CO_Ref;
+        fgoutCOSelect();   // เติมชื่อ/รหัส/UOM/รายการ Lot/แถบสต็อก (ล้างและสร้างรายการ Lot ใหม่ ต้องตั้ง Lot เดิมหลังจากนี้)
+      }
+      // Set lot in select (add option if not present — Lot เดิมอาจคงเหลือ 0 จึงไม่อยู่ในรายการ)
       const lotSel = document.getElementById('fgout-f-lot-select');
       const rLot = r.Lot_FG || '';
       if (rLot && !Array.from(lotSel.options).find(o => o.value === rLot)) {
-        lotSel.innerHTML += `<option value="${rLot}">${rLot}</option>`;
+        const lo = document.createElement('option');
+        lo.value = rLot; lo.textContent = rLot;
+        lotSel.appendChild(lo);
       }
       if (rLot) lotSel.value = rLot;
-      // Trigger CO select to populate stock bar if CO_Ref present
-      if (r.CO_Ref) fgoutCOSelect();
     } else {
       document.getElementById('fgout-f-mat-search').value    = r.ProductName||'';
       document.getElementById('fgout-f-product-code').value  = r.ProductCode||'';
@@ -32756,7 +32777,9 @@ function _coComputeDisplayStatus(r) {
     const orderQty  = parseFloat(r.OrderQty) || 0;
     if (withdrawn <= 0) return r.Status;
     if (withdrawn < orderQty) return 'ส่งบางส่วน';
-    return 'ส่งสำเร็จ';
+    // เบิกครบยอดแล้ว แต่ยังไม่ได้กด "ส่งเสร็จ" ที่การ์ดใบเบิก (_miscCheckCOComplete) — Status จริงยังไม่ปิด การ์ดจึง
+    // ไม่ถูกซ่อน เดิมโชว์ "ส่งสำเร็จ" ทำให้ผู้ใช้งงว่าทำไมไม่หาย (แจ้ง 2026-10-29) ใช้ label เดียวกับฝั่ง FG แทน
+    return 'รอส่งถึง';
   }
   if (!_coAnyMOSet.has(r.Order_ID)) return r.Status;         // ยังไม่มี MO ผูกเลย (ยังไม่เริ่มผลิต) ไม่แตะ
   if (_coOpenMOSet.has(r.Order_ID)) return 'กำลังผลิต';       // มี MO ที่ยังไม่ปิดงานอยู่ (ไม่ว่าจะเบิกไปแล้วเท่าไหร่)
