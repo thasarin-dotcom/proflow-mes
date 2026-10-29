@@ -1862,6 +1862,9 @@ tr.dlvbill-lot-row td.qty,tr.dlvbill-lot-row td.exp{color:#1e293b}
 tr.dlvbill-total-row td{font-weight:800;border-top:1.5px solid #1e293b}
 tr.dlvbill-mix-row td{color:#1e3a8a;font-size:11.5px;font-style:italic}
 .dlvbill-po-strip{text-align:left;font-weight:700;font-size:12px;color:#1e3a8a;margin:6px 0}
+.dlvbill-po-detail{font-size:11px;color:#1e293b;margin:0 0 4px 8px;line-height:1.35}
+.dlvbill-po-detail .po{font-weight:700;color:#1e3a8a}
+.dlvbill-po-detail .it{margin-left:10px}
 .dlvbill-notes{font-size:10.5px;color:#64748b;padding:5px 0;border-top:1px solid #e2e8f0}
 .dlvbill-notes div{padding:1px 0}
 .dlvbill-footer{display:flex;justify-content:space-between;margin-top:auto;padding-top:16px;font-size:11px;color:#64748b}
@@ -18401,13 +18404,46 @@ async function fgoutBillIssueNotify(billNo) {
 async function _fgoutNotifyLineBillIssued(billNo, rows, coRefs) {
   try {
     let poNos = [];
+    let coRows = [];
     if (coRefs.length) {
-      const { data } = await _sb.from('customer_orders').select('PO_No').in('Order_ID', coRefs);
-      poNos = [...new Set((data || []).map(c => c.PO_No).filter(Boolean))];
+      const { data } = await _sb.from('customer_orders').select('Order_ID,PO_No').in('Order_ID', coRefs);
+      coRows = data || [];
+      poNos = [...new Set(coRows.map(c => c.PO_No).filter(Boolean))];
     }
     const customer = rows[0]?.CustomerName || '—';
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    // หลาย PO ในบิลเดียว → แยกรายการตาม PO ให้เห็นว่า PO ไหนได้สินค้า/Lot/จำนวนเท่าไหร่ (เหมือนใบส่งสินค้าที่พิมพ์)
+    const poBreakdown = _billPoBreakdown(rows, coRows);
+    if (poBreakdown.length > 1) {
+      const poText = poBreakdown.map(g => {
+        const byProd = new Map();
+        g.items.forEach(it => {
+          const k = it.code || it.name || '';
+          if (!byProd.has(k)) byProd.set(k, { name: it.name || '—', lots: [] });
+          byProd.get(k).lots.push(it);
+        });
+        const prodLines = [...byProd.values()].map((p, i) =>
+          `${i + 1}. ${p.name}\n` + p.lots.map(it => `-Lot ${it.lot || '—'} | ${it.qty.toLocaleString('th-TH')} ${it.uom || ''}`).join('\n')
+        ).join('\n');
+        return `PO: ${g.po || 'ไม่ระบุ PO'}\n${prodLines}`;
+      }).join('\n\n');
+      const textMulti =
+        `🧾 แจ้งออกบิลส่งสินค้า\n` +
+        `วันที่: ${dateStr}\n` +
+        `ลูกค้า: ${customer}\n` +
+        `เลขใบส่งสินค้า: ${billNo}\n\n` +
+        `รายการในบิล (แยกตาม PO):\n${poText}`;
+      const resM = await _sb.functions.invoke('notify-fg-delivery-success', { body: { text: textMulti } });
+      if (resM.error) {
+        let detail = resM.error.message || String(resM.error);
+        try { detail = await resM.error.context?.text() || detail; } catch (_) {}
+        console.error('LINE notify (bill issued) failed — edge function returned an error', detail, resM.error);
+        return false;
+      }
+      console.log('LINE notify (bill issued, multi-PO) invoked ok', resM.data);
+      return true;
+    }
     // จัดกลุ่มตามสินค้า (ProductCode ถ้ามี ไม่งั้น fallback ชื่อสินค้า) — โปรดักเดียวกันคนละ Lot ให้อยู่ใต้
     // หัวข้อเดียวกัน ไม่แยกเป็นคนละลำดับซ้ำชื่อ ตามที่ผู้ใช้ขอ (เทียบสกรีนช็อตจริงจากกลุ่มไลน์ 2026-09-25)
     const productGroups = [];
@@ -19263,6 +19299,24 @@ function _dlvbillBuildGroups(rows) {
   return { groups, order };
 }
 
+// แยกรายการในบิลตาม PO (CO_Ref → customer_orders.PO_No) → [{po, items:[{code,name,uom,lot,qty}]}] เรียงตามที่เจอก่อน
+// ใช้ทั้งใบส่งสินค้า (พิมพ์) และข้อความไลน์ออกบิล เพื่อให้เห็นตรงกันว่า PO ไหนได้อะไรเท่าไหร่ — แถวที่ไม่มี CO/PO
+// รวมเป็นกลุ่ม po='' (แสดงเป็น "ไม่ระบุ PO") คนละกลุ่มกับ PO จริง; PO_No ว่างให้ fallback เป็น Order_ID
+function _billPoBreakdown(rows, coRows) {
+  const poOfCo = {};
+  (coRows || []).forEach(c => { poOfCo[c.Order_ID] = c.PO_No || c.Order_ID; });
+  const byPo = new Map();
+  rows.forEach(r => {
+    const po = (r.CO_Ref && poOfCo[r.CO_Ref]) || '';
+    if (!byPo.has(po)) byPo.set(po, { po, items: new Map() });
+    const g = byPo.get(po);
+    const key = `${r.ProductCode || ''}||${r.ProductName || ''}||${r.UOM || ''}||${r.Lot_FG || ''}`;
+    if (!g.items.has(key)) g.items.set(key, { code: r.ProductCode, name: r.ProductName, uom: r.UOM, lot: r.Lot_FG, qty: 0 });
+    g.items.get(key).qty += parseFloat(r.QtyDelivered) || 0;
+  });
+  return [...byPo.values()].map(g => ({ po: g.po, items: [...g.items.values()] }));
+}
+
 async function dlvbillLoadPackDefaults() {
   _dlvbillPackDefaults = {};
   const codes = [...new Set(_dlvbillScopeRows().map(r => r.ProductCode).filter(Boolean))];
@@ -19818,6 +19872,15 @@ async function dlvbillRenderPreview() {
     `;
   }).join('');
 
+  // PO เดียว → บรรทัดเดิม; หลาย PO → แยกให้เห็นว่าแต่ละ PO ได้สินค้า/Lot/จำนวนเท่าไหร่
+  const poBreakdown = _billPoBreakdown(rows, coRows);
+  const poDetailHtml = poBreakdown.length > 1
+    ? `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO (แยกตามรายการ):</div>` +
+      poBreakdown.map(g => `<div class="dlvbill-po-detail"><div class="po">PO: *${g.po || 'ไม่ระบุ PO'}*</div>${
+        g.items.map(it => `<div class="it">- ${it.name || '—'}${it.code ? ` (${it.code})` : ''} · Lot.${it.lot || '—'} — <b>${it.qty.toLocaleString()}</b> ${it.uom || ''}</div>`).join('')
+      }</div>`).join('')
+    : `<div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>`;
+
   const docNo = _dlvbillConfirmed ? _dlvbillConfirmedNo : '(ยังไม่ยืนยัน)';
   const docDate = _fmtDate(_planWeekLocalDateStr(new Date()));
 
@@ -19862,7 +19925,7 @@ async function dlvbillRenderPreview() {
         <tbody>${groupHtml}</tbody>
       </table>
 
-      <div class="dlvbill-po-strip">เลขใบสำคัญ/PO: *${poNos.length ? poNos.join(', ') : '—'}*</div>
+      ${poDetailHtml}
 
       <div class="dlvbill-notes">
         <div>หมายเหตุ: 1. กรุณาตรวจเช็คสินค้า ไม่เกิน 3-5 วัน</div>
@@ -45157,7 +45220,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- factory-layout.js = ห้อง↔ไลน์ + เครื่องจักร ใช้ร่วมกับแอปมือถือ — ต้องโหลดก่อน floorpulse.js เสมอ -->
 <script src="factory-layout.js?v=20261022a"></script>
 <script src="floorpulse.js?v=20261022f"></script>
-<script src="qc.js?v=20261027i"></script>
+<script src="qc.js?v=20261027n"></script>
 <script src="qc-coa.js?v=20261027k"></script>
 <script src="mobile/qc-mobile.js?v=20261027m"></script>
 </body>
