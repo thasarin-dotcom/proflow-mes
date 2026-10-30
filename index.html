@@ -31,7 +31,7 @@
   --glass-bg: rgba(255,255,255,0.95);
   --glass-border: rgba(255,255,255,0.5);
   --primary-blue: #1e3a8a;
-  --sidebar-width: 198px;
+  --sidebar-width: 240px;   /* 198 → 214 → 240 (2026-10-30 เมนูแบบ BM Flow, ผู้ใช้ขอกว้างอีก "ป้องกันคำตก") */
 }
 body {
   font-family: 'Sarabun', sans-serif;
@@ -52,6 +52,12 @@ body {
   transition: all .2s; font-size: .88rem;
 }
 .sidebar .nav-link:hover { background: #e2e8f0; color: #1e3a8a; }
+/* ชื่อเมนูอยู่บรรทัดเดียวเสมอ ไม่ตกบรรทัด (คำขอผู้ใช้ 2026-10-30) — ที่ 240px ไม่มีเมนูไหนถูกตัดตอนไม่มี badge ถ้ามี badge
+   ต่อท้ายจนยาวเกิน ชื่อจะตัดท้ายด้วย "…" (ชี้เมาส์ดูชื่อเต็มได้จาก title ของลิงก์) แต่ไอคอน/badge ไม่ถูกบีบ */
+.sidebar .nav-link { display: flex; align-items: center; white-space: nowrap; }
+.sidebar .nav-link > span:not(.badge) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sidebar .nav-link > i, .sidebar .nav-link > .badge { flex-shrink: 0; }
+.sidebar .nav-group-body .nav-link { padding-left: 9px; padding-right: 8px; }
 .sidebar-scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; }
 .nav-group-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -64,6 +70,27 @@ body {
 .nav-group-body { overflow: hidden; }
 .nav-group-body.collapsed { display: none; }
 .sidebar .nav-link.active { background: #1e3a8a; color: #fff; font-weight: 600; }
+/* กลุ่มเมนูแบบ BM Flow (คำขอผู้ใช้ 2026-10-30) — หัวกลุ่มภาษาไทย สี+ไอคอนประจำกลุ่ม ค้างบนสุดตอนเลื่อนผ่านกลุ่มนั้น (sticky
+   ภายใน .nav-group) · กลุ่มที่มีหน้าปัจจุบัน = หัวกลุ่มเต็มสี (.has-active) · เส้นสีข้างรายการบอกว่าอยู่ใต้กลุ่มไหน */
+.sidebar-brand-bar { height: 3px; border-radius: 2px; margin: 0 4px 10px; background: linear-gradient(90deg, #1e3a8a, #3b82f6, #06b6d4); flex-shrink: 0; }
+.nav-group-header[data-g="dash"],   .nav-group-header[data-g="dash"]   + .nav-group-body { --g: #1e3a8a; --gsoft: #e0e7ff; }
+.nav-group-header[data-g="sales"],  .nav-group-header[data-g="sales"]  + .nav-group-body { --g: #be185d; --gsoft: #fce7f3; }
+.nav-group-header[data-g="stock"],  .nav-group-header[data-g="stock"]  + .nav-group-body { --g: #0e7490; --gsoft: #dcf1f6; }
+.nav-group-header[data-g="prod"],   .nav-group-header[data-g="prod"]   + .nav-group-body { --g: #4f46e5; --gsoft: #e4e8fa; }
+.nav-group-header[data-g="bal"],    .nav-group-header[data-g="bal"]    + .nav-group-body { --g: #b45309; --gsoft: #fcefd9; }
+.nav-group-header[data-g="qc"],     .nav-group-header[data-g="qc"]     + .nav-group-body { --g: #15803d; --gsoft: #dcfce7; }
+.nav-group-header[data-g="cost"],   .nav-group-header[data-g="cost"]   + .nav-group-body { --g: #7c3aed; --gsoft: #ede9fe; }
+.nav-group-header[data-g="master"], .nav-group-header[data-g="master"] + .nav-group-body { --g: #475569; --gsoft: #e6ebf1; }
+.nav-group-header[data-g="emp"],    .nav-group-header[data-g="emp"]    + .nav-group-body { --g: #0369a1; --gsoft: #e0f2fe; }
+.nav-group-header[data-g="admin"],  .nav-group-header[data-g="admin"]  + .nav-group-body { --g: #b91c1c; --gsoft: #fbe4e4; }
+.nav-group { margin-top: 8px; }
+.sidebar .nav-group-header[data-g] { position: sticky; top: 0; z-index: 5; margin: 0 0 4px; padding: 7px 10px; font-size: .8rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--g); background: var(--gsoft); border-left: 4px solid var(--g); border-radius: 6px; box-shadow: 0 3px 0 #f0f2f7; }
+.sidebar .nav-group-header[data-g]:hover { filter: brightness(.96); color: var(--g); background: var(--gsoft); }
+.sidebar .nav-group-header[data-g].has-active { background: var(--g); color: #fff; }
+.sidebar .nav-group-header[data-g].has-active .nav-group-chevron { color: #fff; }
+.nav-group-header .ng-ic { width: 1.25em; text-align: center; margin-right: 6px; }
+.sidebar .nav-group-header[data-g] + .nav-group-body { margin-left: 4px; padding-left: 3px; border-left: 2px solid var(--gsoft); }
 .main-content {
   margin-left: var(--sidebar-width);
   width: calc(100% - var(--sidebar-width));
@@ -559,6 +586,12 @@ body.wh-desktop-mode #mr-pr-lines .btn .small { display: block; margin-left: 0 !
   :root { --sidebar-width: 60px; }
   .sidebar h5, .sidebar small, .sidebar .nav-link span:not(.badge), .sidebar-logo { display: none !important; }
   .sidebar .nav-link i { margin: 0 !important; }
+  .sidebar .nav-link { justify-content: center; }
+  /* จอแคบ (แถบไอคอนล้วน) — หัวกลุ่มเหลือแค่ไอคอนสี ไม่มีชื่อ/ลูกศร */
+  .sidebar .nav-group-header[data-g] { padding: 6px 0; justify-content: center; border-left-width: 3px; }
+  .sidebar .nav-group-header .ng-label, .sidebar .nav-group-header .nav-group-chevron { display: none; }
+  .sidebar .nav-group-header .ng-ic { margin: 0; }
+  .sidebar .nav-group-header[data-g] + .nav-group-body { margin-left: 0; padding-left: 0; border-left: none; }
 }
 
 /* ── หน้าแรก (Home / Onboarding) — ย่อให้พอดีจอเดียว ไม่ต้องเลื่อนสกอล (2026-08-05) ── */
@@ -2181,22 +2214,33 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
       <small class="text-muted" style="font-size:.7rem">Wise MES</small>
     </div>
   </div>
-  <hr class="my-2">
+  <div class="sidebar-brand-bar"></div>
   <div class="flex-grow-1 sidebar-scroll">
 
-    <!-- Dashboard Group -->
-    <div class="nav-group-header" onclick="toggleNavGroup('dashboard')">
-      <span>DASHBOARD</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-dashboard"></i>
-    </div>
-    <div class="nav-group-body" id="navgroup-body-dashboard">
+    <!-- เมนูจัดกลุ่มตามประเภทงานแบบเดียวกับ BM Flow (คำขอผู้ใช้ 2026-10-30 "เมนูไซด์บาร์ อยากทำให้ดูง่ายเหมือนระบบ BM Flow"):
+         หัวกลุ่มภาษาไทยมีสี+ไอคอนประจำกลุ่ม (data-g → สีใน CSS), ค้างบนสุดตอนเลื่อนผ่านกลุ่มนั้น, กลุ่มที่มีหน้าปัจจุบัน = หัวกลุ่มเต็มสี
+         (ดู _navSyncActiveGroup ใน showPage) และกลุ่มที่ผู้ใช้ไม่มีสิทธิ์เห็นสักรายการซ่อนทั้งกลุ่ม (_navSyncGroups)
+         id ของทุกลิงก์ (nav-*) และ badge เหมือนเดิมทุกตัว — แค่ย้ายตำแหน่ง/กลุ่ม (รายการที่ display:none = ซ่อนตามสิทธิ์ เปิดใน _renderCurrentUserBadge) -->
+    <div class="nav-top">
     <a href="#" class="nav-link mb-1" id="nav-home" onclick="showPage('home',this)" title="หน้าแรก">
       <i class="fas fa-house me-2"></i><span>หน้าแรก</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-stock" onclick="showPage('stock',this)" title="Stock วัตถุดิบ">
-      <i class="fas fa-boxes-stacked me-2"></i><span>Stock วัตถุดิบ</span>
+    <a href="#" class="nav-link mb-1" id="nav-editreq" onclick="showPage('editreq',this)" title="คำขอแก้ไข" style="display:none">
+      <i class="fas fa-pen-to-square me-2"></i><span>คำขอแก้ไข</span>
+      <span id="nav-editreq-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไขรออนุมัติ (รวมทุกหน้า)"></span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-fgstock" onclick="showPage('fgstock',this)" title="Stock FG">
-      <i class="fas fa-box me-2"></i><span>Stock FG</span>
+    </div>
+
+    <div class="nav-group" id="navgroup-dash">
+    <div class="nav-group-header" data-g="dash" onclick="toggleNavGroup('dash')">
+      <span class="ng-title"><i class="fas fa-gauge-high ng-ic"></i><span class="ng-label">Dashboard</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-dash"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-dash">
+    <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
+      <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-floorpulse" onclick="showPage('floorpulse',this)" title="ผังโรงงานเรียลไทม์" style="display:none">
+      <i class="fas fa-satellite-dish me-2"></i><span>ผังโรงงานเรียลไทม์</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-codash" onclick="showPage('codash',this)" title="คำสั่งผลิต">
       <i class="fas fa-chart-bar me-2"></i><span>คำสั่งผลิต</span>
@@ -2204,29 +2248,36 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-codemand" onclick="showPage('codemand',this)" title="ต้องผลิต & วัตถุดิบ (จาก CO)">
       <i class="fas fa-clipboard-list me-2"></i><span>ต้องผลิต & วัตถุดิบ</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-prodstatus" onclick="showPage('prodstatus',this)" title="ภาพรวมการผลิต">
-      <i class="fas fa-industry me-2"></i><span>ภาพรวมการผลิต</span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-floorpulse" onclick="showPage('floorpulse',this)" title="ผังโรงงานเรียลไทม์" style="display:none">
-      <i class="fas fa-satellite-dish me-2"></i><span>ผังโรงงานเรียลไทม์</span>
-    </a>
     <a href="#" class="nav-link mb-1" id="nav-lotqueue" onclick="showPage('lotqueue',this)" title="คิวห้องยิง Lot">
       <i class="fas fa-barcode me-2"></i><span>คิวห้องยิง Lot</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-weeklyreport" onclick="showPage('weeklyreport',this)" title="รายงานรายสัปดาห์">
       <i class="fas fa-paper-plane me-2"></i><span>รายงานรายสัปดาห์</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-admindash" onclick="showPage('admindash',this)" title="แดชบอร์ดต้นทุน & กำไร" style="display:none">
-      <i class="fas fa-sack-dollar me-2"></i><span>ต้นทุน & กำไร</span>
-    </a>
+    </div>
     </div>
 
-    <hr class="my-2">
-    <!-- Transaction Group -->
-    <div class="nav-group-header" onclick="toggleNavGroup('transaction')">
-      <span>TRANSACTION</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-transaction"></i>
+    <div class="nav-group" id="navgroup-sales">
+    <div class="nav-group-header" data-g="sales" onclick="toggleNavGroup('sales')">
+      <span class="ng-title"><i class="fas fa-cart-shopping ng-ic"></i><span class="ng-label">Sales</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-sales"></i>
     </div>
-    <div class="nav-group-body" id="navgroup-body-transaction">
+    <div class="nav-group-body" id="navgroup-body-sales">
+    <a href="#" class="nav-link mb-1" id="nav-co" onclick="showPage('co',this)" title="คำสั่งลูกค้า (CO)">
+      <i class="fas fa-file-invoice me-2"></i><span>คำสั่งลูกค้า (CO)</span>
+      <span id="nav-co-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไข CO รออนุมัติ"></span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-fgout" onclick="showPage('fgout',this)" title="เบิก FG / จัดส่ง">
+      <i class="fas fa-truck me-2"></i><span>เบิก FG / จัดส่ง</span>
+      <span id="nav-fgout-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="รอจัดส่ง"></span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-stock">
+    <div class="nav-group-header" data-g="stock" onclick="toggleNavGroup('stock')">
+      <span class="ng-title"><i class="fas fa-truck-ramp-box ng-ic"></i><span class="ng-label">Purchasing</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-stock"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-stock">
     <a href="#" class="nav-link mb-1" id="nav-purchasereq" onclick="showPage('purchasereq',this)" title="ใบขอซื้อวัตถุดิบ">
       <i class="fas fa-cart-shopping me-2"></i><span>ใบขอซื้อ</span>
       <span id="nav-purchasereq-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="ใบขอซื้อรออนุมัติ"></span>
@@ -2234,10 +2285,20 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-mr" onclick="showPage('mr',this)" title="รับวัตถุดิบ (MR)">
       <i class="fas fa-truck-ramp-box me-2"></i><span>รับวัตถุดิบ (MR)</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-co" onclick="showPage('co',this)" title="คำสั่งลูกค้า (CO)">
-      <i class="fas fa-file-invoice me-2"></i><span>คำสั่งลูกค้า (CO)</span>
-      <span id="nav-co-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไข CO รออนุมัติ"></span>
+    <a href="#" class="nav-link mb-1" id="nav-fg" onclick="showPage('fg',this)" title="รับ FG">
+      <i class="fas fa-cubes me-2"></i><span>รับ FG</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-misc" onclick="showPage('misc',this)" title="เบิกเบ็ดเตล็ด">
+      <i class="fas fa-box-open me-2"></i><span>เบิกเบ็ดเตล็ด</span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-prod">
+    <div class="nav-group-header" data-g="prod" onclick="toggleNavGroup('prod')">
+      <span class="ng-title"><i class="fas fa-gears ng-ic"></i><span class="ng-label">Production</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-prod"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-prod">
     <a href="#" class="nav-link mb-1" id="nav-mo" onclick="showPage('mo',this)" title="ไลน์ผลิต (MO)">
       <i class="fas fa-industry me-2"></i><span>ไลน์ผลิต (MO)</span>
     </a>
@@ -2250,62 +2311,6 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
       <span id="nav-issue-waiting-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="MO รอเบิกวัตถุดิบ"></span>
       <span id="nav-issue-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไข/เพิ่ม/ลบ รออนุมัติ"></span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-fg" onclick="showPage('fg',this)" title="รับ FG">
-      <i class="fas fa-cubes me-2"></i><span>รับ FG</span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-fgout" onclick="showPage('fgout',this)" title="เบิก FG / จัดส่ง">
-      <i class="fas fa-truck me-2"></i><span>เบิก FG / จัดส่ง</span>
-      <span id="nav-fgout-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="รอจัดส่ง"></span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-misc" onclick="showPage('misc',this)" title="เบิกเบ็ดเตล็ด">
-      <i class="fas fa-box-open me-2"></i><span>เบิกเบ็ดเตล็ด</span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-holdstock" onclick="showPage('holdstock',this)" title="สต็อก Defect/Retain">
-      <i class="fas fa-triangle-exclamation me-2"></i><span>สต็อก Defect/Retain</span>
-    </a>
-    </div>
-
-    <hr class="my-2">
-    <!-- QC Group (qc.js) -->
-    <div class="nav-group-header" onclick="toggleNavGroup('qc')">
-      <span>QC</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-qc"></i>
-    </div>
-    <div class="nav-group-body" id="navgroup-body-qc">
-    <a href="#" class="nav-link mb-1" id="nav-qc" onclick="showPage('qc',this)" title="ควบคุมคุณภาพ (QC)">
-      <i class="fas fa-clipboard-check me-2"></i><span>ควบคุมคุณภาพ</span>
-      <span id="nav-qc-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="ใบตรวจรออนุมัติ"></span>
-    </a>
-    </div>
-
-    <hr class="my-2">
-    <!-- Master Group -->
-    <div class="nav-group-header" onclick="toggleNavGroup('master')">
-      <span>MASTER</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-master"></i>
-    </div>
-    <div class="nav-group-body" id="navgroup-body-master">
-    <a href="#" class="nav-link mb-1" id="nav-material" onclick="showPage('material',this)" title="Master Material">
-      <i class="fas fa-vial me-2"></i><span>Master Material</span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-pricetier" onclick="showPage('pricetier',this)" title="ราคาซื้อ Bulk">
-      <i class="fas fa-tags me-2"></i><span>ราคาซื้อ Bulk</span>
-    </a>
-    <!-- ต้นทุนการผลิต (added 2026-10-15) — admin เท่านั้น เปิดกลับใน _renderCurrentUserBadge เหมือน nav-skillmatrix -->
-    <a href="#" class="nav-link mb-1" id="nav-costpage" onclick="showPage('costpage',this)" title="ต้นทุนการผลิต" style="display:none">
-      <i class="fas fa-coins me-2"></i><span>ต้นทุนการผลิต</span>
-    </a>
-    <!-- คำนวณต้นทุนสินค้าใหม่ (added 2026-10-16) — admin เท่านั้น เครื่องคิดเลข ไม่บันทึกข้อมูล -->
-    <a href="#" class="nav-link mb-1" id="nav-newcost" onclick="showPage('newcost',this)" title="คำนวณต้นทุนสินค้าใหม่" style="display:none">
-      <i class="fas fa-calculator me-2"></i><span>คำนวณต้นทุนสินค้าใหม่</span>
-    </a>
-    <!-- R&D สูตรผลิตภัณฑ์ (added 2026-10-24) — หัวหน้างานขึ้นไป, อนุมัติสูตรได้เฉพาะ admin (badge = สูตรรออนุมัติ) -->
-    <a href="#" class="nav-link mb-1" id="nav-rd" onclick="showPage('rd',this)" title="R&D สูตรผลิตภัณฑ์" style="display:none">
-      <i class="fas fa-flask me-2"></i><span>R&amp;D สูตรผลิตภัณฑ์</span>
-      <span id="nav-rd-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="สูตรรออนุมัติ"></span>
-      <span id="nav-rd-due-badge" class="badge bg-danger rounded-pill ms-1" style="display:none;font-size:.7rem" title="จุดตรวจความคงตัว (Stability) ถึงกำหนด"></span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
-      <i class="fas fa-sitemap me-2"></i><span>BOM</span>
-    </a>
     <a href="#" class="nav-link mb-1" id="nav-prodrecord" onclick="showPage('prodrecord',this)" title="บันทึกผลิต" style="display:none">
       <i class="fas fa-clipboard-list me-2"></i><span>บันทึกผลิต</span>
       <span id="nav-prodrecord-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="MO เสร็จสิ้นที่ยังไม่มีบันทึกผลิต"></span>
@@ -2314,80 +2319,130 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-bpr" onclick="showPage('bpr',this)" title="รายงาน BPR">
       <i class="fas fa-file-pdf me-2"></i><span>รายงาน BPR</span>
     </a>
+    <a href="#" class="nav-link mb-1" id="nav-sachetcalc" onclick="showPage('sachetcalc',this)" title="คำนวณซองน้ำมัน">
+      <i class="fas fa-calculator me-2"></i><span>คำนวณซองน้ำมัน</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต" style="display:none">
+      <i class="fas fa-camera me-2"></i><span>สแกนอัปเดตการผลิต</span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-bal">
+    <div class="nav-group-header" data-g="bal" onclick="toggleNavGroup('bal')">
+      <span class="ng-title"><i class="fas fa-boxes-stacked ng-ic"></i><span class="ng-label">Inventory</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-bal"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-bal">
+    <a href="#" class="nav-link mb-1" id="nav-stock" onclick="showPage('stock',this)" title="Stock วัตถุดิบ">
+      <i class="fas fa-boxes-stacked me-2"></i><span>Stock วัตถุดิบ</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-fgstock" onclick="showPage('fgstock',this)" title="Stock FG">
+      <i class="fas fa-box me-2"></i><span>Stock FG</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-holdstock" onclick="showPage('holdstock',this)" title="สต็อก Defect/Retain">
+      <i class="fas fa-triangle-exclamation me-2"></i><span>สต็อก Defect/Retain</span>
+    </a>
     <a href="#" class="nav-link mb-1" id="nav-stockcard" onclick="showPage('stockcard',this)" title="การ์ดสต็อก">
       <i class="fas fa-address-card me-2"></i><span>การ์ดสต็อก</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-sachetcalc" onclick="showPage('sachetcalc',this)" title="คำนวณซองน้ำมัน">
-      <i class="fas fa-calculator me-2"></i><span>คำนวณซองน้ำมัน</span>
-    </a>
-    <!-- ซ่อนจากเมนูถาวรตามคำขอผู้ใช้ 2026-09-13 ("ไม่ต้องขึ้นที่เมนูก็ได้ให้ทำงานเบื้องหลัง") — ฟีเจอร์นี้ใช้
-         งานจริงผ่าน QR/ลิงก์สาธารณะ (?scanprog=1&mo=...&line=...) เท่านั้น ไม่ผ่านเมนูฝั่งในแอปแล้ว การซ่อนนี้
-         เป็นแค่ระดับ UI (ไม่ได้ลบหน้า/ฟังก์ชัน/เส้นทางลิงก์สาธารณะออกเลย) เรียลไทม์ (production_progress ผ่าน
-         Realtime subscription) ยังทำงานเหมือนเดิมทุกประการ ไม่เกี่ยวกับการซ่อนเมนูนี้เลย -->
-    <a href="#" class="nav-link mb-1" id="nav-scanprogress" onclick="showPage('scanprogress',this)" title="สแกนอัปเดตการผลิต" style="display:none">
-      <i class="fas fa-camera me-2"></i><span>สแกนอัปเดตการผลิต</span>
-    </a>
+    </div>
     </div>
 
-    <hr class="my-2">
-    <!-- Employee Group — แยกหน้าพนักงาน/แมททริกสกิล/สแกนบันทึกเวลาแรงงานออกจาก MASTER เป็นหมวดของตัวเอง (คำขอผู้ใช้ 2026-09-25) -->
-    <div class="nav-group-header" onclick="toggleNavGroup('employee')">
-      <span>EMPLOYEE</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-employee"></i>
+    <div class="nav-group" id="navgroup-qc">
+    <div class="nav-group-header" data-g="qc" onclick="toggleNavGroup('qc')">
+      <span class="ng-title"><i class="fas fa-clipboard-check ng-ic"></i><span class="ng-label">Quality (QC)</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-qc"></i>
     </div>
-    <div class="nav-group-body" id="navgroup-body-employee">
+    <div class="nav-group-body" id="navgroup-body-qc">
+    <a href="#" class="nav-link mb-1" id="nav-qc" onclick="showPage('qc',this)" title="ควบคุมคุณภาพ (QC)">
+      <i class="fas fa-clipboard-check me-2"></i><span>ควบคุมคุณภาพ</span>
+      <span id="nav-qc-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="ใบตรวจรออนุมัติ"></span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-cost">
+    <div class="nav-group-header" data-g="cost" onclick="toggleNavGroup('cost')">
+      <span class="ng-title"><i class="fas fa-sack-dollar ng-ic"></i><span class="ng-label">Costing</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-cost"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-cost">
+    <a href="#" class="nav-link mb-1" id="nav-admindash" onclick="showPage('admindash',this)" title="แดชบอร์ดต้นทุน & กำไร" style="display:none">
+      <i class="fas fa-sack-dollar me-2"></i><span>ต้นทุน & กำไร</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-costpage" onclick="showPage('costpage',this)" title="ต้นทุนการผลิต" style="display:none">
+      <i class="fas fa-coins me-2"></i><span>ต้นทุนการผลิต</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-newcost" onclick="showPage('newcost',this)" title="คำนวณต้นทุนสินค้าใหม่" style="display:none">
+      <i class="fas fa-calculator me-2"></i><span>คำนวณต้นทุนสินค้าใหม่</span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-master">
+    <div class="nav-group-header" data-g="master" onclick="toggleNavGroup('master')">
+      <span class="ng-title"><i class="fas fa-folder-open ng-ic"></i><span class="ng-label">Master Data</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-master"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-master">
+    <a href="#" class="nav-link mb-1" id="nav-material" onclick="showPage('material',this)" title="Master Material">
+      <i class="fas fa-vial me-2"></i><span>Master Material</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-bom" onclick="showPage('bom',this)" title="BOM">
+      <i class="fas fa-sitemap me-2"></i><span>BOM</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-rd" onclick="showPage('rd',this)" title="R&D สูตรผลิตภัณฑ์" style="display:none">
+      <i class="fas fa-flask me-2"></i><span>R&amp;D สูตรผลิตภัณฑ์</span>
+      <span id="nav-rd-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="สูตรรออนุมัติ"></span>
+      <span id="nav-rd-due-badge" class="badge bg-danger rounded-pill ms-1" style="display:none;font-size:.7rem" title="จุดตรวจความคงตัว (Stability) ถึงกำหนด"></span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-pricetier" onclick="showPage('pricetier',this)" title="ราคาซื้อ Bulk">
+      <i class="fas fa-tags me-2"></i><span>ราคาซื้อ Bulk</span>
+    </a>
+    </div>
+    </div>
+
+    <div class="nav-group" id="navgroup-emp">
+    <div class="nav-group-header" data-g="emp" onclick="toggleNavGroup('emp')">
+      <span class="ng-title"><i class="fas fa-users ng-ic"></i><span class="ng-label">Employee</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-emp"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-emp">
     <a href="#" class="nav-link mb-1" id="nav-employee" onclick="showPage('employee',this)" title="พนักงาน (Employee Master)">
       <i class="fas fa-users me-2"></i><span>พนักงาน</span>
     </a>
-    <!-- ขาด/ลา/มาสาย (added 2026-10-15) — หัวหน้างานขึ้นไป (_hasRole('supervisor')) toggle ใน _renderCurrentUserBadge -->
     <a href="#" class="nav-link mb-1" id="nav-leave" onclick="showPage('leave',this)" title="ขาด / ลา / มาสาย" style="display:none">
       <i class="fas fa-calendar-xmark me-2"></i><span>ขาด / ลา / มาสาย</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-skillmatrix" onclick="showPage('skillmatrix',this)" title="แมททริกสกิลพนักงาน" style="display:none">
       <i class="fas fa-table-cells me-2"></i><span>แมททริกสกิล</span>
     </a>
-    <!-- แอดมินเท่านั้นที่เห็นในเมนู (added 2026-09-13 ตามคำขอผู้ใช้) — ซ่อนเริ่มต้นด้วย display:none แล้วให้
-         JS เปิดกลับให้เฉพาะ _currentUser.isAdmin เหมือน nav-skillmatrix/nav-weeklyreport/nav-admindash ทุก
-         ประการ (ดูจุดที่ toggle ใน onAuthStateChange/ฟังก์ชันอัปเดต badge ผู้ใช้) — ซ่อนแค่ระดับ UI เท่านั้น
-         ไม่ได้ผูก RLS เพิ่ม -->
     <a href="#" class="nav-link mb-1" id="nav-scanlabor" onclick="showPage('scanlabor',this)" title="สแกนบันทึกเวลาแรงงาน ตามไลน์/สินค้า" style="display:none">
       <i class="fas fa-user-clock me-2"></i><span>สแกนบันทึกเวลาแรงงาน</span>
     </a>
-    <!-- แดชบอร์ดอัตราการทำงานพนักงาน (added 2026-09-25) — หัวหน้างานขึ้นไปเท่านั้น (_hasRole('supervisor'))
-         toggle ใน _renderCurrentUserBadge — ซ่อนแค่ระดับ UI ไม่ได้ผูก RLS เพิ่ม -->
     <a href="#" class="nav-link mb-1" id="nav-laborutil" onclick="showPage('laborutil',this)" title="อัตราการทำงานพนักงาน (ชม./ไลน์/ตรงสกิล)" style="display:none">
       <i class="fas fa-chart-bar me-2"></i><span>อัตราการทำงานพนักงาน</span>
       <span id="nav-laborutil-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="บันทึกเวลาแรงงานที่เวลาไม่ครบ (30 วันล่าสุด ไม่นับวันนี้)"></span>
     </a>
     </div>
-
-    <hr class="my-2">
-    <!-- System Group -->
-    <div class="nav-group-header" onclick="toggleNavGroup('system')">
-      <span>ระบบ</span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-system"></i>
     </div>
-    <div class="nav-group-body" id="navgroup-body-system">
-    <!-- คำขอแก้ไข — รวมคำขอแก้ไข/ลบ/เพิ่มที่รอ Admin อนุมัติจากทุกหน้า (MR/CO/Issue/Defect-Retain/เวลาแรงงาน)
-         ไว้ในที่เดียว แอดมินเท่านั้นที่เห็น (ซ่อนแค่ระดับ UI เหมือน nav-signuprequests/nav-userroles ทุกประการ
-         ไม่ได้ผูก RLS เพิ่ม — ตารางที่อยู่เบื้องหลังแต่ละคิวยังเป็น authenticated_full_access ตามเดิม) ปุ่ม
-         อนุมัติ/ปฏิเสธเรียกฟังก์ชันเดิมของแต่ละหน้าตรงๆ (mrApproveRequest/coApproveRequest/issueApproveRequest/
-         holdstockApprovePendingMove/scanlaborPendingApprove) ไม่ได้เขียนตรรกะ apply สต็อกซ้ำอีกชุด -->
-    <a href="#" class="nav-link mb-1" id="nav-editreq" onclick="showPage('editreq',this)" title="คำขอแก้ไข" style="display:none">
-      <i class="fas fa-pen-to-square me-2"></i><span>คำขอแก้ไข</span>
-      <span id="nav-editreq-badge" class="badge bg-danger rounded-pill ms-2" style="display:none;font-size:.7rem" title="คำขอแก้ไขรออนุมัติ (รวมทุกหน้า)"></span>
-    </a>
-    <a href="#" class="nav-link mb-1" id="nav-auditlog" onclick="showPage('auditlog',this)" title="Audit Log" style="display:none">
-      <i class="fas fa-shield-halved me-2"></i><span>Audit Log</span>
+
+    <div class="nav-group" id="navgroup-admin">
+    <div class="nav-group-header" data-g="admin" onclick="toggleNavGroup('admin')">
+      <span class="ng-title"><i class="fas fa-user-gear ng-ic"></i><span class="ng-label">System</span></span><i class="fas fa-chevron-down nav-group-chevron" id="navgroup-chevron-admin"></i>
+    </div>
+    <div class="nav-group-body" id="navgroup-body-admin">
+    <a href="#" class="nav-link mb-1" id="nav-userroles" onclick="showPage('userroles',this)" title="จัดการผู้ใช้ (สิทธิ์)" style="display:none">
+      <i class="fas fa-user-gear me-2"></i><span>จัดการผู้ใช้</span>
     </a>
     <a href="#" class="nav-link mb-1" id="nav-signuprequests" onclick="showPage('signuprequests',this)" title="คำขอสมัครใช้งาน" style="display:none">
       <i class="fas fa-user-plus me-2"></i><span>คำขอสมัครใช้งาน</span>
     </a>
-    <a href="#" class="nav-link mb-1" id="nav-userroles" onclick="showPage('userroles',this)" title="จัดการผู้ใช้ (สิทธิ์)" style="display:none">
-      <i class="fas fa-user-gear me-2"></i><span>จัดการผู้ใช้</span>
+    <a href="#" class="nav-link mb-1" id="nav-auditlog" onclick="showPage('auditlog',this)" title="Audit Log" style="display:none">
+      <i class="fas fa-shield-halved me-2"></i><span>Audit Log</span>
     </a>
     </div>
+    </div>
+
   </div>
   <hr class="my-2">
   <div id="currentUserBadge" style="font-size:.68rem;color:#94a3b8;text-align:center"></div>
@@ -9068,9 +9123,28 @@ function _fmtDateTime(d) {
 // ══════════════════════════════════════════════
 // ── Sidebar: หมวดเมนู (DASHBOARD/TRANSACTION/MASTER) พับเก็บได้ กันเมนูล้นขอบจอเมื่อมีหน้าเพิ่มขึ้นเรื่อยๆ
 // จำสถานะพับ/กางไว้ใน localStorage เพื่อไม่ต้องกดใหม่ทุกครั้งที่รีเฟรชหน้า ──
-const _navGroupCollapsedKey = 'proflow_nav_collapsed_groups';
+// v2 (2026-10-30 จัดกลุ่มใหม่แบบ BM Flow) — ชื่อกลุ่มเปลี่ยนหมด ใช้ key ใหม่ ไม่อ่านสถานะของกลุ่มเก่า; ยังไม่เคยพับ/กาง =
+// ค่าเริ่มต้นพับ "ข้อมูลหลัก" กับ "ผู้ดูแลระบบ" ไว้ (ใช้ไม่บ่อย) เหมือน BM Flow
+const _navGroupCollapsedKey = 'proflow_nav_collapsed_groups_v2';
 function _navGroupGetCollapsed() {
-  try { return JSON.parse(localStorage.getItem(_navGroupCollapsedKey)) || []; } catch (e) { return []; }
+  try { const v = JSON.parse(localStorage.getItem(_navGroupCollapsedKey)); return Array.isArray(v) ? v : ['master', 'admin']; } catch (e) { return ['master', 'admin']; }
+}
+// ซ่อนทั้งกลุ่มถ้าทุกรายการในกลุ่มถูกซ่อนตามสิทธิ์ (เช่น "ต้นทุน" สำหรับคนที่ไม่ใช่แอดมิน) — เรียกหลังตั้งสิทธิ์เมนูทุกครั้ง
+function _navSyncGroups() {
+  document.querySelectorAll('.sidebar .nav-group').forEach(g => {
+    const anyVisible = [...g.querySelectorAll('.nav-link')].some(a => a.style.display !== 'none');
+    g.style.display = anyVisible ? '' : 'none';
+  });
+}
+// หัวกลุ่มของหน้าที่เปิดอยู่ = เต็มสี · กลุ่มพับอยู่ก็กางให้ · เลื่อนแถบเมนูให้เห็นรายการนั้น (แบบ BM Flow)
+function _navSyncActiveGroup(link) {
+  document.querySelectorAll('.sidebar .nav-group-header.has-active').forEach(h => h.classList.remove('has-active'));
+  const body = link && link.closest('.sidebar .nav-group-body');
+  if (!body) return;
+  const header = body.previousElementSibling;
+  header.classList.add('has-active');
+  if (body.classList.contains('collapsed')) { body.classList.remove('collapsed'); header.classList.remove('collapsed'); }
+  link.scrollIntoView({ block: 'nearest' });
 }
 function toggleNavGroup(name) {
   const body   = document.getElementById('navgroup-body-' + name);
@@ -10128,7 +10202,10 @@ function showPage(page, navEl) {
   document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
   const el = document.getElementById('page-' + page);
   if (el) el.classList.add('active');
+  // เปิดหน้าจากปุ่มลัด/โค้ด (ไม่ได้ส่งลิงก์เมนูมา) ก็ยังไฮไลต์เมนูของหน้านั้นได้ — หา nav-<page> เอง
+  if (!navEl) navEl = document.getElementById('nav-' + page);
   if (navEl) navEl.classList.add('active');
+  _navSyncActiveGroup(navEl);
 
   // Load data เมื่อเปิดหน้า
   if (_PAGE_LOADERS[page]) _PAGE_LOADERS[page]();
@@ -44916,6 +44993,7 @@ function _renderCurrentUserBadge() {
   // "อัตราการทำงานพนักงาน" — admin หรือหัวหน้างานเท่านั้น (2026-09-25)
   const navLaborutil = document.getElementById('nav-laborutil');
   if (navLaborutil) navLaborutil.style.display = _hasRole('supervisor') ? '' : 'none';
+  _navSyncGroups();   // กลุ่มเมนูที่ไม่เหลือรายการให้เห็นเลย (ตามสิทธิ์ด้านบน) ซ่อนทั้งกลุ่ม
 }
 
 // ══════════════════════════════════════════════
