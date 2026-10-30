@@ -2348,7 +2348,7 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
     </a>
-    <!-- stocktools.js (2026-10-30, แบบเดียวกับ BM Flow) — หัวหน้างานขึ้นไป เปิดใน _renderCurrentUserBadge -->
+    <!-- stocktools.js (2026-10-30, แบบเดียวกับ BM Flow) — แอดมินเท่านั้น เปิดใน _renderCurrentUserBadge -->
     <a href="#" class="nav-link mb-1" id="nav-integrity" onclick="showPage('integrity',this)" title="Integrity Check — ตรวจความถูกต้องของสต็อก" style="display:none">
       <i class="fas fa-shield-halved me-2"></i><span>Integrity Check</span>
     </a>
@@ -40591,7 +40591,7 @@ function _costpageCompute(p, prodDays) {
 function _costpageFmt(v) { return '฿' + (v || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 }); }
 
 async function costpageLoad() {
-  if (!_currentUser?.isAdmin) return;
+  if (!(_currentUser?.isAdmin || _hasRole('admin'))) return;
   _showLoader();
   const [payRes, recRes, stdRes, lastRes] = await Promise.all([
     _sb.from('admindash_payroll_actual').select('*').order('Month', { ascending: false }),
@@ -41247,7 +41247,7 @@ function _ncParseSize(name) {
 }
 
 async function newcostLoad() {
-  if (!_currentUser?.isAdmin) return;
+  if (!(_currentUser?.isAdmin || _hasRole('admin'))) return;
   _showLoader();
   const thisM = _costpageThisMonth();
   const [bomRows, matRes, stockRes, mrRes, recRes, stdRes, payRes, lastRes, prlRes, tierRes] = await Promise.all([
@@ -43493,7 +43493,7 @@ const EDITREQ_TYPE_LABELS = { mr: 'รับวัตถุดิบ (MR)', co: 
 const EDITREQ_TYPE_BADGE  = { mr: 'primary', co: 'info', issue: 'warning', hold: 'danger', labor: 'secondary', prodrecord: 'dark' };
 
 async function editreqLoad() {
-  if (!_currentUser?.isAdmin) return; // กันเรียกผ่าน console/showPage() ตรงๆ ทั้งที่ไม่ใช่ admin — ตารางเบื้องหลังยังไม่มี RLS จำกัด admin เหมือน signup_requests (ข้อจำกัดเดียวกับทุกคิวอนุมัตินี้ทั่วทั้งแอป ดู create_*_edit_requests.sql)
+  if (!(_currentUser?.isAdmin || _hasRole('admin'))) return; // กันเรียกผ่าน console/showPage() ตรงๆ ทั้งที่ไม่ใช่ admin — ตารางเบื้องหลังยังไม่มี RLS จำกัด admin เหมือน signup_requests (ข้อจำกัดเดียวกับทุกคิวอนุมัตินี้ทั่วทั้งแอป ดู create_*_edit_requests.sql)
   _showLoader();
   const [mrRes, coRes, issueRes, holdRes, laborRes, prodDelRes] = await Promise.all([
     _sb.from('mr_edit_requests').select('*').eq('Status', 'รออนุมัติ'),
@@ -43624,7 +43624,7 @@ function editreqUpdateSelCount() {
 // ไม่เขียนซ้ำ) ระหว่างวนจะดัก Swal.fire/_err ชั่วคราว: กล่องยืนยัน/ใส่เหตุผลของแต่ละรายการตอบรับอัตโนมัติ, toast ถูกกลืน,
 // error ถูกเก็บไปสรุปทีเดียวตอนจบ — คืน Swal.fire/_err เดิมเสมอใน finally
 async function editreqBulk(action) {
-  if (!_currentUser?.isAdmin) return;
+  if (!(_currentUser?.isAdmin || _hasRole('admin'))) return;
   const picked = Array.from(document.querySelectorAll('.editreq-chk:checked')).map(c => _editreqRows[parseInt(c.dataset.idx)]).filter(Boolean);
   if (!picked.length) return;
   const isApprove = action === 'approve';
@@ -44915,7 +44915,9 @@ async function logoutUser() {
 // ต้องแก้ทั้งสองที่พร้อมกันเสมอถ้าจะเพิ่ม/เปลี่ยนระดับ ไม่งั้นฝั่งจอกับฝั่ง DB จะไม่ตรงกัน
 const _ROLE_RANK = { operator: 1, supervisor: 2, admin: 3 };
 function _hasRole(minRole) {
-  const myRank  = _ROLE_RANK[_currentUser?.role] || 1;
+  // แอดมินแบบ app_metadata (isAdmin — ตั้งในตัวบัญชี) = ระดับแอดมินเสมอ แม้แถว user_roles ยังเป็น operator (แก้ 2026-10-30:
+  // เดิมแอดมินแบบนี้ไม่เห็นเมนูระดับหัวหน้า เช่น บันทึกผลิต/R&D/ขาดลา/อัตราการทำงาน และปุ่มลบ/อนุมัติถูกซ่อน)
+  const myRank  = _currentUser?.isAdmin ? _ROLE_RANK.admin : (_ROLE_RANK[_currentUser?.role] || 1);
   const minRank = _ROLE_RANK[minRole] || 1;
   return myRank >= minRank;
 }
@@ -44959,6 +44961,8 @@ function _applyRolePermissions() {
 }
 
 function _renderCurrentUserBadge() {
+  // แอดมิน = app_metadata isAdmin (ตั้งในตัวบัญชี) หรือ role admin ใน user_roles (หน้า จัดการผู้ใช้) — เดิมเมนูแอดมินเช็คแค่แบบแรก คนที่ตั้งเป็นแอดมินผ่านหน้าจัดการผู้ใช้จึงไม่เห็น (แก้ 2026-10-30)
+  const _isAdminUser = () => !!_currentUser.isAdmin || _hasRole('admin');
   const el = document.getElementById('currentUserBadge');
   if (!el || !_currentUser) return;
   el.innerHTML = `
@@ -44975,49 +44979,49 @@ function _renderCurrentUserBadge() {
   // ลิงก์นี้จาก sidebar สำหรับคนที่ไม่ใช่ admin (แค่ความสะดวก UI เฉยๆ ตัวบังคับจริงคือ RLS policy
   // admin_full_access ใน create_signup_requests.sql — คนที่ไม่ใช่ admin เข้าหน้านี้ตรงๆก็เห็นรายการเปล่า)
   const navEl = document.getElementById('nav-signuprequests');
-  if (navEl) navEl.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navEl) navEl.style.display = _isAdminUser() ? '' : 'none';
   // "รายงานรายสัปดาห์" (สรุปข้อมูลผลิต-จัดส่งส่งเจ้านาย) — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-08-12)
   // เช่นเดียวกับ nav-signuprequests: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navWreport = document.getElementById('nav-weeklyreport');
-  if (navWreport) navWreport.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navWreport) navWreport.style.display = _isAdminUser() ? '' : 'none';
   // Audit Log — ผู้ใช้ขอให้เห็นเฉพาะ admin ด้วย (2026-08-06) ต่างจาก signup_requests/weeklyreport ตรงที่
   // ครั้งนี้มีการบังคับจริงที่ RLS ด้วย (ดู restrict_audit_log_to_admin.sql — SELECT เฉพาะ admin, แต่
   // INSERT ยังเปิดให้ authenticated ทุกคนเหมือนเดิม เพราะ _logAudit() ถูกเรียกจากการกระทำของพนักงานทั่วไป
   // ทุกคน ไม่ใช่แค่ admin — ถ้าปิด INSERT ไปด้วยจะทำให้ log ทั้งระบบเงียบหายไปเลย)
   const navAudit = document.getElementById('nav-auditlog');
-  if (navAudit) navAudit.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navAudit) navAudit.style.display = _isAdminUser() ? '' : 'none';
   // "คำขอแก้ไข" (รวมคิวคำขอแก้ไข/เพิ่ม/ลบจากทุกหน้า) — admin เท่านั้น เหตุผลเดียวกับ signup_requests/userroles:
   // ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม (ดูหมายเหตุที่ editreqLoad)
   const navEditreq = document.getElementById('nav-editreq');
-  if (navEditreq) navEditreq.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navEditreq) navEditreq.style.display = _isAdminUser() ? '' : 'none';
   // "จัดการผู้ใช้" (กำหนด role operator/supervisor/admin ให้แต่ละคน) — admin เท่านั้น เหตุผลเดียวกับ
   // audit log: มีการบังคับจริงที่ RLS ด้วย (create_user_roles.sql — INSERT/UPDATE/DELETE เฉพาะ admin)
   const navUserroles = document.getElementById('nav-userroles');
-  if (navUserroles) navUserroles.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navUserroles) navUserroles.style.display = _isAdminUser() ? '' : 'none';
   // "ต้นทุน & กำไร" (admindash) — รายงานต้นทุนการผลิต/กำไรประเมิน ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-08-17)
   // เหมือน nav-weeklyreport: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navAdmindash = document.getElementById('nav-admindash');
-  if (navAdmindash) navAdmindash.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navAdmindash) navAdmindash.style.display = _isAdminUser() ? '' : 'none';
   const navFloorpulse = document.getElementById('nav-floorpulse');
-  if (navFloorpulse) navFloorpulse.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navFloorpulse) navFloorpulse.style.display = _isAdminUser() ? '' : 'none';
   // ปุ่ม "คำนวณ Overhead ใหม่ทั้งหมด" (หน้าบันทึกผลิต) — เขียนทับ Overhead/TotalCost/CostPerUnit ของบันทึก
   // ที่อนุมัติต้นทุนไปแล้วทุกใบ admin เท่านั้น เหตุผลเดียวกับปุ่มอนุมัติต้นทุน/ดูต้นทุนที่อนุมัติ (2026-08-27)
   const recalcOhBtn = document.getElementById('prodrecord-recalc-oh-btn');
-  if (recalcOhBtn) recalcOhBtn.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (recalcOhBtn) recalcOhBtn.style.display = _isAdminUser() ? '' : 'none';
   // ปุ่ม "ลบรายการวัตถุดิบซ้ำ" (หน้าบันทึกผลิต) — เหตุผลเดียวกับปุ่มข้างบน admin เท่านั้น (2026-09-02)
   const dedupeBtn = document.getElementById('prodrecord-dedupe-btn');
-  if (dedupeBtn) dedupeBtn.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (dedupeBtn) dedupeBtn.style.display = _isAdminUser() ? '' : 'none';
   // "แมททริกสกิล" (แมททริกสกิลพนักงาน) — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-10) พนักงาน/หัวหน้างานไม่ต้อง
   // เห็นเลย เหมือน nav-weeklyreport/nav-admindash: ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม
   const navCostpage = document.getElementById('nav-costpage');
-  if (navCostpage) navCostpage.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navCostpage) navCostpage.style.display = _isAdminUser() ? '' : 'none';
   const navNewcost = document.getElementById('nav-newcost');
-  if (navNewcost) navNewcost.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navNewcost) navNewcost.style.display = _isAdminUser() ? '' : 'none';
   const navSkillmatrix = document.getElementById('nav-skillmatrix');
-  if (navSkillmatrix) navSkillmatrix.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navSkillmatrix) navSkillmatrix.style.display = _isAdminUser() ? '' : 'none';
   // "สแกนบันทึกเวลาแรงงาน" — ผู้ใช้ขอให้เห็นเฉพาะ admin (2026-09-13) เหมือน nav-skillmatrix ทุกประการ
   const navScanlabor = document.getElementById('nav-scanlabor');
-  if (navScanlabor) navScanlabor.style.display = _currentUser.isAdmin ? '' : 'none';
+  if (navScanlabor) navScanlabor.style.display = _isAdminUser() ? '' : 'none';
   // "บันทึกผลิต" — ผู้ใช้ขอให้ระดับพนักงาน (operator) ไม่เห็นหน้านี้ (2026-09-14) หัวหน้างานขึ้นไปยังเห็น
   // ปกติ (ใช้ _hasRole('supervisor') ไม่ใช่ isAdmin เพราะเป็น 2 ระดับ ไม่ใช่ admin-only เหมือนแมททริกสกิล) —
   // ซ่อนแค่ระดับ UI เท่านั้น ไม่ได้ผูก RLS เพิ่ม (production_records ยังเปิด authenticated_full_access
@@ -45033,8 +45037,8 @@ function _renderCurrentUserBadge() {
   // "อัตราการทำงานพนักงาน" — admin หรือหัวหน้างานเท่านั้น (2026-09-25)
   const navLaborutil = document.getElementById('nav-laborutil');
   if (navLaborutil) navLaborutil.style.display = _hasRole('supervisor') ? '' : 'none';
-  // Integrity Check / Stock Count — หัวหน้างานขึ้นไป · Backup — แอดมิน (stocktools.js, 2026-10-30)
-  ['nav-integrity', 'nav-stockcount'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = _hasRole('supervisor') ? '' : 'none'; });
+  // Integrity Check / Stock Count — แอดมินเท่านั้น (คำขอผู้ใช้ 2026-10-30 "ให้แอดมินเห็นคนเดียว") ทั้ง role admin ใน user_roles และ app_metadata isAdmin
+  ['nav-integrity', 'nav-stockcount'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = (_hasRole('admin') || _currentUser.isAdmin) ? '' : 'none'; });
   const navBackup = document.getElementById('nav-backup');
   if (navBackup) navBackup.style.display = (_currentUser.isAdmin || _hasRole('admin')) ? '' : 'none';
   if (typeof _backupBadge === 'function') _backupBadge();
@@ -45374,7 +45378,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="floorpulse.js?v=20261022f"></script>
 <script src="qc.js?v=20261027n"></script>
 <!-- Integrity Check / Stock Count / Backup (2026-10-30) — ต้องอัปโหลดคู่กับ index.html · แก้แล้วเลื่อน ?v= -->
-<script src="stocktools.js?v=20261030a"></script>
+<script src="stocktools.js?v=20261030f"></script>
 <script src="qc-coa.js?v=20261027k"></script>
 <script src="mobile/qc-mobile.js?v=20261027m"></script>
 </body>

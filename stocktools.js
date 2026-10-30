@@ -16,7 +16,8 @@
 function _stEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function _stJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 function _stNum(n, d = 3) { const v = Number(n) || 0; return v.toLocaleString('th-TH', { maximumFractionDigits: d }); }
-function _stSupervisor() { return typeof _hasRole === 'function' && _hasRole('supervisor'); }
+// สิทธิ์ใช้ Integrity Check / Stock Count = แอดมินเท่านั้น (คำขอผู้ใช้ 2026-10-30 "ให้แอดมินเห็นคนเดียว") — role admin ใน user_roles หรือ app_metadata isAdmin
+function _stSupervisor() { return (typeof _hasRole === 'function' && _hasRole('admin')) || !!(typeof _currentUser !== 'undefined' && _currentUser && _currentUser.isAdmin); }
 function _stAdmin() { return (typeof _hasRole === 'function' && _hasRole('admin')) || !!(typeof _currentUser !== 'undefined' && _currentUser && _currentUser.isAdmin); }
 function _stWho() { return (typeof _currentUser !== 'undefined' && _currentUser && (_currentUser.name || _currentUser.email)) || null; }
 const _stKey = (code, lot) => `${code || ''}|${lot || ''}`;
@@ -35,14 +36,15 @@ function _stEnsurePages() {
     host.appendChild(div);
   };
   page('integrity', 'shield-halved', 'Integrity Check — ตรวจความถูกต้อง',
-    'เทียบยอดสต็อกกับประวัติรับ-จ่าย (สูตรเดียวกับการ์ดสต็อก) และเอกสารที่อ้างถึงกัน — อ่านอย่างเดียว ไม่แก้ข้อมูล · หัวหน้างานขึ้นไป',
+    'เทียบยอดสต็อกกับประวัติรับ-จ่าย (สูตรเดียวกับการ์ดสต็อก) และเอกสารที่อ้างถึงกัน — อ่านอย่างเดียว ไม่แก้ข้อมูล · แอดมินเท่านั้น',
     '<button class="btn btn-light btn-sm fw-bold text-primary shadow-sm" id="integrity-run-btn" onclick="integrityRun()"><i class="fas fa-magnifying-glass-chart me-1"></i>ตรวจตอนนี้</button>');
   page('stockcount', 'list-check', 'Stock Count — ตรวจนับสต็อก',
-    'นับของจริงเทียบยอดในระบบ แล้วปรับยอดอย่างมีเอกสารและเหตุผล · หัวหน้างานขึ้นไป',
+    'นับของจริงเทียบยอดในระบบ แล้วปรับยอดอย่างมีเอกสารและเหตุผล · แอดมินเท่านั้น',
     '<button class="btn btn-light btn-sm fw-bold text-primary shadow-sm" onclick="stockCountNew()"><i class="fas fa-plus me-1"></i>เริ่มตรวจนับใหม่</button>');
   page('backup', 'database', 'Backup — สำรองข้อมูล',
     'ดาวน์โหลดสำเนาข้อมูลทุกตารางเก็บไว้ในเครื่อง (Supabase แผน Free ไม่สำรองให้อัตโนมัติ) · แอดมินเท่านั้น',
-    '<button class="btn btn-light btn-sm fw-bold text-success shadow-sm" id="backup-run-btn" onclick="backupRun()"><i class="fas fa-download me-1"></i>ดาวน์โหลดสำรองข้อมูล</button>');
+    '<button class="btn btn-light btn-sm fw-bold text-success shadow-sm me-1" id="backup-xlsx-btn" onclick="backupXlsx()" title="ตารางที่ติ๊กไว้ รวมเป็นไฟล์ Excel ไฟล์เดียว (1 ตาราง = 1 ชีท) — ไว้เปิดดู/ทำรายงาน"><i class="fas fa-file-excel me-1"></i>ดาวน์โหลด Excel (.xlsx)</button>'
+    + '<button class="btn btn-light btn-sm fw-bold text-success shadow-sm" id="backup-run-btn" onclick="backupRun()" title="ไฟล์ JSON สำหรับกู้คืนระบบ — นับเป็นการสำรองล่าสุด"><i class="fas fa-download me-1"></i>ดาวน์โหลดสำรองข้อมูล</button>');
   const modal = document.createElement('div');
   modal.innerHTML = `<div class="modal fade" id="stockCountModal" tabindex="-1"><div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"><div class="modal-content">
     <div class="modal-header"><div><h5 class="modal-title mb-0" id="scnt-title"></h5><div class="small text-muted" id="scnt-info"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -122,7 +124,7 @@ function integrityLoadPage() { _stEnsurePages(); integrityRender(); }
 
 async function integrityRun() {
   if (_integrityBusy) return;
-  if (!_stSupervisor()) { _err('ไม่มีสิทธิ์', 'หน้านี้สำหรับหัวหน้างานขึ้นไป'); return; }
+  if (!_stSupervisor()) { _err('ไม่มีสิทธิ์', 'หน้านี้สำหรับแอดมินเท่านั้น'); return; }
   _integrityBusy = true;
   const btn = document.getElementById('integrity-run-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังตรวจ...'; }
@@ -258,7 +260,7 @@ async function _integrityOpenCard(i) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Stock Count — ใบตรวจนับ (create_stock_count.sql) · หัวหน้างานขึ้นไป
+// Stock Count — ใบตรวจนับ (create_stock_count.sql) · แอดมินเท่านั้น
 // สร้างใบ: ถ่ายยอดในระบบทุก Lot ที่มียอด > 0 → กรอกยอดนับ → ปรับยอด (ยอดปรับ = ยอดนับ − ยอดในระบบ "ตอนกดปรับ")
 // ปรับแล้ว: บันทึก stock_adjustments ก่อน (หลักฐานแก้ไม่ได้) แล้วค่อยปรับ stock_balance / stock_fg — การ์ดสต็อกโชว์ "ปรับยอดตรวจนับ"
 // v1 นับเฉพาะ Lot ที่มียอดในระบบ (ของที่เจอเพิ่มแต่ไม่มี Lot ในระบบ ให้บันทึกรับเข้าตามปกติ)
@@ -270,7 +272,7 @@ async function stockCountLoad() {
   _stEnsurePages();
   const body = document.getElementById('stockcount-body');
   if (!body) return;
-  if (!_stSupervisor()) { body.innerHTML = '<div class="glass-card text-muted">หน้านี้สำหรับหัวหน้างานขึ้นไป</div>'; return; }
+  if (!_stSupervisor()) { body.innerHTML = '<div class="glass-card text-muted">หน้านี้สำหรับแอดมินเท่านั้น</div>'; return; }
   const { data, error } = await _sb.from('stock_counts').select('*').order('CreatedAt', { ascending: false }).limit(100);
   if (error) {
     body.innerHTML = `<div class="glass-card text-center py-4"><div class="text-danger fw-semibold mb-1">ยังไม่ได้ตั้งค่าตรวจนับสต็อก</div>
@@ -295,7 +297,7 @@ async function stockCountLoad() {
 }
 
 async function stockCountNew() {
-  if (!_stSupervisor()) { _err('ไม่มีสิทธิ์', 'สร้างใบตรวจนับได้เฉพาะหัวหน้างานขึ้นไป'); return; }
+  if (!_stSupervisor()) { _err('ไม่มีสิทธิ์', 'สร้างใบตรวจนับได้เฉพาะแอดมิน'); return; }
   const r = await Swal.fire({
     title: 'เริ่มตรวจนับใหม่', width: 520, showCancelButton: true, confirmButtonText: 'สร้างใบนับ', cancelButtonText: 'ยกเลิก',
     html: `<div class="text-start">
@@ -554,15 +556,52 @@ const BACKUP_TABLES = [
   ['admindash_payroll_actual', 'ค่าแรงจริง (อ่อนไหว)', 'System'], ['audit_log', 'Audit Log (ข้อมูลเยอะ)', 'System'],
 ];
 const BACKUP_OPT_IN = new Set(['admindash_payroll_actual', 'audit_log']);
-const BACKUP_KEY = 'proflow_last_backup';
+const BACKUP_KEY = 'proflow_last_backup', BACKUP_COUNTS_KEY = 'proflow_last_backup_counts';
 let _bkCounts = null, _bkBusy = false;
-const _bkLast = () => { try { return localStorage.getItem(BACKUP_KEY); } catch (e) { return null; } };
-const _bkDaysAgo = () => { const s = _bkLast(); return s ? (Date.now() - new Date(s).getTime()) / 86400000 : null; };
-function _backupBadge() {
+// สำรองล่าสุด { at, by, file, counts:{ตาราง: จำนวนแถวตอนสำรอง}, shared } — อ่านจากตาราง backup_log (เห็นทุกเครื่อง, create_backup_log.sql)
+// ถ้ายังไม่มีตาราง/อ่านไม่ได้ ใช้ localStorage ของเครื่องนี้แทน (shared = false)
+let _bkLastRec, _bkLastPromise = null;
+function _bkLocalRec() {
+  try {
+    const at = localStorage.getItem(BACKUP_KEY);
+    return at ? { at, by: null, file: null, counts: JSON.parse(localStorage.getItem(BACKUP_COUNTS_KEY) || 'null'), shared: false } : null;
+  } catch (e) { return null; }
+}
+function _bkLoadLast(force) {
+  if (force || !_bkLastPromise) _bkLastPromise = (async () => {
+    const local = _bkLocalRec();
+    const { data, error } = await _sb.from('backup_log').select('*').order('CreatedAt', { ascending: false }).limit(1);
+    const row = !error && data && data[0];
+    const rec = row ? { at: row.CreatedAt, by: row.CreatedBy, file: row.FileName, counts: row.Counts || null, shared: true } : null;
+    // เครื่องนี้สำรองทีหลังแถวล่าสุดในตาราง (เช่น บันทึกลงตารางไม่สำเร็จ) → ใช้ของเครื่องนี้
+    _bkLastRec = rec && (!local || new Date(rec.at) >= new Date(local.at)) ? rec : local;
+    return _bkLastRec;
+  })();
+  return _bkLastPromise;
+}
+const _bkDaysAgo = () => (_bkLastRec && _bkLastRec.at ? (Date.now() - new Date(_bkLastRec.at).getTime()) / 86400000 : null);
+async function _backupBadge() {
   const el = document.getElementById('nav-backup-badge');
   if (!el) return;
+  if (!_stAdmin()) { el.style.display = 'none'; return; }
+  if (_bkLastRec === undefined) { try { await _bkLoadLast(); } catch (e) { _bkLastRec = _bkLocalRec(); } }
   const d = _bkDaysAgo();
-  el.style.display = _stAdmin() && (d === null || d > 7) ? '' : 'none';
+  el.style.display = d === null || d > 7 ? '' : 'none';
+}
+// จำนวนแถวที่เพิ่ม/ลดตั้งแต่สำรองล่าสุด ของตาราง t (null = สำรองล่าสุดไม่ได้รวมตารางนี้ หรือยังนับไม่เสร็จ)
+function _bkDelta(t) {
+  const now = _bkCounts && _bkCounts[t], base = _bkLastRec && _bkLastRec.counts;
+  if (!now || now.err || !base || base[t] === undefined || base[t] === null) return null;
+  return Number(now.n) - Number(base[t]);
+}
+function _bkRenderDelta(t) {
+  const el = document.getElementById('bk-d-' + t);
+  if (!el) return;
+  const d = _bkDelta(t);
+  el.innerHTML = d === null ? '<span class="text-muted">—</span>'
+    : d > 0 ? `<span class="badge bg-warning-subtle text-warning-emphasis">+${d.toLocaleString('th-TH')}</span>`
+    : d < 0 ? `<span class="badge bg-secondary-subtle text-secondary-emphasis" title="แถวถูกลบตั้งแต่สำรองล่าสุด">${d.toLocaleString('th-TH')}</span>`
+    : '<span class="text-success small"><i class="fas fa-check"></i></span>';
 }
 async function _bkCount(t) {
   const { count, error } = await _sb.from(t).select('*', { count: 'exact', head: true });
@@ -582,14 +621,17 @@ async function backupLoad() {
         <button class="btn btn-sm btn-outline-secondary" onclick="backupToggleAll(false)">ไม่เลือก</button>
         <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="backupRecount()"><i class="fas fa-rotate me-1"></i>นับจำนวนแถวใหม่</button></div>
         <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-          <thead><tr><th style="width:32px"></th><th>ข้อมูล</th><th>กลุ่ม</th><th class="text-end">จำนวนแถว</th><th class="text-end">เฉพาะตารางนี้</th></tr></thead>
+          <thead><tr><th style="width:32px"></th><th>ข้อมูล</th><th>กลุ่ม</th><th class="text-end">จำนวนแถว</th><th class="text-end" title="จำนวนแถวตอนนี้ เทียบกับตอนสำรองล่าสุด">ใหม่ตั้งแต่สำรอง</th><th class="text-end">เฉพาะตารางนี้</th></tr></thead>
           <tbody id="backup-table-body">${BACKUP_TABLES.map(([t, label, grp]) => `<tr><td><input type="checkbox" class="form-check-input bk-chk" value="${t}"${BACKUP_OPT_IN.has(t) ? '' : ' checked'}></td>
             <td>${_stEsc(label)}<div class="small text-muted"><code>${t}</code></div></td><td class="small text-muted">${_stEsc(grp)}</td><td class="text-end" id="bk-n-${t}">…</td>
+            <td class="text-end" id="bk-d-${t}">…</td>
             <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="backupCsv('${t}')" title="ดาวน์โหลดตารางนี้เป็น CSV (เปิดใน Excel)">CSV</button></td></tr>`).join('')}</tbody>
         </table></div></div>`;
   }
   backupRenderInfo();
-  if (!_bkCounts) await backupRecount();
+  await _bkLoadLast(true);
+  backupRenderInfo();
+  await backupRecount();
 }
 async function backupRecount() {
   _bkCounts = {};
@@ -598,16 +640,35 @@ async function backupRecount() {
     _bkCounts[t] = r;
     const el = document.getElementById('bk-n-' + t);
     if (el) el.innerHTML = r.err ? `<span class="text-danger small" title="${_stEsc(r.err)}">อ่านไม่ได้</span>` : Number(r.n).toLocaleString('th-TH');
+    _bkRenderDelta(t);
   }));
+  backupRenderInfo();
 }
 function backupToggleAll(on) { document.querySelectorAll('#backup-table-body .bk-chk').forEach(c => { c.checked = on; }); }
 function backupRenderInfo() {
   const el = document.getElementById('backup-info');
   if (!el) return;
-  const d = _bkDaysAgo(), s = _bkLast();
-  const last = s ? `สำรองล่าสุด (เครื่องนี้): <b>${new Date(s).toLocaleString('th-TH')}</b> · ${d < 1 ? 'วันนี้' : Math.floor(d) + ' วันที่แล้ว'}` : '<b>ยังไม่เคยสำรองจากเครื่องนี้</b>';
-  const warn = (d === null || d > 7) ? '<div class="alert alert-warning py-2 small mb-2"><i class="fas fa-triangle-exclamation me-1"></i>ควรสำรองข้อมูลอย่างน้อยสัปดาห์ละครั้ง และก่อนรันไฟล์ SQL ที่แก้ข้อมูลทุกครั้ง</div>' : '';
-  el.innerHTML = `${warn}<div class="mb-2">${last}</div>
+  const d = _bkDaysAgo(), r = _bkLastRec;
+  const ago = d === null ? '' : d < 1 / 24 ? 'เมื่อสักครู่' : d < 1 ? Math.floor(d * 24) + ' ชั่วโมงที่แล้ว' : Math.floor(d) + ' วันที่แล้ว';
+  const last = r === undefined ? '<span class="text-muted">กำลังโหลดประวัติการสำรอง…</span>'
+    : r ? `<i class="fas fa-clock-rotate-left me-1 text-primary"></i>สำรองล่าสุด: <b>${new Date(r.at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}</b> · ${ago}`
+        + (r.by ? ` · โดย ${_stEsc(r.by)}` : '') + (r.shared ? '' : ' <span class="text-muted small">(จำไว้แค่เครื่องนี้ — รัน create_backup_log.sql เพื่อให้เห็นทุกเครื่อง)</span>')
+    : '<b>ยังไม่เคยสำรองข้อมูล</b>';
+  // สรุปแถวใหม่ตั้งแต่สำรองล่าสุด (รวมทุกตารางที่สำรองล่าสุดมีจำนวนไว้)
+  let summary = '';
+  if (r && _bkCounts) {
+    if (!r.counts) summary = '<div class="small text-muted mb-2">สำรองครั้งล่าสุดยังไม่ได้เก็บจำนวนแถวไว้ — สำรองอีกครั้งเพื่อเริ่มนับแถวใหม่</div>';
+    else {
+      let added = 0, removed = 0, tables = 0;
+      BACKUP_TABLES.forEach(([t]) => { const x = _bkDelta(t); if (x) { tables++; if (x > 0) added += x; else removed -= x; } });
+      summary = tables
+        ? `<div class="mb-2"><span class="badge bg-warning text-dark fs-6 me-1">+${added.toLocaleString('th-TH')} แถวใหม่</span>${removed ? `<span class="badge bg-secondary me-1">−${removed.toLocaleString('th-TH')} ถูกลบ</span>` : ''}<span class="small text-muted">ใน ${tables} ตาราง ยังไม่อยู่ในไฟล์สำรองล่าสุด</span></div>`
+        : '<div class="mb-2 text-success"><i class="fas fa-circle-check me-1"></i>ไม่มีแถวใหม่ตั้งแต่สำรองล่าสุด</div>';
+    }
+  }
+  const warn = (r !== undefined && (d === null || d > 7)) ? '<div class="alert alert-warning py-2 small mb-2"><i class="fas fa-triangle-exclamation me-1"></i>ควรสำรองข้อมูลอย่างน้อยสัปดาห์ละครั้ง และก่อนรันไฟล์ SQL ที่แก้ข้อมูลทุกครั้ง</div>' : '';
+  el.innerHTML = `${warn}<div class="mb-2 fs-6">${last}</div>${summary}
+    <div class="small text-muted mb-1">"ใหม่ตั้งแต่สำรอง" นับจากจำนวนแถวที่เพิ่ม/ลด — การแก้ไขแถวเดิมจะไม่ถูกนับ แต่ก็ยังไม่อยู่ในไฟล์สำรองเช่นกัน</div>
     <div class="small text-muted">ไฟล์ที่ได้ = ข้อมูลตารางทั้งหมดที่เลือกในรูป JSON (เก็บไว้กู้คืนด้วยมือ/ให้ผู้ดูแลระบบนำเข้า) · <b>ไม่รวม</b> รูปภาพ, บัญชีผู้ใช้ (รหัสผ่าน), โครงสร้างฐานข้อมูล (ไฟล์ SQL อยู่ในโฟลเดอร์โปรเจกต์) · ไม่มีปุ่มกู้คืนอัตโนมัติ<br>
     เก็บไฟล์ไว้ที่ปลอดภัย (ไม่ส่งต่อทางแชต/อีเมลสาธารณะ) เพราะมีข้อมูลธุรกิจ · สำรองตอนที่ไม่มีคนกำลังบันทึกจะนิ่งที่สุด · ถ้าจำนวนแถวเปลี่ยนระหว่างสำรอง ระบบจะแจ้งให้สำรองใหม่</div>`;
 }
@@ -657,7 +718,17 @@ async function backupRun() {
     const text = JSON.stringify(out);
     const fname = `proflow-backup-${_bkStamp()}.json`;
     _bkDownload(fname, text, 'application/json');
-    try { localStorage.setItem(BACKUP_KEY, new Date().toISOString()); } catch (e) { /* บันทึกเวลาไม่ได้ก็ไม่เป็นไร */ }
+    // เก็บจำนวนแถวตอนสำรอง → ใช้คำนวณ "ใหม่ตั้งแต่สำรอง" · บันทึกทั้ง localStorage (กันพลาด) และ backup_log (เห็นทุกเครื่อง)
+    const counts = Object.fromEntries(Object.entries(out.tables).map(([t, x]) => [t, x.count]));
+    const nowIso = new Date().toISOString(), by = (_currentUser && (_currentUser.name || _currentUser.email)) || null;
+    try { localStorage.setItem(BACKUP_KEY, nowIso); localStorage.setItem(BACKUP_COUNTS_KEY, JSON.stringify(counts)); } catch (e) { /* บันทึกเวลาไม่ได้ก็ไม่เป็นไร */ }
+    const { error: logErr } = await _sb.from('backup_log').insert({ CreatedBy: by, FileName: fname, TableCount: Object.keys(counts).length,
+      RowCount: Object.values(counts).reduce((s, n) => s + n, 0), Counts: counts });
+    _bkLastRec = { at: nowIso, by, file: fname, counts, shared: !logErr };
+    _bkLastPromise = Promise.resolve(_bkLastRec);
+    // จำนวนแถวตอนนี้ = ที่เพิ่งอ่าน (คอลัมน์ "ใหม่ตั้งแต่สำรอง" จะเป็น ✓)
+    Object.entries(counts).forEach(([t, n]) => { _bkCounts = _bkCounts || {}; _bkCounts[t] = { n }; const el = document.getElementById('bk-n-' + t); if (el) el.textContent = n.toLocaleString('th-TH'); });
+    BACKUP_TABLES.forEach(([t]) => _bkRenderDelta(t));
     _backupBadge(); backupRenderInfo();
     if (typeof _logAudit === 'function') _logAudit('EXPORT', 'backup', fname, `${Object.keys(out.tables).length} ตาราง`);
     const nRows = Object.values(out.tables).reduce((s, x) => s + x.count, 0), skipped = Object.keys(out.skipped), mism = out.mismatch;
@@ -668,6 +739,67 @@ async function backupRun() {
     Swal.fire({ icon: skipped.length || mism.length ? 'warning' : 'success', title: 'ดาวน์โหลดไฟล์สำรองแล้ว',
       html: `<div class="small text-start"><b>${_stEsc(fname)}</b><br>${Object.keys(out.tables).length} ตาราง · ${nRows.toLocaleString('th-TH')} แถว · ${(text.length / 1048576).toFixed(1)} MB<br><br>${problems}<span class="text-muted">เก็บไฟล์ไว้ที่ปลอดภัย (เช่น ไดรฟ์ที่แยกจากเครื่องนี้)</span></div>` });
   } finally { _bkBusy = false; btn.disabled = false; setTimeout(() => card.classList.add('d-none'), 1500); }
+}
+// ดาวน์โหลดตารางที่ติ๊กเป็น Excel ไฟล์เดียว: ชีทแรก "สารบัญ" + 1 ตาราง = 1 ชีท (ใช้ SheetJS ที่ index.html โหลดไว้แล้ว)
+// ข้อความเก็บเป็นข้อความ (รหัส/Lot ที่ขึ้นต้นด้วย 0 ไม่หาย, วันที่ไม่สลับวัน-เดือน) · ตัวเลขเป็นตัวเลข · ค่า JSON ใส่เป็นข้อความ JSON
+// ไว้เปิดดู/ทำรายงานเท่านั้น — ไม่นับเป็น "สำรองล่าสุด" (ไฟล์กู้คืนคือ JSON)
+async function backupXlsx() {
+  if (_bkBusy || !_stAdmin()) return;
+  if (typeof XLSX === 'undefined') { _err('สร้างไฟล์ Excel ไม่ได้', 'ไลบรารี Excel (SheetJS) ยังโหลดไม่เสร็จ — รีเฟรชหน้าแล้วลองใหม่'); return; }
+  const picked = [...document.querySelectorAll('#backup-table-body .bk-chk:checked')].map(c => c.value);
+  if (!picked.length) { Swal.fire('ยังไม่ได้เลือกตาราง', 'ติ๊กอย่างน้อย 1 ตาราง', 'info'); return; }
+  _bkBusy = true;
+  const btn = document.getElementById('backup-xlsx-btn'), card = document.getElementById('backup-prog-card'), txt = document.getElementById('backup-prog-text'), bar = document.getElementById('backup-prog-bar');
+  btn.disabled = true; card.classList.remove('d-none');
+  const meta = Object.fromEntries(BACKUP_TABLES.map(([t, l, g]) => [t, { label: l, grp: g }]));
+  const wb = XLSX.utils.book_new(), used = new Set(['สารบัญ']), toc = [], skipped = [];
+  // ชื่อชีท: ไม่เกิน 31 ตัว, ห้าม : \ / ? * [ ] และห้ามซ้ำ
+  const sheetName = label => {
+    const base = label.replace(/[:\\/?*\[\]]/g, '-').slice(0, 28).trim() || 'Sheet';
+    let n = base, i = 2;
+    while (used.has(n.toLowerCase())) n = `${base.slice(0, 26)}(${i++})`;
+    used.add(n.toLowerCase());
+    return n;
+  };
+  const cell = v => v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v).slice(0, 32000)
+    : typeof v === 'string' ? v.slice(0, 32000) : v;   // Excel รับข้อความได้ไม่เกิน 32,767 ตัวต่อช่อง
+  try {
+    for (let i = 0; i < picked.length; i++) {
+      const t = picked[i], m = meta[t];
+      txt.textContent = `(${i + 1}/${picked.length}) กำลังอ่าน ${m.label} …`;
+      bar.style.width = Math.round((i / picked.length) * 100) + '%';
+      try {
+        const { rows } = await _bkFetch(t, (n, tot) => { txt.textContent = `(${i + 1}/${picked.length}) ${m.label} — ${n.toLocaleString('th-TH')} / ${Number(tot).toLocaleString('th-TH')} แถว`; });
+        const cols = [...new Set(rows.flatMap(r => Object.keys(r)))];
+        const ws = XLSX.utils.aoa_to_sheet([cols.length ? cols : ['(ไม่มีข้อมูล)'], ...rows.map(r => cols.map(c => cell(r[c])))]);
+        // ความกว้างคอลัมน์ตามข้อมูล 200 แถวแรก (8–40 ตัวอักษร)
+        ws['!cols'] = cols.map(c => ({ wch: Math.min(40, Math.max(8, String(c).length + 2, ...rows.slice(0, 200).map(r => String(cell(r[c])).length + 1))) }));
+        if (cols.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: cols.length - 1 } }) };
+        const name = sheetName(m.label);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+        toc.push([name, t, m.grp, rows.length]);
+      } catch (e) { skipped.push(t); toc.push(['(อ่านไม่ได้)', t, m.grp, e.message]); }
+    }
+    bar.style.width = '100%';
+    txt.textContent = 'กำลังสร้างไฟล์ Excel …';
+    const tocWs = XLSX.utils.aoa_to_sheet([
+      ['ProFlow Wise MES — ข้อมูลส่งออก', '', '', ''],
+      ['สร้างเมื่อ', new Date().toLocaleString('th-TH'), 'โดย', (_currentUser && (_currentUser.name || _currentUser.email)) || ''],
+      [],
+      ['ชีท', 'ตาราง', 'กลุ่ม', 'จำนวนแถว'], ...toc]);
+    tocWs['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, tocWs, 'สารบัญ');
+    wb.SheetNames.unshift(wb.SheetNames.pop());   // ให้ "สารบัญ" เป็นชีทแรก
+    const fname = `proflow-data-${_bkStamp()}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    if (typeof _logAudit === 'function') _logAudit('EXPORT', 'backup', fname, `Excel ${toc.length - skipped.length} ตาราง`);
+    const nRows = toc.reduce((s, x) => s + (typeof x[3] === 'number' ? x[3] : 0), 0);
+    Swal.fire({ icon: skipped.length ? 'warning' : 'success', title: 'ดาวน์โหลดไฟล์ Excel แล้ว',
+      html: `<div class="small text-start"><b>${_stEsc(fname)}</b><br>${toc.length - skipped.length} ชีท · ${nRows.toLocaleString('th-TH')} แถว<br><br>`
+        + (skipped.length ? `<div class="text-danger mb-1">อ่านไม่ได้ ${skipped.length} ตาราง: ${skipped.map(k => `<code>${_stEsc(k)}</code>`).join(', ')}</div>` : '')
+        + '<span class="text-muted">ไฟล์ Excel ไว้เปิดดู/ทำรายงาน — ไฟล์สำหรับกู้คืนระบบยังเป็นปุ่ม "ดาวน์โหลดสำรองข้อมูล" (JSON)</span></div>' });
+  } catch (e) { _err('สร้างไฟล์ Excel ไม่สำเร็จ', _stEsc(e.message)); }
+  finally { _bkBusy = false; btn.disabled = false; setTimeout(() => card.classList.add('d-none'), 1500); }
 }
 // ดาวน์โหลดตารางเดียวเป็น CSV — BOM นำหน้าเพื่อให้ Excel อ่านภาษาไทยถูก · ค่าที่เป็น JSON ใส่เป็นข้อความ JSON
 async function backupCsv(t) {
