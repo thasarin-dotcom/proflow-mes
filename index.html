@@ -2348,6 +2348,13 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     <a href="#" class="nav-link mb-1" id="nav-lotscan" onclick="showPage('lotscan',this)" title="Lot Scan (ตรวจสอบย้อนกลับ)">
       <i class="fas fa-qrcode me-2"></i><span>Lot Scan</span>
     </a>
+    <!-- stocktools.js (2026-10-30, แบบเดียวกับ BM Flow) — หัวหน้างานขึ้นไป เปิดใน _renderCurrentUserBadge -->
+    <a href="#" class="nav-link mb-1" id="nav-integrity" onclick="showPage('integrity',this)" title="Integrity Check — ตรวจความถูกต้องของสต็อก" style="display:none">
+      <i class="fas fa-shield-halved me-2"></i><span>Integrity Check</span>
+    </a>
+    <a href="#" class="nav-link mb-1" id="nav-stockcount" onclick="showPage('stockcount',this)" title="Stock Count — ตรวจนับสต็อก" style="display:none">
+      <i class="fas fa-list-check me-2"></i><span>Stock Count</span>
+    </a>
     </div>
     </div>
 
@@ -2439,6 +2446,11 @@ body.wh-desktop-mode #page-floorpulse.fp-tv .fp-floor-wrap { height: calc(100vh 
     </a>
     <a href="#" class="nav-link mb-1" id="nav-auditlog" onclick="showPage('auditlog',this)" title="Audit Log" style="display:none">
       <i class="fas fa-shield-halved me-2"></i><span>Audit Log</span>
+    </a>
+    <!-- stocktools.js — แอดมินเท่านั้น · badge "!" = ยังไม่ได้สำรองจากเครื่องนี้เกิน 7 วัน (_backupBadge) -->
+    <a href="#" class="nav-link mb-1" id="nav-backup" onclick="showPage('backup',this)" title="Backup — สำรองข้อมูล" style="display:none">
+      <i class="fas fa-database me-2"></i><span>Backup</span>
+      <span id="nav-backup-badge" class="badge bg-warning text-dark rounded-pill ms-2" style="display:none;font-size:.7rem" title="ยังไม่ได้สำรองข้อมูลเกิน 7 วัน">!</span>
     </a>
     </div>
     </div>
@@ -10167,6 +10179,10 @@ const _PAGE_LOADERS = {
   'misc'     : loadMiscData,
   'holdstock' : holdstockLoadData,
   'qc'        : () => window.qcLoadPage && qcLoadPage(),   // qc.js
+  // stocktools.js (2026-10-30) — เรียกผ่าน window.* เพราะไฟล์นั้นโหลดหลังสคริปต์นี้ (อ้างชื่อตรงๆ ตอนโหลด = ReferenceError)
+  'integrity' : () => window.integrityLoadPage && integrityLoadPage(),
+  'stockcount': () => window.stockCountLoad && stockCountLoad(),
+  'backup'    : () => window.backupLoad && backupLoad(),
   'plan'     : planLoadData,
   'bom'      : bomLoadData,
   'material' : loadMaterialData,
@@ -14590,10 +14606,12 @@ async function fgStockRecalculate() {
   // ต้องดึง hold_stock_moves (ItemType='FG') ด้วย — ของที่ย้ายไปสต็อก Defect/Retain ถูกตัดออกจาก stock_fg
   // จริงผ่าน fgUpdateStock(...,false) แต่ไม่เคยสร้างแถว fg_withdraw เลย ถ้าไม่หักตรงนี้ด้วย การคำนวณใหม่จะ
   // "คืน" ยอดที่ถูกย้ายไป Defect/Retain กลับเข้า stock_fg อย่างผิดๆ
-  const [recRes, outRes, moveRes] = await Promise.all([
+  // + ปรับยอดตรวจนับ FG (stock_adjustments, 2026-10-30) — ไม่รวมตรงนี้ กด "คำนวณใหม่" แล้วยอดที่ปรับจากใบตรวจนับจะหายหมด
+  const [recRes, outRes, moveRes, adjRes] = await Promise.all([
     _fetchAllPaged('fg_receive', '*'),
     _fetchAllPaged('fg_withdraw', '*'),
     _fetchAllPagedEq('hold_stock_moves', 'ItemCode,Lot,MoveType,Qty', 'ItemType', 'FG'),
+    _fetchAllPagedEq('stock_adjustments', 'ItemCode,Lot,Qty', 'ItemType', 'FG'),   // ยังไม่รัน create_stock_count.sql = error → ไม่มียอดปรับ
   ]);
 
   if (recRes.error) { _hideLoader(); _err('โหลด fg_receive ไม่ได้', recRes.error.message); return; }
@@ -14637,6 +14655,10 @@ async function fgStockRecalculate() {
     const qty = parseFloat(m.Qty) || 0;
     if (m.MoveType === 'IN') map[key].FGBalance = Math.max(0, map[key].FGBalance - qty);
     else if (m.MoveType === 'REWORK') map[key].FGBalance += qty;
+  }
+  for (const a of (adjRes.error ? [] : (adjRes.data || []))) {
+    const key = `${a.ItemCode}||${a.Lot}`;
+    if (map[key]) map[key].FGBalance = Math.max(0, map[key].FGBalance + (parseFloat(a.Qty) || 0));
   }
 
   // ตัดเฉพาะ column ที่ stock_fg มีแน่ๆ (ไม่รวม ExpDate/MO_ID ที่อาจไม่มี)
@@ -42011,7 +42033,24 @@ async function stockcardBuildMatTxns(code, lot) {
         source: 'Rework คืนจากสต็อก Defect' });
     }
   });
+  await _stockcardAddAdjustments(txns, 'RM', code, lot);
   return txns;
+}
+
+// ปรับยอดตรวจนับ (stock_adjustments — หน้า Stock Count ใน stocktools.js, 2026-10-30) — ปรับ stock_balance/stock_fg จริง
+// จึงต้องเป็นธุรกรรมในการ์ดสต็อกด้วย ไม่งั้นการ์ดสต็อกจะไม่ตรงหน้า Stock หลังตรวจนับ (+ = รับเข้า, − = จ่ายออก)
+// ยังไม่ได้รัน create_stock_count.sql = ตารางไม่มี → ข้ามเงียบๆ
+async function _stockcardAddAdjustments(txns, itemType, code, lot) {
+  let q = _sb.from('stock_adjustments').select('AdjDate,Lot,Qty,UOM,Reason,Count_ID').eq('ItemType', itemType).eq('ItemCode', code);
+  if (lot) q = q.eq('Lot', lot);
+  const { data, error } = await q;
+  if (error) return;
+  (data || []).forEach(a => {
+    const qv = parseFloat(a.Qty) || 0;
+    if (!qv) return;
+    txns.push({ date: String(a.AdjDate || ''), type: qv > 0 ? 'IN' : 'OUT', docId: a.Count_ID || '', lot: a.Lot || '',
+      qty: Math.abs(qv), uom: a.UOM || '', source: `ปรับยอดตรวจนับ — ${a.Reason || ''}` });
+  });
 }
 
 async function stockcardBuildFgTxns(code, lot) {
@@ -42062,6 +42101,7 @@ async function stockcardBuildFgTxns(code, lot) {
         source: 'Rework คืนจากสต็อก Defect' });
     }
   });
+  await _stockcardAddAdjustments(txns, 'FG', code, lot);
   return txns;
 }
 
@@ -44993,6 +45033,11 @@ function _renderCurrentUserBadge() {
   // "อัตราการทำงานพนักงาน" — admin หรือหัวหน้างานเท่านั้น (2026-09-25)
   const navLaborutil = document.getElementById('nav-laborutil');
   if (navLaborutil) navLaborutil.style.display = _hasRole('supervisor') ? '' : 'none';
+  // Integrity Check / Stock Count — หัวหน้างานขึ้นไป · Backup — แอดมิน (stocktools.js, 2026-10-30)
+  ['nav-integrity', 'nav-stockcount'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = _hasRole('supervisor') ? '' : 'none'; });
+  const navBackup = document.getElementById('nav-backup');
+  if (navBackup) navBackup.style.display = (_currentUser.isAdmin || _hasRole('admin')) ? '' : 'none';
+  if (typeof _backupBadge === 'function') _backupBadge();
   _navSyncGroups();   // กลุ่มเมนูที่ไม่เหลือรายการให้เห็นเลย (ตามสิทธิ์ด้านบน) ซ่อนทั้งกลุ่ม
 }
 
@@ -45328,6 +45373,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="factory-layout.js?v=20261022a"></script>
 <script src="floorpulse.js?v=20261022f"></script>
 <script src="qc.js?v=20261027n"></script>
+<!-- Integrity Check / Stock Count / Backup (2026-10-30) — ต้องอัปโหลดคู่กับ index.html · แก้แล้วเลื่อน ?v= -->
+<script src="stocktools.js?v=20261030a"></script>
 <script src="qc-coa.js?v=20261027k"></script>
 <script src="mobile/qc-mobile.js?v=20261027m"></script>
 </body>
